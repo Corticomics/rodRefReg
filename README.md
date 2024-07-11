@@ -63,7 +63,7 @@ While not essential for a working RRR system, we designed an assortment of 3D mo
 
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
-![](https://github.com/Corticomics/rodRefReg/assets/161750793/082f3128-5a56-4112-b72f-22af82c42911)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/67d2e097-7c94-4543-8324-299841beb248)
+![](https://github.com/Corticomics/rodRefReg/assets/161750793/082f3128-5a56-4112-b72f-22af82c42911)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/7fb5f4ec-0b1e-40aa-97c0-f15f67131a87)
 
   
    **4.2.** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
