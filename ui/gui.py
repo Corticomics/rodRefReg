@@ -15,14 +15,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
-    def __init__(self, run_program, stop_program, update_all_settings, style='idea3'):
+    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='idea3'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.update_all_settings = update_all_settings
+        self.change_relay_hats = change_relay_hats
 
-        self.settings = load_settings()
+        self.settings = settings
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
@@ -94,7 +95,7 @@ class RodentRefreshmentGUI(QWidget):
         suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
         right_layout.addWidget(suggest_settings_section)
 
-        run_stop_section = RunStopSection(self.run_program, self.stop_program)
+        run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
         right_layout.addWidget(run_stop_section)
 
         right_content = QWidget()
@@ -156,11 +157,6 @@ class RodentRefreshmentGUI(QWidget):
         try:
             settings = self.advanced_settings.get_settings()
             if settings:
-                self.advanced_settings.interval_entry.setText(str(settings['interval']))
-                self.advanced_settings.stagger_entry.setText("1")
-                self.advanced_settings.window_start_entry.setText(str(settings['window_start']))
-                self.advanced_settings.window_end_entry.setText(str(settings['window_end']))
-
                 for relay_pair, checkbox in self.advanced_settings.relay_checkboxes.items():
                     volume_per_relay = settings['num_triggers'][relay_pair]
                     triggers = self.calculate_triggers(volume_per_relay)
@@ -179,41 +175,3 @@ class RodentRefreshmentGUI(QWidget):
     def get_settings(self):
         settings = self.advanced_settings.get_settings()
         return settings
-
-def main(run_program, stop_program, update_all_settings):
-    app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings)
-    gui.show()
-    sys.exit(app.exec_())
-
-if __name__ == "__main__":
-    def run_program(interval, stagger, window_start, window_end):
-        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-        # Set these values to the settings
-        settings['interval'] = interval
-        settings['stagger'] = stagger
-        settings['window_start'] = window_start
-        settings['window_end'] = window_end
-        # Start the program
-        global running
-        running = True
-        threading.Thread(target=program_loop).start()
-        print("Program Started")
-
-    def stop_program():
-        global running
-        running = False
-        relay_handler.set_all_relays(0)
-        print("Program Stopped")
-        app.quit()
-
-    def update_all_settings():
-        new_settings = gui.get_settings()
-        settings.update(new_settings)
-        print("Settings updated")
-
-    settings = load_settings()
-    relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
-    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
-
-    main(run_program, stop_program, update_all_settings)

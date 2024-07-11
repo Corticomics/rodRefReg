@@ -1,12 +1,13 @@
-from PyQt5.QtWidgets import QTextEdit
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QTextEdit
 
-class TerminalOutput(QTextEdit):
+class TerminalOutput(QGroupBox):
     def __init__(self):
-        super().__init__()
-        self.setReadOnly(True)
-        self.setFixedHeight(150)
-        self.append("System Messages will appear here.")
-    
+        super().__init__("System Messages")
+        layout = QVBoxLayout()
+        self.terminal_output = QTextEdit()
+        self.terminal_output.setReadOnly(True)
+        layout.addWidget(self.terminal_output)
+        self.setLayout(layout)
+
     def print_to_terminal(self, message):
-        self.append(message)
-        self.ensureCursorVisible() 
+        self.terminal_output.append(message)

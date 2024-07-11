@@ -8,25 +8,18 @@ class RelayHandler:
         self.relay_pairs = relay_pairs
         self.num_hats = num_hats
         GPIO.setmode(GPIO.BOARD)
-        self.relay_hats = self.initialize_relay_hats(num_hats)
-    
-    def initialize_relay_hats(self, num_hats):
-        relay_hats = []
+        self.relay_hats = []
         for i in range(num_hats):
             try:
-                relay_hat = sm_16relind.SM16relind(stack=i)
-                relay_hats.append(relay_hat)
+                hat = sm_16relind.SM16relind(i)
+                self.relay_hats.append(hat)
                 print(f"Initialized relay hat {i}")
-                relay_hat.set_all(0)
             except Exception as e:
                 print(f"Failed to initialize hat {i}: {e}")
-                relay_hats.append(None)
-        return relay_hats
 
     def set_all_relays(self, state):
         for hat in self.relay_hats:
-            if hat is not None:
-                hat.set_all(state)
+            hat.set_all(state)
 
     def trigger_relays(self, selected_relays, num_triggers, stagger):
         relay_info = []
@@ -37,13 +30,27 @@ class RelayHandler:
                     relay1, relay2 = relay_pair
                     hat_index1, relay_index1 = divmod(relay1 - 1, 16)
                     hat_index2, relay_index2 = divmod(relay2 - 1, 16)
-                    if self.relay_hats[hat_index1] and self.relay_hats[hat_index2]:
+                    try:
                         self.relay_hats[hat_index1].set(relay_index1 + 1, 1)
                         self.relay_hats[hat_index2].set(relay_index2 + 1, 1)
-                        print(f"Pumps connected to {relay_pair} triggered")
+                        print(f"{datetime.datetime.now()} - Pumps connected to {relay_pair} triggered")
                         time.sleep(stagger)
                         self.relay_hats[hat_index1].set(relay_index1 + 1, 0)
                         self.relay_hats[hat_index2].set(relay_index2 + 1, 0)
                         time.sleep(stagger)
+                    except IndexError:
+                        print(f"Error: Relay hat index out of range for {relay_pair}")
                     relay_info.append(f"{relay_pair} triggered {triggers} times")
         return relay_info
+
+    def update_relay_hats(self, relay_pairs, num_hats):
+        self.relay_pairs = relay_pairs
+        self.num_hats = num_hats
+        self.relay_hats = []
+        for i in range(num_hats):
+            try:
+                hat = sm_16relind.SM16relind(i)
+                self.relay_hats.append(hat)
+                print(f"Initialized relay hat {i}")
+            except Exception as e:
+                print(f"Failed to initialize hat {i}: {e}")
