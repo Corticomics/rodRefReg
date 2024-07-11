@@ -1,7 +1,7 @@
 
 # Rodent Refreshment Regulator Version 17
 
-**Last updated: 28/06/2024 by JS -- CURRENTLY A WIP**
+**Last updated: 11/07/2024 by JS -- CURRENTLY A WIP**
 
 The Rodent Refreshment Regulator (RRR) is a python-based application designed to automatically dispense precise amounts of water to laboratory mice at specified intervals. Below you will find detailed instructions on setting up, configuring, and running the system using a Raspberry Pi and up to eight stackable sixteen-relay hats from [Sequent Microsystems](https://sequentmicrosystems.com/products/sixteen-relays-8-layer-stackable-hat-for-raspberry-pi).
 
@@ -59,13 +59,14 @@ A water reservoir is required to provide water to each micropump being used. We 
 4. **Optional 3D-Printed Support Structures:**
 While not essential for a working RRR system, we designed an assortment of 3D models (available in .STL format) that assist in the following ways:
 
-   **A.** A model to hold and prevent the pump from rolling in the top portion of the mouse enclosure.
+   **4.1.** A model to hold and prevent the pump from rolling in the top portion of the mouse enclosure.
 
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
-![](https://github.com/Corticomics/rodRefReg/assets/161750793/e443ed86-5dcb-4d52-b868-19b0ad4ba63d)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/e947e0f0-0769-4a04-88da-f6dc27c7cdfc)
+![]()  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/7fb5f4ec-0b1e-40aa-97c0-f15f67131a87)
+
   
-   **B.** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
+   **4.2.** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
   (Insert picture of irl print and the stl in blender)
   
 ![WaterCollectorStl](https://github.com/Corticomics/rodRefReg/assets/161750793/7f6d6cf0-9865-48db-a0ff-7a0d83dfde89)
@@ -74,7 +75,7 @@ PLA Print             |  STL Model
 (also add a picture of parts A and B setup in Unison)
 
 
-   **C.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle).
+   **4.3.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle).
   (Insert picture of irl print and the stl in blender)
   
 ![10ml_Water_Reservoir_Mount_x4](https://github.com/Corticomics/rodRefReg/assets/161750793/b99b08bc-4052-417a-88ea-356c3f739c3f)
