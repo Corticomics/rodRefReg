@@ -7,5 +7,6 @@
   "selected_relays": [],
   "num_triggers": {},
   "slack_token": "SLACKTOKEN",
-  "channel_id": "ChannelId"
+  "channel_id": "ChannelId",
+  "num_hats": 1
 }
