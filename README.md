@@ -71,11 +71,11 @@ PLA Print             |  STL Model
   
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
-![](https://github.com/user-attachments/assets/5860c0f8-9f81-476d-850f-9647fe179dbd)  |  ![](https://github.com/user-attachments/assets/a0ddb686-9c53-4620-84ad-4ee54a7ddec5)
+![](https://github.com/user-attachments/assets/aa5d12f2-ae69-4c1d-9806-c2b2daad81c9)  |  ![](https://github.com/user-attachments/assets/3ff389e9-a8fb-4439-b589-648ce31a7985)
 
-**Example Setup**
+**Example Setup (no wiring or water input)**
 :-------------------------:
-![]()
+![](https://github.com/user-attachments/assets/81885e1a-0429-4ffd-877d-c95c5e9a993a)
 
 
 
