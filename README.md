@@ -71,11 +71,13 @@ PLA Print             |  STL Model
   
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
-![](https://github.com/user-attachments/assets/d4a0f765-621d-47bd-8ac0-858e97831903)  |  ![](https://github.com/user-attachments/assets/0d7ea36b-f623-450c-9b3f-6368573d2c76)
+![](https://github.com/user-attachments/assets/5860c0f8-9f81-476d-850f-9647fe179dbd)  |  ![](https://github.com/user-attachments/assets/a0ddb686-9c53-4620-84ad-4ee54a7ddec5)
 
 **Example Setup**
 :-------------------------:
 ![]()
+
+
 
 
 
