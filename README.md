@@ -69,10 +69,14 @@ PLA Print             |  STL Model
    **4.2.** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
   (Insert picture of irl print and the stl in blender)
   
-![WaterCollectorStl](https://github.com/Corticomics/rodRefReg/assets/161750793/7f6d6cf0-9865-48db-a0ff-7a0d83dfde89)
+PLA Print             |  STL Model
+:-------------------------:|:-------------------------:
+![](https://github.com/user-attachments/assets/d4a0f765-621d-47bd-8ac0-858e97831903)  |  ![](https://github.com/user-attachments/assets/0d7ea36b-f623-450c-9b3f-6368573d2c76)
 
+**Example Setup**
+:-------------------------:
+![]()
 
-(also add a picture of parts A and B setup in Unison)
 
 
    **4.3.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle). Model was adapted from a smaller version made by the [OHRBETS](https://github.com/agordonfennell/OHRBETS) team.
