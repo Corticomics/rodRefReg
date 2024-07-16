@@ -67,18 +67,14 @@ PLA Print             |  STL Model
 
   
    **4.2.** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
-  (Insert picture of irl print and the stl in blender)
   
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
-![](https://github.com/user-attachments/assets/aa5d12f2-ae69-4c1d-9806-c2b2daad81c9)  |  ![](https://github.com/user-attachments/assets/3ff389e9-a8fb-4439-b589-648ce31a7985)
+![](https://github.com/user-attachments/assets/eaf59835-7f2d-43e8-bb3f-c4f4f6b75afe)  |  ![](https://github.com/user-attachments/assets/d3829dac-94f1-4d78-852c-0760f312059d)
 
 **Example Setup (no wiring or water input)**
 :-------------------------:
 ![](https://github.com/user-attachments/assets/81885e1a-0429-4ffd-877d-c95c5e9a993a)
-
-
-
 
 
    **4.3.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle). Model was adapted from a smaller version made by the [OHRBETS](https://github.com/agordonfennell/OHRBETS) team.
