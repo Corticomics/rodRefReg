@@ -3,8 +3,7 @@
 
 **Last updated: 11/07/2024 by JS -- CURRENTLY A WIP**
 
-![RRR Banner alternate text](https://github.com/user-attachments/assets/f8490330-5c96-49fd-98e4-c1301e1eb348)
-replace ![ image](https://github.com/user-attachments/assets/f8490330-5c96-49fd-98e4-c1301e1eb348) with <img src="https://your-image-url.type" width="100" height="100">
+<img src="https://github.com/user-attachments/assets/f8490330-5c96-49fd-98e4-c1301e1eb348" width="100" height="100">
 The Rodent Refreshment Regulator (RRR) is a python-based application designed to automatically dispense precise amounts of water to laboratory mice at specified intervals. Below you will find detailed instructions on setting up, configuring, and running the system using a Raspberry Pi and up to eight stackable sixteen-relay hats from [Sequent Microsystems](https://sequentmicrosystems.com/products/sixteen-relays-8-layer-stackable-hat-for-raspberry-pi).
 
 ## Table of Contents
