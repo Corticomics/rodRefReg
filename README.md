@@ -73,7 +73,7 @@ PLA Print             |  STL Model
   
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
-![](img src="https://github.com/user-attachments/assets/eaf59835-7f2d-43e8-bb3f-c4f4f6b75afe" height="400")  |  ![](img src="https://github.com/user-attachments/assets/d3829dac-94f1-4d78-852c-0760f312059d" height="400")
+![](https://github.com/user-attachments/assets/eaf59835-7f2d-43e8-bb3f-c4f4f6b75afe)  |  ![](https://github.com/user-attachments/assets/d3829dac-94f1-4d78-852c-0760f312059d)
 
 **Example Setup:** The pump tray with the water collector - without any water input or wiring.
 :-------------------------:
@@ -82,9 +82,10 @@ PLA Print             |  STL Model
 
    **4.3.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle). Model was adapted from a smaller version made by the [OHRBETS](https://github.com/agordonfennell/OHRBETS) team.
 
-**PLA Print**             |    **STL Model**         |  **Example Setup**
+**PLA Print & STL Model**             |  **Example Setup**
 :-------------------------:|:-------------------------:|:-------------------------:
-![](https://github.com/user-attachments/assets/e52a6cb9-0c24-4f4d-8f44-c5c0cbc1b3e7)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/b99b08bc-4052-417a-88ea-356c3f739c3f)  |  ![](https://github.com/user-attachments/assets/09865246-e34a-4bd6-8d43-1b05d3d77901)
+![](https://github.com/user-attachments/assets/6bd396d4-2883-407b-a4df-f6587220d063)  |  ![](https://github.com/user-attachments/assets/09865246-e34a-4bd6-8d43-1b05d3d77901)
+
 
 
 
