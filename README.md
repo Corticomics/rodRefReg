@@ -83,7 +83,7 @@ PLA Print             |  STL Model
    **4.3.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle). Model was adapted from a smaller version made by the [OHRBETS](https://github.com/agordonfennell/OHRBETS) team.
 
 **PLA Print**             |    **Example Setup**         |  **STL Model**
-:-------------------------:|:-------------------------:
+:-------------------------:|:-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/e52a6cb9-0c24-4f4d-8f44-c5c0cbc1b3e7
 )  |  ![](https://github.com/user-attachments/assets/09865246-e34a-4bd6-8d43-1b05d3d77901)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/b99b08bc-4052-417a-88ea-356c3f739c3f)
 
