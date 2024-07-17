@@ -6,7 +6,7 @@
 The **Rodent Refreshment Regulator (RRR)** is a python-based application designed to automatically dispense precise amounts of water to laboratory mice at specified intervals. Below you will find detailed instructions on setting up, configuring, and running the system using a Raspberry Pi and up to eight stackable sixteen-relay hats from [Sequent Microsystems](https://sequentmicrosystems.com/products/sixteen-relays-8-layer-stackable-hat-for-raspberry-pi).
 
 
-<img src="https://github.com/user-attachments/assets/f8490330-5c96-49fd-98e4-c1301e1eb348" width="550" height="400">
+<img src="https://github.com/user-attachments/assets/d616c02f-4deb-492b-9152-173165b6e278" width="550" height="400">
 
 ## Table of Contents
 - [Features](#features)
@@ -62,31 +62,32 @@ A water reservoir is required to provide water to each micropump being used. We 
 4. **Optional 3D-Printed Support Structures:**
 While not essential for a working RRR system, we designed an assortment of 3D models (available in .STL format) that assist in the following ways:
 
-   **4.1.** A model to hold and prevent the pump from rolling in the top portion of the mouse enclosure.
+   **4.1. Pump Tray:** A model to hold and prevent the pump from rolling in the top portion of the mouse enclosure (we also used a piece of electrical tape for further support).
 
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/e7547358-ae70-43be-ac31-f15cc8109734)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/7fb5f4ec-0b1e-40aa-97c0-f15f67131a87)
 
   
-   **4.2.** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
+   **4.2. Water Collector:** A model to recieve the water tube within the mouse enclosure - features a section for water to be deposited while preventing access to the tube, to prevent mice from chewing on it.
   
 PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/eaf59835-7f2d-43e8-bb3f-c4f4f6b75afe)  |  ![](https://github.com/user-attachments/assets/d3829dac-94f1-4d78-852c-0760f312059d)
 
-**Example Setup (no wiring or water input)**
+**Example Setup:** The pump tray with the water collector - without any water input or wiring.
 :-------------------------:
 ![](https://github.com/user-attachments/assets/81885e1a-0429-4ffd-877d-c95c5e9a993a)
 
 
    **4.3.** A model to hold a 10ml syringe upright, for use as a makeshift water reservoir when initially testing the RRR system (using a 18G blunt fill needle). Model was adapted from a smaller version made by the [OHRBETS](https://github.com/agordonfennell/OHRBETS) team.
 
-PLA Print             |  STL Model
+**PLA Print**             |    **Example Setup**         |  **STL Model**
 :-------------------------:|:-------------------------:
-![]()  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/b99b08bc-4052-417a-88ea-356c3f739c3f)
-  
- 
+![](https://github.com/user-attachments/assets/e52a6cb9-0c24-4f4d-8f44-c5c0cbc1b3e7
+)  |  ![](https://github.com/user-attachments/assets/09865246-e34a-4bd6-8d43-1b05d3d77901)  |  ![](https://github.com/Corticomics/rodRefReg/assets/161750793/b99b08bc-4052-417a-88ea-356c3f739c3f)
+
+
    **3D Printer Settings:**
    - We used a PRUSA I3 MK3 3D printer using standard PLA Material and a 0.3mm nozzle.
    - Bed Temperature was set to 70°.
