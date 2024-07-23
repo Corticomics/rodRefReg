@@ -233,7 +233,6 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 (DESCRIIBE HERE)
 
 
-
 ## **One-Way ANOVA Result**
 
 <img width="200" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
@@ -244,7 +243,8 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 <img src="https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2" width = "500">
 
-![boot](https://github.com/user-attachments/assets/26ee1121-3f79-4c29-ba64-656be455617b)
+![boot](https://github.com/user-attachments/assets/996e44c0-8728-405c-a5fa-383a2c3d6e26)
+
    **Note:** As seen in the above data, variance is (DECRIPTION)
 
 **STATS DISCUSSION SECTION**
