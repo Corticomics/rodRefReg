@@ -199,7 +199,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
   **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/) As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
 
-# **Raw Data**
+## **Raw Data**
 
 **Pump 1** | **Pump 2** 
 :-------------------------:|:-------------------------:
@@ -209,22 +209,22 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 :-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
 
-# **Simple Descriptive Statistics**
+## **Simple Descriptive Statistics**
 
 <img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "500">
 
 
-# **Coefficient of Variation**
+## **Coefficient of Variation**
 
 <img src="https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c" width = "500">
 
 
-# **Correlation Matrix**
+## **Correlation Matrix**
 
 <img src="https://github.com/user-attachments/assets/5b5557ab-a7d7-4bad-9135-8643a20e9259" width = "500">
 
 
-# **Variance Between Pumps Over Trials**
+## **Variance Between Pumps Over Trials**
 
 ![Box Plot](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
 (DESCRIPTION)
@@ -232,10 +232,10 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 ![Line graph](https://github.com/user-attachments/assets/bfb5f91e-d10d-49c3-be56-9f7b4d48fed0)
 (DESCRIPTION)
 
-# **One-Way ANOVA Result**
+## **One-Way ANOVA Result**
 (add here)
 
-# **Bootstrapped Variances for Different Numbers of Trials:**
+## **Bootstrapped Variances for Different Numbers of Trials:**
 
 <img src="https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2" width = "500">
 
