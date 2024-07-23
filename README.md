@@ -201,16 +201,40 @@ The system can send email notifications upon successful water dispensing. We use
 Ensuring that the RRR system releases an accurate and consisent amount of water over time is crucial for its usability. To assess variance in water ouput using the RRR, we setup four micropumps from [The Lee Co.](https://www.theleeco.com/products/pumps/) (see our hardware overview above), and ran 30 trials whereby each pump was triggered 100 times per trial. After each set of 100 triggers (1 trial), the water released by each pump was recorded and subsequently emptied. In between each trial, the 3D-printed water collectors associated with each pump were re-weighed, in order to account for any residual water containted within prior to the next trial. It should also be noted that all of the tubing used in collecting this data was primed beforehand to eliminate excess air - as described in our priming protocol above. Below we have included the raw data we collected from these trials, as well as several statistical tests to assess variance between and within pumps.
 
   **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/). As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
-  
+
+**Raw Data**
 **Pump 1** | **Pump 2** | **Pump 3** | **Pump 4**
-:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
-![](https://github.com/user-attachments/assets/2b34bc31-b499-4118-8411-faba4edfc41c)  | ![](https://github.com/user-attachments/assets/961b877f-421b-40d1-8b01-09773301fb81)  | ![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
+:-------------------------:|:-------------------------:
+![](https://github.com/user-attachments/assets/2b34bc31-b499-4118-8411-faba4edfc41c)  | ![](https://github.com/user-attachments/assets/961b877f-421b-40d1-8b01-09773301fb81) 
+**Pump 3** | **Pump 4**
+:-------------------------:|:-------------------------:
+![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
 
+**Simple Descriptive Statistics**
+![](https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6)
 
+**Coefficient of Variation**
+![](https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c)
 
-1. **Variance of Water Delivery**
+**Correlation Matrix**
+![](https://github.com/user-attachments/assets/c41d1b02-5a9d-4fda-8f5c-7ff88f211977)
 
-(add once we refine the process better)
+**Variance Between Pumps Over Trials**
+![Box Plot](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
+(DESCRIPTION)
+
+![Line graph](https://github.com/user-attachments/assets/bfb5f91e-d10d-49c3-be56-9f7b4d48fed0)
+(DESCRIPTION)
+
+**One-Way ANOVA Result**
+(add here)
+
+**Bootstrapped Variances for Different Numbers of Trials:**
+![](https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2
+![boot](https://github.com/user-attachments/assets/26ee1121-3f79-4c29-ba64-656be455617b)
+   **Note:** As seen in the above data, variance is (DECRIPTION)
+
+**STATS DISCUSSION SECTION**
 
 ## Troubleshooting
 - Ensure the Raspberry Pi and relay hat are properly connected, and that all components are grounded correctly.
