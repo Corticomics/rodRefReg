@@ -90,9 +90,6 @@ PLA Print             |  STL Model
 :-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/6bd396d4-2883-407b-a4df-f6587220d063)  |  ![](https://github.com/user-attachments/assets/09865246-e34a-4bd6-8d43-1b05d3d77901)
 
-
-
-
    **3D Printer Settings:**
    - We used a PRUSA I3 MK3 3D printer using standard PLA Material and a 0.3mm nozzle.
    - Bed Temperature was set to 70°.
@@ -200,7 +197,7 @@ The system can send email notifications upon successful water dispensing. We use
 ## Statistics
 Ensuring that the RRR system releases an accurate and consisent amount of water over time is crucial for its usability. To assess variance in water ouput using the RRR, we setup four micropumps from [The Lee Co.](https://www.theleeco.com/products/pumps/) (see our hardware overview above), and ran 30 trials whereby each pump was triggered 100 times per trial. After each set of 100 triggers (1 trial), the water released by each pump was recorded and subsequently emptied. In between each trial, the 3D-printed water collectors associated with each pump were re-weighed, in order to account for any residual water containted within prior to the next trial. It should also be noted that all of the tubing used in collecting this data was primed beforehand to eliminate excess air - as described in our priming protocol above. Below we have included the raw data we collected from these trials, as well as several statistical tests to assess variance between and within pumps.
 
-  **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/). As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
+  **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/) As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
 
 **Raw Data**
 
@@ -213,16 +210,16 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 ![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
 
 **Simple Descriptive Statistics**
+<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "500">
 
-<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "600">
 
 **Coefficient of Variation**
+<img src="https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c" width = "500">
 
-<img src="https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c" width = "600">
 
 **Correlation Matrix**
+<img src="https://github.com/user-attachments/assets/5b5557ab-a7d7-4bad-9135-8643a20e9259" width = "500">
 
-<img src="https://github.com/user-attachments/assets/c41d1b02-5a9d-4fda-8f5c-7ff88f211977" width = "600">
 
 **Variance Between Pumps Over Trials**
 ![Box Plot](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
