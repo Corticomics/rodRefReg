@@ -214,15 +214,15 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 **Simple Descriptive Statistics**
 
-<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "800">
+<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "600">
 
 **Coefficient of Variation**
 
-![](https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c)
+<img src="https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c" width = "600">
 
 **Correlation Matrix**
 
-![](https://github.com/user-attachments/assets/c41d1b02-5a9d-4fda-8f5c-7ff88f211977)
+<img src="https://github.com/user-attachments/assets/c41d1b02-5a9d-4fda-8f5c-7ff88f211977" width = "600">
 
 **Variance Between Pumps Over Trials**
 ![Box Plot](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
