@@ -203,16 +203,18 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
   **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/). As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
 
 **Raw Data**
+
 **Pump 1** | **Pump 2** 
 :-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/2b34bc31-b499-4118-8411-faba4edfc41c)  | ![](https://github.com/user-attachments/assets/961b877f-421b-40d1-8b01-09773301fb81) 
+
 **Pump 3** | **Pump 4**
 :-------------------------:|:-------------------------:
 ![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
 
 **Simple Descriptive Statistics**
 
-![](https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6)
+<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "800" 
 
 **Coefficient of Variation**
 
