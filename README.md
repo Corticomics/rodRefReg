@@ -210,14 +210,18 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 ![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
 
 **Simple Descriptive Statistics**
+
 <img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "500">
 
 
 **Coefficient of Variation**
+
 <img src="https://github.com/user-attachments/assets/b9c15fa1-267e-4743-a339-a497881c9c8c" width = "500">
 
 
 **Correlation Matrix**
+**Correlation Matrix**
+:-------------------------:
 <img src="https://github.com/user-attachments/assets/5b5557ab-a7d7-4bad-9135-8643a20e9259" width = "500">
 
 
