@@ -246,7 +246,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 Given that our p-value is notably smaller than our threshold of 0.05, we can say that significant differences in water output are present between pumps 1-4.
 
-## Tukey's Honestly Significant Difference (HSD) Post-Hoc Test
+### Tukey's Honestly Significant Difference (HSD) Post-Hoc Test
 
 <img width="1000" alt="tukey" src="https://github.com/user-attachments/assets/845aa84d-5566-4a8f-8cd7-dec4b8a5ddea">
 
