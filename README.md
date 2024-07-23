@@ -220,8 +220,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 
 **Correlation Matrix**
-**Correlation Matrix**
-:-------------------------:
+
 <img src="https://github.com/user-attachments/assets/5b5557ab-a7d7-4bad-9135-8643a20e9259" width = "500">
 
 
