@@ -225,6 +225,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 
 **Variance Between Pumps Over Trials**
+
 ![Box Plot](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
 (DESCRIPTION)
 
@@ -235,7 +236,9 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 (add here)
 
 **Bootstrapped Variances for Different Numbers of Trials:**
-![](https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2
+
+![](https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2)
+
 ![boot](https://github.com/user-attachments/assets/26ee1121-3f79-4c29-ba64-656be455617b)
    **Note:** As seen in the above data, variance is (DECRIPTION)
 
