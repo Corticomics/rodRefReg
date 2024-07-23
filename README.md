@@ -226,11 +226,11 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 ## **Variance Between Pumps Over Trials**
 
-![Box Plot](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
-(DESCRIPTION)
+![](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
+(DESCRIBE HERE)
 
 ![Line graph](https://github.com/user-attachments/assets/bfb5f91e-d10d-49c3-be56-9f7b4d48fed0)
-(DESCRIPTION)
+(DESCRIIBE HERE)
 
 ## **One-Way ANOVA Result**
 (add here)
