@@ -39,9 +39,13 @@ The **Rodent Refreshment Regulator (RRR)** is a python-based application designe
 - 16-Relays hat from [Sequent Microsystems](https://sequentmicrosystems.com/products/sixteen-relays-8-layer-stackable-hat-for-raspberry-pi) (up to 8 hats depending on the scale of your setup).
 - Python 3
 - Required Python packages (see below)
-- One 10μL micropump for each mouse enclosure. We used model "LPMX0501600B A" from [The Lee Co.](https://www.theleeco.com/products/pumps/)
 - An assortment of copper wiring, tubing, and a large water reservoir (see below for details pertaining to quantity and sizing)
 - (Optional) a 3D printer with PLA material for printing various support structures that may be valuable in your setup.
+- One 10μL micropump for each mouse enclosure. We used model "LPMX0501600B A" from [The Lee Co.](https://www.theleeco.com/products/pumps/). We have attached the schematics for this model below, for reference.
+
+Lee Co. Pump Schematics (Model LPMX0501600B A)|
+:-------------------------:
+ ![](<img width="868" alt="Pump Schematics" src="https://github.com/user-attachments/assets/2b79a139-09c3-4f83-86e7-30d5e8bff458">)
 
 ## Hardware Overview
 1. **The Sixteen-Relays Hat:**
@@ -194,6 +198,17 @@ The system can send email notifications upon successful water dispensing. We use
 (fill in details pertaining to slackbot functionality here!)
 
 ## Statistics
+Ensuring that the RRR system releases an accurate and consisent amount of water over time is crucial for its usability. To assess variance in water ouput using the RRR, we setup four micropumps from [The Lee Co.](https://www.theleeco.com/products/pumps/) (see our hardware overview above), and ran 30 trials whereby each pump was triggered 100 times per trial. After each set of 100 triggers (1 trial), the water released by each pump was recorded and subsequently emptied. In between each trial, the 3D-printed water collectors associated with each pump were re-weighed, in order to account for any residual water containted within prior to the next trial. It should also be noted that all of the tubing used in collecting this data was primed beforehand to eliminate excess air - as described in our priming protocol above. Below we have included the raw data we collected from these trials, as well as several statistical tests to assess variance between and within pumps.
+
+  **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/). As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
+  
+
+
+
+
+
+
+
 1. **Variance of Water Delivery**
 
 (add once we refine the process better)
