@@ -230,14 +230,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 (DESCRIBE HERE)
 
 ![Line graph](https://github.com/user-attachments/assets/bfb5f91e-d10d-49c3-be56-9f7b4d48fed0)
-(DESCRIIBE HERE)
-
-
-## **One-Way ANOVA Result**
-
-<img width="200" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
-
-(add interpretation here)
+(DESCRIBE HERE)
 
 ## **Bootstrapped Variances for Different Numbers of Trials:**
 
@@ -247,7 +240,30 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
    **Note:** As seen in the above data, variance is (DECRIPTION)
 
+## **One-Way ANOVA Result**
+
+<img width="200" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
+
+Given that our p-value is notably smaller than our threshold of 0.05, we can say that significant differences in water output are present between pumps 1-4.
+
+## **Tukey's Honestly Significant Difference (HSD) Post-Hoc Test
+
+<img width="617" alt="tukey" src="https://github.com/user-attachments/assets/845aa84d-5566-4a8f-8cd7-dec4b8a5ddea">
+
+Interpretation:
+•	Pump 1 vs. Pump 2: The mean difference is -108.43, and the p-adj value is 0.001, indicating a significant difference.
+•	Pump 1 vs. Pump 3: The mean difference is 8.07, and the p-adj value is 0.899, indicating no significant difference.
+•	Pump 1 vs. Pump 4: The mean difference is -166.33, and the p-adj value is 0.001, indicating a significant difference.
+•	Pump 2 vs. Pump 3: The mean difference is 116.50, and the p-adj value is 0.001, indicating a significant difference.
+•	Pump 2 vs. Pump 4: The mean difference is -57.9, and the p-adj value is 0.001, indicating a significant difference.
+•	Pump 3 vs. Pump 4: The mean difference is -174.40, and the p-adj value is 0.001, indicating a significant difference.
+
+As such, while Pumps 1 and 3 are statistically similar, Pump 2 shows a significant difference when compared to both Pump 1 and Pump 3. Additionally, Pump 4 is significantly different from all other pumps.
+
 **STATS DISCUSSION SECTION**
+- need to mention how 4 is extremely off
+- how individually testing pumps will likely be necessary due to their inherent variation between eachother being significantly different.
+
 
 ## Troubleshooting
 - Ensure the Raspberry Pi and relay hat are properly connected, and that all components are grounded correctly.
