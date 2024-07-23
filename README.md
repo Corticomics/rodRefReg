@@ -242,7 +242,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 ## **One-Way ANOVA Result**
 
-<img width="400" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
+<img width="300" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
 
 Given that our p-value is notably smaller than our threshold of 0.05, we can say that significant differences in water output are present between pumps 1-4.
 
@@ -260,7 +260,8 @@ Given that our p-value is notably smaller than our threshold of 0.05, we can say
 
 As such, while Pumps 1 and 3 are statistically similar, Pump 2 shows a significant difference when compared to both Pump 1 and Pump 3. Additionally, Pump 4 is significantly different from all other pumps.
 
-**STATS DISCUSSION SECTION**
+
+# Statistics Overview
 - need to mention how 4 is extremely off
 - how individually testing pumps will likely be necessary due to their inherent variation between eachother being significantly different.
 
