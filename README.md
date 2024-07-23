@@ -45,7 +45,7 @@ The **Rodent Refreshment Regulator (RRR)** is a python-based application designe
 
 Lee Co. Pump Schematics (Model LPMX0501600B A)|
 :-------------------------:
- ![](<img width="868" alt="Pump Schematics" src="https://github.com/user-attachments/assets/2b79a139-09c3-4f83-86e7-30d5e8bff458">)
+ ![](Pump Schematics" src="https://github.com/user-attachments/assets/2b79a139-09c3-4f83-86e7-30d5e8bff458")
 
 ## Hardware Overview
 1. **The Sixteen-Relays Hat:**
@@ -202,10 +202,9 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
   **Note:** It is important to highlight the innate variance of the micropumps (model LPMX0501600B A) we used from [The Lee Co.](https://www.theleeco.com/products/pumps/). As detailed in the schematics diagram we included above, this model can vary up to **± 1.5 μL per 10 μL trigger**. As such, this is the minimum amount of variance that the RRR system is capable of reaching, barring the use of an alternate 10μL micropump model.
   
-
-
-
-
+**Pump 1** | **Pump 2** | **Pump 3** | **Pump 4**
+:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
+![](https://github.com/user-attachments/assets/2b34bc31-b499-4118-8411-faba4edfc41c)  | ![](https://github.com/user-attachments/assets/961b877f-421b-40d1-8b01-09773301fb81)  | ![](https://github.com/user-attachments/assets/d54d34aa-8d2a-4042-8a6f-3f66797405de)  | ![](https://github.com/user-attachments/assets/b67b939a-4247-4d9e-85c7-2f7516a23907)
 
 
 
