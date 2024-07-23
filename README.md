@@ -242,15 +242,15 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 ## **One-Way ANOVA Result**
 
-<img width="200" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
+<img width="400" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
 
 Given that our p-value is notably smaller than our threshold of 0.05, we can say that significant differences in water output are present between pumps 1-4.
 
-## **Tukey's Honestly Significant Difference (HSD) Post-Hoc Test
+## Tukey's Honestly Significant Difference (HSD) Post-Hoc Test
 
-<img width="617" alt="tukey" src="https://github.com/user-attachments/assets/845aa84d-5566-4a8f-8cd7-dec4b8a5ddea">
+<img width="1000" alt="tukey" src="https://github.com/user-attachments/assets/845aa84d-5566-4a8f-8cd7-dec4b8a5ddea">
 
-Interpretation:
+**Interpretation:**
 •	Pump 1 vs. Pump 2: The mean difference is -108.43, and the p-adj value is 0.001, indicating a significant difference.
 •	Pump 1 vs. Pump 3: The mean difference is 8.07, and the p-adj value is 0.899, indicating no significant difference.
 •	Pump 1 vs. Pump 4: The mean difference is -166.33, and the p-adj value is 0.001, indicating a significant difference.
