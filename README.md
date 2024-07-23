@@ -45,7 +45,7 @@ The **Rodent Refreshment Regulator (RRR)** is a python-based application designe
 
 Lee Co. Pump Schematics (Model LPMX0501600B A)|
 :-------------------------:
- ![](Pump Schematics" src="https://github.com/user-attachments/assets/2b79a139-09c3-4f83-86e7-30d5e8bff458")
+ ![](https://github.com/user-attachments/assets/2b79a139-09c3-4f83-86e7-30d5e8bff458)
 
 ## Hardware Overview
 1. **The Sixteen-Relays Hat:**
