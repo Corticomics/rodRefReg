@@ -237,7 +237,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 **Bootstrapped Variances for Different Numbers of Trials:**
 
-![](https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2)
+<img src="https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2" width = "500">
 
 ![boot](https://github.com/user-attachments/assets/26ee1121-3f79-4c29-ba64-656be455617b)
    **Note:** As seen in the above data, variance is (DECRIPTION)
