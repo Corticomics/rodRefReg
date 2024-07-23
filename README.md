@@ -214,7 +214,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 **Simple Descriptive Statistics**
 
-<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "800" 
+<img src="https://github.com/user-attachments/assets/49b2eec0-d13d-4f6e-9ba0-d82d7d863eb6" width = "800">
 
 **Coefficient of Variation**
 
