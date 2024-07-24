@@ -229,7 +229,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 ![](https://github.com/user-attachments/assets/fa6d379c-ae6c-4468-a49e-8400d348f8ae)
 (DESCRIBE HERE)
 
-![Line graph](https://github.com/user-attachments/assets/bfb5f91e-d10d-49c3-be56-9f7b4d48fed0)
+![Line graph](https://github.com/user-attachments/assets/2fa6ea2d-bc45-41bc-ab99-474fcae90e7d)
 (DESCRIBE HERE)
 
 ## **Bootstrapped Variances for Differing Numbers of Trials:**
