@@ -236,7 +236,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 <img src="https://github.com/user-attachments/assets/a3f3d936-d3e3-49bf-9347-49e058d274d2" width = "500">
 
-![boot](https://github.com/user-attachments/assets/996e44c0-8728-405c-a5fa-383a2c3d6e26)
+![boot](https://github.com/user-attachments/assets/62ecfc97-bd46-4938-aaa7-d65110c8f824)
 
    **Note:** As seen in the above data, variance is (DECRIPTION)
 
