@@ -245,7 +245,7 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 <img width="300" alt="anova" src="https://github.com/user-attachments/assets/ed4f49c2-87a5-465f-bf51-b051ddbcd9bb">
 
-Given that our p-value is notably smaller than our threshold of 0.05, we can say that significant differences in water output are present between pumps 1-4. Furthermore, the notaly high f-value suggests that substantial differences exist between the means of the water weights for pumps 1-4.
+Given that our p-value is notably smaller than our threshold of 0.05, we can say that significant differences in water output are present between pumps 1-4. Furthermore, the notably high f-value suggests that substantial differences exist between the means of the water weights for pumps 1-4.
 
 ## Tukey's Honestly Significant Difference (HSD) Post-Hoc Test
 
