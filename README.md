@@ -252,10 +252,15 @@ Given that our p-value is notably smaller than our threshold of 0.05, we can say
 
 **Interpretation:**
 •	Pump 1 vs. Pump 2: The mean difference is -108.43, and the p-adj value is 0.001, indicating a significant difference.
+
 •	Pump 1 vs. Pump 3: The mean difference is 8.07, and the p-adj value is 0.899, indicating no significant difference.
+
 •	Pump 1 vs. Pump 4: The mean difference is -166.33, and the p-adj value is 0.001, indicating a significant difference.
+
 •	Pump 2 vs. Pump 3: The mean difference is 116.50, and the p-adj value is 0.001, indicating a significant difference.
+
 •	Pump 2 vs. Pump 4: The mean difference is -57.9, and the p-adj value is 0.001, indicating a significant difference.
+
 •	Pump 3 vs. Pump 4: The mean difference is -174.40, and the p-adj value is 0.001, indicating a significant difference.
 
 As such, while Pumps 1 and 3 are statistically similar, Pump 2 shows a significant difference when compared to both Pump 1 and Pump 3. Additionally, Pump 4 is significantly different from all other pumps.
