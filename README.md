@@ -238,7 +238,8 @@ Ensuring that the RRR system releases an accurate and consisent amount of water 
 
 ![boot](https://github.com/user-attachments/assets/62ecfc97-bd46-4938-aaa7-d65110c8f824)
 
-   **Note:** As seen in the above data, variance is (DECRIPTION)
+   **Note:** The above graph illustrates how the variance in water weight scales with the number of trials for each pump. Using resampling techniques, we estimated the variance for various trial counts (30, 100, 300, 500, and 1000). The graph indicates that Pump 4 has significantly higher variance compared to Pumps 1-3, suggesting potential hardware issues with Pump 4.
+   
 
 ## **One-Way ANOVA**
 
