@@ -54,6 +54,26 @@ class AdvancedSettingsSection(QGroupBox):
             if relay_pair in self.settings['selected_relays']:
                 self.settings['selected_relays'].remove(relay_pair)
 
+    def update_relay_checkboxes(self, relay_pairs):
+        for relay_pair in relay_pairs:
+            relay_pair_tuple = tuple(relay_pair)
+            if relay_pair_tuple not in self.relay_checkboxes:
+                check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
+                check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
+                check_box.setChecked(True)
+                check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
+                self.layout().addWidget(check_box)
+                self.relay_checkboxes[relay_pair_tuple] = check_box
+
+                entry_layout = QHBoxLayout()
+                entry_layout.addWidget(QLabel("Triggers:"))
+                trigger_entry = QLineEdit()
+                trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
+                trigger_entry.setText("0")
+                entry_layout.addWidget(trigger_entry)
+                self.trigger_entries[relay_pair_tuple] = trigger_entry
+                self.layout().addLayout(entry_layout)
+
     def get_settings(self):
         settings = {
             'selected_relays': [rp for rp, checkbox in self.relay_checkboxes.items() if checkbox.isChecked()],

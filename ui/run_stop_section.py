@@ -1,4 +1,5 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
+from PyQt5.QtCore import Qt
 
 class RunStopSection(QGroupBox):
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
@@ -9,50 +10,40 @@ class RunStopSection(QGroupBox):
 
         layout = QVBoxLayout()
 
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("Interval (seconds):"))
-        self.interval_entry = QLineEdit()
-        self.interval_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        interval_layout.addWidget(self.interval_entry)
-        layout.addLayout(interval_layout)
-
-        stagger_layout = QHBoxLayout()
-        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
-        self.stagger_entry = QLineEdit()
-        self.stagger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        stagger_layout.addWidget(self.stagger_entry)
-        layout.addLayout(stagger_layout)
-
-        window_start_layout = QHBoxLayout()
-        window_start_layout.addWidget(QLabel("Water Window Start (24-hour format):"))
-        self.window_start_entry = QLineEdit()
-        self.window_start_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        window_start_layout.addWidget(self.window_start_entry)
-        layout.addLayout(window_start_layout)
-
-        window_end_layout = QHBoxLayout()
-        window_end_layout.addWidget(QLabel("Water Window End (24-hour format):"))
-        self.window_end_entry = QLineEdit()
-        self.window_end_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        window_end_layout.addWidget(self.window_end_entry)
-        layout.addLayout(window_end_layout)
+        self.interval_entry = self.add_setting_input(layout, "Interval (seconds):", 3600)
+        self.stagger_entry = self.add_setting_input(layout, "Stagger (seconds):", 1)
+        self.window_start_entry = self.add_setting_input(layout, "Water Window Start (24-hour format):", 8)
+        self.window_end_entry = self.add_setting_input(layout, "Water Window End (24-hour format):", 20)
 
         run_button = QPushButton("Run Program")
-        run_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         run_button.clicked.connect(self.run_program)
         layout.addWidget(run_button)
 
         stop_button = QPushButton("Stop Program")
-        stop_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         stop_button.clicked.connect(self.stop_program)
         layout.addWidget(stop_button)
 
         change_hats_button = QPushButton("Change Relay Hats")
-        change_hats_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         change_hats_button.clicked.connect(self.change_relay_hats)
         layout.addWidget(change_hats_button)
 
-        self.setLayout(layout)
+        scroll_content = QWidget()
+        scroll_content.setLayout(layout)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(scroll_content)
+
+        outer_layout = QVBoxLayout()
+        outer_layout.addWidget(scroll_area)
+        self.setLayout(outer_layout)
+
+    def add_setting_input(self, layout, label_text, default_value):
+        layout.addWidget(QLabel(label_text))
+        entry = QLineEdit()
+        entry.setText(str(default_value))
+        layout.addWidget(entry)
+        return entry
 
     def run_program(self):
         interval = int(self.interval_entry.text())

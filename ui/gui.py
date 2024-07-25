@@ -76,7 +76,7 @@ class RodentRefreshmentGUI(QWidget):
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         middle_layout.addWidget(self.advanced_settings)
 
-        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings)
+        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
         middle_layout.addWidget(self.suggest_settings)
 
         main_layout.addLayout(middle_layout)
@@ -98,10 +98,10 @@ class RodentRefreshmentGUI(QWidget):
     def toggle_welcome_message(self):
         if self.welcome_section.scroll_area.isVisible():
             self.welcome_section.scroll_area.setVisible(False)
-            self.welcome_section.toggle_button.setText("Show Welcome Message and Instructions")
+            self.show_welcome_button.setText("Show Welcome Message and Instructions")
         else:
             self.welcome_section.scroll_area.setVisible(True)
-            self.welcome_section.toggle_button.setText("Hide Welcome Message")
+            self.show_welcome_button.setText("Hide Welcome Message")
         self.adjust_layout()
 
     def adjust_layout(self):
@@ -142,6 +142,21 @@ class RodentRefreshmentGUI(QWidget):
         try:
             settings = self.advanced_settings.get_settings()
             if settings:
+                self.advanced_settings.interval_entry.setText(str(settings['interval']))
+                self.advanced_settings.stagger_entry.setText("1")
+                self.advanced_settings.window_start_entry.setText(str(settings['window_start']))
+                self.advanced_settings.window_end_entry.setText(str(settings['window_end']))
+
+                for relay_pair, checkbox in self.advanced_settings.relay_checkboxes.items():
+                    volume_per_relay = settings['num_triggers'][relay_pair]
+                    triggers = self.calculate_triggers(volume_per_relay)
+                    self.advanced_settings.trigger_entries[relay_pair].setText(str(triggers))
+
+                    if volume_per_relay == 0:
+                        checkbox.setChecked(False)
+                    else:
+                        checkbox.setChecked(True)
+
                 self.update_all_settings()
                 self.print_to_terminal("Settings have been pushed to the control panel and updated.")
         except Exception as e:
@@ -150,6 +165,9 @@ class RodentRefreshmentGUI(QWidget):
     def get_settings(self):
         settings = self.advanced_settings.get_settings()
         return settings
+
+    def update_relay_checkboxes(self, relay_pairs):
+        self.advanced_settings.update_relay_checkboxes(relay_pairs)
 
 def main(run_program, stop_program, update_all_settings, change_relay_hats):
     app = QApplication(sys.argv)
@@ -160,10 +178,12 @@ def main(run_program, stop_program, update_all_settings, change_relay_hats):
 if __name__ == "__main__":
     def run_program(interval, stagger, window_start, window_end):
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
+        # Set these values to the settings
         settings['interval'] = interval
         settings['stagger'] = stagger
         settings['window_start'] = window_start
         settings['window_end'] = window_end
+        # Start the program
         global running
         running = True
         threading.Thread(target=program_loop).start()
@@ -180,6 +200,16 @@ if __name__ == "__main__":
         new_settings = gui.get_settings()
         settings.update(new_settings)
         print("Settings updated")
+
+    def change_relay_hats():
+        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+        if not ok:
+            return
+        settings['num_hats'] = num_hats
+        settings['relay_pairs'] = create_relay_pairs(num_hats)
+        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+        gui.update_relay_checkboxes(settings['relay_pairs'])
+        print(f"Number of relay hats changed to {num_hats}")
 
     settings = load_settings()
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
