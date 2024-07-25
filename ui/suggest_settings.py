@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
 
 class SuggestSettings(QGroupBox):
     def __init__(self, suggest_callback, push_callback):
@@ -10,7 +9,6 @@ class SuggestSettings(QGroupBox):
         layout = QVBoxLayout()
 
         self.entries = {}
-
         questions = [
             "Water volume for relays 1 & 2 (uL):",
             "Water volume for relays 3 & 4 (uL):",
@@ -38,10 +36,12 @@ class SuggestSettings(QGroupBox):
             self.entries[question] = entry
 
         self.suggest_button = QPushButton("Suggest Settings")
+        self.suggest_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         self.suggest_button.clicked.connect(self.suggest_callback)
         layout.addWidget(self.suggest_button)
 
         self.push_button = QPushButton("Push Settings")
+        self.push_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         self.push_button.clicked.connect(self.push_callback)
         layout.addWidget(self.push_button)
 

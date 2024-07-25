@@ -142,16 +142,6 @@ class RodentRefreshmentGUI(QWidget):
         try:
             settings = self.advanced_settings.get_settings()
             if settings:
-                for relay_pair, checkbox in self.advanced_settings.relay_checkboxes.items():
-                    volume_per_relay = settings['num_triggers'][relay_pair]
-                    triggers = self.calculate_triggers(volume_per_relay)
-                    self.advanced_settings.trigger_entries[relay_pair].setText(str(triggers))
-
-                    if volume_per_relay == 0:
-                        checkbox.setChecked(False)
-                    else:
-                        checkbox.setChecked(True)
-
                 self.update_all_settings()
                 self.print_to_terminal("Settings have been pushed to the control panel and updated.")
         except Exception as e:
@@ -163,14 +153,11 @@ class RodentRefreshmentGUI(QWidget):
 
 def main(run_program, stop_program, update_all_settings, change_relay_hats):
     app = QApplication(sys.argv)
-    settings = load_settings()
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats)
     gui.show()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
-    import threading
-
     def run_program(interval, stagger, window_start, window_end):
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
         settings['interval'] = interval
@@ -187,23 +174,15 @@ if __name__ == "__main__":
         running = False
         relay_handler.set_all_relays(0)
         print("Program Stopped")
+        app.quit()
 
     def update_all_settings():
         new_settings = gui.get_settings()
         settings.update(new_settings)
         print("Settings updated")
 
-    def change_relay_hats():
-        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-        if ok:
-            settings['num_hats'] = num_hats
-            settings['relay_pairs'] = create_relay_pairs(num_hats)
-            relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-            gui.advanced_settings.update_relay_pairs(settings)
-            gui.print_to_terminal("Relay hats updated successfully.")
-
     settings = load_settings()
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
-    main(run_program, stop_program, update_all_settings, change_relay_hats)
+    main(run_program, stop_program, update_all_settings)
