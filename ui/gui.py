@@ -1,16 +1,16 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout
 from PyQt5.QtCore import Qt
 
-from .terminal_output import TerminalOutput
-from .welcome_section import WelcomeSection
-from .advanced_settings import AdvancedSettingsSection
-from .suggest_settings import SuggestSettings
-from .run_stop_section import RunStopSection
+from ui.terminal_output import TerminalOutput
+from ui.welcome_section import WelcomeSection
+from ui.advanced_settings import AdvancedSettingsSection
+from ui.suggest_settings import SuggestSettings
+from ui.run_stop_section import RunStopSection
 import math
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
@@ -69,11 +69,6 @@ class RodentRefreshmentGUI(QWidget):
 
         main_layout = QVBoxLayout()
 
-        self.show_welcome_button = QPushButton("Hide Welcome Message")
-        self.show_welcome_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.show_welcome_button.clicked.connect(self.toggle_welcome_message)
-        main_layout.addWidget(self.show_welcome_button)
-
         self.welcome_section = WelcomeSection(self.toggle_welcome_message)
         main_layout.addWidget(self.welcome_section)
 
@@ -81,7 +76,7 @@ class RodentRefreshmentGUI(QWidget):
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         middle_layout.addWidget(self.advanced_settings)
 
-        self.suggest_settings = SuggestSettings(self.update_all_settings, self.print_to_terminal, self.run_program)
+        self.suggest_settings = SuggestSettings(self.suggest_settings_callback, self.push_settings_callback)
         middle_layout.addWidget(self.suggest_settings)
 
         main_layout.addLayout(middle_layout)
@@ -111,8 +106,9 @@ class RodentRefreshmentGUI(QWidget):
 
     def adjust_layout(self):
         self.adjustSize()
+        self.setWindowState(Qt.WindowMaximized)
 
-    def suggest_settings(self):
+    def suggest_settings_callback(self):
         values = self.suggest_settings.get_entry_values()
         if values is None:
             return
@@ -143,7 +139,7 @@ class RodentRefreshmentGUI(QWidget):
     def calculate_triggers(self, volume_needed):
         return math.ceil(volume_needed / 10)
 
-    def push_settings(self):
+    def push_settings_callback(self):
         try:
             settings = self.advanced_settings.get_settings()
             if settings:
@@ -170,9 +166,6 @@ class RodentRefreshmentGUI(QWidget):
     def get_settings(self):
         settings = self.advanced_settings.get_settings()
         return settings
-
-    def update_relay_checkboxes(self, relay_pairs):
-        self.advanced_settings.update_relay_checkboxes(relay_pairs)
 
 def main(run_program, stop_program, update_all_settings, change_relay_hats):
     app = QApplication(sys.argv)
@@ -205,16 +198,6 @@ if __name__ == "__main__":
         new_settings = gui.get_settings()
         settings.update(new_settings)
         print("Settings updated")
-
-    def change_relay_hats():
-        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-        if not ok:
-            return
-        settings['num_hats'] = num_hats
-        settings['relay_pairs'] = create_relay_pairs(num_hats)
-        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-        gui.update_relay_checkboxes(settings['relay_pairs'])
-        print(f"Number of relay hats changed to {num_hats}")
 
     settings = load_settings()
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])

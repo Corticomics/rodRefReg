@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit
 from PyQt5.QtCore import Qt
 
 class RunStopSection(QGroupBox):
@@ -10,40 +10,55 @@ class RunStopSection(QGroupBox):
 
         layout = QVBoxLayout()
 
-        self.interval_entry = self.add_setting_input(layout, "Interval (seconds):", 3600)
-        self.stagger_entry = self.add_setting_input(layout, "Stagger (seconds):", 1)
-        self.window_start_entry = self.add_setting_input(layout, "Water Window Start (24-hour format):", 8)
-        self.window_end_entry = self.add_setting_input(layout, "Water Window End (24-hour format):", 20)
+        interval_layout = QHBoxLayout()
+        interval_label = QLabel("Interval (seconds):")
+        interval_label.setAlignment(Qt.AlignLeft)
+        self.interval_entry = QLineEdit()
+        interval_layout.addWidget(interval_label)
+        interval_layout.addWidget(self.interval_entry)
+
+        stagger_layout = QHBoxLayout()
+        stagger_label = QLabel("Stagger (seconds):")
+        stagger_label.setAlignment(Qt.AlignLeft)
+        self.stagger_entry = QLineEdit()
+        stagger_layout.addWidget(stagger_label)
+        stagger_layout.addWidget(self.stagger_entry)
+
+        window_start_layout = QHBoxLayout()
+        window_start_label = QLabel("Water Window Start (24-hour format):")
+        window_start_label.setAlignment(Qt.AlignLeft)
+        self.window_start_entry = QLineEdit()
+        window_start_layout.addWidget(window_start_label)
+        window_start_layout.addWidget(self.window_start_entry)
+
+        window_end_layout = QHBoxLayout()
+        window_end_label = QLabel("Water Window End (24-hour format):")
+        window_end_label.setAlignment(Qt.AlignLeft)
+        self.window_end_entry = QLineEdit()
+        window_end_layout.addWidget(window_end_label)
+        window_end_layout.addWidget(self.window_end_entry)
+
+        layout.addLayout(interval_layout)
+        layout.addLayout(stagger_layout)
+        layout.addLayout(window_start_layout)
+        layout.addLayout(window_end_layout)
+
+        button_layout = QHBoxLayout()
 
         run_button = QPushButton("Run Program")
         run_button.clicked.connect(self.run_program)
-        layout.addWidget(run_button)
+        button_layout.addWidget(run_button)
 
         stop_button = QPushButton("Stop Program")
         stop_button.clicked.connect(self.stop_program)
-        layout.addWidget(stop_button)
+        button_layout.addWidget(stop_button)
 
         change_hats_button = QPushButton("Change Relay Hats")
         change_hats_button.clicked.connect(self.change_relay_hats)
-        layout.addWidget(change_hats_button)
+        button_layout.addWidget(change_hats_button)
 
-        scroll_content = QWidget()
-        scroll_content.setLayout(layout)
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(scroll_content)
-
-        outer_layout = QVBoxLayout()
-        outer_layout.addWidget(scroll_area)
-        self.setLayout(outer_layout)
-
-    def add_setting_input(self, layout, label_text, default_value):
-        layout.addWidget(QLabel(label_text))
-        entry = QLineEdit()
-        entry.setText(str(default_value))
-        layout.addWidget(entry)
-        return entry
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
 
     def run_program(self):
         interval = int(self.interval_entry.text())

@@ -2,34 +2,18 @@ from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEd
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
-    def __init__(self, settings, update_all_settings_callback, print_to_terminal):
+    def __init__(self, settings, update_all_settings_callback, print_to_terminal_callback):
         super().__init__("Advanced Settings")
         self.settings = settings
         self.update_all_settings_callback = update_all_settings_callback
-        self.print_to_terminal = print_to_terminal
+        self.print_to_terminal_callback = print_to_terminal_callback
 
         layout = QVBoxLayout()
 
         self.relay_checkboxes = {}
         self.trigger_entries = {}
 
-        for relay_pair in self.settings['relay_pairs']:
-            relay_pair_tuple = tuple(relay_pair)
-            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
-            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
-            check_box.setChecked(True)
-            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
-            layout.addWidget(check_box)
-            self.relay_checkboxes[relay_pair_tuple] = check_box
-
-            entry_layout = QHBoxLayout()
-            entry_layout.addWidget(QLabel("Triggers:"))
-            trigger_entry = QLineEdit()
-            trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-            trigger_entry.setText("0")
-            entry_layout.addWidget(trigger_entry)
-            self.trigger_entries[relay_pair_tuple] = trigger_entry
-            layout.addLayout(entry_layout)
+        self.update_relay_checkboxes(self.settings['relay_pairs'])
 
         update_settings_button = QPushButton("Update Settings")
         update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
@@ -47,6 +31,34 @@ class AdvancedSettingsSection(QGroupBox):
         outer_layout.addWidget(scroll_area)
         self.setLayout(outer_layout)
 
+    def update_relay_checkboxes(self, relay_pairs):
+        layout = self.layout().itemAt(0).widget().layout()
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        self.relay_checkboxes.clear()
+        self.trigger_entries.clear()
+
+        for relay_pair in relay_pairs:
+            relay_pair_tuple = tuple(relay_pair)
+            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
+            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
+            check_box.setChecked(True)
+            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
+            layout.addWidget(check_box)
+            self.relay_checkboxes[relay_pair_tuple] = check_box
+
+            entry_layout = QHBoxLayout()
+            entry_layout.addWidget(QLabel("Triggers:"))
+            trigger_entry = QLineEdit()
+            trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
+            trigger_entry.setText("0")
+            entry_layout.addWidget(trigger_entry)
+            self.trigger_entries[relay_pair_tuple] = trigger_entry
+            layout.addLayout(entry_layout)
+
     def toggle_relay_callback(self, relay_pair, state):
         if state == Qt.Checked:
             self.settings['selected_relays'].append(relay_pair)
@@ -60,33 +72,3 @@ class AdvancedSettingsSection(QGroupBox):
             'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
         }
         return settings
-
-    def update_relay_checkboxes(self, relay_pairs):
-        for rp, checkbox in self.relay_checkboxes.items():
-            checkbox.setParent(None)
-        for rp, entry in self.trigger_entries.items():
-            entry.setParent(None)
-
-        self.relay_checkboxes.clear()
-        self.trigger_entries.clear()
-
-        for relay_pair in relay_pairs:
-            relay_pair_tuple = tuple(relay_pair)
-            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
-            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
-            check_box.setChecked(True)
-            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
-            self.layout().addWidget(check_box)
-            self.relay_checkboxes[relay_pair_tuple] = check_box
-
-            entry_layout = QHBoxLayout()
-            entry_layout.addWidget(QLabel("Triggers:"))
-            trigger_entry = QLineEdit()
-            trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-            trigger_entry.setText("0")
-            entry_layout.addWidget(trigger_entry)
-            self.trigger_entries[relay_pair_tuple] = trigger_entry
-            self.layout().addLayout(entry_layout)
-
-        self.update_all_settings_callback()
-
