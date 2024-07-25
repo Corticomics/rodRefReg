@@ -6,18 +6,17 @@ class WelcomeSection(QGroupBox):
     def __init__(self, toggle_callback):
         super().__init__("Rodent Refreshment Regulator Wizard")
         self.toggle_callback = toggle_callback
-
         layout = QVBoxLayout()
 
-        welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
-        welcome_label.setFont(QFont("Arial", 24, QFont.Bold))
-        welcome_label.setStyleSheet("color: green;")
-        layout.addWidget(welcome_label)
+        self.welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
+        self.welcome_label.setFont(QFont("Arial", 24, QFont.Bold))
+        self.welcome_label.setStyleSheet("color: green;")
+        layout.addWidget(self.welcome_label)
 
-        steps_label = QLabel("Steps:")
-        steps_label.setFont(QFont("Arial", 18, QFont.Bold))
-        steps_label.setStyleSheet("color: green; margin-top: 10px;")
-        layout.addWidget(steps_label)
+        self.steps_label = QLabel("Steps:")
+        self.steps_label.setFont(QFont("Arial", 18, QFont.Bold))
+        self.steps_label.setStyleSheet("color: green; margin-top: 10px;")
+        layout.addWidget(self.steps_label)
 
         subheaders_text = (
             "<ol style='padding-left: 20px;'>"
@@ -49,13 +48,12 @@ class WelcomeSection(QGroupBox):
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setWidget(subheaders_label)
-
-        self.setLayout(layout)
+        self.scroll_area.setWidget(self)
+        layout.addWidget(self.scroll_area)
 
         self.toggle_button = QPushButton("Hide Welcome Message")
-        self.toggle_button.clicked.connect(self.toggle_welcome_message)
+        self.toggle_button.clicked.connect(self.toggle_callback)
         layout.addWidget(self.toggle_button)
 
-    def toggle_welcome_message(self):
-        self.toggle_callback()
+        self.setLayout(layout)
+    

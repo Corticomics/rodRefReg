@@ -11,7 +11,7 @@ from .run_stop_section import RunStopSection
 import math
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
-from settings.config import load_settings
+from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
     def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='idea3'):
@@ -76,7 +76,7 @@ class RodentRefreshmentGUI(QWidget):
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         middle_layout.addWidget(self.advanced_settings)
 
-        self.suggest_settings = SuggestSettings(self.suggest_settings_callback, self.push_settings_callback, self.run_program, self.stop_program)
+        self.suggest_settings = SuggestSettings(self.suggest_settings_callback, self.push_settings_callback)
         middle_layout.addWidget(self.suggest_settings)
 
         main_layout.addLayout(middle_layout)
@@ -106,7 +106,6 @@ class RodentRefreshmentGUI(QWidget):
 
     def adjust_layout(self):
         self.adjustSize()
-        self.setWindowState(Qt.WindowMaximized)
 
     def suggest_settings_callback(self):
         values = self.suggest_settings.get_entry_values()
@@ -136,28 +135,10 @@ class RodentRefreshmentGUI(QWidget):
         except ValueError as e:
             self.print_to_terminal("Please enter valid numbers for all settings.")
 
-    def calculate_triggers(self, volume_needed):
-        return math.ceil(volume_needed / 10)
-
     def push_settings_callback(self):
         try:
             settings = self.advanced_settings.get_settings()
             if settings:
-                self.advanced_settings.interval_entry.setText(str(settings['interval']))
-                self.advanced_settings.stagger_entry.setText("1")
-                self.advanced_settings.window_start_entry.setText(str(settings['window_start']))
-                self.advanced_settings.window_end_entry.setText(str(settings['window_end']))
-
-                for relay_pair, checkbox in self.advanced_settings.relay_checkboxes.items():
-                    volume_per_relay = settings['num_triggers'][relay_pair]
-                    triggers = self.calculate_triggers(volume_per_relay)
-                    self.advanced_settings.trigger_entries[relay_pair].setText(str(triggers))
-
-                    if volume_per_relay == 0:
-                        checkbox.setChecked(False)
-                    else:
-                        checkbox.setChecked(True)
-
                 self.update_all_settings()
                 self.print_to_terminal("Settings have been pushed to the control panel and updated.")
         except Exception as e:
@@ -167,5 +148,3 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-if __name__ == "__main__":
-    main()
