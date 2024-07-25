@@ -1,15 +1,12 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QPushButton, QScrollArea, QWidget
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget, QPushButton, QHBoxLayout
+from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
     def __init__(self, toggle_welcome_message_callback):
         super().__init__("Rodent Refreshment Regulator Wizard")
-        
-        self.setMaximumHeight(400)  # Set the maximum height to half the screen initially
-        
         layout = QVBoxLayout()
-        
+
         welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
         welcome_label.setFont(QFont("Arial", 24, QFont.Bold))
         welcome_label.setStyleSheet("color: green;")
@@ -47,19 +44,16 @@ class WelcomeSection(QGroupBox):
         subheaders_label.setWordWrap(True)
         subheaders_label.setTextFormat(Qt.RichText)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        content_widget = QWidget()
-        content_layout = QVBoxLayout()
-        content_layout.addWidget(subheaders_label)
-        content_widget.setLayout(content_layout)
-        scroll_area.setWidget(content_widget)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_content.setLayout(layout)
+        self.scroll_area.setWidget(scroll_content)
 
-        layout.addWidget(scroll_area)
-        self.scroll_area = scroll_area
-
+        button_layout = QHBoxLayout()
         self.toggle_button = QPushButton("Hide Welcome Message")
         self.toggle_button.clicked.connect(toggle_welcome_message_callback)
-        layout.addWidget(self.toggle_button)
+        button_layout.addWidget(self.toggle_button)
 
-        self.setLayout(layout)
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(button_layout)
