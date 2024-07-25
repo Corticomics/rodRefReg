@@ -1,4 +1,3 @@
-# ui/suggest_settings.py
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton
 
 class SuggestSettings(QGroupBox):
@@ -28,16 +27,20 @@ class SuggestSettings(QGroupBox):
         for label in self.entry_labels:
             label_widget = QLabel(label)
             label_widget.setWordWrap(True)
+            label_widget.setStyleSheet("QLabel { font-size: 14px; padding: 5px; }")
             layout.addWidget(label_widget)
             entry_widget = QLineEdit()
+            entry_widget.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
             layout.addWidget(entry_widget)
             self.entry_fields[label] = entry_widget
 
         suggest_button = QPushButton("Suggest Settings")
+        suggest_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         suggest_button.clicked.connect(self.suggest_settings_callback)
         layout.addWidget(suggest_button)
 
         push_button = QPushButton("Push Settings")
+        push_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         push_button.clicked.connect(self.push_settings_callback)
         layout.addWidget(push_button)
 
