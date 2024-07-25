@@ -1,4 +1,3 @@
-# ui/gui.py
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout, QPushButton
@@ -62,6 +61,11 @@ class RodentRefreshmentGUI(QWidget):
                     color: #333333;
                     background-color: #ffffff;
                 }
+                QLineEdit {
+                    background-color: #ffffff;
+                    border: 1px solid #dcdcdc;
+                    padding: 5px;
+                }
                 QTextEdit {
                     background-color: #ffffff;
                     border: 1px solid #dcdcdc;
@@ -77,7 +81,7 @@ class RodentRefreshmentGUI(QWidget):
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         middle_layout.addWidget(self.advanced_settings)
 
-        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
+        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings)
         middle_layout.addWidget(self.suggest_settings)
 
         main_layout.addLayout(middle_layout)
@@ -97,14 +101,13 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output.print_to_terminal(message)
 
     def toggle_welcome_message(self):
-        if self.welcome_section.isVisible():
-            self.welcome_section.setVisible(False)
-            self.adjust_layout()
-            self.welcome_button.setText("Show Welcome Message and Instructions")
+        if self.welcome_section.scroll_area.isVisible():
+            self.welcome_section.scroll_area.setVisible(False)
+            self.welcome_section.toggle_button.setText("Show Welcome Message and Instructions")
         else:
-            self.welcome_section.setVisible(True)
-            self.adjust_layout()
-            self.welcome_button.setText("Hide Welcome Message")
+            self.welcome_section.scroll_area.setVisible(True)
+            self.welcome_section.toggle_button.setText("Hide Welcome Message")
+        self.adjust_layout()
 
     def adjust_layout(self):
         self.adjustSize()

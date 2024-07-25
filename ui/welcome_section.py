@@ -1,3 +1,4 @@
+# ui/welcome_section.py
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget, QPushButton, QHBoxLayout
 from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import Qt
@@ -43,6 +44,7 @@ class WelcomeSection(QGroupBox):
         subheaders_label.setFont(QFont("Arial", 12))
         subheaders_label.setWordWrap(True)
         subheaders_label.setTextFormat(Qt.RichText)
+        layout.addWidget(subheaders_label)
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -57,3 +59,5 @@ class WelcomeSection(QGroupBox):
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(button_layout)
+        main_layout.addWidget(self.scroll_area)
+        self.setLayout(main_layout)
