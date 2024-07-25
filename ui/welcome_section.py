@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget, QPushButton
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QPushButton
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
@@ -45,20 +45,17 @@ class WelcomeSection(QGroupBox):
         subheaders_label.setFont(QFont("Arial", 12))
         subheaders_label.setWordWrap(True)
         subheaders_label.setTextFormat(Qt.RichText)
+        layout.addWidget(subheaders_label)
 
-        scroll_area = QScrollArea()
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.addWidget(subheaders_label)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(scroll_content)
-
-        layout.addWidget(scroll_area)
-
-        self.scroll_area = scroll_area
-
-        self.toggle_button = QPushButton("Hide Welcome Message")
-        self.toggle_button.clicked.connect(self.toggle_callback)
-        layout.addWidget(self.toggle_button)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setWidget(subheaders_label)
 
         self.setLayout(layout)
+
+        self.toggle_button = QPushButton("Hide Welcome Message")
+        self.toggle_button.clicked.connect(self.toggle_welcome_message)
+        layout.addWidget(self.toggle_button)
+
+    def toggle_welcome_message(self):
+        self.toggle_callback()

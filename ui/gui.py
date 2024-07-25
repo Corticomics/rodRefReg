@@ -1,16 +1,16 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout, QPushButton
 from PyQt5.QtCore import Qt
 
-from ui.terminal_output import TerminalOutput
-from ui.welcome_section import WelcomeSection
-from ui.advanced_settings import AdvancedSettingsSection
-from ui.suggest_settings import SuggestSettings
-from ui.run_stop_section import RunStopSection
+from .terminal_output import TerminalOutput
+from .welcome_section import WelcomeSection
+from .advanced_settings import AdvancedSettingsSection
+from .suggest_settings import SuggestSettings
+from .run_stop_section import RunStopSection
 import math
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'settings'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from settings.config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
@@ -167,40 +167,5 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-def main(run_program, stop_program, update_all_settings, change_relay_hats):
-    app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats)
-    gui.show()
-    sys.exit(app.exec_())
-
 if __name__ == "__main__":
-    def run_program(interval, stagger, window_start, window_end):
-        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-        # Set these values to the settings
-        settings['interval'] = interval
-        settings['stagger'] = stagger
-        settings['window_start'] = window_start
-        settings['window_end'] = window_end
-        # Start the program
-        global running
-        running = True
-        threading.Thread(target=program_loop).start()
-        print("Program Started")
-
-    def stop_program():
-        global running
-        running = False
-        relay_handler.set_all_relays(0)
-        print("Program Stopped")
-        app.quit()
-
-    def update_all_settings():
-        new_settings = gui.get_settings()
-        settings.update(new_settings)
-        print("Settings updated")
-
-    settings = load_settings()
-    relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
-    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
-
-    main(run_program, stop_program, update_all_settings, change_relay_hats)
+    main()

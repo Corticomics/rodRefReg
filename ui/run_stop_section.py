@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QPushButton, QHBoxLayout, QLabel, QLineEdit
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
 
 class RunStopSection(QGroupBox):
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
@@ -11,53 +10,45 @@ class RunStopSection(QGroupBox):
         layout = QVBoxLayout()
 
         interval_layout = QHBoxLayout()
-        interval_label = QLabel("Interval (seconds):")
-        interval_label.setAlignment(Qt.AlignLeft)
+        interval_layout.addWidget(QLabel("Interval (seconds):"))
         self.interval_entry = QLineEdit()
-        interval_layout.addWidget(interval_label)
+        self.interval_entry.setText("3600")
         interval_layout.addWidget(self.interval_entry)
+        layout.addLayout(interval_layout)
 
         stagger_layout = QHBoxLayout()
-        stagger_label = QLabel("Stagger (seconds):")
-        stagger_label.setAlignment(Qt.AlignLeft)
+        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
         self.stagger_entry = QLineEdit()
-        stagger_layout.addWidget(stagger_label)
+        self.stagger_entry.setText("1")
         stagger_layout.addWidget(self.stagger_entry)
+        layout.addLayout(stagger_layout)
 
         window_start_layout = QHBoxLayout()
-        window_start_label = QLabel("Water Window Start (24-hour format):")
-        window_start_label.setAlignment(Qt.AlignLeft)
+        window_start_layout.addWidget(QLabel("Water Window Start (24-hour format):"))
         self.window_start_entry = QLineEdit()
-        window_start_layout.addWidget(window_start_label)
+        self.window_start_entry.setText("8")
         window_start_layout.addWidget(self.window_start_entry)
+        layout.addLayout(window_start_layout)
 
         window_end_layout = QHBoxLayout()
-        window_end_label = QLabel("Water Window End (24-hour format):")
-        window_end_label.setAlignment(Qt.AlignLeft)
+        window_end_layout.addWidget(QLabel("Water Window End (24-hour format):"))
         self.window_end_entry = QLineEdit()
-        window_end_layout.addWidget(window_end_label)
+        self.window_end_entry.setText("20")
         window_end_layout.addWidget(self.window_end_entry)
-
-        layout.addLayout(interval_layout)
-        layout.addLayout(stagger_layout)
-        layout.addLayout(window_start_layout)
         layout.addLayout(window_end_layout)
-
-        button_layout = QHBoxLayout()
 
         run_button = QPushButton("Run Program")
         run_button.clicked.connect(self.run_program)
-        button_layout.addWidget(run_button)
+        layout.addWidget(run_button)
 
         stop_button = QPushButton("Stop Program")
         stop_button.clicked.connect(self.stop_program)
-        button_layout.addWidget(stop_button)
+        layout.addWidget(stop_button)
 
         change_hats_button = QPushButton("Change Relay Hats")
         change_hats_button.clicked.connect(self.change_relay_hats)
-        button_layout.addWidget(change_hats_button)
+        layout.addWidget(change_hats_button)
 
-        layout.addLayout(button_layout)
         self.setLayout(layout)
 
     def run_program(self):
