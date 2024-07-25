@@ -76,7 +76,7 @@ class RodentRefreshmentGUI(QWidget):
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         middle_layout.addWidget(self.advanced_settings)
 
-        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
+        self.suggest_settings = SuggestSettings(self.update_all_settings, self.print_to_terminal, self.run_program)
         middle_layout.addWidget(self.suggest_settings)
 
         main_layout.addLayout(middle_layout)
