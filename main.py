@@ -95,18 +95,12 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
-
-"""Traceback (most recent call last):
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 97, in <module>
-    main()
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 84, in main
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 29, in __init__
-    self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 79, in init_ui
-    self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
-                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: SuggestSettings.__init__() takes 3 positional arguments but 5 were given
+"""
+Traceback (most recent call last):
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 101, in toggle_welcome_message
+    self.show_welcome_button.setText("Show Welcome Message and Instructions")
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'RodentRefreshmentGUI' object has no attribute 'show_welcome_button'
+Aborted
 
 """
