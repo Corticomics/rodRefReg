@@ -1,4 +1,5 @@
 import sys
+import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -15,8 +16,8 @@ def main():
         sys.exit()
     
     settings = load_settings()
-    settings['num_hats'] = num_hats  # Update settings with the number of hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)  # Create relay pairs based on the number of hats
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
     
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
@@ -37,6 +38,7 @@ def main():
         running = False
         relay_handler.set_all_relays(0)
         print("Program Stopped")
+        app.quit()
 
     def program_loop():
         global running
@@ -69,15 +71,6 @@ def main():
         settings.update(new_settings)
         print("Settings updated")
 
-    def change_relay_hats():
-        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-        if ok:
-            settings['num_hats'] = num_hats
-            settings['relay_pairs'] = create_relay_pairs(num_hats)
-            relay_handler.update_relay_hats(settings['relay_pairs'], settings['num_hats'])
-            gui.advanced_settings.update_relay_checkboxes(settings['relay_pairs'])
-            print(f"Number of relay hats changed to {num_hats}")
-
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     gui.show()
     sys.exit(app.exec_())
@@ -92,20 +85,3 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
-"""conelab@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo python3 main.py
-QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
-error: XDG_RUNTIME_DIR is invalid or not set in the environment.
-Initialized relay hat 0
-Traceback (most recent call last):
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 94, in <module>
-    main()
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 81, in main
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 29, in __init__
-    self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 91, in init_ui
-    suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings)
-                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: SuggestSettings.__init__() missing 2 required positional arguments: 'run_program_callback' and 'stop_program_callback'
-"""

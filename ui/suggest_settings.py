@@ -1,18 +1,17 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QMessageBox
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout
 from PyQt5.QtCore import Qt
 
 class SuggestSettings(QGroupBox):
     def __init__(self, suggest_settings_callback, push_settings_callback, run_program_callback, stop_program_callback):
         super().__init__("Answer These For Setting Suggestions")
-
+        self.suggest_settings_callback = suggest_settings_callback
+        self.push_settings_callback = push_settings_callback
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
 
-        layout = QVBoxLayout()
+        layout = QFormLayout()
 
-        form_layout = QFormLayout()
         self.entries = {}
-
         questions = [
             "Water volume for relays 1 & 2 (uL):",
             "Water volume for relays 3 & 4 (uL):",
@@ -28,43 +27,31 @@ class SuggestSettings(QGroupBox):
         ]
 
         for question in questions:
+            label = QLabel(question)
             entry = QLineEdit()
-            entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-            entry.setText("0")
-            form_layout.addRow(QLabel(question), entry)
+            layout.addRow(label, entry)
             self.entries[question] = entry
 
-        layout.addLayout(form_layout)
+        self.suggest_button = QPushButton("Suggest Settings")
+        self.suggest_button.clicked.connect(self.suggest_settings_callback)
+        layout.addRow(self.suggest_button)
 
-        button_layout = QHBoxLayout()
+        self.push_button = QPushButton("Push Settings")
+        self.push_button.clicked.connect(self.push_settings_callback)
+        layout.addRow(self.push_button)
 
-        suggest_button = QPushButton("Suggest Settings")
-        suggest_button.setStyleSheet("QPushButton { font-size: 14px; padding: 5px; }")
-        suggest_button.clicked.connect(suggest_settings_callback)
-        button_layout.addWidget(suggest_button)
+        self.run_button = QPushButton("Run Program")
+        self.run_button.clicked.connect(self.run_program_callback)
+        layout.addRow(self.run_button)
 
-        push_button = QPushButton("Push Settings")
-        push_button.setStyleSheet("QPushButton { font-size: 14px; padding: 5px; }")
-        push_button.clicked.connect(push_settings_callback)
-        button_layout.addWidget(push_button)
+        self.stop_button = QPushButton("Stop Program")
+        self.stop_button.clicked.connect(self.stop_program_callback)
+        layout.addRow(self.stop_button)
 
-        layout.addLayout(button_layout)
         self.setLayout(layout)
-
-    def add_setting_input(self, layout, label_text, default_value):
-        layout.addWidget(QLabel(label_text))
-        entry = QLineEdit()
-        entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        entry.setText(str(default_value))
-        layout.addWidget(entry)
-        return entry
 
     def get_entry_values(self):
         values = {}
-        for label, entry in self.entries.items():
-            try:
-                values[label] = int(entry.text())
-            except ValueError:
-                QMessageBox.warning(self, "Input Error", f"Please enter a valid integer for: {label}")
-                return None
+        for question, entry in self.entries.items():
+            values[question] = entry.text()
         return values
