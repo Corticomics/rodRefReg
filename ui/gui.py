@@ -11,7 +11,7 @@ from ui.run_stop_section import RunStopSection
 import math
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'settings'))
-from config import load_settings
+from settings.config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
     def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='idea3'):
