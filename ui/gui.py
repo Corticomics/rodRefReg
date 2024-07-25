@@ -1,3 +1,4 @@
+# ui/gui.py
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout, QPushButton
@@ -207,4 +208,4 @@ if __name__ == "__main__":
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
-    main(run_program, stop_program, update_all_settings)
+    main(run_program, stop_program, update_all_settings, change_relay_hats)

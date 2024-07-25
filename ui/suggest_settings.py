@@ -1,18 +1,17 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout
-from PyQt5.QtCore import Qt
+# ui/suggest_settings.py
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton
 
 class SuggestSettings(QGroupBox):
-    def __init__(self, suggest_settings_callback, push_settings_callback, run_program_callback, stop_program_callback):
+    def __init__(self, suggest_settings_callback, push_settings_callback):
         super().__init__("Answer These For Setting Suggestions")
+
         self.suggest_settings_callback = suggest_settings_callback
         self.push_settings_callback = push_settings_callback
-        self.run_program_callback = run_program_callback
-        self.stop_program_callback = stop_program_callback
 
-        layout = QFormLayout()
+        layout = QVBoxLayout()
 
-        self.entries = {}
-        questions = [
+        self.entry_fields = {}
+        self.entry_labels = [
             "Water volume for relays 1 & 2 (uL):",
             "Water volume for relays 3 & 4 (uL):",
             "Water volume for relays 5 & 6 (uL):",
@@ -26,32 +25,26 @@ class SuggestSettings(QGroupBox):
             "Water window end (hour, 24-hour format):"
         ]
 
-        for question in questions:
-            label = QLabel(question)
-            entry = QLineEdit()
-            layout.addRow(label, entry)
-            self.entries[question] = entry
+        for label in self.entry_labels:
+            label_widget = QLabel(label)
+            label_widget.setWordWrap(True)
+            layout.addWidget(label_widget)
+            entry_widget = QLineEdit()
+            layout.addWidget(entry_widget)
+            self.entry_fields[label] = entry_widget
 
-        self.suggest_button = QPushButton("Suggest Settings")
-        self.suggest_button.clicked.connect(self.suggest_settings_callback)
-        layout.addRow(self.suggest_button)
+        suggest_button = QPushButton("Suggest Settings")
+        suggest_button.clicked.connect(self.suggest_settings_callback)
+        layout.addWidget(suggest_button)
 
-        self.push_button = QPushButton("Push Settings")
-        self.push_button.clicked.connect(self.push_settings_callback)
-        layout.addRow(self.push_button)
-
-        self.run_button = QPushButton("Run Program")
-        self.run_button.clicked.connect(self.run_program_callback)
-        layout.addRow(self.run_button)
-
-        self.stop_button = QPushButton("Stop Program")
-        self.stop_button.clicked.connect(self.stop_program_callback)
-        layout.addRow(self.stop_button)
+        push_button = QPushButton("Push Settings")
+        push_button.clicked.connect(self.push_settings_callback)
+        layout.addWidget(push_button)
 
         self.setLayout(layout)
 
     def get_entry_values(self):
         values = {}
-        for question, entry in self.entries.items():
-            values[question] = entry.text()
+        for label, widget in self.entry_fields.items():
+            values[label] = widget.text()
         return values

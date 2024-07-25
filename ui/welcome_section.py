@@ -1,6 +1,6 @@
 # ui/welcome_section.py
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget, QPushButton, QHBoxLayout
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget, QHBoxLayout, QPushButton
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
