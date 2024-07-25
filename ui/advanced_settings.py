@@ -51,3 +51,35 @@ class AdvancedSettingsSection(QGroupBox):
             'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
         }
         return settings
+
+    def update_relay_pairs(self, settings):
+        self.settings = settings
+        self.clear_layout()
+        for relay_pair in self.settings['relay_pairs']:
+            relay_pair_tuple = tuple(relay_pair)
+            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
+            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
+            check_box.setChecked(True)
+            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
+            self.layout().addWidget(check_box)
+            self.relay_checkboxes[relay_pair_tuple] = check_box
+
+            entry_layout = QHBoxLayout()
+            entry_layout.addWidget(QLabel("Triggers:"))
+            trigger_entry = QLineEdit()
+            trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
+            trigger_entry.setText("0")
+            entry_layout.addWidget(trigger_entry)
+            self.trigger_entries[relay_pair_tuple] = trigger_entry
+            self.layout().addLayout(entry_layout)
+
+        update_settings_button = QPushButton("Update Settings")
+        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        update_settings_button.clicked.connect(self.update_all_settings_callback)
+        self.layout().addWidget(update_settings_button)
+
+    def clear_layout(self):
+        for i in reversed(range(self.layout().count())):
+            widget = self.layout().itemAt(i).widget()
+            if widget is not None:
+                widget.setParent(None)

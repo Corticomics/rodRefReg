@@ -1,16 +1,17 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
+from PyQt5.QtCore import Qt
 
 class SuggestSettings(QGroupBox):
-    def __init__(self, suggest_settings_callback, push_settings_callback):
+    def __init__(self, suggest_callback, push_callback):
         super().__init__("Answer These For Setting Suggestions")
-
-        self.suggest_settings_callback = suggest_settings_callback
-        self.push_settings_callback = push_settings_callback
+        self.suggest_callback = suggest_callback
+        self.push_callback = push_callback
 
         layout = QVBoxLayout()
 
-        self.entry_fields = {}
-        self.entry_labels = [
+        self.entries = {}
+
+        questions = [
             "Water volume for relays 1 & 2 (uL):",
             "Water volume for relays 3 & 4 (uL):",
             "Water volume for relays 5 & 6 (uL):",
@@ -24,30 +25,27 @@ class SuggestSettings(QGroupBox):
             "Water window end (hour, 24-hour format):"
         ]
 
-        for label in self.entry_labels:
-            label_widget = QLabel(label)
-            label_widget.setWordWrap(True)
-            label_widget.setStyleSheet("QLabel { font-size: 14px; padding: 5px; }")
-            layout.addWidget(label_widget)
-            entry_widget = QLineEdit()
-            entry_widget.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-            layout.addWidget(entry_widget)
-            self.entry_fields[label] = entry_widget
+        for question in questions:
+            entry_layout = QHBoxLayout()
+            label = QLabel(question)
+            label.setStyleSheet("QLabel { font-size: 14px; padding: 5px; }")
+            entry_layout.addWidget(label)
+            entry = QLineEdit()
+            entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
+            entry.setText("0")
+            entry_layout.addWidget(entry)
+            layout.addLayout(entry_layout)
+            self.entries[question] = entry
 
-        suggest_button = QPushButton("Suggest Settings")
-        suggest_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        suggest_button.clicked.connect(self.suggest_settings_callback)
-        layout.addWidget(suggest_button)
+        self.suggest_button = QPushButton("Suggest Settings")
+        self.suggest_button.clicked.connect(self.suggest_callback)
+        layout.addWidget(self.suggest_button)
 
-        push_button = QPushButton("Push Settings")
-        push_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        push_button.clicked.connect(self.push_settings_callback)
-        layout.addWidget(push_button)
+        self.push_button = QPushButton("Push Settings")
+        self.push_button.clicked.connect(self.push_callback)
+        layout.addWidget(self.push_button)
 
         self.setLayout(layout)
 
     def get_entry_values(self):
-        values = {}
-        for label, widget in self.entry_fields.items():
-            values[label] = widget.text()
-        return values
+        return {question: entry.text() for question, entry in self.entries.items()}

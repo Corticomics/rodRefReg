@@ -115,7 +115,6 @@ class RodentRefreshmentGUI(QWidget):
         try:
             frequency = int(values["How often should each cage receive water? (Seconds):"])
             window_start = int(values["Water window start (hour, 24-hour format):"])
-           
             window_end = int(values["Water window end (hour, 24-hour format):"])
 
             suggestion_text = (
