@@ -30,15 +30,11 @@ def main():
         settings['window_end'] = window_end
         global running
         running = True
-        global stop_requested
-        stop_requested = False
         threading.Thread(target=program_loop).start()
         print("Program Started")
 
     def stop_program():
         global running
-        global stop_requested
-        stop_requested = True
         running = False
         relay_handler.set_all_relays(0)
         print("Program Stopped")
@@ -46,18 +42,12 @@ def main():
     def program_loop():
         global running
         while running:
-            if stop_requested:
-                print("Immediate stop requested.")
-                break
             current_hour = time.localtime().tm_hour
             if (settings['window_start'] <= current_hour < 24) or (0 <= current_hour < settings['window_end']) if settings['window_start'] > settings['window_end'] else (settings['window_start'] <= current_hour < settings['window_end']):
                 current_time = time.time()
                 if current_time % settings['interval'] < 1:
                     print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
                     relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
-                    if stop_requested:
-                        print("Immediate stop requested during relay triggering.")
-                        break
                     print(f"Relay info: {relay_info}")
                     message = (
                         f"The pumps have been successfully triggered as follows:\n"
@@ -87,7 +77,8 @@ def main():
         settings['num_hats'] = num_hats
         settings['relay_pairs'] = create_relay_pairs(num_hats)
         relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-        gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+        gui.advanced_settings.update_relay_hats(settings)
+        print("Relay hats updated")
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     gui.show()

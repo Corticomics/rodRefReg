@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
@@ -45,4 +45,12 @@ class WelcomeSection(QGroupBox):
         subheaders_label.setTextFormat(Qt.RichText)
         layout.addWidget(subheaders_label)
 
-        self.setLayout(layout)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_content.setLayout(layout)
+        scroll_area.setWidget(scroll_content)
+
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(scroll_area)
+        self.setLayout(main_layout)

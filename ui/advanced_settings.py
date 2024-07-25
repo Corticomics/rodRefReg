@@ -8,16 +8,13 @@ class AdvancedSettingsSection(QGroupBox):
         self.update_all_settings_callback = update_all_settings_callback
         self.print_to_terminal = print_to_terminal
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
 
         self.relay_checkboxes = {}
         self.trigger_entries = {}
-
-        self.create_settings_ui()
-
-    def create_settings_ui(self):
-        self.clear_layout(self.layout)
 
         for relay_pair in self.settings['relay_pairs']:
             relay_pair_tuple = tuple(relay_pair)
@@ -25,7 +22,7 @@ class AdvancedSettingsSection(QGroupBox):
             check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
             check_box.setChecked(True)
             check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
-            self.layout.addWidget(check_box)
+            layout.addWidget(check_box)
             self.relay_checkboxes[relay_pair_tuple] = check_box
 
             entry_layout = QHBoxLayout()
@@ -35,12 +32,23 @@ class AdvancedSettingsSection(QGroupBox):
             trigger_entry.setText("0")
             entry_layout.addWidget(trigger_entry)
             self.trigger_entries[relay_pair_tuple] = trigger_entry
-            self.layout.addLayout(entry_layout)
+            layout.addLayout(entry_layout)
 
-        update_settings_button = QPushButton("Update Settings")
-        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        update_settings_button.clicked.connect(self.update_all_settings_callback)
-        self.layout.addWidget(update_settings_button)
+        self.update_settings_button = QPushButton("Update Settings")
+        self.update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        self.update_settings_button.clicked.connect(self.update_all_settings_callback)
+        layout.addWidget(self.update_settings_button)
+
+        scroll_content = QWidget()
+        scroll_content.setLayout(layout)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(scroll_content)
+
+        outer_layout = QVBoxLayout()
+        outer_layout.addWidget(scroll_area)
+        self.setLayout(outer_layout)
 
     def toggle_relay_callback(self, relay_pair, state):
         if state == Qt.Checked:
@@ -49,14 +57,6 @@ class AdvancedSettingsSection(QGroupBox):
             if relay_pair in self.settings['selected_relays']:
                 self.settings['selected_relays'].remove(relay_pair)
 
-    def add_setting_input(self, layout, label_text, default_value):
-        layout.addWidget(QLabel(label_text))
-        entry = QLineEdit()
-        entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        entry.setText(str(default_value))
-        layout.addWidget(entry)
-        return entry
-
     def get_settings(self):
         settings = {
             'selected_relays': [rp for rp, checkbox in self.relay_checkboxes.items() if checkbox.isChecked()],
@@ -64,13 +64,6 @@ class AdvancedSettingsSection(QGroupBox):
         }
         return settings
 
-    def clear_layout(self, layout):
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-    def update_relay_hats(self, relay_pairs):
-        self.settings['relay_pairs'] = relay_pairs
-        self.create_settings_ui()
-        self.print_to_terminal("Advanced settings updated with new relay hats.")
+    def update_relay_hats(self, new_settings):
+        self.settings = new_settings
+        self.init_ui()
