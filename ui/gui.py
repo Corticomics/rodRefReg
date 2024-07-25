@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout, QPushButton
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -68,6 +68,11 @@ class RodentRefreshmentGUI(QWidget):
             """)
 
         main_layout = QVBoxLayout()
+
+        self.show_welcome_button = QPushButton("Hide Welcome Message")
+        self.show_welcome_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        self.show_welcome_button.clicked.connect(self.toggle_welcome_message)
+        main_layout.addWidget(self.show_welcome_button)
 
         self.welcome_section = WelcomeSection(self.toggle_welcome_message)
         main_layout.addWidget(self.welcome_section)
