@@ -85,3 +85,21 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
+"""Traceback (most recent call last):
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 87, in <module>
+    main()
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 74, in main
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 29, in __init__
+    self.init_ui(style)
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 76, in init_ui
+    self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/advanced_settings.py", line 16, in __init__
+    self.update_relay_checkboxes(self.settings['relay_pairs'])
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/advanced_settings.py", line 35, in update_relay_checkboxes
+    layout = self.layout().itemAt(0).widget().layout()
+             ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'itemAt'
+"""
