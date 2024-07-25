@@ -72,13 +72,12 @@ def main():
 
     def change_relay_hats():
         num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-        if not ok:
-            return
-        settings['num_hats'] = num_hats
-        settings['relay_pairs'] = create_relay_pairs(num_hats)
-        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-        gui.advanced_settings.update_relay_hats(settings)
-        print("Relay hats updated")
+        if ok:
+            settings['num_hats'] = num_hats
+            settings['relay_pairs'] = create_relay_pairs(num_hats)
+            relay_handler.update_relay_hats(settings['relay_pairs'], settings['num_hats'])
+            gui.advanced_settings.update_relay_checkboxes(settings['relay_pairs'])
+            print(f"Number of relay hats changed to {num_hats}")
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     gui.show()

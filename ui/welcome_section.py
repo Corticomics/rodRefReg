@@ -1,21 +1,42 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QPushButton, QScrollArea, QWidget
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
-    def __init__(self):
+    def __init__(self, toggle_callback):
         super().__init__("Rodent Refreshment Regulator Wizard")
+        self.toggle_callback = toggle_callback
+
+        self.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+            }
+            QLabel {
+                font-size: 14px;
+            }
+            QPushButton {
+                font-size: 14px;
+                padding: 5px;
+            }
+        """)
+
         layout = QVBoxLayout()
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+
+        content_widget = QWidget()
+        content_layout = QVBoxLayout()
 
         welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
         welcome_label.setFont(QFont("Arial", 24, QFont.Bold))
         welcome_label.setStyleSheet("color: green;")
-        layout.addWidget(welcome_label)
+        content_layout.addWidget(welcome_label)
 
         steps_label = QLabel("Steps:")
         steps_label.setFont(QFont("Arial", 18, QFont.Bold))
         steps_label.setStyleSheet("color: green; margin-top: 10px;")
-        layout.addWidget(steps_label)
+        content_layout.addWidget(steps_label)
 
         subheaders_text = (
             "<ol style='padding-left: 20px;'>"
@@ -43,14 +64,23 @@ class WelcomeSection(QGroupBox):
         subheaders_label.setFont(QFont("Arial", 12))
         subheaders_label.setWordWrap(True)
         subheaders_label.setTextFormat(Qt.RichText)
-        layout.addWidget(subheaders_label)
+        content_layout.addWidget(subheaders_label)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_content = QWidget()
-        scroll_content.setLayout(layout)
-        scroll_area.setWidget(scroll_content)
+        content_widget.setLayout(content_layout)
+        self.scroll_area.setWidget(content_widget)
+        layout.addWidget(self.scroll_area)
 
-        main_layout = QVBoxLayout()
-        main_layout.addWidget(scroll_area)
-        self.setLayout(main_layout)
+        self.toggle_button = QPushButton("Hide Welcome Message")
+        self.toggle_button.clicked.connect(self.toggle_welcome_message)
+        layout.addWidget(self.toggle_button)
+
+        self.setLayout(layout)
+
+    def toggle_welcome_message(self):
+        if self.scroll_area.isVisible():
+            self.scroll_area.setVisible(False)
+            self.toggle_button.setText("Show Welcome Message and Instructions")
+        else:
+            self.scroll_area.setVisible(True)
+            self.toggle_button.setText("Hide Welcome Message")
+        self.toggle_callback()

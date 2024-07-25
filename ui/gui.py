@@ -1,7 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
-from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout, QPushButton
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -22,8 +21,8 @@ class RodentRefreshmentGUI(QWidget):
         self.stop_program = stop_program
         self.update_all_settings = update_all_settings
         self.change_relay_hats = change_relay_hats
-
         self.settings = settings
+
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
@@ -68,55 +67,46 @@ class RodentRefreshmentGUI(QWidget):
                 }
             """)
 
-        self.main_layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
 
-        self.welcome_section = WelcomeSection()
-        self.welcome_toggle_button = QPushButton("Hide Welcome Message")
-        self.welcome_toggle_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.welcome_toggle_button.clicked.connect(self.toggle_welcome_section)
+        self.welcome_section = WelcomeSection(self.toggle_welcome_message)
+        main_layout.addWidget(self.welcome_section)
 
-        self.main_layout.addWidget(self.welcome_toggle_button)
-        self.main_layout.addWidget(self.welcome_section)
-
-        content_layout = QVBoxLayout()
-
-        settings_layout = QHBoxLayout()
-
+        middle_layout = QHBoxLayout()
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
-        settings_layout.addWidget(self.advanced_settings)
+        middle_layout.addWidget(self.advanced_settings)
 
-        suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
-        settings_layout.addWidget(suggest_settings_section)
+        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
+        middle_layout.addWidget(self.suggest_settings)
 
-        content_layout.addLayout(settings_layout)
+        main_layout.addLayout(middle_layout)
 
         bottom_layout = QHBoxLayout()
-
         self.terminal_output = TerminalOutput()
         bottom_layout.addWidget(self.terminal_output)
 
-        run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
-        bottom_layout.addWidget(run_stop_section)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
+        bottom_layout.addWidget(self.run_stop_section)
 
-        content_layout.addLayout(bottom_layout)
+        main_layout.addLayout(bottom_layout)
 
-        self.main_layout.addLayout(content_layout)
-
-        self.setLayout(self.main_layout)
+        self.setLayout(main_layout)
 
     def print_to_terminal(self, message):
         self.terminal_output.print_to_terminal(message)
 
-    def toggle_welcome_section(self):
-        if self.welcome_section.isVisible():
-            self.welcome_section.hide()
-            self.welcome_toggle_button.setText("Show Welcome Message")
+    def toggle_welcome_message(self):
+        if self.welcome_section.scroll_area.isVisible():
+            self.welcome_section.scroll_area.setVisible(False)
         else:
-            self.welcome_section.show()
-            self.welcome_toggle_button.setText("Hide Welcome Message")
+            self.welcome_section.scroll_area.setVisible(True)
+        self.adjust_layout()
+
+    def adjust_layout(self):
+        self.adjustSize()
 
     def suggest_settings(self):
-        values = self.findChild(SuggestSettings).get_entry_values()
+        values = self.suggest_settings.get_entry_values()
         if values is None:
             return
 
@@ -173,3 +163,41 @@ class RodentRefreshmentGUI(QWidget):
     def get_settings(self):
         settings = self.advanced_settings.get_settings()
         return settings
+
+def main(run_program, stop_program, update_all_settings, change_relay_hats):
+    app = QApplication(sys.argv)
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats)
+    gui.show()
+    sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    def run_program(interval, stagger, window_start, window_end):
+        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
+        # Set these values to the settings
+        settings['interval'] = interval
+        settings['stagger'] = stagger
+        settings['window_start'] = window_start
+        settings['window_end'] = window_end
+        # Start the program
+        global running
+        running = True
+        threading.Thread(target=program_loop).start()
+        print("Program Started")
+
+    def stop_program():
+        global running
+        running = False
+        relay_handler.set_all_relays(0)
+        print("Program Stopped")
+        app.quit()
+
+    def update_all_settings():
+        new_settings = gui.get_settings()
+        settings.update(new_settings)
+        print("Settings updated")
+
+    settings = load_settings()
+    relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
+    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
+
+    main(run_program, stop_program, update_all_settings)

@@ -8,9 +8,6 @@ class AdvancedSettingsSection(QGroupBox):
         self.update_all_settings_callback = update_all_settings_callback
         self.print_to_terminal = print_to_terminal
 
-        self.init_ui()
-
-    def init_ui(self):
         layout = QVBoxLayout()
 
         self.relay_checkboxes = {}
@@ -34,10 +31,15 @@ class AdvancedSettingsSection(QGroupBox):
             self.trigger_entries[relay_pair_tuple] = trigger_entry
             layout.addLayout(entry_layout)
 
-        self.update_settings_button = QPushButton("Update Settings")
-        self.update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.update_settings_button.clicked.connect(self.update_all_settings_callback)
-        layout.addWidget(self.update_settings_button)
+        self.interval_entry = self.add_setting_input(layout, "Interval (seconds):", self.settings['interval'])
+        self.stagger_entry = self.add_setting_input(layout, "Stagger (seconds):", self.settings['stagger'])
+        self.window_start_entry = self.add_setting_input(layout, "Water Window Start (24-hour format):", self.settings['window_start'])
+        self.window_end_entry = self.add_setting_input(layout, "Water Window End (24-hour format):", self.settings['window_end'])
+
+        update_settings_button = QPushButton("Update Settings")
+        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        update_settings_button.clicked.connect(self.update_all_settings_callback)
+        layout.addWidget(update_settings_button)
 
         scroll_content = QWidget()
         scroll_content.setLayout(layout)
@@ -57,13 +59,21 @@ class AdvancedSettingsSection(QGroupBox):
             if relay_pair in self.settings['selected_relays']:
                 self.settings['selected_relays'].remove(relay_pair)
 
+    def add_setting_input(self, layout, label_text, default_value):
+        layout.addWidget(QLabel(label_text))
+        entry = QLineEdit()
+        entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
+        entry.setText(str(default_value))
+        layout.addWidget(entry)
+        return entry
+
     def get_settings(self):
         settings = {
+            'interval': int(self.interval_entry.text()),
+            'stagger': int(self.stagger_entry.text()),
+            'window_start': int(self.window_start_entry.text()),
+            'window_end': int(self.window_end_entry.text()),
             'selected_relays': [rp for rp, checkbox in self.relay_checkboxes.items() if checkbox.isChecked()],
             'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
         }
         return settings
-
-    def update_relay_hats(self, new_settings):
-        self.settings = new_settings
-        self.init_ui()
