@@ -95,3 +95,13 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
+
+"""Traceback (most recent call last):
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/run_stop_section.py", line 68, in change_relay_hats
+    self.change_relay_hats_callback()
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 50, in change_relay_hats
+    gui.advanced_settings.update_relay_checkboxes(settings['relay_pairs'])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'AdvancedSettingsSection' object has no attribute 'update_relay_checkboxes'. Did you mean: 'relay_checkboxes'?
+Aborted
+"""
