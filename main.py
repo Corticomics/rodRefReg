@@ -10,15 +10,15 @@ import time
 
 def main():
     app = QApplication(sys.argv)
-    
+
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         sys.exit()
-    
+
     settings = load_settings()
-    settings['num_hats'] = num_hats  # Update settings with the number of hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)  # Create relay pairs based on the number of hats
-    
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
@@ -74,14 +74,10 @@ def main():
         num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
         if not ok:
             return
-        
         settings['num_hats'] = num_hats
         settings['relay_pairs'] = create_relay_pairs(num_hats)
-        
         relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
         gui.advanced_settings.update_relay_checkboxes(settings['relay_pairs'])
-        gui.suggest_settings.update_relay_checkboxes(settings['relay_pairs'])
-        print(f"Updated to {num_hats} relay hats")
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     gui.show()

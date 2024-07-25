@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QCheckBox, QScrollArea, QWidget, QPushButton
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QCheckBox
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
@@ -14,33 +14,21 @@ class AdvancedSettingsSection(QGroupBox):
         self.trigger_entries = {}
 
         self.scroll_content = QWidget()
-        self.scroll_layout = QVBoxLayout()
-        self.scroll_content.setLayout(self.scroll_layout)
-
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setWidget(self.scroll_content)
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
 
         self.update_relay_checkboxes(self.settings['relay_pairs'])
 
-        self.update_settings_button = QPushButton("Update Settings")
-        self.update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.update_settings_button.clicked.connect(self.update_all_settings_callback)
-        self.scroll_layout.addWidget(self.update_settings_button)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(self.scroll_content)
 
-        layout.addWidget(self.scroll_area)
-        self.setLayout(layout)
+        outer_layout = QVBoxLayout()
+        outer_layout.addWidget(scroll_area)
+        self.setLayout(outer_layout)
 
     def update_relay_checkboxes(self, relay_pairs):
-        # Clear the existing widgets
-        while self.scroll_layout.count():
-            child = self.scroll_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-        self.relay_checkboxes = {}
-        self.trigger_entries = {}
-
+        self.relay_checkboxes.clear()
+        self.trigger_entries.clear()
         for relay_pair in relay_pairs:
             relay_pair_tuple = tuple(relay_pair)
             check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
@@ -59,6 +47,11 @@ class AdvancedSettingsSection(QGroupBox):
             self.trigger_entries[relay_pair_tuple] = trigger_entry
             self.scroll_layout.addLayout(entry_layout)
 
+        update_settings_button = QPushButton("Update Settings")
+        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        update_settings_button.clicked.connect(self.update_all_settings_callback)
+        self.scroll_layout.addWidget(update_settings_button)
+
     def toggle_relay_callback(self, relay_pair, state):
         if state == Qt.Checked:
             self.settings['selected_relays'].append(relay_pair)
@@ -72,4 +65,3 @@ class AdvancedSettingsSection(QGroupBox):
             'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
         }
         return settings
-
