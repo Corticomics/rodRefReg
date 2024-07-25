@@ -104,14 +104,9 @@ Traceback (most recent call last):
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 29, in __init__
     self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 76, in init_ui
-    self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
-                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/advanced_settings.py", line 16, in __init__
-    self.update_relay_checkboxes(self.settings['relay_pairs'])
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/advanced_settings.py", line 35, in update_relay_checkboxes
-    layout = self.layout().itemAt(0).widget().layout()
-             ^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'NoneType' object has no attribute 'itemAt'
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 79, in init_ui
+    self.suggest_settings = SuggestSettings(self.suggest_settings_callback, self.push_settings_callback)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: SuggestSettings.__init__() missing 1 required positional argument: 'run_program_callback'
 
 """
