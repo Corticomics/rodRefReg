@@ -15,15 +15,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
-    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, style='idea3'):
+    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='idea3'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.update_all_settings = update_all_settings
         self.change_relay_hats = change_relay_hats
-
-        self.settings = load_settings()
+        self.settings = settings
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
@@ -70,9 +69,6 @@ class RodentRefreshmentGUI(QWidget):
 
         main_layout = QVBoxLayout()
 
-        self.terminal_output = TerminalOutput()
-        main_layout.addWidget(self.terminal_output)
-
         self.welcome_section = WelcomeSection(self.toggle_welcome_section)
         main_layout.addWidget(self.welcome_section)
 
@@ -92,7 +88,7 @@ class RodentRefreshmentGUI(QWidget):
         upper_layout.addWidget(left_scroll)
 
         right_layout = QVBoxLayout()
-        suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
+        suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings)
         right_layout.addWidget(suggest_settings_section)
 
         run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
@@ -108,6 +104,9 @@ class RodentRefreshmentGUI(QWidget):
 
         main_layout.addLayout(upper_layout)
         self.setLayout(main_layout)
+
+        self.terminal_output = TerminalOutput()
+        main_layout.addWidget(self.terminal_output)
 
     def print_to_terminal(self, message):
         self.terminal_output.print_to_terminal(message)

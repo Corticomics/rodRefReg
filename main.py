@@ -92,25 +92,3 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
-"""conelab@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo python3 main.py
-QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
-error: XDG_RUNTIME_DIR is invalid or not set in the environment.
-qt.xkb.compose: failed to create compose table
-Initialized relay hat 0
-Failed to initialize hat 1: Fail to init the card with exception [Errno 5] Input/output error
-Failed to initialize hat 2: Fail to init the card with exception [Errno 5] Input/output error
-Traceback (most recent call last):
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 94, in <module>
-    main()
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 81, in main
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 30, in __init__
-    self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 83, in init_ui
-    self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
-                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/rodRefReg/ui/advanced_settings.py", line 16, in __init__
-    for relay_pair in self.settings['relay_pairs']:
-TypeError: 'NoneType' object is not iterable
-"""

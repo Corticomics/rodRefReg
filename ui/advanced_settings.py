@@ -77,3 +77,45 @@ class AdvancedSettingsSection(QGroupBox):
             'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
         }
         return settings
+
+    def update_relay_checkboxes(self, relay_pairs):
+        self.settings['relay_pairs'] = relay_pairs
+
+        layout = self.layout().itemAt(0).widget().layout()
+
+        # Clear existing checkboxes and entries
+        for i in reversed(range(layout.count())):
+            widget = layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        self.relay_checkboxes = {}
+        self.trigger_entries = {}
+
+        for relay_pair in relay_pairs:
+            relay_pair_tuple = tuple(relay_pair)
+            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
+            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
+            check_box.setChecked(True)
+            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
+            layout.addWidget(check_box)
+            self.relay_checkboxes[relay_pair_tuple] = check_box
+
+            entry_layout = QHBoxLayout()
+            entry_layout.addWidget(QLabel("Triggers:"))
+            trigger_entry = QLineEdit()
+            trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
+            trigger_entry.setText("0")
+            entry_layout.addWidget(trigger_entry)
+            self.trigger_entries[relay_pair_tuple] = trigger_entry
+            layout.addLayout(entry_layout)
+
+        self.interval_entry = self.add_setting_input(layout, "Interval (seconds):", self.settings['interval'])
+        self.stagger_entry = self.add_setting_input(layout, "Stagger (seconds):", self.settings['stagger'])
+        self.window_start_entry = self.add_setting_input(layout, "Water Window Start (24-hour format):", self.settings['window_start'])
+        self.window_end_entry = self.add_setting_input(layout, "Water Window End (24-hour format):", self.settings['window_end'])
+
+        update_settings_button = QPushButton("Update Settings")
+        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        update_settings_button.clicked.connect(self.update_all_settings_callback)
+        layout.addWidget(update_settings_button)
