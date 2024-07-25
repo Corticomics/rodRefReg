@@ -92,3 +92,20 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
+"""conelab@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo python3 main.py
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+Initialized relay hat 0
+Traceback (most recent call last):
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 94, in <module>
+    main()
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 81, in main
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 29, in __init__
+    self.init_ui(style)
+  File "/home/conelab/Documents/GitHub/rodRefReg/ui/gui.py", line 91, in init_ui
+    suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: SuggestSettings.__init__() missing 2 required positional arguments: 'run_program_callback' and 'stop_program_callback'
+"""
