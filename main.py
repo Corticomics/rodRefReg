@@ -1,5 +1,4 @@
 import sys
-import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler

@@ -1,6 +1,7 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QGridLayout, QPushButton
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QMessageBox, QPushButton
+from PyQt5.QtGui import QPalette, QColor
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -14,15 +15,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
-    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='idea3'):
+    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, style='idea3'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.update_all_settings = update_all_settings
         self.change_relay_hats = change_relay_hats
-        self.settings = settings
 
+        self.settings = load_settings()
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
@@ -69,44 +70,54 @@ class RodentRefreshmentGUI(QWidget):
 
         main_layout = QVBoxLayout()
 
-        self.welcome_section = WelcomeSection(self.toggle_welcome_message)
+        self.terminal_output = TerminalOutput()
+        main_layout.addWidget(self.terminal_output)
+
+        self.welcome_section = WelcomeSection(self.toggle_welcome_section)
         main_layout.addWidget(self.welcome_section)
 
-        middle_layout = QHBoxLayout()
+        upper_layout = QHBoxLayout()
+
+        left_layout = QVBoxLayout()
+
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
-        middle_layout.addWidget(self.advanced_settings)
+        left_layout.addWidget(self.advanced_settings)
 
-        self.suggest_settings = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
-        middle_layout.addWidget(self.suggest_settings)
+        left_content = QWidget()
+        left_content.setLayout(left_layout)
 
-        main_layout.addLayout(middle_layout)
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setWidget(left_content)
+        upper_layout.addWidget(left_scroll)
 
-        bottom_layout = QHBoxLayout()
-        self.terminal_output = TerminalOutput()
-        bottom_layout.addWidget(self.terminal_output)
+        right_layout = QVBoxLayout()
+        suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
+        right_layout.addWidget(suggest_settings_section)
 
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
-        bottom_layout.addWidget(self.run_stop_section)
+        run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
+        right_layout.addWidget(run_stop_section)
 
-        main_layout.addLayout(bottom_layout)
+        right_content = QWidget()
+        right_content.setLayout(right_layout)
 
+        right_scroll = QScrollArea()
+        right_scroll.setWidgetResizable(True)
+        right_scroll.setWidget(right_content)
+        upper_layout.addWidget(right_scroll)
+
+        main_layout.addLayout(upper_layout)
         self.setLayout(main_layout)
 
     def print_to_terminal(self, message):
         self.terminal_output.print_to_terminal(message)
 
-    def toggle_welcome_message(self):
-        if self.welcome_section.scroll_area.isVisible():
-            self.welcome_section.scroll_area.setVisible(False)
-        else:
-            self.welcome_section.scroll_area.setVisible(True)
-        self.adjust_layout()
-
-    def adjust_layout(self):
-        self.adjustSize()
+    def toggle_welcome_section(self, is_hidden):
+        self.welcome_section.setVisible(not is_hidden)
+        self.update()
 
     def suggest_settings(self):
-        values = self.suggest_settings.get_entry_values()
+        values = self.findChild(SuggestSettings).get_entry_values()
         if values is None:
             return
 
@@ -164,9 +175,9 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-def main(run_program, stop_program, update_all_settings, change_relay_hats):
+def main(run_program, stop_program, update_all_settings):
     app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats)
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings)
     gui.show()
     sys.exit(app.exec_())
 
