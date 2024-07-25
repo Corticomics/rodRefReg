@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget
 
 class RunStopSection(QGroupBox):
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
@@ -12,28 +12,28 @@ class RunStopSection(QGroupBox):
         interval_layout = QHBoxLayout()
         interval_layout.addWidget(QLabel("Interval (seconds):"))
         self.interval_entry = QLineEdit()
-        self.interval_entry.setText("3600")
+        self.interval_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
         interval_layout.addWidget(self.interval_entry)
         layout.addLayout(interval_layout)
 
         stagger_layout = QHBoxLayout()
         stagger_layout.addWidget(QLabel("Stagger (seconds):"))
         self.stagger_entry = QLineEdit()
-        self.stagger_entry.setText("1")
+        self.stagger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
         stagger_layout.addWidget(self.stagger_entry)
         layout.addLayout(stagger_layout)
 
         window_start_layout = QHBoxLayout()
         window_start_layout.addWidget(QLabel("Water Window Start (24-hour format):"))
         self.window_start_entry = QLineEdit()
-        self.window_start_entry.setText("8")
+        self.window_start_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
         window_start_layout.addWidget(self.window_start_entry)
         layout.addLayout(window_start_layout)
 
         window_end_layout = QHBoxLayout()
         window_end_layout.addWidget(QLabel("Water Window End (24-hour format):"))
         self.window_end_entry = QLineEdit()
-        self.window_end_entry.setText("20")
+        self.window_end_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
         window_end_layout.addWidget(self.window_end_entry)
         layout.addLayout(window_end_layout)
 
