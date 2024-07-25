@@ -70,6 +70,7 @@ class RodentRefreshmentGUI(QWidget):
         main_layout = QVBoxLayout()
 
         self.welcome_section = WelcomeSection(self.toggle_welcome_message)
+        self.welcome_section.setMaximumHeight(int(self.height() / 2))  # Make it occupy half of the screen initially
         main_layout.addWidget(self.welcome_section)
 
         middle_layout = QHBoxLayout()
@@ -98,8 +99,10 @@ class RodentRefreshmentGUI(QWidget):
     def toggle_welcome_message(self):
         if self.welcome_section.scroll_area.isVisible():
             self.welcome_section.scroll_area.setVisible(False)
+            self.welcome_section.toggle_button.setText("Show Welcome Message and Instructions")
         else:
             self.welcome_section.scroll_area.setVisible(True)
+            self.welcome_section.toggle_button.setText("Hide Welcome Message")
         self.adjust_layout()
 
     def adjust_layout(self):
