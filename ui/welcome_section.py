@@ -1,21 +1,42 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QPushButton, QSizePolicy, QScrollArea
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QPushButton, QScrollArea, QWidget
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
     def __init__(self, toggle_callback):
         super().__init__("Rodent Refreshment Regulator Wizard")
         self.toggle_callback = toggle_callback
-        self.is_hidden = False
+
+        self.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+            }
+            QLabel {
+                font-size: 14px;
+            }
+            QPushButton {
+                font-size: 14px;
+                padding: 5px;
+            }
+        """)
 
         layout = QVBoxLayout()
 
-        self.welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
-        self.welcome_label.setStyleSheet("font-size: 24px; color: green;")
-        layout.addWidget(self.welcome_label)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
 
-        self.steps_label = QLabel("Steps:")
-        self.steps_label.setStyleSheet("font-size: 18px; color: green; margin-top: 10px;")
-        layout.addWidget(self.steps_label)
+        content_widget = QWidget()
+        content_layout = QVBoxLayout()
+
+        welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
+        welcome_label.setFont(QFont("Arial", 24, QFont.Bold))
+        welcome_label.setStyleSheet("color: green;")
+        content_layout.addWidget(welcome_label)
+
+        steps_label = QLabel("Steps:")
+        steps_label.setFont(QFont("Arial", 18, QFont.Bold))
+        steps_label.setStyleSheet("color: green; margin-top: 10px;")
+        content_layout.addWidget(steps_label)
 
         subheaders_text = (
             "<ol style='padding-left: 20px;'>"
@@ -39,27 +60,27 @@ class WelcomeSection(QGroupBox):
             "</ul>"
         )
 
-        self.subheaders_label = QLabel(subheaders_text)
-        self.subheaders_label.setStyleSheet("font-size: 12px;")
-        self.subheaders_label.setWordWrap(True)
-        self.subheaders_label.setTextFormat(Qt.RichText)
+        subheaders_label = QLabel(subheaders_text)
+        subheaders_label.setFont(QFont("Arial", 12))
+        subheaders_label.setWordWrap(True)
+        subheaders_label.setTextFormat(Qt.RichText)
+        content_layout.addWidget(subheaders_label)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(self.subheaders_label)
-
-        layout.addWidget(scroll_area)
+        content_widget.setLayout(content_layout)
+        self.scroll_area.setWidget(content_widget)
+        layout.addWidget(self.scroll_area)
 
         self.toggle_button = QPushButton("Hide Welcome Message")
-        self.toggle_button.clicked.connect(self.toggle_message)
+        self.toggle_button.clicked.connect(self.toggle_welcome_message)
         layout.addWidget(self.toggle_button)
 
         self.setLayout(layout)
 
-    def toggle_message(self):
-        self.is_hidden = not self.is_hidden
-        self.welcome_label.setVisible(not self.is_hidden)
-        self.steps_label.setVisible(not self.is_hidden)
-        self.subheaders_label.setVisible(not self.is_hidden)
-        self.toggle_button.setText("Show Welcome Message and Instructions" if self.is_hidden else "Hide Welcome Message")
-        self.toggle_callback(self.is_hidden)
+    def toggle_welcome_message(self):
+        if self.scroll_area.isVisible():
+            self.scroll_area.setVisible(False)
+            self.toggle_button.setText("Show Welcome Message and Instructions")
+        else:
+            self.scroll_area.setVisible(True)
+            self.toggle_button.setText("Hide Welcome Message")
+        self.toggle_callback()
