@@ -38,7 +38,17 @@ def main():
         running = False
         relay_handler.set_all_relays(0)
         print("Program Stopped")
-        app.quit()
+
+    def change_relay_hats():
+        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+        if not ok:
+            return
+        
+        settings['num_hats'] = num_hats
+        settings['relay_pairs'] = create_relay_pairs(num_hats)
+        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+        gui.advanced_settings.update_relay_checkboxes(settings['relay_pairs'])
+        print("Relay hats updated")
 
     def program_loop():
         global running
@@ -85,16 +95,3 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
-"""conelab@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo python3 main.py
-QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
-error: XDG_RUNTIME_DIR is invalid or not set in the environment.
-qt.xkb.compose: failed to create compose table
-Initialized relay hat 0
-Traceback (most recent call last):
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 87, in <module>
-    main()
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 74, in main
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
-                                                                               ^^^^^^^^^^^^^^^^^
-NameError: name 'change_relay_hats' is not defined
-"""
