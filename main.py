@@ -8,6 +8,17 @@ from settings.config import load_settings
 import threading
 import time
 
+class StreamRedirector:
+    def __init__(self, print_func):
+        self.print_func = print_func
+
+    def write(self, message):
+        if message.strip():  # ignore empty messages
+            self.print_func(message)
+
+    def flush(self):
+        pass
+
 def main():
     app = QApplication(sys.argv)
     
@@ -90,6 +101,11 @@ def main():
         gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
+    
+    # Redirect stdout and stderr to the terminal output widget
+    sys.stdout = StreamRedirector(gui.print_to_terminal)
+    sys.stderr = StreamRedirector(gui.print_to_terminal)
+    
     gui.show()
     sys.exit(app.exec_())
 

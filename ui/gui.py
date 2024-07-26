@@ -1,7 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QMessageBox
-from PyQt5.QtGui import QPalette, QColor
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -9,7 +8,6 @@ from .welcome_section import WelcomeSection
 from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettings
 from .run_stop_section import RunStopSection
-import math
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
@@ -70,15 +68,20 @@ class RodentRefreshmentGUI(QWidget):
 
         main_layout = QVBoxLayout()
 
-        self.terminal_output = TerminalOutput()
-        main_layout.addWidget(self.terminal_output)
+        self.welcome_section = WelcomeSection()
+        main_layout.addWidget(self.welcome_section)
 
-        upper_layout = QHBoxLayout()
+        self.toggle_button = QPushButton("Hide Welcome Message")
+        self.toggle_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
+        self.toggle_button.clicked.connect(self.toggle_welcome_message)
+        main_layout.addWidget(self.toggle_button)
+
+        self.upper_layout = QHBoxLayout()
 
         left_layout = QVBoxLayout()
 
-        welcome_section = WelcomeSection()
-        left_layout.addWidget(welcome_section)
+        self.terminal_output = TerminalOutput()
+        left_layout.addWidget(self.terminal_output)
 
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         left_layout.addWidget(self.advanced_settings)
@@ -86,10 +89,10 @@ class RodentRefreshmentGUI(QWidget):
         left_content = QWidget()
         left_content.setLayout(left_layout)
 
-        left_scroll = QScrollArea()
-        left_scroll.setWidgetResizable(True)
-        left_scroll.setWidget(left_content)
-        upper_layout.addWidget(left_scroll)
+        self.left_scroll = QScrollArea()
+        self.left_scroll.setWidgetResizable(True)
+        self.left_scroll.setWidget(left_content)
+        self.upper_layout.addWidget(self.left_scroll)
 
         right_layout = QVBoxLayout()
         suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
@@ -101,26 +104,30 @@ class RodentRefreshmentGUI(QWidget):
         right_content = QWidget()
         right_content.setLayout(right_layout)
 
-        right_scroll = QScrollArea()
-        right_scroll.setWidgetResizable(True)
-        right_scroll.setWidget(right_content)
-        upper_layout.addWidget(right_scroll)
+        self.right_scroll = QScrollArea()
+        self.right_scroll.setWidgetResizable(True)
+        self.right_scroll.setWidget(right_content)
+        self.upper_layout.addWidget(self.right_scroll)
 
-        main_layout.addLayout(upper_layout)
+        main_layout.addLayout(self.upper_layout)
         self.setLayout(main_layout)
 
     def print_to_terminal(self, message):
         self.terminal_output.print_to_terminal(message)
 
-    def toggle_relay(self, relay_pair, state):
-        if state == Qt.Checked:
-            if relay_pair not in self.selected_relays:
-                self.selected_relays.append(relay_pair)
-            self.print_to_terminal(f"Relay pair {relay_pair} enabled")
+    def toggle_welcome_message(self):
+        if self.welcome_section.isVisible():
+            self.welcome_section.setVisible(False)
+            self.toggle_button.setText("Show Welcome Message and Instructions")
         else:
-            if relay_pair in self.selected_relays:
-                self.selected_relays.remove(relay_pair)
-            self.print_to_terminal(f"Relay pair {relay_pair} disabled")
+            self.welcome_section.setVisible(True)
+            self.toggle_button.setText("Hide Welcome Message")
+        self.adjust_layout()
+
+    def adjust_layout(self):
+        self.left_scroll.adjustSize()
+        self.right_scroll.adjustSize()
+        self.adjustSize()
 
     def suggest_settings(self):
         values = self.findChild(SuggestSettings).get_entry_values()
