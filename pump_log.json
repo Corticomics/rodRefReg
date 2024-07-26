@@ -318,5 +318,21 @@
     {
         "timestamp": "2024-07-09T12:35:00.521402",
         "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 10 times; (3, 4) triggered 0 times; (5, 6) triggered 0 times; (7, 8) triggered 0 times; (9, 10) triggered 0 times; (11, 12) triggered 0 times; (13, 14) triggered 0 times; (15, 16) triggered 0 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 08:00 - 20:00\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-07-26T10:56:42.787828",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 08:00 - 23:00\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-07-26T11:00:32.471530",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 08:00 - 23:00\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16), (17 & 18), (19 & 20), (21 & 22), (23 & 24), (25 & 26), (27 & 28), (29 & 30), (31 & 32)"
+    },
+    {
+        "timestamp": "2024-07-26T11:00:52.380782",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 08:00 - 23:00\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16), (17 & 18), (19 & 20), (21 & 22), (23 & 24), (25 & 26), (27 & 28), (29 & 30), (31 & 32)"
+    },
+    {
+        "timestamp": "2024-07-26T11:24:26.538684",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times\n** Next trigger due in 12 seconds.\n\nCurrent settings:\n- Interval: 12 seconds\n- Stagger: 1 seconds\n- Water window: 08:00 - 23:00\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
     }
 ]
