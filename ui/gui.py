@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QGridLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -13,7 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
-    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='idea3'):
+    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
@@ -31,50 +31,60 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        if style == 'idea3':
+        if style == 'bitlearns':
             self.setStyleSheet("""
                 QWidget {
-                    background-color: #ffffff;
+                    background-color: #f8f9fa;
                 }
                 QGroupBox {
                     background-color: #ffffff;
-                    border: 1px solid #dcdcdc;
+                    border: 1px solid #ced4da;
                     border-radius: 5px;
-                    padding: 20px;
+                    padding: 15px;
                 }
                 QPushButton {
-                    background-color: #e0e0e0;
-                    border: 1px solid #bdbdbd;
+                    background-color: #007bff;
+                    border: 1px solid #007bff;
                     border-radius: 5px;
+                    color: #ffffff;
                     padding: 10px;
+                    font-size: 14px;
                 }
                 QPushButton:hover {
-                    background-color: #bdbdbd;
+                    background-color: #0056b3;
                 }
                 QFrame {
-                    background-color: #dcdcdc;
+                    background-color: #ced4da;
                     height: 1px;
                     margin: 10px 0;
                 }
                 QLabel {
-                    color: #333333;
+                    color: #343a40;
                     background-color: #ffffff;
+                }
+                QLineEdit {
+                    background-color: #ffffff;
+                    border: 1px solid #ced4da;
+                    padding: 5px;
+                    font-size: 14px;
                 }
                 QTextEdit {
                     background-color: #ffffff;
-                    border: 1px solid #dcdcdc;
+                    border: 1px solid #ced4da;
                 }
             """)
 
         self.main_layout = QVBoxLayout()
 
         self.welcome_section = WelcomeSection()
-        self.welcome_section.setMinimumHeight(self.height() // 2)
-        self.welcome_section.setMaximumHeight(self.height() // 2)
-        self.main_layout.addWidget(self.welcome_section)
+        self.welcome_scroll_area = QScrollArea()
+        self.welcome_scroll_area.setWidgetResizable(True)
+        self.welcome_scroll_area.setWidget(self.welcome_section)
+        self.welcome_scroll_area.setMinimumHeight(self.height() // 2)
+        self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
+        self.main_layout.addWidget(self.welcome_scroll_area)
 
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
-        self.toggle_welcome_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
@@ -118,27 +128,27 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output.print_to_terminal(message)
 
     def toggle_welcome_message(self):
-        if self.welcome_section.isVisible():
-            self.welcome_section.hide()
+        if self.welcome_scroll_area.isVisible():
+            self.welcome_scroll_area.setVisible(False)
             self.toggle_welcome_button.setText("Show Welcome Message and Instructions")
         else:
-            self.welcome_section.show()
+            self.welcome_scroll_area.setVisible(True)
             self.toggle_welcome_button.setText("Hide Welcome Message")
         self.adjust_ui()
 
     def adjust_ui(self):
-        if self.welcome_section.isVisible():
-            self.welcome_section.setMaximumHeight(self.height() // 2)
-            self.welcome_section.setMinimumHeight(self.height() // 2)
+        if self.welcome_scroll_area.isVisible():
+            self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
+            self.welcome_scroll_area.setMinimumHeight(self.height() // 2)
         else:
-            self.welcome_section.setMaximumHeight(0)
-            self.welcome_section.setMinimumHeight(0)
+            self.welcome_scroll_area.setMaximumHeight(0)
+            self.welcome_scroll_area.setMinimumHeight(0)
 
-        self.left_scroll.setMaximumHeight(self.height() - self.welcome_section.maximumHeight() - self.toggle_welcome_button.height())
-        self.right_scroll.setMaximumHeight(self.height() - self.welcome_section.maximumHeight() - self.toggle_welcome_button.height())
+        self.left_scroll.setMaximumHeight(self.height() - self.welcome_scroll_area.maximumHeight() - self.toggle_welcome_button.height())
+        self.right_scroll.setMaximumHeight(self.height() - self.welcome_scroll_area.maximumHeight() - self.toggle_welcome_button.height())
 
-        self.left_scroll.setMinimumHeight(self.height() - self.welcome_section.minimumHeight() - self.toggle_welcome_button.height())
-        self.right_scroll.setMinimumHeight(self.height() - self.welcome_section.minimumHeight() - self.toggle_welcome_button.height())
+        self.left_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
+        self.right_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
 
     def suggest_settings(self):
         values = self.findChild(SuggestSettings).get_entry_values()
@@ -196,7 +206,7 @@ class RodentRefreshmentGUI(QWidget):
 
 def main(run_program, stop_program, update_all_settings, change_relay_hats):
     app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='idea3')
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
     gui.show()
     sys.exit(app.exec_())
 

@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QScrollArea, QWidget
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
@@ -9,12 +9,12 @@ class WelcomeSection(QGroupBox):
 
         welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
         welcome_label.setFont(QFont("Arial", 24, QFont.Bold))
-        welcome_label.setStyleSheet("color: green;")
+        welcome_label.setStyleSheet("color: #2c3e50;")
         layout.addWidget(welcome_label)
 
         steps_label = QLabel("Steps:")
         steps_label.setFont(QFont("Arial", 18, QFont.Bold))
-        steps_label.setStyleSheet("color: green; margin-top: 10px;")
+        steps_label.setStyleSheet("color: #2c3e50; margin-top: 10px;")
         layout.addWidget(steps_label)
 
         subheaders_text = (
@@ -43,6 +43,13 @@ class WelcomeSection(QGroupBox):
         subheaders_label.setFont(QFont("Arial", 12))
         subheaders_label.setWordWrap(True)
         subheaders_label.setTextFormat(Qt.RichText)
-        layout.addWidget(subheaders_label)
 
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.addWidget(subheaders_label)
+        scroll_area.setWidget(content_widget)
+
+        layout.addWidget(scroll_area)
         self.setLayout(layout)
