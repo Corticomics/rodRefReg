@@ -34,20 +34,17 @@ def main():
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
     def run_program(interval, stagger, window_start, window_end):
-        try:
-            print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-            settings['interval'] = interval
-            settings['stagger'] = stagger
-            settings['window_start'] = window_start
-            settings['window_end'] = window_end
-            global running
-            running = True
-            global stop_requested
-            stop_requested = False
-            threading.Thread(target=program_loop).start()
-            print("Program Started")
-        except Exception as e:
-            print(f"Error starting program: {e}")
+        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
+        settings['interval'] = interval
+        settings['stagger'] = stagger
+        settings['window_start'] = window_start
+        settings['window_end'] = window_end
+        global running
+        running = True
+        global stop_requested
+        stop_requested = False
+        threading.Thread(target=program_loop).start()
+        print("Program Started")
 
     def stop_program():
         global running
@@ -59,59 +56,49 @@ def main():
 
     def program_loop():
         global running
-        try:
-            while running:
-                if stop_requested:
-                    print("Immediate stop requested.")
-                    break
-                current_time = time.time()
-                print(f"Current time: {current_time}")
-                
-                if settings['window_start'] <= current_time < settings['window_end']:
-                    if current_time % settings['interval'] < 1:
-                        print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
-                        relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
-                        print(f"Relays triggered: {relay_info}")
-                        if stop_requested:
-                            print("Immediate stop requested during relay triggering.")
-                            break
-                        message = (
-                            f"The pumps have been successfully triggered as follows:\n"
-                            f"{'; '.join(relay_info)}\n"
-                            f"** Next trigger due in {settings['interval']} seconds.\n\n"
-                            f"Current settings:\n"
-                            f"- Interval: {settings['interval']} seconds\n"
-                            f"- Stagger: {settings['stagger']} seconds\n"
-                            f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
-                            f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
-                        )
-                        if notification_handler.is_internet_available():
-                            notification_handler.send_slack_notification(message)
-                        else:
-                            notification_handler.log_pump_trigger(message)
-                        time.sleep(settings['interval'] - 1)
-        except Exception as e:
-            print(f"Error in program loop: {e}")
+        while running:
+            if stop_requested:
+                print("Immediate stop requested.")
+                break
+            current_time = time.time()
+            print(f"Current time: {current_time}")
+            if (settings['window_start'] <= current_time < settings['window_end']) or (settings['window_start'] > settings['window_end'] and (current_time >= settings['window_start'] or current_time < settings['window_end'])):
+                if current_time % settings['interval'] < 1:
+                    print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
+                    relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
+                    if stop_requested:
+                        print("Immediate stop requested during relay triggering.")
+                        break
+                    print(f"Relay info: {relay_info}")
+                    message = (
+                        f"The pumps have been successfully triggered as follows:\n"
+                        f"{'; '.join(relay_info)}\n"
+                        f"** Next trigger due in {settings['interval']} seconds.\n\n"
+                        f"Current settings:\n"
+                        f"- Interval: {settings['interval']} seconds\n"
+                        f"- Stagger: {settings['stagger']} seconds\n"
+                        f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
+                        f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
+                    )
+                    if notification_handler.is_internet_available():
+                        notification_handler.send_slack_notification(message)
+                    else:
+                        notification_handler.log_pump_trigger(message)
+                    time.sleep(settings['interval'] - 1)
 
     def update_all_settings():
-        try:
-            new_settings = gui.get_settings()
-            settings.update(new_settings)
-            print("Settings updated")
-        except Exception as e:
-            print(f"Error updating settings: {e}")
+        new_settings = gui.get_settings()
+        settings.update(new_settings)
+        print("Settings updated")
 
     def change_relay_hats():
-        try:
-            num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-            if not ok:
-                return
-            settings['num_hats'] = num_hats
-            settings['relay_pairs'] = create_relay_pairs(num_hats)
-            relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-            gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
-        except Exception as e:
-            print(f"Error changing relay hats: {e}")
+        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+        if not ok:
+            return
+        settings['num_hats'] = num_hats
+        settings['relay_pairs'] = create_relay_pairs(num_hats)
+        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+        gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     
@@ -121,14 +108,3 @@ def main():
     
     gui.show()
     sys.exit(app.exec_())
-
-def create_relay_pairs(num_hats):
-    relay_pairs = []
-    for hat in range(num_hats):
-        start_relay = hat * 16 + 1
-        for i in range(0, 16, 2):
-            relay_pairs.append((start_relay + i, start_relay + i + 1))
-    return relay_pairs
-
-if __name__ == "__main__":
-    main()
