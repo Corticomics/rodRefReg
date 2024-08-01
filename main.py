@@ -93,18 +93,24 @@ def main():
             print(f"Error in program loop: {e}")
 
     def update_all_settings():
-        new_settings = gui.get_settings()
-        settings.update(new_settings)
-        print("Settings updated")
+        try:
+            new_settings = gui.get_settings()
+            settings.update(new_settings)
+            print("Settings updated")
+        except Exception as e:
+            print(f"Error updating settings: {e}")
 
     def change_relay_hats():
-        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-        if not ok:
-            return
-        settings['num_hats'] = num_hats
-        settings['relay_pairs'] = create_relay_pairs(num_hats)
-        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-        gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+        try:
+            num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+            if not ok:
+                return
+            settings['num_hats'] = num_hats
+            settings['relay_pairs'] = create_relay_pairs(num_hats)
+            relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+            gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+        except Exception as e:
+            print(f"Error changing relay hats: {e}")
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     
