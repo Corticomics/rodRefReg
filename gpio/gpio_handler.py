@@ -1,8 +1,3 @@
-import RPi.GPIO as GPIO
-import sm_16relind
-import time
-import datetime
-
 import sm_16relind
 import time
 
@@ -27,14 +22,16 @@ class RelayHandler:
             relay_index_1 = (relay_pair[0] - 1) % 16 + 1
             relay_index_2 = (relay_pair[1] - 1) % 16 + 1
 
+            print(f"Attempting to trigger relay pair: {relay_pair} on hats {hat_index_1}, {hat_index_2} with relays {relay_index_1}, {relay_index_2}")
+
             if hat_index_1 < len(self.relay_hats) and hat_index_2 < len(self.relay_hats):
                 for _ in range(num_triggers):
                     try:
-                        self.relay_hats[hat_index_1].relay_on(relay_index_1)
-                        self.relay_hats[hat_index_2].relay_on(relay_index_2)
+                        self.relay_hats[hat_index_1].turn_relay_on(relay_index_1)  # Adjust method name as needed
+                        self.relay_hats[hat_index_2].turn_relay_on(relay_index_2)  # Adjust method name as needed
                         time.sleep(stagger)
-                        self.relay_hats[hat_index_1].relay_off(relay_index_1)
-                        self.relay_hats[hat_index_2].relay_off(relay_index_2)
+                        self.relay_hats[hat_index_1].turn_relay_off(relay_index_1)  # Adjust method name as needed
+                        self.relay_hats[hat_index_2].turn_relay_off(relay_index_2)  # Adjust method name as needed
                         relay_info.append(f"Relay pair {relay_pair[0]} & {relay_pair[1]} triggered")
                     except Exception as e:
                         print(f"Failed to trigger relay pair {relay_pair}: {e}")
@@ -48,9 +45,9 @@ class RelayHandler:
             for relay in range(1, 17):
                 try:
                     if state:
-                        hat.relay_on(relay)
+                        hat.turn_relay_on(relay)  # Adjust method name as needed
                     else:
-                        hat.relay_off(relay)
+                        hat.turn_relay_off(relay)  # Adjust method name as needed
                 except Exception as e:
                     print(f"Failed to set relay {relay} on hat {hat}: {e}")
 
