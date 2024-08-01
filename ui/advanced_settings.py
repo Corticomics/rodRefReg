@@ -1,11 +1,10 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QCheckBox
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QWidget, QCheckBox
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
-    def __init__(self, settings, update_all_settings_callback, print_to_terminal):
+    def __init__(self, settings, print_to_terminal):
         super().__init__("Advanced Settings")
         self.settings = settings
-        self.update_all_settings_callback = update_all_settings_callback
         self.print_to_terminal = print_to_terminal
 
         self.layout = QVBoxLayout()
@@ -36,11 +35,6 @@ class AdvancedSettingsSection(QGroupBox):
             entry_layout.addWidget(trigger_entry)
             self.trigger_entries[relay_pair_tuple] = trigger_entry
             self.layout.addLayout(entry_layout)
-
-        update_settings_button = QPushButton("Update Settings")
-        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        update_settings_button.clicked.connect(self.update_all_settings_callback)
-        self.layout.addWidget(update_settings_button)
 
     def toggle_relay_callback(self, relay_pair, state):
         if state == Qt.Checked:

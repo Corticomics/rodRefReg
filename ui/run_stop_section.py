@@ -1,11 +1,12 @@
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QCalendarWidget, QDateTimeEdit, QTabWidget, QWidget
 
 class RunStopSection(QGroupBox):
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, update_all_settings_callback):
         super().__init__("Run/Stop Program")
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
+        self.update_all_settings_callback = update_all_settings_callback
 
         layout = QVBoxLayout()
 
