@@ -9,6 +9,18 @@ class RunStopSection(QGroupBox):
 
         layout = QVBoxLayout()
 
+        interval_layout = QHBoxLayout()
+        interval_layout.addWidget(QLabel("Interval (seconds):"))
+        self.interval_entry = QLineEdit()
+        interval_layout.addWidget(self.interval_entry)
+        layout.addLayout(interval_layout)
+
+        stagger_layout = QHBoxLayout()
+        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
+        self.stagger_entry = QLineEdit()
+        stagger_layout.addWidget(self.stagger_entry)
+        layout.addLayout(stagger_layout)
+
         self.tab_widget = QTabWidget()
         self.online_tab = QWidget()
         self.offline_tab = QWidget()
@@ -46,18 +58,6 @@ class RunStopSection(QGroupBox):
     def init_online_tab(self):
         layout = QVBoxLayout()
 
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("Interval (seconds):"))
-        self.interval_entry_online = QLineEdit()
-        interval_layout.addWidget(self.interval_entry_online)
-        layout.addLayout(interval_layout)
-
-        stagger_layout = QHBoxLayout()
-        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
-        self.stagger_entry_online = QLineEdit()
-        stagger_layout.addWidget(self.stagger_entry_online)
-        layout.addLayout(stagger_layout)
-
         window_start_layout = QHBoxLayout()
         window_start_layout.addWidget(QLabel("Water Window Start:"))
         self.window_start_entry_online = QDateTimeEdit(calendarPopup=True)
@@ -75,18 +75,6 @@ class RunStopSection(QGroupBox):
     def init_offline_tab(self):
         layout = QVBoxLayout()
 
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("Interval (seconds):"))
-        self.interval_entry_offline = QLineEdit()
-        interval_layout.addWidget(self.interval_entry_offline)
-        layout.addLayout(interval_layout)
-
-        stagger_layout = QHBoxLayout()
-        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
-        self.stagger_entry_offline = QLineEdit()
-        stagger_layout.addWidget(self.stagger_entry_offline)
-        layout.addLayout(stagger_layout)
-
         duration_layout = QHBoxLayout()
         duration_layout.addWidget(QLabel("Program Duration (seconds):"))
         self.duration_entry_offline = QLineEdit()
@@ -96,15 +84,14 @@ class RunStopSection(QGroupBox):
         self.offline_tab.setLayout(layout)
 
     def run_program(self):
+        interval = int(self.interval_entry.text())
+        stagger = int(self.stagger_entry.text())
+
         if self.tab_widget.currentIndex() == 0:  # Online tab
-            interval = int(self.interval_entry_online.text())
-            stagger = int(self.stagger_entry_online.text())
             window_start = self.window_start_entry_online.dateTime().toSecsSinceEpoch()
             window_end = self.window_end_entry_online.dateTime().toSecsSinceEpoch()
             self.run_program_callback(interval, stagger, window_start, window_end, mode='online')
         else:  # Offline tab
-            interval = int(self.interval_entry_offline.text())
-            stagger = int(self.stagger_entry_offline.text())
             duration = int(self.duration_entry_offline.text())
             window_start = time.time()
             window_end = window_start + duration
