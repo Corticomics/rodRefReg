@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTabWidget, QLabel, QDateTimeEdit
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTabWidget, QLabel, QDateTimeEdit, QLineEdit
 from PyQt5.QtCore import Qt, QDateTime
 
 from .terminal_output import TerminalOutput
