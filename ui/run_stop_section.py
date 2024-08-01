@@ -72,18 +72,21 @@ class RunStopSection(QGroupBox):
         return offline_tab
 
     def run_program(self):
-        interval = int(self.interval_entry.text())
-        stagger = int(self.stagger_entry.text())
-        
-        if self.tab_widget.currentIndex() == 0:  # Calendar Mode
-            window_start = int(self.window_start_entry.dateTime().toSecsSinceEpoch())
-            window_end = int(self.window_end_entry.dateTime().toSecsSinceEpoch())
-        else:  # Offline Mode
-            duration = int(self.offline_duration_entry.text())
-            window_start = int(time.time())
-            window_end = window_start + duration
+        try:
+            interval = int(self.interval_entry.text())
+            stagger = int(self.stagger_entry.text())
+            
+            if self.tab_widget.currentIndex() == 0:  # Calendar Mode
+                window_start = int(self.window_start_entry.dateTime().toSecsSinceEpoch())
+                window_end = int(self.window_end_entry.dateTime().toSecsSinceEpoch())
+            else:  # Offline Mode
+                duration = int(self.offline_duration_entry.text())
+                window_start = int(time.time())
+                window_end = window_start + duration
 
-        self.run_program_callback(interval, stagger, window_start, window_end)
+            self.run_program_callback(interval, stagger, window_start, window_end)
+        except Exception as e:
+            print(f"Error running program: {e}")
 
     def stop_program(self):
         self.stop_program_callback()
