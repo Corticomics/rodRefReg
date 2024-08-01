@@ -204,11 +204,11 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-def main(run_program, stop_program, update_all_settings, change_relay_hats):
-    app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
-    gui.show()
-    sys.exit(app.exec_())
+    def main(run_program, stop_program, update_all_settings, change_relay_hats):
+        app = QApplication(sys.argv)
+        gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
+        gui.show()
+        sys.exit(app.exec_())
 
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()
