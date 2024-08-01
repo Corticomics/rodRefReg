@@ -5,7 +5,6 @@ from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings
-import threading
 import time
 
 class StreamRedirector:
@@ -43,7 +42,7 @@ def main():
         running = True
         global stop_requested
         stop_requested = False
-        threading.Thread(target=program_loop).start()
+        gui.start_timer(interval)
         print("Program Started")
 
     def stop_program():
@@ -51,6 +50,7 @@ def main():
         global stop_requested
         stop_requested = True
         running = False
+        gui.stop_timer()
         relay_handler.set_all_relays(0)
         print("Program Stopped")
 

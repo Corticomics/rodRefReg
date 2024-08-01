@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTimer
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -95,7 +95,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.left_layout.addWidget(self.terminal_output)
 
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
+        self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         self.left_layout.addWidget(self.advanced_settings)
 
         self.left_content = QWidget()
@@ -204,16 +204,11 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-def main(run_program, stop_program, update_all_settings, change_relay_hats):
-    app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
-    gui.show()
-    sys.exit(app.exec_())
+    def start_timer(self, interval):
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.run_program_callback)
+        self.timer.start(interval * 1000)  # Convert seconds to milliseconds
 
-if __name__ == "__main__":
-    main()
-    """QObject::connect: Cannot queue arguments of type 'QTextCursor'
-(Make sure 'QTextCursor' is registered using qRegisterMetaType().)
-malloc(): unaligned tcache chunk detected
-Aborted
-"""
+    def stop_timer(self):
+        if hasattr(self, 'timer'):
+            self.timer.stop()
