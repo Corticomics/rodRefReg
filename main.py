@@ -61,8 +61,7 @@ def main():
                 print("Immediate stop requested.")
                 break
             current_time = time.time()
-            current_hour = time.localtime().tm_hour
-            if (settings['window_start'] <= current_hour < 24) or (0 <= current_hour < settings['window_end']) if settings['window_start'] > settings['window_end'] else (settings['window_start'] <= current_hour < settings['window_end']):
+            if settings['window_start'] <= current_time <= settings['window_end']:
                 if current_time % settings['interval'] < 1:
                     print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
                     relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])

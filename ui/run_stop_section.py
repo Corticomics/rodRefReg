@@ -1,27 +1,31 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTabWidget, QWidget
-from .interval_settings import IntervalSettings
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTabWidget, QWidget, QFormLayout, QDateTimeEdit
+from PyQt5.QtCore import QDateTime
 
 class RunStopSection(QGroupBox):
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, update_all_settings_callback):
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
         super().__init__("Run/Stop Program")
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
-        self.update_all_settings_callback = update_all_settings_callback
 
         layout = QVBoxLayout()
 
+        # Interval, stagger input fields centralized
+        interval_layout = QHBoxLayout()
+        interval_layout.addWidget(QLabel("Interval (seconds):"))
+        self.interval_entry = QLineEdit()
+        interval_layout.addWidget(self.interval_entry)
+        layout.addLayout(interval_layout)
+
+        stagger_layout = QHBoxLayout()
+        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
+        self.stagger_entry = QLineEdit()
+        stagger_layout.addWidget(self.stagger_entry)
+        layout.addLayout(stagger_layout)
+
         self.tab_widget = QTabWidget()
-        
-        self.interval_settings = IntervalSettings({})
-        self.tab_widget.addTab(self.interval_settings, "Calendar Mode")
-        
-        self.offline_settings_widget = QWidget()
-        self.offline_layout = QVBoxLayout()
-        self.offline_duration_entry = self.add_setting_input(self.offline_layout, "Duration (seconds):", 0)
-        self.offline_settings_widget.setLayout(self.offline_layout)
-        self.tab_widget.addTab(self.offline_settings_widget, "Offline Mode")
-        
+        self.tab_widget.addTab(self.create_calendar_tab(), "Calendar Mode")
+        self.tab_widget.addTab(self.create_offline_tab(), "Offline Mode")
         layout.addWidget(self.tab_widget)
 
         self.run_button = QPushButton("Run Program")
@@ -38,35 +42,45 @@ class RunStopSection(QGroupBox):
         self.change_relay_hats_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
         self.change_relay_hats_button.clicked.connect(self.change_relay_hats)
         layout.addWidget(self.change_relay_hats_button)
-        
-        self.update_settings_button = QPushButton("Update Settings")
-        self.update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.update_settings_button.clicked.connect(self.update_all_settings_callback)
-        layout.addWidget(self.update_settings_button)
 
         self.setLayout(layout)
 
-    def add_setting_input(self, layout, label_text, default_value):
-        layout.addWidget(QLabel(label_text))
-        entry = QLineEdit()
-        entry.setText(str(default_value))
-       
-        entry.setText(str(default_value))
-        layout.addWidget(entry)
-        return entry
+    def create_calendar_tab(self):
+        calendar_tab = QWidget()
+        form_layout = QFormLayout()
+
+        self.window_start_entry = QDateTimeEdit(QDateTime.currentDateTime())
+        self.window_start_entry.setCalendarPopup(True)
+        form_layout.addRow(QLabel("Water Window Start:"), self.window_start_entry)
+        
+        self.window_end_entry = QDateTimeEdit(QDateTime.currentDateTime().addSecs(3600))
+        self.window_end_entry.setCalendarPopup(True)
+        form_layout.addRow(QLabel("Water Window End:"), self.window_end_entry)
+
+        calendar_tab.setLayout(form_layout)
+        return calendar_tab
+
+    def create_offline_tab(self):
+        offline_tab = QWidget()
+        form_layout = QFormLayout()
+
+        self.offline_duration_entry = QLineEdit()
+        form_layout.addRow(QLabel("Duration (seconds):"), self.offline_duration_entry)
+
+        offline_tab.setLayout(form_layout)
+        return offline_tab
 
     def run_program(self):
+        interval = int(self.interval_entry.text())
+        stagger = int(self.stagger_entry.text())
+        
         if self.tab_widget.currentIndex() == 0:  # Calendar Mode
-            settings = self.interval_settings.get_settings()
-            interval = settings['interval']
-            stagger = settings['stagger']
-            window_start = settings['window_start']
-            window_end = settings['window_end']
+            window_start = int(self.window_start_entry.dateTime().toSecsSinceEpoch())
+            window_end = int(self.window_end_entry.dateTime().toSecsSinceEpoch())
         else:  # Offline Mode
-            interval = int(self.offline_duration_entry.text())
-            stagger = 0
+            duration = int(self.offline_duration_entry.text())
             window_start = time.time()
-            window_end = window_start + interval
+            window_end = window_start + duration
 
         self.run_program_callback(interval, stagger, window_start, window_end)
 
