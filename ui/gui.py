@@ -1,7 +1,7 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTimer
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
+from PyQt5.QtCore import Qt, QTimer
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection

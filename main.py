@@ -5,6 +5,7 @@ from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings
+import threading
 import time
 
 class StreamRedirector:
