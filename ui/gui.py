@@ -95,7 +95,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.left_layout.addWidget(self.terminal_output)
 
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
+        self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
         self.left_layout.addWidget(self.advanced_settings)
 
         self.left_content = QWidget()
@@ -212,7 +212,4 @@ def main(run_program, stop_program, update_all_settings, change_relay_hats):
 
 if __name__ == "__main__":
     main()
-
-    """QObject::connect: Cannot queue arguments of type 'QTextCursor'
-(Make sure 'QTextCursor' is registered using qRegisterMetaType().)
-Segmentation fault"""
+    
