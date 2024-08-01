@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTabWidget
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -8,7 +8,6 @@ from .welcome_section import WelcomeSection
 from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettings
 from .run_stop_section import RunStopSection
-from .interval_settings import IntervalSettings
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
@@ -73,17 +72,6 @@ class RodentRefreshmentGUI(QWidget):
                     background-color: #ffffff;
                     border: 1px solid #ced4da;
                 }
-                QTabWidget::pane {
-                    border-top: 2px solid #007bff;
-                }
-                QTabBar::tab {
-                    background: #ffffff;
-                    border: 1px solid #ced4da;
-                    padding: 10px;
-                }
-                QTabBar::tab:selected {
-                    background: #e9ecef;
-                }
             """)
 
         self.main_layout = QVBoxLayout()
@@ -122,7 +110,7 @@ class RodentRefreshmentGUI(QWidget):
         self.suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
         self.right_layout.addWidget(self.suggest_settings_section)
 
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.update_all_settings)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
         self.right_layout.addWidget(self.run_stop_section)
 
         self.right_content = QWidget()
@@ -215,12 +203,3 @@ class RodentRefreshmentGUI(QWidget):
     def get_settings(self):
         settings = self.advanced_settings.get_settings()
         return settings
-
-def main(run_program, stop_program, update_all_settings, change_relay_hats):
-    app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
-    gui.show()
-    sys.exit(app.exec_())
-
-if __name__ == "__main__":
-    main()

@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTabWidget, QWidget, QFormLayout, QDateTimeEdit
 from PyQt5.QtCore import QDateTime
+import time  # Ensure this is imported
 
 class RunStopSection(QGroupBox):
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
