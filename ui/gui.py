@@ -212,3 +212,7 @@ def main(run_program, stop_program, update_all_settings, change_relay_hats):
 
 if __name__ == "__main__":
     main()
+
+    """QObject::connect: Cannot queue arguments of type 'QTextCursor'
+(Make sure 'QTextCursor' is registered using qRegisterMetaType().)
+Segmentation fault"""
