@@ -13,7 +13,7 @@ class StreamRedirector:
         self.print_func = print_func
 
     def write(self, message):
-        if message.strip():  # ignore empty messages
+        if message.strip():
             self.print_func(message)
 
     def flush(self):
@@ -27,8 +27,8 @@ def main():
         sys.exit()
     
     settings = load_settings()
-    settings['num_hats'] = num_hats  # Update settings with the number of hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)  # Create relay pairs based on the number of hats
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
     
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
@@ -43,6 +43,10 @@ def main():
         running = True
         global stop_requested
         stop_requested = False
+
+        print(f"Selected relays: {settings['selected_relays']}")
+        print(f"Number of triggers: {settings['num_triggers']}")
+
         threading.Thread(target=program_loop).start()
         print("Program Started")
 
@@ -102,9 +106,19 @@ def main():
 
     gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
     
-    # Redirect stdout and stderr to the terminal output widget
     sys.stdout = StreamRedirector(gui.print_to_terminal)
     sys.stderr = StreamRedirector(gui.print_to_terminal)
     
     gui.show()
     sys.exit(app.exec_())
+
+def create_relay_pairs(num_hats):
+    relay_pairs = []
+    for hat in range(num_hats):
+        start_relay = hat * 16 + 1
+        for i in range(0, 16, 2):
+            relay_pairs.append((start_relay + i, start_relay + i + 1))
+    return relay_pairs
+
+if __name__ == "__main__":
+    main()

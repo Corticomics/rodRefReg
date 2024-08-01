@@ -13,12 +13,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
-    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='bitlearns'):
+    def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
-        self.update_all_settings = update_all_settings
         self.change_relay_hats = change_relay_hats
 
         self.settings = settings
