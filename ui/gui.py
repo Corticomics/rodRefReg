@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTabWidget
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -8,6 +8,7 @@ from .welcome_section import WelcomeSection
 from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettings
 from .run_stop_section import RunStopSection
+from .interval_settings import IntervalSettings
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
@@ -71,6 +72,17 @@ class RodentRefreshmentGUI(QWidget):
                 QTextEdit {
                     background-color: #ffffff;
                     border: 1px solid #ced4da;
+                }
+                QTabWidget::pane {
+                    border-top: 2px solid #007bff;
+                }
+                QTabBar::tab {
+                    background: #ffffff;
+                    border: 1px solid #ced4da;
+                    padding: 10px;
+                }
+                QTabBar::tab:selected {
+                    background: #e9ecef;
                 }
             """)
 
@@ -204,11 +216,11 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-    def start_timer(self, interval):
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.run_program_callback)
-        self.timer.start(interval * 1000)  # Convert seconds to milliseconds
+def main(run_program, stop_program, update_all_settings, change_relay_hats):
+    app = QApplication(sys.argv)
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
+    gui.show()
+    sys.exit(app.exec_())
 
-    def stop_timer(self):
-        if hasattr(self, 'timer'):
-            self.timer.stop()
+if __name__ == "__main__":
+    main()
