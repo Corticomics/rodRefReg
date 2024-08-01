@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTimer
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -95,7 +95,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.left_layout.addWidget(self.terminal_output)
 
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
+        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
         self.left_layout.addWidget(self.advanced_settings)
 
         self.left_content = QWidget()
