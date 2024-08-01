@@ -33,13 +33,12 @@ def main():
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
-    def run_program(interval, stagger, window_start, window_end, mode):
-        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}, mode: {mode}")
+    def run_program(interval, stagger, window_start, window_end):
+        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
         settings['interval'] = interval
         settings['stagger'] = stagger
         settings['window_start'] = window_start
         settings['window_end'] = window_end
-        settings['mode'] = mode
         global running
         running = True
         global stop_requested
@@ -62,41 +61,30 @@ def main():
                 print("Immediate stop requested.")
                 break
             current_time = time.time()
-            if settings['mode'] == 'online':
-                current_hour = time.localtime().tm_hour
-                if (settings['window_start'] <= current_hour < 24) or (0 <= current_hour < settings['window_end']) if settings['window_start'] > settings['window_end'] else (settings['window_start'] <= current_hour < settings['window_end']):
-                    if current_time % settings['interval'] < 1:
-                        trigger_relays(current_time)
-            elif settings['mode'] == 'offline':
-                if current_time < settings['window_end']:
-                    if current_time % settings['interval'] < 1:
-                        trigger_relays(current_time)
-                else:
-                    print("Program duration ended.")
-                    stop_program()
-
-    def trigger_relays(current_time):
-        print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
-        relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
-        if stop_requested:
-            print("Immediate stop requested during relay triggering.")
-            return
-        print(f"Relay info: {relay_info}")
-        message = (
-            f"The pumps have been successfully triggered as follows:\n"
-            f"{'; '.join(relay_info)}\n"
-            f"** Next trigger due in {settings['interval']} seconds.\n\n"
-            f"Current settings:\n"
-            f"- Interval: {settings['interval']} seconds\n"
-            f"- Stagger: {settings['stagger']} seconds\n"
-            f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
-            f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
-        )
-        if notification_handler.is_internet_available():
-            notification_handler.send_slack_notification(message)
-        else:
-            notification_handler.log_pump_trigger(message)
-        time.sleep(settings['interval'] - 1)
+            if window_start <= current_time < window_end:
+                if current_time % settings['interval'] < 1:
+                    print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
+                    relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
+                    if stop_requested:
+                        print("Immediate stop requested during relay triggering.")
+                        break
+                    print(f"Relay info: {relay_info}")
+                    message = (
+                        f"The pumps have been successfully triggered as follows:\n"
+                        f"{'; '.join(relay_info)}\n"
+                        f"** Next trigger due in {settings['interval']} seconds.\n\n"
+                        f"Current settings:\n"
+                        f"- Interval: {settings['interval']} seconds\n"
+                        f"- Stagger: {settings['stagger']} seconds\n"
+                        f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - "
+                        f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
+                        f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
+                    )
+                    if notification_handler.is_internet_available():
+                        notification_handler.send_slack_notification(message)
+                    else:
+                        notification_handler.log_pump_trigger(message)
+                    time.sleep(settings['interval'] - 1)
 
     def update_all_settings():
         new_settings = gui.get_settings()
