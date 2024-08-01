@@ -80,7 +80,7 @@ class RunStopSection(QGroupBox):
             window_end = int(self.window_end_entry.dateTime().toSecsSinceEpoch())
         else:  # Offline Mode
             duration = int(self.offline_duration_entry.text())
-            window_start = time.time()
+            window_start = int(time.time())
             window_end = window_start + duration
 
         self.run_program_callback(interval, stagger, window_start, window_end)
