@@ -66,14 +66,15 @@ def main():
                     break
                 current_time = time.time()
                 current_hour = time.localtime(current_time).tm_hour
+                print(f"Current time: {current_time}, Current hour: {current_hour}")
                 if (settings['window_start'] <= current_hour < 24) or (0 <= current_hour < settings['window_end']) if settings['window_start'] > settings['window_end'] else (settings['window_start'] <= current_hour < settings['window_end']):
                     if current_time % settings['interval'] < 1:
                         print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
                         relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
+                        print(f"Relays triggered: {relay_info}")
                         if stop_requested:
                             print("Immediate stop requested during relay triggering.")
                             break
-                        print(f"Relay info: {relay_info}")
                         message = (
                             f"The pumps have been successfully triggered as follows:\n"
                             f"{'; '.join(relay_info)}\n"
