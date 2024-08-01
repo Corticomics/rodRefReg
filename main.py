@@ -43,7 +43,7 @@ def main():
         running = True
         global stop_requested
         stop_requested = False
-        gui.start_timer(interval)
+        threading.Thread(target=program_loop).start()
         print("Program Started")
 
     def stop_program():
@@ -51,7 +51,6 @@ def main():
         global stop_requested
         stop_requested = True
         running = False
-        gui.stop_timer()
         relay_handler.set_all_relays(0)
         print("Program Stopped")
 
@@ -62,7 +61,8 @@ def main():
                 print("Immediate stop requested.")
                 break
             current_time = time.time()
-            if (settings['window_start'] <= current_time < settings['window_end']):
+            current_hour = time.localtime().tm_hour
+            if (settings['window_start'] <= current_hour < 24) or (0 <= current_hour < settings['window_end']) if settings['window_start'] > settings['window_end'] else (settings['window_start'] <= current_hour < settings['window_end']):
                 if current_time % settings['interval'] < 1:
                     print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
                     relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
@@ -77,8 +77,7 @@ def main():
                         f"Current settings:\n"
                         f"- Interval: {settings['interval']} seconds\n"
                         f"- Stagger: {settings['stagger']} seconds\n"
-                        f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - "
-                        f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
+                        f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
                         f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
                     )
                     if notification_handler.is_internet_available():
