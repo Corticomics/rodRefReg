@@ -1,14 +1,13 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame, QTabWidget, QLabel, QDateTimeEdit
-from PyQt5.QtCore import Qt, QDateTime
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
+from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
 from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettings
 from .run_stop_section import RunStopSection
-from .interval_settings import IntervalSettings
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
@@ -88,52 +87,6 @@ class RodentRefreshmentGUI(QWidget):
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
-
-        self.interval_layout = QHBoxLayout()
-        self.interval_label = QLabel("Interval (seconds):")
-        self.interval_entry = QLineEdit()
-        self.interval_layout.addWidget(self.interval_label)
-        self.interval_layout.addWidget(self.interval_entry)
-
-        self.stagger_layout = QHBoxLayout()
-        self.stagger_label = QLabel("Stagger (seconds):")
-        self.stagger_entry = QLineEdit()
-        self.stagger_layout.addWidget(self.stagger_label)
-        self.stagger_layout.addWidget(self.stagger_entry)
-
-        self.main_layout.addLayout(self.interval_layout)
-        self.main_layout.addLayout(self.stagger_layout)
-
-        self.tab_widget = QTabWidget()
-
-        self.calendar_tab = QWidget()
-        self.offline_tab = QWidget()
-
-        self.calendar_layout = QVBoxLayout()
-        self.start_datetime = QDateTimeEdit()
-        self.start_datetime.setCalendarPopup(True)
-        self.start_datetime.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.start_datetime.setDateTime(QDateTime.currentDateTime())
-        self.end_datetime = QDateTimeEdit()
-        self.end_datetime.setCalendarPopup(True)
-        self.end_datetime.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.end_datetime.setDateTime(QDateTime.currentDateTime().addSecs(3600))
-        self.calendar_layout.addWidget(QLabel("Start DateTime:"))
-        self.calendar_layout.addWidget(self.start_datetime)
-        self.calendar_layout.addWidget(QLabel("End DateTime:"))
-        self.calendar_layout.addWidget(self.end_datetime)
-        self.calendar_tab.setLayout(self.calendar_layout)
-
-        self.offline_layout = QVBoxLayout()
-        self.offline_duration_label = QLabel("Duration (seconds):")
-        self.offline_duration_entry = QLineEdit()
-        self.offline_layout.addWidget(self.offline_duration_label)
-        self.offline_layout.addWidget(self.offline_duration_entry)
-        self.offline_tab.setLayout(self.offline_layout)
-
-        self.tab_widget.addTab(self.calendar_tab, "Calendar")
-        self.tab_widget.addTab(self.offline_tab, "Offline")
-        self.main_layout.addWidget(self.tab_widget)
 
         self.upper_layout = QHBoxLayout()
 
