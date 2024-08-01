@@ -95,7 +95,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.left_layout.addWidget(self.terminal_output)
 
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
+        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
         self.left_layout.addWidget(self.advanced_settings)
 
         self.left_content = QWidget()
@@ -110,7 +110,7 @@ class RodentRefreshmentGUI(QWidget):
         self.suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
         self.right_layout.addWidget(self.suggest_settings_section)
 
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.update_all_settings)
         self.right_layout.addWidget(self.run_stop_section)
 
         self.right_content = QWidget()
