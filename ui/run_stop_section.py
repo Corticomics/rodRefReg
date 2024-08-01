@@ -66,8 +66,7 @@ class RunStopSection(QGroupBox):
         form_layout = QFormLayout()
 
         self.offline_duration_entry = QLineEdit()
-        form_layout.addRow(QLabel("Duration (seconds):"), self.offline_duration_entry)
-
+        form_layout.addRow(QLabel("Duration (seconds):"), self.offline_duration_entry
         offline_tab.setLayout(form_layout)
         return offline_tab
 
