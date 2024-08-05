@@ -191,7 +191,7 @@ class RodentRefreshmentGUI(QWidget):
 
                     if volume_per_relay == 0:
                         checkbox.setChecked(False)
-                    else:
+                    else:  
                         checkbox.setChecked(True)
 
                 self.update_all_settings()
