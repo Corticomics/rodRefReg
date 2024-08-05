@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QComboBox, QFormLayout)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QFormLayout, QTabWidget, QHBoxLayout)
 from PyQt5.QtCore import QDateTime
 
 class RunStop(QWidget):
@@ -16,7 +16,15 @@ class RunStop(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout()
 
-        # Calendar-Based Time Window Selection
+        # Create Tabs
+        self.tab_widget = QTabWidget(self)
+        self.calendar_tab = QWidget()
+        self.offline_tab = QWidget()
+        
+        self.tab_widget.addTab(self.calendar_tab, "Calendar Mode")
+        self.tab_widget.addTab(self.offline_tab, "Offline Mode")
+
+        # Calendar Mode UI
         self.start_time_label = QLabel("Start Time:")
         self.start_time_input = QDateTimeEdit(self)
         self.start_time_input.setCalendarPopup(True)
@@ -27,12 +35,12 @@ class RunStop(QWidget):
         self.end_time_input.setCalendarPopup(True)
         self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
 
-        # Offline Mode
+        # Offline Mode UI
         self.offline_label = QLabel("Offline Duration (minutes):")
         self.offline_input = QLineEdit(self)
         self.offline_input.setPlaceholderText("Enter minutes")
 
-        # Interval and Stagger Inputs
+        # Interval and Stagger Inputs (Both Tabs)
         self.interval_label = QLabel("Interval (seconds):")
         self.interval_input = QLineEdit(self)
         self.interval_input.setPlaceholderText("Enter seconds")
@@ -52,29 +60,46 @@ class RunStop(QWidget):
         self.update_button.clicked.connect(self.update_settings_callback)
         self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
 
-        # Layout
-        form_layout = QFormLayout()
-        form_layout.addRow(self.start_time_label, self.start_time_input)
-        form_layout.addRow(self.end_time_label, self.end_time_input)
-        form_layout.addRow(self.offline_label, self.offline_input)
-        form_layout.addRow(self.interval_label, self.interval_input)
-        form_layout.addRow(self.stagger_label, self.stagger_input)
+        # Calendar Tab Layout
+        calendar_layout = QFormLayout()
+        calendar_layout.addRow(self.start_time_label, self.start_time_input)
+        calendar_layout.addRow(self.end_time_label, self.end_time_input)
+        calendar_layout.addRow(self.interval_label, self.interval_input)
+        calendar_layout.addRow(self.stagger_label, self.stagger_input)
+        self.calendar_tab.setLayout(calendar_layout)
 
-        self.layout.addLayout(form_layout)
-        self.layout.addWidget(self.run_button)
-        self.layout.addWidget(self.stop_button)
-        self.layout.addWidget(self.update_button)
-        self.layout.addWidget(self.relay_hats_button)
+        # Offline Tab Layout
+        offline_layout = QFormLayout()
+        offline_layout.addRow(self.offline_label, self.offline_input)
+        offline_layout.addRow(self.interval_label, self.interval_input)
+        offline_layout.addRow(self.stagger_label, self.stagger_input)
+        self.offline_tab.setLayout(offline_layout)
+
+        # Adding Buttons to Main Layout
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.run_button)
+        button_layout.addWidget(self.stop_button)
+        button_layout.addWidget(self.update_button)
+        button_layout.addWidget(self.relay_hats_button)
+
+        self.layout.addWidget(self.tab_widget)
+        self.layout.addLayout(button_layout)
 
         self.setLayout(self.layout)
 
     def load_settings(self, settings):
-        # Change here to use window_start and window_end
-        self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
-        self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
-        self.offline_input.setText(str(settings.get('offline_duration', 0)))  # Provide a default if offline_duration is not present
-        self.interval_input.setText(str(settings['interval']))
-        self.stagger_input.setText(str(settings['stagger']))
+        # Load settings for calendar mode
+        if 'window_start' in settings and 'window_end' in settings:
+            self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
+            self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
+
+        # Load settings for offline mode
+        if 'offline_duration' in settings:
+            self.offline_input.setText(str(settings['offline_duration']))
+
+        # Load common settings
+        self.interval_input.setText(str(settings.get('interval', 0)))
+        self.stagger_input.setText(str(settings.get('stagger', 0)))
 
     def get_start_time(self):
         return self.start_time_input.dateTime().toPython()
