@@ -69,9 +69,10 @@ class RunStop(QWidget):
         self.setLayout(self.layout)
 
     def load_settings(self, settings):
-        self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['start_time']))
-        self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['end_time']))
-        self.offline_input.setText(str(settings['offline_duration']))
+        # Change here to use window_start and window_end
+        self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
+        self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
+        self.offline_input.setText(str(settings.get('offline_duration', 0)))  # Provide a default if offline_duration is not present
         self.interval_input.setText(str(settings['interval']))
         self.stagger_input.setText(str(settings['stagger']))
 
