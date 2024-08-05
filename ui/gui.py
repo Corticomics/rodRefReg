@@ -10,7 +10,7 @@ from .suggest_settings import SuggestSettings
 from .run_stop_section import RunStopSection
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
-from config import load_settings
+from settings.config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
     def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='bitlearns'):
