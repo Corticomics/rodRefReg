@@ -1,62 +1,127 @@
 import sys
+import os
+from PyQt5.QtWidgets import QApplication, QInputDialog
+from ui.gui import RodentRefreshmentGUI
+from gpio.gpio_handler import RelayHandler
+from notifications.notifications import NotificationHandler
+from settings.config import load_settings
+import threading
 import time
-from threading import Thread
-from PyQt5.QtWidgets import QApplication
-from RunStop import RunStop
-from settings import load_settings, save_settings
+from datetime import datetime, timedelta
 
-class RodentRefreshmentApp:
-    def __init__(self):
-        self.settings = load_settings()
-        self.gui = RunStop(self.run_program, self.stop_program, self.update_all_settings, self.change_relay_hats, self.settings)
+class StreamRedirector:
+    def __init__(self, print_func):
+        self.print_func = print_func
 
-    def run_program(self):
-        # Run the pump control logic in a new thread
-        Thread(target=self.run_logic).start()
+    def write(self, message):
+        if message.strip():
+            self.print_func(message)
 
-    def run_logic(self):
-        interval = self.gui.get_interval()
-        stagger = self.gui.get_stagger()
-        start_time = self.gui.get_start_time()
-        end_time = self.gui.get_end_time()
+    def flush(self):
+        pass
 
-        offline_duration = self.gui.get_offline_duration()
-        if offline_duration > 0:
-            end_time = time.time() + (offline_duration * 60)
+def main():
+    app = QApplication(sys.argv)
+    
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    if not ok:
+        sys.exit()
+    
+    settings = load_settings()
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    
+    relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
+    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
-        current_time = time.time()
-        while current_time < end_time:
-            if start_time.timestamp() <= current_time <= end_time.timestamp():
-                self.activate_relay()
-                time.sleep(interval)  # Wait for the interval
-            current_time = time.time()
+    def run_program(interval, stagger, start_datetime, end_datetime, offline_hours, offline_minutes):
+        print(f"Running program with interval: {interval}, stagger: {stagger}, start_datetime: {start_datetime}, end_datetime: {end_datetime}, offline_hours: {offline_hours}, offline_minutes: {offline_minutes}")
+        settings['interval'] = interval
+        settings['stagger'] = stagger
+        settings['start_datetime'] = datetime.strptime(start_datetime, "%Y-%m-%d %H:%M")
+        settings['end_datetime'] = datetime.strptime(end_datetime, "%Y-%m-%d %H:%M")
+        settings['offline_hours'] = offline_hours
+        settings['offline_minutes'] = offline_minutes
+        global running
+        running = True
+        global stop_requested
+        stop_requested = False
+        threading.Thread(target=program_loop).start()
+        print("Program Started")
 
-    def activate_relay(self):
-        # Logic to activate relay for dispensing water
-        print("Relay activated")
+    def stop_program():
+        global running
+        global stop_requested
+        stop_requested = True
+        running = False
+        relay_handler.set_all_relays(0)
+        print("Program Stopped")
 
-    def stop_program(self):
-        # Placeholder for stopping the program logic
-        print("Program stopped")
-        # You may want to include logic to safely stop the running thread
+    def program_loop():
+        global running
+        offline_end_time = datetime.now() + timedelta(hours=settings['offline_hours'], minutes=settings['offline_minutes'])
+        while running:
+            if stop_requested:
+                print("Immediate stop requested.")
+                break
+            now = datetime.now()
+            if settings['start_datetime'] <= now <= settings['end_datetime']:
+                if now > offline_end_time:
+                    current_time = time.time()
+                    if current_time % settings['interval'] < 1:
+                        print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
+                        relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
+                        if stop_requested:
+                            print("Immediate stop requested during relay triggering.")
+                            break
+                        print(f"Relay info: {relay_info}")
+                        message = (
+                            f"The pumps have been successfully triggered as follows:\n"
+                            f"{'; '.join(relay_info)}\n"
+                            f"** Next trigger due in {settings['interval']} seconds.\n\n"
+                            f"Current settings:\n"
+                            f"- Interval: {settings['interval']} seconds\n"
+                            f"- Stagger: {settings['stagger']} seconds\n"
+                            f"- Water window: {settings['start_datetime'].strftime('%Y-%m-%d %H:%M')} - {settings['end_datetime'].strftime('%Y-%m-%d %H:%M')}\n"
+                            f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
+                        )
+                        if notification_handler.is_internet_available():
+                            notification_handler.send_slack_notification(message)
+                        else:
+                            notification_handler.log_pump_trigger(message)
+                        time.sleep(settings['interval'] - 1)
+            else:
+                time.sleep(60)  # Sleep for a minute if outside of scheduled time
 
-    def update_all_settings(self):
-        settings = {
-            'interval': self.gui.get_interval(),
-            'stagger': self.gui.get_stagger(),
-            'start_time': self.gui.get_start_time().timestamp(),
-            'end_time': self.gui.get_end_time().timestamp(),
-            'offline_duration': self.gui.get_offline_duration()
-        }
-        save_settings(settings)
+    def update_all_settings():
+        new_settings = gui.get_settings()
+        settings.update(new_settings)
         print("Settings updated")
 
-    def change_relay_hats(self):
-        # Placeholder for changing relay hats logic
-        print("Relay hats changed")
+    def change_relay_hats():
+        num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+        if not ok:
+            return
+        settings['num_hats'] = num_hats
+        settings['relay_pairs'] = create_relay_pairs(num_hats)
+        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+        gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+
+    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, settings)
+    
+    sys.stdout = StreamRedirector(gui.print_to_terminal)
+    sys.stderr = StreamRedirector(gui.print_to_terminal)
+    
+    gui.show()
+    sys.exit(app.exec_())
+
+def create_relay_pairs(num_hats):
+    relay_pairs = []
+    for hat in range(num_hats):
+        start_relay = hat * 16 + 1
+        for i in range(0, 16, 2):
+            relay_pairs.append((start_relay + i, start_relay + i + 1))
+    return relay_pairs
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    rodent_app = RodentRefreshmentApp()
-    rodent_app.gui.show()
-    sys.exit(app.exec_())
+    main()
