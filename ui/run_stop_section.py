@@ -1,65 +1,100 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QComboBox, QFormLayout)
+from PyQt5.QtCore import QDateTime
 
-class RunStopSection(QGroupBox):
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback):
-        super().__init__("Run/Stop Program")
-        self.run_program_callback = run_program_callback
-        self.stop_program_callback = stop_program_callback
+class RunStop(QWidget):
+    def __init__(self, run_callback, stop_callback, update_settings_callback, change_relay_hats_callback, settings=None, parent=None):
+        super().__init__(parent)
+        self.run_callback = run_callback
+        self.stop_callback = stop_callback
+        self.update_settings_callback = update_settings_callback
         self.change_relay_hats_callback = change_relay_hats_callback
 
-        layout = QVBoxLayout()
+        self.init_ui()
+        if settings:
+            self.load_settings(settings)
 
-        # Interval, stagger, window start, and window end input fields
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("Interval (seconds):"))
-        self.interval_entry = QLineEdit()
-        interval_layout.addWidget(self.interval_entry)
-        layout.addLayout(interval_layout)
+    def init_ui(self):
+        self.layout = QVBoxLayout()
 
-        stagger_layout = QHBoxLayout()
-        stagger_layout.addWidget(QLabel("Stagger (seconds):"))
-        self.stagger_entry = QLineEdit()
-        stagger_layout.addWidget(self.stagger_entry)
-        layout.addLayout(stagger_layout)
+        # Calendar-Based Time Window Selection
+        self.start_time_label = QLabel("Start Time:")
+        self.start_time_input = QDateTimeEdit(self)
+        self.start_time_input.setCalendarPopup(True)
+        self.start_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
 
-        window_start_layout = QHBoxLayout()
-        window_start_layout.addWidget(QLabel("Water Window Start (24-hour format):"))
-        self.window_start_entry = QLineEdit()
-        window_start_layout.addWidget(self.window_start_entry)
-        layout.addLayout(window_start_layout)
+        self.end_time_label = QLabel("End Time:")
+        self.end_time_input = QDateTimeEdit(self)
+        self.end_time_input.setCalendarPopup(True)
+        self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
 
-        window_end_layout = QHBoxLayout()
-        window_end_layout.addWidget(QLabel("Water Window End (24-hour format):"))
-        self.window_end_entry = QLineEdit()
-        window_end_layout.addWidget(self.window_end_entry)
-        layout.addLayout(window_end_layout)
+        # Offline Mode
+        self.offline_label = QLabel("Offline Duration (minutes):")
+        self.offline_input = QLineEdit(self)
+        self.offline_input.setPlaceholderText("Enter minutes")
 
-        self.run_button = QPushButton("Run Program")
-        self.run_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.run_button.clicked.connect(self.run_program)
-        layout.addWidget(self.run_button)
+        # Interval and Stagger Inputs
+        self.interval_label = QLabel("Interval (seconds):")
+        self.interval_input = QLineEdit(self)
+        self.interval_input.setPlaceholderText("Enter seconds")
 
-        self.stop_button = QPushButton("Stop Program")
-        self.stop_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.stop_button.clicked.connect(self.stop_program)
-        layout.addWidget(self.stop_button)
+        self.stagger_label = QLabel("Stagger (seconds):")
+        self.stagger_input = QLineEdit(self)
+        self.stagger_input.setPlaceholderText("Enter seconds")
 
-        self.change_relay_hats_button = QPushButton("Change Relay Hats")
-        self.change_relay_hats_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        self.change_relay_hats_button.clicked.connect(self.change_relay_hats)
-        layout.addWidget(self.change_relay_hats_button)
+        # Buttons
+        self.run_button = QPushButton("Run", self)
+        self.stop_button = QPushButton("Stop", self)
+        self.update_button = QPushButton("Update Settings", self)
+        self.relay_hats_button = QPushButton("Change Relay Hats", self)
 
-        self.setLayout(layout)
+        self.run_button.clicked.connect(self.run_callback)
+        self.stop_button.clicked.connect(self.stop_callback)
+        self.update_button.clicked.connect(self.update_settings_callback)
+        self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
 
-    def run_program(self):
-        interval = int(self.interval_entry.text())
-        stagger = int(self.stagger_entry.text())
-        window_start = int(self.window_start_entry.text())
-        window_end = int(self.window_end_entry.text())
-        self.run_program_callback(interval, stagger, window_start, window_end)
+        # Layout
+        form_layout = QFormLayout()
+        form_layout.addRow(self.start_time_label, self.start_time_input)
+        form_layout.addRow(self.end_time_label, self.end_time_input)
+        form_layout.addRow(self.offline_label, self.offline_input)
+        form_layout.addRow(self.interval_label, self.interval_input)
+        form_layout.addRow(self.stagger_label, self.stagger_input)
 
-    def stop_program(self):
-        self.stop_program_callback()
+        self.layout.addLayout(form_layout)
+        self.layout.addWidget(self.run_button)
+        self.layout.addWidget(self.stop_button)
+        self.layout.addWidget(self.update_button)
+        self.layout.addWidget(self.relay_hats_button)
 
-    def change_relay_hats(self):
-        self.change_relay_hats_callback()
+        self.setLayout(self.layout)
+
+    def load_settings(self, settings):
+        self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['start_time']))
+        self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['end_time']))
+        self.offline_input.setText(str(settings['offline_duration']))
+        self.interval_input.setText(str(settings['interval']))
+        self.stagger_input.setText(str(settings['stagger']))
+
+    def get_start_time(self):
+        return self.start_time_input.dateTime().toPython()
+
+    def get_end_time(self):
+        return self.end_time_input.dateTime().toPython()
+
+    def get_offline_duration(self):
+        try:
+            return int(self.offline_input.text())
+        except ValueError:
+            return 0
+
+    def get_interval(self):
+        try:
+            return int(self.interval_input.text())
+        except ValueError:
+            return 0
+
+    def get_stagger(self):
+        try:
+            return int(self.stagger_input.text())
+        except ValueError:
+            return 0
