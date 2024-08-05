@@ -40,7 +40,7 @@ class RunStop(QWidget):
         self.offline_input = QLineEdit(self)
         self.offline_input.setPlaceholderText("Enter minutes")
 
-        # Interval and Stagger Inputs (Both Tabs)
+        # Interval and Stagger Inputs
         self.interval_label = QLabel("Interval (seconds):")
         self.interval_input = QLineEdit(self)
         self.interval_input.setPlaceholderText("Enter seconds")
@@ -64,25 +64,29 @@ class RunStop(QWidget):
         calendar_layout = QFormLayout()
         calendar_layout.addRow(self.start_time_label, self.start_time_input)
         calendar_layout.addRow(self.end_time_label, self.end_time_input)
-        calendar_layout.addRow(self.interval_label, self.interval_input)
-        calendar_layout.addRow(self.stagger_label, self.stagger_input)
         self.calendar_tab.setLayout(calendar_layout)
 
         # Offline Tab Layout
         offline_layout = QFormLayout()
         offline_layout.addRow(self.offline_label, self.offline_input)
-        offline_layout.addRow(self.interval_label, self.interval_input)
-        offline_layout.addRow(self.stagger_label, self.stagger_input)
         self.offline_tab.setLayout(offline_layout)
 
-        # Adding Buttons to Main Layout
+        # Interval and Stagger Layout
+        interval_stagger_layout = QFormLayout()
+        interval_stagger_layout.addRow(self.interval_label, self.interval_input)
+        interval_stagger_layout.addRow(self.stagger_label, self.stagger_input)
+
+        # Add widgets to main layout
+        self.layout.addWidget(self.tab_widget)
+        self.layout.addLayout(interval_stagger_layout)
+
+        # Buttons Layout
         button_layout = QHBoxLayout()
         button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.stop_button)
         button_layout.addWidget(self.update_button)
         button_layout.addWidget(self.relay_hats_button)
 
-        self.layout.addWidget(self.tab_widget)
         self.layout.addLayout(button_layout)
 
         self.setLayout(self.layout)
