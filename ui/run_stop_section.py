@@ -2,12 +2,13 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdi
 from PyQt5.QtCore import QDateTime
 
 class RunStopSection(QWidget):
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, parent=None):
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
         self.settings = settings
+        self.advanced_settings = advanced_settings  # Pass advanced settings here
 
         self.init_ui()
         if settings:
@@ -111,7 +112,6 @@ class RunStopSection(QWidget):
             self.run_program_callback(interval, stagger, window_start, window_end)
         except Exception as e:
             print(f"Error running program: {e}")
-
 
     def stop_program(self):
         self.stop_program_callback()

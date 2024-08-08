@@ -38,7 +38,7 @@ def run_program(interval, stagger, window_start, window_end):
     running = True
     global stop_requested
     stop_requested = False
-    threading.Thread(target=program_loop).start()
+    threading.Thread(target=program_loop, args=(settings,)).start()
     print("Program Started")
 
 def stop_program():
@@ -58,18 +58,17 @@ def change_relay_hats():
     relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
     gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
-def program_loop():
+def program_loop(settings):
     global running
     while running:
         if stop_requested:
             print("Immediate stop requested.")
             break
-        current_time = time.time()
+        current_time = int(time.time())
         if settings['window_start'] <= current_time <= settings['window_end']:
             if current_time % settings['interval'] < 1:
                 print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
-                selected_relays = [eval(k) for k in settings['selected_relays']]  # Convert string keys back to tuples
-                relay_info = relay_handler.trigger_relays(selected_relays, settings['num_triggers'], settings['stagger'])
+                relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
                 if stop_requested:
                     print("Immediate stop requested during relay triggering.")
                     break
@@ -81,8 +80,8 @@ def program_loop():
                     f"Current settings:\n"
                     f"- Interval: {settings['interval']} seconds\n"
                     f"- Stagger: {settings['stagger']} seconds\n"
-                    f"- Water window: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_start']))} - {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(settings['window_end']))}\n"
-                    f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in selected_relays) if selected_relays else 'None'}"
+                    f"- Water window: {settings['window_start']} - {settings['window_end']}\n"
+                    f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
                 )
                 if notification_handler.is_internet_available():
                     notification_handler.send_slack_notification(message)
@@ -105,6 +104,7 @@ def main():
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
+    global gui
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
 
     # Redirect stdout and stderr to the terminal output widget
@@ -124,30 +124,3 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
-"""conelab@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo python3 main.py
-QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
-error: XDG_RUNTIME_DIR is invalid or not set in the environment.
-qt.xkb.compose: failed to create compose table
-Traceback (most recent call last):
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 126, in <module>
-    main()
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 101, in main
-    settings = load_settings()
-               ^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/rodRefReg/settings/config.py", line 13, in load_settings
-    settings = json.load(file)
-               ^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.11/json/__init__.py", line 293, in load
-    return loads(fp.read(),
-           ^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.11/json/__init__.py", line 346, in loads
-    return _default_decoder.decode(s)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.11/json/decoder.py", line 337, in decode
-    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.11/json/decoder.py", line 353, in raw_decode
-    obj, end = self.scan_once(s, idx)
-               ^^^^^^^^^^^^^^^^^^^^^^
-json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 75 column 9 (char 1004)
-"""
