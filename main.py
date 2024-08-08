@@ -132,3 +132,30 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
+"""conelab@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo python3 main.py
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+qt.xkb.compose: failed to create compose table
+Traceback (most recent call last):
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 134, in <module>
+    main()
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 106, in main
+    settings = load_settings()
+               ^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/rodRefReg/settings/config.py", line 13, in load_settings
+    settings = json.load(file)
+               ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/decoder.py", line 353, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 75 column 9 (char 1004)
+"""

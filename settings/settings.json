@@ -1,12 +1,75 @@
 {
-  "relay_pairs": [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12], [13, 14], [15, 16]],
-  "interval": 3600,
-  "stagger": 1,
-  "window_start": 8,
-  "window_end": 20,
-  "selected_relays": [],
-  "num_triggers": {},
-  "slack_token": "SLACKTOKEN",
-  "channel_id": "ChannelId",
-  "num_hats": 1
-}
+    "relay_pairs": [
+        [
+            1,
+            2
+        ],
+        [
+            3,
+            4
+        ],
+        [
+            5,
+            6
+        ],
+        [
+            7,
+            8
+        ],
+        [
+            9,
+            10
+        ],
+        [
+            11,
+            12
+        ],
+        [
+            13,
+            14
+        ],
+        [
+            15,
+            16
+        ]
+    ],
+    "interval": 10,
+    "stagger": 1,
+    "window_start": 1723145047,
+    "window_end": 1723145109,
+    "selected_relays": [
+        [
+            1,
+            2
+        ],
+        [
+            3,
+            4
+        ],
+        [
+            5,
+            6
+        ],
+        [
+            7,
+            8
+        ],
+        [
+            9,
+            10
+        ],
+        [
+            11,
+            12
+        ],
+        [
+            13,
+            14
+        ],
+        [
+            15,
+            16
+        ]
+    ],
+    "num_triggers": {
+        

@@ -334,5 +334,49 @@
     {
         "timestamp": "2024-07-26T11:24:26.538684",
         "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times\n** Next trigger due in 12 seconds.\n\nCurrent settings:\n- Interval: 12 seconds\n- Stagger: 1 seconds\n- Water window: 08:00 - 23:00\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-08T12:51:10.402113",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:51:07 - 2024-08-08 12:52:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:51:20.362619",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:51:07 - 2024-08-08 12:52:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:51:30.423775",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:51:07 - 2024-08-08 12:52:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:51:40.430088",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:51:07 - 2024-08-08 12:52:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:55:10.471472",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:55:07 - 2024-08-08 12:56:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:55:20.373552",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:55:07 - 2024-08-08 12:56:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:55:30.370182",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:55:07 - 2024-08-08 12:56:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:55:40.376890",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:55:07 - 2024-08-08 12:56:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:55:50.371512",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:55:07 - 2024-08-08 12:56:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T12:56:00.486745",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 12:55:07 - 2024-08-08 12:56:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T13:07:10.400763",
+        "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 13:07:07 - 2024-08-08 13:08:09\n- Relays enabled: None"
     }
 ]
