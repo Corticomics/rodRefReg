@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -13,12 +13,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
-    def __init__(self, run_program, stop_program, update_all_settings, change_relay_hats, settings, style='bitlearns'):
+    def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
-        self.update_all_settings = update_all_settings
         self.change_relay_hats = change_relay_hats
 
         self.settings = settings
@@ -95,7 +94,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.left_layout.addWidget(self.terminal_output)
 
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.update_all_settings, self.print_to_terminal)
+        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
         self.left_layout.addWidget(self.advanced_settings)
 
         self.left_content = QWidget()
@@ -110,7 +109,7 @@ class RodentRefreshmentGUI(QWidget):
         self.suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
         self.right_layout.addWidget(self.suggest_settings_section)
 
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         self.right_layout.addWidget(self.run_stop_section)
 
         self.right_content = QWidget()
@@ -192,7 +191,7 @@ class RodentRefreshmentGUI(QWidget):
 
                     if volume_per_relay == 0:
                         checkbox.setChecked(False)
-                    else:
+                    else:  
                         checkbox.setChecked(True)
 
                 self.update_all_settings()
@@ -204,9 +203,9 @@ class RodentRefreshmentGUI(QWidget):
         settings = self.advanced_settings.get_settings()
         return settings
 
-def main(run_program, stop_program, update_all_settings, change_relay_hats):
+def main(run_program, stop_program, change_relay_hats):
     app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, update_all_settings, change_relay_hats, style='bitlearns')
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, load_settings(), style='bitlearns')
     gui.show()
     sys.exit(app.exec_())
 

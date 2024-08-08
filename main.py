@@ -95,7 +95,7 @@ def main():
         relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
         gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, style='bitlearns')
     
     # Redirect stdout and stderr to the terminal output widget
     sys.stdout = StreamRedirector(gui.print_to_terminal)
