@@ -12,6 +12,7 @@ from .run_stop_section import RunStopSection
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from config import load_settings
 
+
 class RodentRefreshmentGUI(QWidget):
     def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
@@ -109,7 +110,7 @@ class RodentRefreshmentGUI(QWidget):
         self.suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
         self.right_layout.addWidget(self.suggest_settings_section)
 
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
         self.right_layout.addWidget(self.run_stop_section)
 
         self.right_content = QWidget()

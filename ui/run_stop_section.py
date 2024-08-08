@@ -106,8 +106,9 @@ class RunStopSection(QWidget):
             self.settings['window_end'] = window_end
 
             # Get updated relay settings
-            advanced_settings = self.advanced_settings.get_settings()
-            self.settings.update(advanced_settings)
+            if self.advanced_settings:
+                advanced_settings = self.advanced_settings.get_settings()
+                self.settings.update(advanced_settings)
 
             self.run_program_callback(interval, stagger, window_start, window_end)
         except Exception as e:
