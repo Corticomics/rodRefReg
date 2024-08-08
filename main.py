@@ -46,7 +46,7 @@ def stop_program():
     global stop_requested
     stop_requested = True
     running = False
-    relay_handler.set_all_relays(0)
+    RelayHandler.set_all_relays(0)
     print("Program Stopped")
 
 def change_relay_hats():
@@ -124,3 +124,39 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
+
+
+"""Exception in thread 
+Thread-1 (program_loop)
+:
+
+Traceback (most recent call last):
+
+  File "/usr/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
+
+self.run()
+  File "/usr/lib/python3.11/threading.py", line 975, in run
+
+self._target(*self._args, **self._kwargs)
+  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 71, in program_loop
+
+relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
+^
+^
+^
+^
+^
+^
+^
+^
+^
+^
+^
+^
+^
+NameError
+: 
+name 'relay_handler' is not defined
+. Did you mean: '
+RelayHandler
+'?"""
