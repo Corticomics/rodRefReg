@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QComboBox, QFormLayout, QTabWidget)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout)
 from PyQt5.QtCore import QDateTime
 
 class RunStopSection(QWidget):
@@ -83,7 +83,7 @@ class RunStopSection(QWidget):
     def load_settings(self, settings):
         self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
         self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
-        self.offline_input.setText(str(settings['offline_duration']))
+        self.offline_input.setText(str(settings.get('offline_duration', 60)))  # Use default if not found
         self.interval_input.setText(str(settings['interval']))
         self.stagger_input.setText(str(settings['stagger']))
 
@@ -113,4 +113,3 @@ class RunStopSection(QWidget):
 
     def change_relay_hats(self):
         self.change_relay_hats_callback()
-    

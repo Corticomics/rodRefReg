@@ -9,12 +9,20 @@ def load_settings():
             settings['relay_pairs'] = create_relay_pairs(settings.get('num_hats', 1))
     else:
         settings = {}
-    return settings
 
-def save_settings(settings):
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    with open(settings_path, 'w') as file:
-        json.dump(settings, file, indent=4)
+    # Set default values for settings if they are not already set
+    settings.setdefault('interval', 3600)
+    settings.setdefault('stagger', 1)
+    settings.setdefault('window_start', 8)
+    settings.setdefault('window_end', 20)
+    settings.setdefault('selected_relays', [])
+    settings.setdefault('num_triggers', {})
+    settings.setdefault('slack_token', "SLACKTOKEN")
+    settings.setdefault('channel_id', "ChannelId")
+    settings.setdefault('num_hats', 1)
+    settings.setdefault('offline_duration', 60)  # Default to 60 minutes if not set
+
+    return settings
 
 def create_relay_pairs(num_hats):
     relay_pairs = []
