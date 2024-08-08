@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QCheckBox
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QWidget, QCheckBox
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
@@ -54,7 +54,7 @@ class AdvancedSettingsSection(QGroupBox):
     def get_settings(self):
         settings = {
             'selected_relays': [rp for rp, checkbox in self.relay_checkboxes.items() if checkbox.isChecked()],
-            'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
+            'num_triggers': {str(rp): int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
         }
         return settings
 
