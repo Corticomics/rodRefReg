@@ -46,7 +46,7 @@ def stop_program():
     global stop_requested
     stop_requested = True
     running = False
-    RelayHandler.set_all_relays(0)
+    relay_handler.set_all_relays(0)
     print("Program Stopped")
 
 def change_relay_hats():
@@ -101,7 +101,9 @@ def main():
     settings['num_hats'] = num_hats  # Update settings with the number of hats
     settings['relay_pairs'] = create_relay_pairs(num_hats)  # Create relay pairs based on the number of hats
     
+    global relay_handler
     relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
+    global notification_handler
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
     global gui
@@ -124,39 +126,3 @@ def create_relay_pairs(num_hats):
 
 if __name__ == "__main__":
     main()
-
-
-"""Exception in thread 
-Thread-1 (program_loop)
-:
-
-Traceback (most recent call last):
-
-  File "/usr/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
-
-self.run()
-  File "/usr/lib/python3.11/threading.py", line 975, in run
-
-self._target(*self._args, **self._kwargs)
-  File "/home/conelab/Documents/GitHub/rodRefReg/main.py", line 71, in program_loop
-
-relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
-^
-^
-^
-^
-^
-^
-^
-^
-^
-^
-^
-^
-^
-NameError
-: 
-name 'relay_handler' is not defined
-. Did you mean: '
-RelayHandler
-'?"""
