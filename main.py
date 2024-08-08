@@ -49,6 +49,15 @@ def stop_program():
     relay_handler.set_all_relays(0)
     print("Program Stopped")
 
+def change_relay_hats():
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    if not ok:
+        return
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+
 def program_loop():
     global running
     while running:
