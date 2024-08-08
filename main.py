@@ -20,26 +20,32 @@ class StreamRedirector:
         pass
 
 def run_program(interval, stagger, window_start, window_end):
-    print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-    
-    # Update settings
-    settings['interval'] = interval
-    settings['stagger'] = stagger
-    settings['window_start'] = window_start
-    settings['window_end'] = window_end
-    
-    # Update relay settings from AdvancedSettingsSection
-    advanced_settings = gui.advanced_settings.get_settings()
-    settings.update(advanced_settings)
+    try:
+        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
+        
+        # Update settings
+        settings['interval'] = interval
+        settings['stagger'] = stagger
+        settings['window_start'] = window_start
+        settings['window_end'] = window_end
+        
+        # Ensure selected relays and num_triggers are updated correctly
+        selected_relays = {str(k): v for k, v in settings['selected_relays'].items()}
+        num_triggers = {str(k): v for k, v in settings['num_triggers'].items()}
+        settings['selected_relays'] = selected_relays
+        settings['num_triggers'] = num_triggers
+        
+        save_settings(settings)  # Save the settings
+        
+        global running
+        running = True
+        global stop_requested
+        stop_requested = False
+        threading.Thread(target=program_loop).start()
+        print("Program Started")
+    except Exception as e:
+        print(f"Error running program: {e}")
 
-    save_settings(settings)  # Save the settings
-    
-    global running
-    running = True
-    global stop_requested
-    stop_requested = False
-    threading.Thread(target=program_loop).start()
-    print("Program Started")
 
 def stop_program():
     global running
