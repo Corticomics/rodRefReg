@@ -67,26 +67,26 @@ def program_loop(settings):
         current_time = int(time.time())
         if settings['window_start'] <= current_time <= settings['window_end']:
             if current_time % settings['interval'] < 1:
-                print(f"Triggering relays at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time))}")
-                relay_info = relay_handler.trigger_relays(settings['selected_relays'], settings['num_triggers'], settings['stagger'])
-                if stop_requested:
-                    print("Immediate stop requested during relay triggering.")
-                    break
-                print(f"Relay info: {relay_info}")
-                message = (
-                    f"The pumps have been successfully triggered as follows:\n"
-                    f"{'; '.join(relay_info)}\n"
-                    f"** Next trigger due in {settings['interval']} seconds.\n\n"
-                    f"Current settings:\n"
-                    f"- Interval: {settings['interval']} seconds\n"
-                    f"- Stagger: {settings['stagger']} seconds\n"
-                    f"- Water window: {settings['window_start']} - {settings['window_end']}\n"
-                    f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
-                )
-                if notification_handler.is_internet_available():
-                    notification_handler.send_slack_notification(message)
-                else:
-                    notification_handler.log_pump_trigger(message)
+                for relay_pair, triggers in settings['num_triggers'].items():
+                    relay_info = relay_handler.trigger_relays([eval(relay_pair)], triggers, settings['stagger'])
+                    if stop_requested:
+                        print("Immediate stop requested during relay triggering.")
+                        break
+                    print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
+                    message = (
+                        f"The pumps have been successfully triggered as follows:\n"
+                        f"{relay_pair}: {triggers} times\n"
+                        f"** Next trigger due in {settings['interval']} seconds.\n\n"
+                        f"Current settings:\n"
+                        f"- Interval: {settings['interval']} seconds\n"
+                        f"- Stagger: {settings['stagger']} seconds\n"
+                        f"- Water window: {settings['window_start']} - {settings['window_end']}\n"
+                        f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
+                    )
+                    if notification_handler.is_internet_available():
+                        notification_handler.send_slack_notification(message)
+                    else:
+                        notification_handler.log_pump_trigger(message)
                 time.sleep(settings['interval'] - 1)
 
 def main():
