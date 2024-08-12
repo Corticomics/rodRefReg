@@ -28,8 +28,11 @@ def run_program(interval, stagger, window_start, window_end):
     settings['window_start'] = window_start
     settings['window_end'] = window_end
     
-    # Update relay settings from AdvancedSettingsSection
+    # Ensure num_triggers is correctly formatted as a dictionary
     advanced_settings = gui.advanced_settings.get_settings()
+    if not isinstance(advanced_settings['num_triggers'], dict):
+        raise ValueError(f"Expected num_triggers to be a dictionary, got {type(advanced_settings['num_triggers'])} instead.")
+    
     settings.update(advanced_settings)
 
     save_settings(settings)  # Save the settings
@@ -40,6 +43,7 @@ def run_program(interval, stagger, window_start, window_end):
     gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
 
     print("Program Started")
+
 
 def stop_program():
     if hasattr(gui, 'timer'):

@@ -37,13 +37,14 @@ class AdvancedSettingsSection(QGroupBox):
             triggers = int(entry.text())
             if triggers > 0:
                 selected_relays.append(relay_pair)
-                num_triggers[str(relay_pair)] = triggers
+                num_triggers[relay_pair] = triggers  # Store as tuple, not string
 
         settings = {
             'selected_relays': selected_relays,
             'num_triggers': num_triggers
         }
         return settings
+
 
     def clear_layout(self, layout):
         while layout.count():
