@@ -90,5 +90,14 @@ def create_relay_pairs(num_hats):
             relay_pairs.append((start_relay + i, start_relay + i + 1))
     return relay_pairs
 
+def change_relay_hats():
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    if not ok:
+        return
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+
 if __name__ == "__main__":
     main()
