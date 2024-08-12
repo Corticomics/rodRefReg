@@ -108,11 +108,11 @@ class RunStopSection(QWidget):
             # Get updated relay settings
             if self.advanced_settings:
                 advanced_settings = self.advanced_settings.get_settings()
-                # Convert tuple keys to strings for storage
+                # Ensure all keys are strings for consistency
                 advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
                 self.settings.update(advanced_settings)
 
-            # Pass the settings to the callback without converting back to tuples
+            # Call the callback with settings that have string keys
             self.run_program_callback(interval, stagger, window_start, window_end)
         except Exception as e:
             print(f"Error running program: {e}")
