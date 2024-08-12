@@ -48,12 +48,20 @@ def stop_program():
     print("Program Stopped")
 
 def program_step(settings):
-    current_time = int(time.time())
-    if settings['window_start'] <= current_time <= settings['window_end']:
-        for relay_pair, triggers in settings['num_triggers'].items():
-            relay_info = relay_handler.trigger_relays([eval(relay_pair)], triggers, settings['stagger'])
-            print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
-            # Add any logging or notifications here
+    try:
+        current_time = int(time.time())
+        if settings['window_start'] <= current_time <= settings['window_end']:
+            for relay_pair, triggers in settings['num_triggers'].items():
+                # Ensure relay_pair is already a tuple, avoid using eval
+                if isinstance(relay_pair, str):
+                    relay_pair = tuple(map(int, relay_pair.strip('()').split(',')))
+
+                relay_info = relay_handler.trigger_relays([relay_pair], triggers, settings['stagger'])
+                print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
+                # Add any logging or notifications here
+    except Exception as e:
+        print(f"An error occurred in program_step: {e}")
+        stop_program()
 
 def main():
     app = QApplication(sys.argv)
