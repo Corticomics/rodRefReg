@@ -1,11 +1,11 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
+from PyQt5.QtCore import QTimer
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
-import threading
 import time
 
 class StreamRedirector:
@@ -33,61 +33,27 @@ def run_program(interval, stagger, window_start, window_end):
     settings.update(advanced_settings)
 
     save_settings(settings)  # Save the settings
-    
-    global running
-    running = True
-    global stop_requested
-    stop_requested = False
-    threading.Thread(target=program_loop, args=(settings,)).start()
+
+    # Set up QTimer to handle the relay triggering
+    gui.timer = QTimer()
+    gui.timer.timeout.connect(lambda: program_step(settings))
+    gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
+
     print("Program Started")
 
 def stop_program():
-    global running
-    global stop_requested
-    stop_requested = True
-    running = False
+    if hasattr(gui, 'timer'):
+        gui.timer.stop()  # Stop the QTimer when the program is stopped
     relay_handler.set_all_relays(0)
     print("Program Stopped")
 
-def change_relay_hats():
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-    if not ok:
-        return
-    settings['num_hats'] = num_hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)
-    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
-
-def program_loop(settings):
-    global running
-    while running:
-        if stop_requested:
-            print("Immediate stop requested.")
-            break
-        current_time = int(time.time())
-        if settings['window_start'] <= current_time <= settings['window_end']:
-            if current_time % settings['interval'] < 1:
-                for relay_pair, triggers in settings['num_triggers'].items():
-                    relay_info = relay_handler.trigger_relays([eval(relay_pair)], triggers, settings['stagger'])
-                    if stop_requested:
-                        print("Immediate stop requested during relay triggering.")
-                        break
-                    print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
-                    message = (
-                        f"The pumps have been successfully triggered as follows:\n"
-                        f"{relay_pair}: {triggers} times\n"
-                        f"** Next trigger due in {settings['interval']} seconds.\n\n"
-                        f"Current settings:\n"
-                        f"- Interval: {settings['interval']} seconds\n"
-                        f"- Stagger: {settings['stagger']} seconds\n"
-                        f"- Water window: {settings['window_start']} - {settings['window_end']}\n"
-                        f"- Relays enabled: {', '.join(f'({rp[0]} & {rp[1]})' for rp in settings['selected_relays']) if settings['selected_relays'] else 'None'}"
-                    )
-                    if notification_handler.is_internet_available():
-                        notification_handler.send_slack_notification(message)
-                    else:
-                        notification_handler.log_pump_trigger(message)
-                time.sleep(settings['interval'] - 1)
+def program_step(settings):
+    current_time = int(time.time())
+    if settings['window_start'] <= current_time <= settings['window_end']:
+        for relay_pair, triggers in settings['num_triggers'].items():
+            relay_info = relay_handler.trigger_relays([eval(relay_pair)], triggers, settings['stagger'])
+            print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
+            # Add any logging or notifications here
 
 def main():
     app = QApplication(sys.argv)
