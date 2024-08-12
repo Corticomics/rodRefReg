@@ -48,6 +48,14 @@ def program_step(settings):
     try:
         current_time = int(time.time())
         if settings['window_start'] <= current_time <= settings['window_end']:
+            # Debugging output to check num_triggers
+            print(f"Type of settings['num_triggers']: {type(settings['num_triggers'])}")
+            print(f"Contents of settings['num_triggers']: {settings['num_triggers']}")
+
+            # Ensure settings['num_triggers'] is a dictionary
+            if not isinstance(settings['num_triggers'], dict):
+                raise ValueError(f"Expected 'num_triggers' to be a dictionary, got {type(settings['num_triggers'])} instead.")
+                
             for relay_pair_str, triggers in settings['num_triggers'].items():
                 relay_pair = eval(relay_pair_str)  # Convert the string back to a tuple
                 relay_info = relay_handler.trigger_relays([relay_pair], triggers, settings['stagger'])
