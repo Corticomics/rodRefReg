@@ -63,6 +63,10 @@ def program_step(settings):
                 if not isinstance(triggers, int):
                     raise ValueError(f"Expected triggers to be an integer, got {type(triggers)} instead.")
 
+                # Debug output before calling trigger_relays
+                print(f"relay_pair: {relay_pair}, triggers: {triggers}, stagger: {settings['stagger']}")
+                print(f"Type of stagger: {type(settings['stagger'])}")
+
                 relay_info = relay_handler.trigger_relays([relay_pair], triggers, settings['stagger'])
                 print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
                 # Add any logging or notifications here
