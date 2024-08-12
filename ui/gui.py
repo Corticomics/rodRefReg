@@ -1,6 +1,6 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy, QSizePolicy
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
@@ -92,11 +92,17 @@ class RodentRefreshmentGUI(QWidget):
 
         self.left_layout = QVBoxLayout()
 
+        # Use QSplitter to make the system messages section resizable
+        self.splitter = QSplitter(Qt.Vertical)
+        self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         self.terminal_output = TerminalOutput()
-        self.left_layout.addWidget(self.terminal_output)
+        self.splitter.addWidget(self.terminal_output)
 
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
-        self.left_layout.addWidget(self.advanced_settings)
+        self.splitter.addWidget(self.advanced_settings)
+
+        self.left_layout.addWidget(self.splitter)
 
         self.left_content = QWidget()
         self.left_content.setLayout(self.left_layout)
