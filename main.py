@@ -51,10 +51,17 @@ def program_step(settings):
     try:
         current_time = int(time.time())
         if settings['window_start'] <= current_time <= settings['window_end']:
+            # Ensure settings['num_triggers'] is a dictionary
+            if not isinstance(settings.get('num_triggers'), dict):
+                raise ValueError(f"Expected 'num_triggers' to be a dictionary, got {type(settings.get('num_triggers'))} instead.")
+
             for relay_pair, triggers in settings['num_triggers'].items():
-                # Ensure relay_pair is already a tuple, avoid using eval
+                # Ensure relay_pair is a tuple, avoid using eval
                 if isinstance(relay_pair, str):
                     relay_pair = tuple(map(int, relay_pair.strip('()').split(',')))
+
+                if not isinstance(triggers, int):
+                    raise ValueError(f"Expected triggers to be an integer, got {type(triggers)} instead.")
 
                 relay_info = relay_handler.trigger_relays([relay_pair], triggers, settings['stagger'])
                 print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
@@ -62,6 +69,7 @@ def program_step(settings):
     except Exception as e:
         print(f"An error occurred in program_step: {e}")
         stop_program()
+
 
 def main():
     app = QApplication(sys.argv)
