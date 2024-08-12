@@ -20,30 +20,23 @@ class StreamRedirector:
         pass
 
 def run_program(interval, stagger, window_start, window_end):
-    print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-    
-    # Update settings
-    settings['interval'] = interval
-    settings['stagger'] = stagger
-    settings['window_start'] = window_start
-    settings['window_end'] = window_end
-    
-    # Ensure num_triggers is correctly formatted as a dictionary
-    advanced_settings = gui.advanced_settings.get_settings()
-    if not isinstance(advanced_settings['num_triggers'], dict):
-        raise ValueError(f"Expected num_triggers to be a dictionary, got {type(advanced_settings['num_triggers'])} instead.")
-    
-    settings.update(advanced_settings)
+    try:
+        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
+        
+        # Ensure settings are properly structured
+        advanced_settings = gui.advanced_settings.get_settings()
+        # Ensure all keys are strings
+        advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
+        settings.update(advanced_settings)
 
-    save_settings(settings)  # Save the settings
+        # Set up QTimer to handle the relay triggering
+        gui.timer = QTimer()
+        gui.timer.timeout.connect(lambda: program_step(settings))
+        gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
 
-    # Set up QTimer to handle the relay triggering
-    gui.timer = QTimer()
-    gui.timer.timeout.connect(lambda: program_step(settings))
-    gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
-
-    print("Program Started")
-
+        print("Program Started")
+    except Exception as e:
+        print(f"Error running program2: {e}")
 
 def stop_program():
     if hasattr(gui, 'timer'):
@@ -55,22 +48,8 @@ def program_step(settings):
     try:
         current_time = int(time.time())
         if settings['window_start'] <= current_time <= settings['window_end']:
-            # Ensure settings['num_triggers'] is a dictionary
-            if not isinstance(settings.get('num_triggers'), dict):
-                raise ValueError(f"Expected 'num_triggers' to be a dictionary, got {type(settings.get('num_triggers'))} instead.")
-
-            for relay_pair, triggers in settings['num_triggers'].items():
-                # Ensure relay_pair is a tuple, avoid using eval
-                if isinstance(relay_pair, str):
-                    relay_pair = tuple(map(int, relay_pair.strip('()').split(',')))
-
-                if not isinstance(triggers, int):
-                    raise ValueError(f"Expected triggers to be an integer, got {type(triggers)} instead.")
-
-                # Debug output before calling trigger_relays
-                print(f"relay_pair: {relay_pair}, triggers: {triggers}, stagger: {settings['stagger']}")
-                print(f"Type of stagger: {type(settings['stagger'])}")
-
+            for relay_pair_str, triggers in settings['num_triggers'].items():
+                relay_pair = eval(relay_pair_str)  # Convert the string back to a tuple
                 relay_info = relay_handler.trigger_relays([relay_pair], triggers, settings['stagger'])
                 print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
                 # Add any logging or notifications here
