@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QWidget, QCheckBox
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
@@ -10,7 +10,6 @@ class AdvancedSettingsSection(QGroupBox):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
-        self.relay_checkboxes = {}
         self.trigger_entries = {}
 
         self.create_settings_ui()
@@ -20,41 +19,29 @@ class AdvancedSettingsSection(QGroupBox):
 
         for relay_pair in self.settings['relay_pairs']:
             relay_pair_tuple = tuple(relay_pair)
-            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
-            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
-            check_box.setChecked(True)
-            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
-            self.layout.addWidget(check_box)
-            self.relay_checkboxes[relay_pair_tuple] = check_box
 
             entry_layout = QHBoxLayout()
-            entry_layout.addWidget(QLabel("Triggers:"))
+            entry_layout.addWidget(QLabel(f"Relays {relay_pair[0]} & {relay_pair[1]} Triggers:"))
             trigger_entry = QLineEdit()
             trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-            trigger_entry.setText("0")
+            trigger_entry.setText("0")  # Default all relays to 0 triggers
             entry_layout.addWidget(trigger_entry)
             self.trigger_entries[relay_pair_tuple] = trigger_entry
             self.layout.addLayout(entry_layout)
 
-    def toggle_relay_callback(self, relay_pair, state):
-        if state == Qt.Checked:
-            self.settings['selected_relays'].append(relay_pair)
-        else:
-            if relay_pair in self.settings['selected_relays']:
-                self.settings['selected_relays'].remove(relay_pair)
-
-    def add_setting_input(self, layout, label_text, default_value):
-        layout.addWidget(QLabel(label_text))
-        entry = QLineEdit()
-        entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        entry.setText(str(default_value))
-        layout.addWidget(entry)
-        return entry
-
     def get_settings(self):
+        selected_relays = []
+        num_triggers = {}
+
+        for relay_pair, entry in self.trigger_entries.items():
+            triggers = int(entry.text())
+            if triggers > 0:
+                selected_relays.append(relay_pair)
+                num_triggers[str(relay_pair)] = triggers
+
         settings = {
-            'selected_relays': [rp for rp, checkbox in self.relay_checkboxes.items() if checkbox.isChecked()],
-            'num_triggers': {str(rp): int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
+            'selected_relays': selected_relays,
+            'num_triggers': num_triggers
         }
         return settings
 
