@@ -22,13 +22,13 @@ class RelayHandler:
             hat.set_all(state)
 
     def trigger_relays(self, selected_relays, num_triggers, stagger):
-        if not isinstance(num_triggers, dict):
-            raise ValueError(f"Expected num_triggers to be a dictionary, got {type(num_triggers)} instead.")
-        
         relay_info = []
         for relay_pair in self.relay_pairs:
+            # Convert string key back to tuple for use
+            relay_pair_str = str(relay_pair)
+            triggers = num_triggers.get(relay_pair_str, 1)  # Default to 1 if not found
+            
             if relay_pair in selected_relays:
-                triggers = num_triggers.get(relay_pair, 1)  # Default to 1 if not found
                 for _ in range(triggers):
                     relay1, relay2 = relay_pair
                     hat_index1, relay_index1 = divmod(relay1 - 1, 16)
