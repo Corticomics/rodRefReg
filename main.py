@@ -25,16 +25,24 @@ thread = QThread()
 worker = None
 
 def setup():
-    global relay_handler, settings, gui
+    global relay_handler, settings, gui, notification_handler
+
+    # Prompt user for the number of relay hats
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    if not ok:
+        sys.exit()
 
     # Load settings and initialize relays
     settings = load_settings()
-    num_hats = settings.get('num_hats', 1)
+    settings['num_hats'] = num_hats
     settings['relay_pairs'] = create_relay_pairs(num_hats)
     
     # Initialize relay handler and close all relays
     relay_handler = RelayHandler(settings['relay_pairs'], num_hats)
     relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
+
+    # Initialize Slack notification handler
+    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
@@ -51,7 +59,7 @@ def run_program(interval, stagger, window_start, window_end):
 
         if worker is None:
             # Create a worker object and move it to the thread
-            worker = RelayWorker(settings, relay_handler)
+            worker = RelayWorker(settings, relay_handler, notification_handler)
             worker.moveToThread(thread)
             worker.finished.connect(thread.quit)
             worker.finished.connect(worker.deleteLater)
@@ -59,7 +67,7 @@ def run_program(interval, stagger, window_start, window_end):
             worker.progress.connect(lambda message: print(message))
             thread.start()
 
-        # Set up QTimer to handle the relay triggering with the correct interval
+        # Set up QTimer to handle the relay triggering with proper intervals
         if not hasattr(gui, 'timer') or gui.timer is None:
             gui.timer = QTimer()
             gui.timer.timeout.connect(lambda: worker.run())  # Call run_cycle to handle one cycle
