@@ -25,9 +25,6 @@ class RelayHandler:
         relay_info = []
         for relay_pair in self.relay_pairs:
             relay_pair_str = str(relay_pair)  # Ensure relay_pair is a string key
-
-            # Add debugging output to track the types and values
-            print(f"relay_pair_str: {relay_pair_str}, num_triggers type: {type(num_triggers)}, num_triggers content: {num_triggers}")
             
             if isinstance(num_triggers, dict):
                 triggers = num_triggers.get(relay_pair_str, 1)  # Default to 1 if not found

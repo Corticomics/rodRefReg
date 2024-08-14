@@ -378,5 +378,65 @@
     {
         "timestamp": "2024-08-08T13:07:10.400763",
         "relay_info": "The pumps have been successfully triggered as follows:\n\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 2024-08-08 13:07:07 - 2024-08-08 13:08:09\n- Relays enabled: None"
+    },
+    {
+        "timestamp": "2024-08-08T14:25:26.608608",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723148708 - 1723148768\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-08T14:25:26.624093",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723148708 - 1723148768\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T14:44:14.538506",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723495448 - 1723495508\n- Relays enabled: (1 & 2), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T14:44:14.548255",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723495448 - 1723495508\n- Relays enabled: (1 & 2), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T14:44:34.550491",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723495448 - 1723495508\n- Relays enabled: (1 & 2), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T14:44:34.563762",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723495448 - 1723495508\n- Relays enabled: (1 & 2), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T14:44:54.484551",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723495448 - 1723495508\n- Relays enabled: (1 & 2), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T14:44:54.500121",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723495448 - 1723495508\n- Relays enabled: (1 & 2), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:28:26.553869",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498088 - 1723498148\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:28:56.509660",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498088 - 1723498148\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:32:26.548773",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498328 - 1723498388\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:32:26.559883",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498328 - 1723498388\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:32:56.597403",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498328 - 1723498388\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:32:56.604434",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times; (5, 6) triggered 1 times; (7, 8) triggered 1 times; (9, 10) triggered 1 times; (11, 12) triggered 1 times; (13, 14) triggered 1 times; (15, 16) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498328 - 1723498388\n- Relays enabled: (1 & 2), (3 & 4), (5 & 6), (7 & 8), (9 & 10), (11 & 12), (13 & 14), (15 & 16)"
+    },
+    {
+        "timestamp": "2024-08-12T15:39:04.405228",
+        "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498688 - 1723498748\n- Relays enabled: (1 & 2), (3 & 4)"
     }
 ]

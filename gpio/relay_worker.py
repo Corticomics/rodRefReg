@@ -1,7 +1,7 @@
 # In relay_worker.py
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker
-
+import time
 class RelayWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
