@@ -43,7 +43,7 @@ class RelayHandler:
                     try:
                         self.relay_hats[hat_index1].set(relay_index1 + 1, 1)
                         self.relay_hats[hat_index2].set(relay_index2 + 1, 1)
-                        print(f"{datetime.datetime.now()} - Pumps connected to {relay_pair} triggered")
+                        print(f"\n{datetime.datetime.now()} - Pumps connected to {relay_pair} triggered\n")
                         time.sleep(stagger)
                         self.relay_hats[hat_index1].set(relay_index1 + 1, 0)
                         self.relay_hats[hat_index2].set(relay_index2 + 1, 0)

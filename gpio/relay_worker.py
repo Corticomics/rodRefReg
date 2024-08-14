@@ -2,6 +2,7 @@
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker
 import time
+
 class RelayWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
@@ -15,20 +16,24 @@ class RelayWorker(QObject):
 
     @pyqtSlot()
     def run(self):
-        while self._is_running:
+        with QMutexLocker(self.mutex):
+            if not self._is_running:
+                return
+            
             try:
                 current_time = int(time.time())
                 if self.settings['window_start'] <= current_time <= self.settings['window_end']:
                     for relay_pair_str, triggers in self.settings['num_triggers'].items():
                         relay_pair = eval(relay_pair_str)
-                        relay_info = self.relay_handler.trigger_relays([relay_pair], {relay_pair_str: triggers}, self.settings['stagger'])
-                        self.progress.emit(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
+                        for _ in range(triggers):
+                            relay_info = self.relay_handler.trigger_relays([relay_pair], {relay_pair_str: triggers}, self.settings['stagger'])
+                            self.progress.emit(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
+                            time.sleep(self.settings['stagger'])  # Stagger between individual relay activations within a cycle
                 else:
-                    break
+                    self._is_running = False  # Stop if the time window is over
+                    self.finished.emit()
             except Exception as e:
                 self.progress.emit(f"An error occurred: {e}")
-                break
-        self.finished.emit()
 
     def stop(self):
         with QMutexLocker(self.mutex):
