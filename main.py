@@ -2,14 +2,13 @@ import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from PyQt5.QtCore import QTimer, QThread
+from PyQt5.QtGui import QTextCursor
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 import time
-from PyQt5.QtGui import QTextCursor
-
 
 class StreamRedirector:
     def __init__(self, print_func):
@@ -39,7 +38,7 @@ def run_program(interval, stagger, window_start, window_end):
 
         print("Program Started")
     except Exception as e:
-        print(f"Error running program2: {e}")
+        print(f"Error running program: {e}")
 
 def stop_program():
     try:
@@ -60,9 +59,6 @@ def stop_program():
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
-
-
-
 
 # Create global references to ensure the objects stay in scope
 thread = None
@@ -96,12 +92,24 @@ def program_step(settings):
     except Exception as e:
         print(f"An error occurred in program_step: {e}")
 
+def create_relay_pairs(num_hats):
+    relay_pairs = []
+    for hat in range(num_hats):
+        start_relay = hat * 16 + 1
+        for i in range(0, 16, 2):
+            relay_pairs.append((start_relay + i, start_relay + i + 1))
+    return relay_pairs
 
-
-
+def change_relay_hats():
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    if not ok:
+        return
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
 def main():
-
     app = QApplication(sys.argv)
     
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
@@ -127,27 +135,6 @@ def main():
     
     gui.show()
     sys.exit(app.exec_())
-
-if __name__ == "__main__":
-    main()
-
-
-def create_relay_pairs(num_hats):
-    relay_pairs = []
-    for hat in range(num_hats):
-        start_relay = hat * 16 + 1
-        for i in range(0, 16, 2):
-            relay_pairs.append((start_relay + i, start_relay + i + 1))
-    return relay_pairs
-
-def change_relay_hats():
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-    if not ok:
-        return
-    settings['num_hats'] = num_hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)
-    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
 if __name__ == "__main__":
     main()
