@@ -9,7 +9,7 @@ from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 import time
 from PyQt5.QtGui import QTextCursor
-from PyQt5.QtCore import qRegisterMetaType
+
 
 class StreamRedirector:
     def __init__(self, print_func):
@@ -50,11 +50,17 @@ def stop_program():
             worker.stop()  # Add a stop method to safely stop the worker if needed
             thread.quit()
             thread.wait()  # Ensure the thread has finished
+
+        # Disconnect all signals to ensure no lingering connections
+        worker.finished.disconnect()
+        thread.finished.disconnect()
+        worker.progress.disconnect()
         
         relay_handler.set_all_relays(0)
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
+
 
 
 
@@ -95,8 +101,6 @@ def program_step(settings):
 
 
 def main():
-    # Register QTextCursor with the Qt meta-object system
-    qRegisterMetaType(QTextCursor, "QTextCursor")
 
     app = QApplication(sys.argv)
     
