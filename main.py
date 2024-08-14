@@ -59,14 +59,11 @@ def run_program(interval, stagger, window_start, window_end):
             worker.progress.connect(lambda message: print(message))
             thread.start()
 
-        print("Calling run_cycle directly for debugging...")
-        worker.run_cycle()  # Call run_cycle directly for debugging
-        
-        # Comment out the QTimer temporarily
-        # if not hasattr(gui, 'timer') or gui.timer is None:
-        #     gui.timer = QTimer()
-        #     gui.timer.timeout.connect(lambda: worker.run_cycle())  # Call run_cycle to handle one cycle
-        #     gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
+        # Set up QTimer to handle the relay triggering with the correct interval
+        if not hasattr(gui, 'timer') or gui.timer is None:
+            gui.timer = QTimer()
+            gui.timer.timeout.connect(lambda: worker.run())  # Call run_cycle to handle one cycle
+            gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
 
         print("Program Started")
     except Exception as e:
