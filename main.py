@@ -20,25 +20,37 @@ class StreamRedirector:
     def flush(self):
         pass
 
-# Create global references to ensure the objects stay in scope
-thread = None
+# Initialize thread and worker globally to reuse them
+thread = QThread()
 worker = None
 
 def run_program(interval, stagger, window_start, window_end):
-    global thread, worker  # Ensure these stay in scope
+    global thread, worker  # Reuse these globally
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-        
+
         # Ensure settings are properly structured
         advanced_settings = gui.advanced_settings.get_settings()
         # Ensure all keys are strings
         advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
         settings.update(advanced_settings)
 
-        # Set up QTimer to handle the relay triggering
-        gui.timer = QTimer()
-        gui.timer.timeout.connect(lambda: program_step(settings))
-        gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
+        if worker is None:
+            # Create a worker object and move it to the thread
+            worker = RelayWorker(settings, relay_handler)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            worker.progress.connect(lambda message: print(message))
+            thread.start()
+
+        # Set up QTimer to handle the relay triggering without creating new threads
+        if not hasattr(gui, 'timer') or gui.timer is None:
+            gui.timer = QTimer()
+            gui.timer.timeout.connect(lambda: worker.run())  # Reuse the same worker
+            gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
 
         print("Program Started")
     except Exception as e:
@@ -49,66 +61,22 @@ def stop_program():
     try:
         if hasattr(gui, 'timer'):
             gui.timer.stop()  # Stop the QTimer when the program is stopped
-        
+
         # Safely stop the worker and thread
-        if thread and thread.isRunning():
+        if worker:
             worker.stop()  # Request the worker to stop
+        if thread and thread.isRunning():
             thread.quit()  # Gracefully exit the thread loop
             thread.wait()  # Block until the thread has fully finished execution
 
         # After stopping, clean up references to avoid dangling objects
         worker = None
-        thread = None
+        gui.timer = None
         
         relay_handler.set_all_relays(0)
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
-
-def program_step(settings):
-    global thread, worker  # Ensure these stay in scope
-    
-    try:
-        # Create a QThread object and keep a reference to it
-        thread = QThread()  # No need for self
-        
-        # Create a worker object and keep a reference to it
-        worker = RelayWorker(settings, relay_handler)
-        
-        # Move the worker to the thread
-        worker.moveToThread(thread)
-        
-        # Connect signals and slots
-        thread.started.connect(worker.run)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        worker.progress.connect(lambda message: print(message))
-        
-        # Start the thread
-        thread.start()
-
-        print("Thread started successfully.")
-
-    except Exception as e:
-        print(f"An error occurred in program_step: {e}")
-
-def create_relay_pairs(num_hats):
-    relay_pairs = []
-    for hat in range(num_hats):
-        start_relay = hat * 16 + 1
-        for i in range(0, 16, 2):
-            relay_pairs.append((start_relay + i, start_relay + i + 1))
-    return relay_pairs
-
-def change_relay_hats():
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-    if not ok:
-        return
-    settings['num_hats'] = num_hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)
-    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
 def main():
     app = QApplication(sys.argv)
@@ -136,6 +104,23 @@ def main():
     
     gui.show()
     sys.exit(app.exec_())
+
+def create_relay_pairs(num_hats):
+    relay_pairs = []
+    for hat in range(num_hats):
+        start_relay = hat * 16 + 1
+        for i in range(0, 16, 2):
+            relay_pairs.append((start_relay + i, start_relay + i + 1))
+    return relay_pairs
+
+def change_relay_hats():
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    if not ok:
+        return
+    settings['num_hats'] = num_hats
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
 
 if __name__ == "__main__":
     main()
