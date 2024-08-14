@@ -24,8 +24,7 @@ class RelayHandler:
     def trigger_relays(self, selected_relays, num_triggers, stagger):
         relay_info = []
         for relay_pair in self.relay_pairs:
-            # Convert string key back to tuple for use
-            relay_pair_str = str(relay_pair)
+            relay_pair_str = str(relay_pair)  # Ensure relay_pair is a string key
             triggers = num_triggers.get(relay_pair_str, 1)  # Default to 1 if not found
             
             if relay_pair in selected_relays:
@@ -44,7 +43,8 @@ class RelayHandler:
                     except IndexError:
                         print(f"Error: Relay hat index out of range for {relay_pair}")
                     relay_info.append(f"{relay_pair} triggered {triggers} times")
-        return relay_info
+        return relay_info   
+
 
     def update_relay_hats(self, relay_pairs, num_hats):
         self.relay_pairs = relay_pairs
