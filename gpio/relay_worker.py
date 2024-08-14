@@ -30,7 +30,7 @@ class RelayWorker(QObject):
                             relay_info = self.relay_handler.trigger_relays([relay_pair], {relay_pair_str: triggers}, self.settings['stagger'])
                             self.progress.emit(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
                             # Send a notification after each relay trigger
-                            self.notification_handler.send_notification(f"Triggered {relay_pair} {triggers} times.")
+                            self.notification_handler.send_slack_notification(f"Triggered {relay_pair} {triggers} times.")
                             time.sleep(self.settings['stagger'])  # Stagger between individual relay activations within a cycle
                 else:
                     self._is_running = False  # Stop if the time window is over
