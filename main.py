@@ -47,24 +47,31 @@ def stop_program():
 
 
 def program_step(settings):
-    # Create a QThread object
-    thread = QThread()
-    
-    # Create a worker object
-    worker = RelayWorker(settings)
-    
-    # Move the worker to the thread
-    worker.moveToThread(thread)
-    
-    # Connect signals and slots
-    thread.started.connect(worker.run)
-    worker.finished.connect(thread.quit)
-    worker.finished.connect(worker.deleteLater)
-    thread.finished.connect(thread.deleteLater)
-    worker.progress.connect(lambda message: print(message))
-    
-    # Start the thread
-    thread.start()
+    try:
+        # Create a QThread object
+        thread = QThread()
+        
+        # Create a worker object
+        worker = RelayWorker(settings, relay_handler)
+        
+        # Move the worker to the thread
+        worker.moveToThread(thread)
+        
+        # Connect signals and slots
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        worker.progress.connect(lambda message: print(message))
+        
+        # Start the thread
+        thread.start()
+
+        print("Thread started successfully.")
+
+    except Exception as e:
+        print(f"An error occurred in program_step: {e}")
+
 
 
 
