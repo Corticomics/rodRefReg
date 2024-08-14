@@ -24,6 +24,21 @@ class StreamRedirector:
 thread = QThread()
 worker = None
 
+def setup():
+    global relay_handler, settings, gui
+
+    # Load settings and initialize relays
+    settings = load_settings()
+    num_hats = settings.get('num_hats', 1)
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    
+    # Initialize relay handler and close all relays
+    relay_handler = RelayHandler(settings['relay_pairs'], num_hats)
+    relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
+
+    # Initialize GUI components
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
+
 def run_program(interval, stagger, window_start, window_end):
     global thread, worker  # Reuse these globally
     try:
@@ -31,7 +46,6 @@ def run_program(interval, stagger, window_start, window_end):
 
         # Ensure settings are properly structured
         advanced_settings = gui.advanced_settings.get_settings()
-        # Ensure all keys are strings
         advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
         settings.update(advanced_settings)
 
@@ -39,7 +53,6 @@ def run_program(interval, stagger, window_start, window_end):
             # Create a worker object and move it to the thread
             worker = RelayWorker(settings, relay_handler)
             worker.moveToThread(thread)
-            thread.started.connect(worker.run)
             worker.finished.connect(thread.quit)
             worker.finished.connect(worker.deleteLater)
             thread.finished.connect(thread.deleteLater)
@@ -69,41 +82,16 @@ def stop_program():
             thread.quit()  # Gracefully exit the thread loop
             thread.wait()  # Block until the thread has fully finished execution
 
+        # Ensure all relays are deactivated
+        relay_handler.set_all_relays(0)
+
         # After stopping, clean up references to avoid dangling objects
         worker = None
         gui.timer = None
         
-        relay_handler.set_all_relays(0)
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
-
-def main():
-    app = QApplication(sys.argv)
-    
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-    if not ok:
-        sys.exit()
-    
-    global settings
-    settings = load_settings()
-    settings['num_hats'] = num_hats  # Update settings with the number of hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)  # Create relay pairs based on the number of hats
-    
-    global relay_handler
-    relay_handler = RelayHandler(settings['relay_pairs'], settings['num_hats'])
-    global notification_handler
-    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
-
-    global gui
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
-
-    # Redirect stdout and stderr to the terminal output widget
-    sys.stdout = StreamRedirector(gui.print_to_terminal)
-    sys.stderr = StreamRedirector(gui.print_to_terminal)
-    
-    gui.show()
-    sys.exit(app.exec_())
 
 def create_relay_pairs(num_hats):
     relay_pairs = []
@@ -121,6 +109,19 @@ def change_relay_hats():
     settings['relay_pairs'] = create_relay_pairs(num_hats)
     relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
     gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+
+def main():
+    app = QApplication(sys.argv)
+    
+    # Call the setup function to initialize everything before starting
+    setup()
+
+    # Redirect stdout and stderr to the terminal output widget
+    sys.stdout = StreamRedirector(gui.print_to_terminal)
+    sys.stderr = StreamRedirector(gui.print_to_terminal)
+    
+    gui.show()
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main()
