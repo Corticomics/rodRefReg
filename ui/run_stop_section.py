@@ -113,6 +113,7 @@ class RunStopSection(QWidget):
                 self.settings.update(advanced_settings)
 
             # Call the callback with settings that have string keys
+            
             self.run_program_callback(interval, stagger, window_start, window_end)
         except Exception as e:
             print(f"Error running program: {e}")

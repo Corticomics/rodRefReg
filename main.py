@@ -51,10 +51,11 @@ def stop_program():
             thread.wait()  # Ensure the thread has finished
 
         # Disconnect all signals to ensure no lingering connections
-        worker.finished.disconnect()
-        thread.finished.disconnect()
-        worker.progress.disconnect()
-        
+        if worker and thread:
+            worker.finished.disconnect()
+            thread.finished.disconnect()
+            worker.progress.disconnect()
+                    
         relay_handler.set_all_relays(0)
         print("Program Stopped")
     except Exception as e:
