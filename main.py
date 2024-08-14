@@ -58,12 +58,19 @@ def program_step(settings):
                 
             for relay_pair_str, triggers in settings['num_triggers'].items():
                 relay_pair = eval(relay_pair_str)  # Convert the string back to a tuple
-                relay_info = relay_handler.trigger_relays([relay_pair], triggers, settings['stagger'])
+                
+                # Ensure triggers is an integer
+                if not isinstance(triggers, int):
+                    raise ValueError(f"Expected 'triggers' to be an integer, got {type(triggers)} instead.")
+                
+                # Passing only the relevant relay pair and num_triggers to trigger_relays
+                relay_info = relay_handler.trigger_relays([relay_pair], {relay_pair_str: triggers}, settings['stagger'])
                 print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
                 # Add any logging or notifications here
     except Exception as e:
         print(f"An error occurred in program_step: {e}")
         stop_program()
+
 
 
 def main():
