@@ -8,6 +8,8 @@ from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 import time
+from PyQt5.QtGui import QTextCursor
+from PyQt5.QtCore import qRegisterMetaType
 
 class StreamRedirector:
     def __init__(self, print_func):
@@ -40,10 +42,20 @@ def run_program(interval, stagger, window_start, window_end):
         print(f"Error running program2: {e}")
 
 def stop_program():
-    if hasattr(gui, 'timer'):
-        gui.timer.stop()  # Stop the QTimer when the program is stopped
-    relay_handler.set_all_relays(0)
-    print("Program Stopped")
+    try:
+        if hasattr(gui, 'timer'):
+            gui.timer.stop()  # Stop the QTimer when the program is stopped
+        
+        if thread and thread.isRunning():
+            worker.stop()  # Add a stop method to safely stop the worker if needed
+            thread.quit()
+            thread.wait()  # Ensure the thread has finished
+        
+        relay_handler.set_all_relays(0)
+        print("Program Stopped")
+    except Exception as e:
+        print(f"Error stopping program: {e}")
+
 
 
 # Create global references to ensure the objects stay in scope
@@ -81,7 +93,11 @@ def program_step(settings):
 
 
 
+
 def main():
+    # Register QTextCursor with the Qt meta-object system
+    qRegisterMetaType(QTextCursor, "QTextCursor")
+
     app = QApplication(sys.argv)
     
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
@@ -107,6 +123,10 @@ def main():
     
     gui.show()
     sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
+
 
 def create_relay_pairs(num_hats):
     relay_pairs = []
