@@ -2,7 +2,6 @@ import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from PyQt5.QtCore import QTimer, QThread
-from PyQt5.QtGui import QTextCursor
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -21,7 +20,12 @@ class StreamRedirector:
     def flush(self):
         pass
 
+# Create global references to ensure the objects stay in scope
+thread = None
+worker = None
+
 def run_program(interval, stagger, window_start, window_end):
+    global thread, worker  # Ensure these stay in scope
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
         
@@ -41,31 +45,28 @@ def run_program(interval, stagger, window_start, window_end):
         print(f"Error running program: {e}")
 
 def stop_program():
+    global thread, worker
     try:
         if hasattr(gui, 'timer'):
             gui.timer.stop()  # Stop the QTimer when the program is stopped
         
+        # Safely stop the worker and thread
         if thread and thread.isRunning():
-            worker.stop()  # Add a stop method to safely stop the worker if needed
-            thread.quit()
-            thread.wait()  # Ensure the thread has finished
+            worker.stop()  # Request the worker to stop
+            thread.quit()  # Gracefully exit the thread loop
+            thread.wait()  # Block until the thread has fully finished execution
 
-        # Disconnect all signals to ensure no lingering connections
-        worker.finished.disconnect()
-        thread.finished.disconnect()
-        worker.progress.disconnect()
+        # After stopping, clean up references to avoid dangling objects
+        worker = None
+        thread = None
         
         relay_handler.set_all_relays(0)
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
 
-# Create global references to ensure the objects stay in scope
-thread = None
-worker = None
-
 def program_step(settings):
-    global thread, worker  # Use global to keep references
+    global thread, worker  # Ensure these stay in scope
     
     try:
         # Create a QThread object and keep a reference to it
