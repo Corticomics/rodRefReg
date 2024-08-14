@@ -46,12 +46,18 @@ def stop_program():
     print("Program Stopped")
 
 
+# Create global references to ensure the objects stay in scope
+thread = None
+worker = None
+
 def program_step(settings):
+    global thread, worker  # Use global to keep references
+    
     try:
-        # Create a QThread object
-        thread = QThread()
+        # Create a QThread object and keep a reference to it
+        thread = QThread()  # No need for self
         
-        # Create a worker object
+        # Create a worker object and keep a reference to it
         worker = RelayWorker(settings, relay_handler)
         
         # Move the worker to the thread
@@ -71,7 +77,6 @@ def program_step(settings):
 
     except Exception as e:
         print(f"An error occurred in program_step: {e}")
-
 
 
 
