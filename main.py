@@ -1,7 +1,8 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QThread
+from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
@@ -44,32 +45,27 @@ def stop_program():
     relay_handler.set_all_relays(0)
     print("Program Stopped")
 
-def program_step(settings):
-    try:
-        current_time = int(time.time())
-        if settings['window_start'] <= current_time <= settings['window_end']:
-            # Debugging output to check num_triggers
-            print(f"Type of settings['num_triggers']: {type(settings['num_triggers'])}")
-            print(f"Contents of settings['num_triggers']: {settings['num_triggers']}")
 
-            # Ensure settings['num_triggers'] is a dictionary
-            if not isinstance(settings['num_triggers'], dict):
-                raise ValueError(f"Expected 'num_triggers' to be a dictionary, got {type(settings['num_triggers'])} instead.")
-                
-            for relay_pair_str, triggers in settings['num_triggers'].items():
-                relay_pair = eval(relay_pair_str)  # Convert the string back to a tuple
-                
-                # Ensure triggers is an integer
-                if not isinstance(triggers, int):
-                    raise ValueError(f"Expected 'triggers' to be an integer, got {type(triggers)} instead.")
-                
-                # Passing only the relevant relay pair and num_triggers to trigger_relays
-                relay_info = relay_handler.trigger_relays([relay_pair], {relay_pair_str: triggers}, settings['stagger'])
-                print(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
-                # Add any logging or notifications here
-    except Exception as e:
-        print(f"An error occurred in program_step: {e}")
-        stop_program()
+def program_step(settings):
+    # Create a QThread object
+    thread = QThread()
+    
+    # Create a worker object
+    worker = RelayWorker(settings)
+    
+    # Move the worker to the thread
+    worker.moveToThread(thread)
+    
+    # Connect signals and slots
+    thread.started.connect(worker.run)
+    worker.finished.connect(thread.quit)
+    worker.finished.connect(worker.deleteLater)
+    thread.finished.connect(thread.deleteLater)
+    worker.progress.connect(lambda message: print(message))
+    
+    # Start the thread
+    thread.start()
+
 
 
 
