@@ -438,5 +438,53 @@
     {
         "timestamp": "2024-08-12T15:39:04.405228",
         "relay_info": "The pumps have been successfully triggered as follows:\n(1, 2) triggered 1 times; (3, 4) triggered 1 times\n** Next trigger due in 10 seconds.\n\nCurrent settings:\n- Interval: 10 seconds\n- Stagger: 1 seconds\n- Water window: 1723498688 - 1723498748\n- Relays enabled: (1 & 2), (3 & 4)"
+    },
+    {
+        "timestamp": "2024-08-14T16:58:57.910247",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:01.161121",
+        "relay_info": "Triggered (3, 4) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:07.900177",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:11.238339",
+        "relay_info": "Triggered (3, 4) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:17.906281",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:21.154751",
+        "relay_info": "Triggered (3, 4) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:27.829364",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:31.088857",
+        "relay_info": "Triggered (3, 4) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:37.897868",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:41.146372",
+        "relay_info": "Triggered (3, 4) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:47.896672",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-14T16:59:51.148297",
+        "relay_info": "Triggered (3, 4) 1 times."
     }
 ]

@@ -70,7 +70,7 @@ def run_program(interval, stagger, window_start, window_end):
         # Set up QTimer to handle the relay triggering with proper intervals
         if not hasattr(gui, 'timer') or gui.timer is None:
             gui.timer = QTimer()
-            gui.timer.timeout.connect(lambda: worker.run())  # Call run_cycle to handle one cycle
+            gui.timer.timeout.connect(lambda: worker.run_cycle())  # Call run_cycle to handle one cycle
             gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
 
         print("Program Started")
