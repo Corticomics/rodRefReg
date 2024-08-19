@@ -486,5 +486,389 @@
     {
         "timestamp": "2024-08-14T16:59:51.148297",
         "relay_info": "Triggered (3, 4) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:45:56.153756",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:46:06.195492",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:49:45.177576",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:54:24.191911",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:54:34.212305",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:54:44.203332",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:54:54.183492",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:55:04.183079",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T13:55:14.195324",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:04:30.180840",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:04:40.206515",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:04:50.201746",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:05:00.168025",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:05:10.133989",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:05:20.192793",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:09:22.195027",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:09:32.127096",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:09:42.207673",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:09:52.122088",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:10:02.168436",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:10:12.213757",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:13:33.136290",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:13:43.123202",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:13:53.201268",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:14:03.199041",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:14:13.119659",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:14:23.180633",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:20:18.136754",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:20:28.129801",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:20:38.188955",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:20:48.196013",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:20:58.204075",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:21:08.130673",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:23:26.135361",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:23:36.141572",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:23:46.201149",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:23:56.206443",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:24:06.176644",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:24:16.200865",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:27:10.192562",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:27:20.210021",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:27:30.205401",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:27:40.131161",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:27:50.186382",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:28:00.126641",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:29:55.216313",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:30:05.178612",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:30:15.128037",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:30:25.193519",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:30:35.121247",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:30:45.119335",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:32:55.216097",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:33:05.204480",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:33:15.129403",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:33:25.129697",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:33:35.125410",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:33:45.198731",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:34:36.136482",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:34:46.123476",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:34:56.119074",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:35:06.185341",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:35:16.210305",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:35:26.192084",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:45:36.220465",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:45:46.203858",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:45:56.179750",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:46:06.119866",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:46:16.220452",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:46:26.196285",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:47:51.189908",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:48:01.189403",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:48:11.202362",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:48:21.134524",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:48:31.177731",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:48:41.136377",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:51:12.142412",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:51:22.152929",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:51:32.209398",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:51:42.126513",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:51:52.195815",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:52:02.207131",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:53:30.210288",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:53:40.130353",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:53:50.180436",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:54:00.194491",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T14:55:15.184648",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:00:11.204882",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:02:02.197582",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:03.134704",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:06.458588",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:09.711785",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:15.184901",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:25.192104",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:35.116370",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:45.159934",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-19T15:03:55.181186",
+        "relay_info": "Triggered (1, 2) 1 times."
     }
 ]

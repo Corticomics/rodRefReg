@@ -10,6 +10,9 @@ class RunStopSection(QWidget):
         self.settings = settings
         self.advanced_settings = advanced_settings  # Pass advanced settings here
 
+        # Track the state of the job
+        self.job_in_progress = False
+
         self.init_ui()
         if settings:
             self.load_settings(settings)
@@ -81,12 +84,45 @@ class RunStopSection(QWidget):
 
         self.setLayout(self.layout)
 
+        # Initialize button states
+        self.update_button_states()
+
     def load_settings(self, settings):
         self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
         self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
         self.offline_input.setText(str(settings.get('offline_duration', 60)))  # Use default if not found
         self.interval_input.setText(str(settings['interval']))
         self.stagger_input.setText(str(settings['stagger']))
+
+    def update_button_states(self):
+        """Enable or disable the Run and Stop buttons based on the job's state."""
+        self.run_button.setEnabled(not self.job_in_progress)
+        self.stop_button.setEnabled(self.job_in_progress)
+
+        # Apply styles for disabled buttons
+        if self.job_in_progress:
+            self.run_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #cccccc;
+                    color: #666666;
+                }
+            """)
+            self.run_button.setToolTip("Job in progress")
+        else:
+            self.run_button.setStyleSheet("")
+            self.run_button.setToolTip("")
+
+        if not self.job_in_progress:
+            self.stop_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #cccccc;
+                    color: #666666;
+                }
+            """)
+            self.stop_button.setToolTip("No job in progress to stop")
+        else:
+            self.stop_button.setStyleSheet("")
+            self.stop_button.setToolTip("")
 
     def run_program(self):
         try:
@@ -113,15 +149,32 @@ class RunStopSection(QWidget):
                 self.settings.update(advanced_settings)
 
             # Call the callback with settings that have string keys
-            
             self.run_program_callback(interval, stagger, window_start, window_end)
+
+            # Mark job as in progress and update buttons
+            self.job_in_progress = True
+            self.update_button_states()
+
         except Exception as e:
             print(f"Error running program: {e}")
 
-
-
     def stop_program(self):
         self.stop_program_callback()
+
+        # Mark job as not in progress and update buttons
+        self.job_in_progress = False
+        self.update_button_states()
+
+    def reset_ui(self):
+        """Reset the UI to the initial state after a job is completed."""
+        self.job_in_progress = False
+        self.update_button_states()
+        self.interval_input.clear()
+        self.stagger_input.clear()
+        self.start_time_input.setDateTime(QDateTime.currentDateTime())
+        self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default 1 hour later
+        self.offline_input.clear()
+
 
     def change_relay_hats(self):
         self.change_relay_hats_callback()

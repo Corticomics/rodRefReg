@@ -1,6 +1,6 @@
 # In relay_worker.py
 
-from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 import time
 
 class RelayWorker(QObject):
@@ -20,9 +20,16 @@ class RelayWorker(QObject):
         with QMutexLocker(self.mutex):
             if not self._is_running:
                 return
-            
+
             try:
                 current_time = int(time.time())
+                if current_time < self.settings['window_start']:
+                    # If the current time is before the window, delay the start
+                    delay = self.settings['window_start'] - current_time
+                    print(f"Waiting {delay} seconds until the start of the window.")
+                    QTimer.singleShot(delay * 1000, self.run_cycle)
+                    return
+
                 if self.settings['window_start'] <= current_time <= self.settings['window_end']:
                     for relay_pair_str, triggers in self.settings['num_triggers'].items():
                         relay_pair = eval(relay_pair_str)
@@ -37,6 +44,7 @@ class RelayWorker(QObject):
                     self.finished.emit()
             except Exception as e:
                 self.progress.emit(f"An error occurred: {e}")
+
 
     def stop(self):
         with QMutexLocker(self.mutex):

@@ -47,8 +47,10 @@ def setup():
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
 
+
 def run_program(interval, stagger, window_start, window_end):
     global thread, worker  # Reuse these globally
+
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
 
@@ -57,15 +59,23 @@ def run_program(interval, stagger, window_start, window_end):
         advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
         settings.update(advanced_settings)
 
-        if worker is None:
-            # Create a worker object and move it to the thread
-            worker = RelayWorker(settings, relay_handler, notification_handler)
-            worker.moveToThread(thread)
-            worker.finished.connect(thread.quit)
-            worker.finished.connect(worker.deleteLater)
-            thread.finished.connect(thread.deleteLater)
-            worker.progress.connect(lambda message: print(message))
-            thread.start()
+        # Reinitialize the thread and worker
+        if thread is not None:
+            thread.quit()
+            thread.wait()
+        thread = QThread()
+
+        worker = RelayWorker(settings, relay_handler, notification_handler)
+        worker.moveToThread(thread)
+
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(cleanup)
+        thread.finished.connect(thread.deleteLater)
+
+        worker.progress.connect(lambda message: print(message))
+
+        thread.start()
 
         # Set up QTimer to handle the relay triggering with proper intervals
         if not hasattr(gui, 'timer') or gui.timer is None:
@@ -77,29 +87,77 @@ def run_program(interval, stagger, window_start, window_end):
     except Exception as e:
         print(f"Error running program: {e}")
 
+
+
+
+def cleanup():
+    global thread, worker
+
+    try:
+        print("[DEBUG] Starting cleanup process")
+
+        # Ensure all relays are deactivated
+        try:
+            relay_handler.set_all_relays(0)
+            print("[DEBUG] All relays deactivated")
+        except Exception as e:
+            print(f"[ERROR] Error deactivating relays: {e}")
+
+        # Check if the worker still exists before trying to disconnect signals
+        if worker is not None:
+            try:
+                worker.finished.disconnect()
+                worker.progress.disconnect()
+            except TypeError as e:
+                print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
+            except RuntimeError as e:
+                print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
+
+            worker = None  # Clear the worker reference
+
+        # Stop and clear the thread
+        if thread is not None and thread.isRunning():
+            try:
+                thread.quit()  # Gracefully exit the thread loop
+                thread.wait()  # Block until the thread has fully finished execution
+            except Exception as e:
+                print(f"[ERROR] Error stopping thread: {e}")
+
+        thread = None  # Explicitly set thread to None for reinitialization
+        gui.timer = None  # Clear the timer reference
+
+        # Reset the GUI buttons and state
+        gui.run_stop_section.job_in_progress = False
+        gui.run_stop_section.update_button_states()
+
+        print("[DEBUG] Cleanup completed. Program ready for the next job.")
+    except Exception as e:
+        print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
+
+
+
+
+
+
+
+
 def stop_program():
     global thread, worker
     try:
         if hasattr(gui, 'timer'):
             gui.timer.stop()  # Stop the QTimer when the program is stopped
 
-        # Safely stop the worker and thread
         if worker:
             worker.stop()  # Request the worker to stop
-        if thread and thread.isRunning():
-            thread.quit()  # Gracefully exit the thread loop
-            thread.wait()  # Block until the thread has fully finished execution
 
-        # Ensure all relays are deactivated
-        relay_handler.set_all_relays(0)
+        cleanup()
 
-        # After stopping, clean up references to avoid dangling objects
-        worker = None
-        gui.timer = None
-        
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
+
+
+
 
 def create_relay_pairs(num_hats):
     relay_pairs = []
