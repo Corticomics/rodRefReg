@@ -85,7 +85,7 @@ def run_program(interval, stagger, window_start, window_end):
 
         print("Program Started")
     except Exception as e:
-        print(f"Error running program: {e}")
+        print(f"Error running program1: {e}")
 
 
 
@@ -168,13 +168,26 @@ def create_relay_pairs(num_hats):
     return relay_pairs
 
 def change_relay_hats():
+    global relay_handler, settings
+
+    # Prompt user for the number of relay hats
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
+
+    # Update the settings with the new number of relay hats
     settings['num_hats'] = num_hats
     settings['relay_pairs'] = create_relay_pairs(num_hats)
+    
+    # Update relay handler with the new relay pairs
     relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-    gui.advanced_settings.update_relay_hats(settings['relay_pairs'])
+    
+    # Reinitialize the advanced settings UI
+    gui.reinitialize_advanced_settings()
+
+    # Print confirmation
+    gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
+
 
 def main():
     app = QApplication(sys.argv)

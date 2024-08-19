@@ -95,9 +95,10 @@ class RunStopSection(QWidget):
         self.stagger_input.setText(str(settings['stagger']))
 
     def update_button_states(self):
-        """Enable or disable the Run and Stop buttons based on the job's state."""
+        """Enable or disable the Run, Stop, and Change Relay Hats buttons based on the job's state."""
         self.run_button.setEnabled(not self.job_in_progress)
         self.stop_button.setEnabled(self.job_in_progress)
+        self.relay_hats_button.setEnabled(not self.job_in_progress)  # Disable when job in progress
 
         # Apply styles for disabled buttons
         if self.job_in_progress:
@@ -108,9 +109,11 @@ class RunStopSection(QWidget):
                 }
             """)
             self.run_button.setToolTip("Job in progress")
+            self.relay_hats_button.setToolTip("Cannot change relay hats during a job")
         else:
             self.run_button.setStyleSheet("")
             self.run_button.setToolTip("")
+            self.relay_hats_button.setToolTip("")
 
         if not self.job_in_progress:
             self.stop_button.setStyleSheet("""
@@ -124,6 +127,7 @@ class RunStopSection(QWidget):
             self.stop_button.setStyleSheet("")
             self.stop_button.setToolTip("")
 
+
     def run_program(self):
         try:
             interval = int(self.interval_input.text())
@@ -131,10 +135,12 @@ class RunStopSection(QWidget):
             if self.tab_widget.currentIndex() == 0:  # Calendar Mode
                 window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
                 window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
+                
             else:  # Offline Mode
                 duration = int(self.offline_input.text()) * 60  # Convert minutes to seconds
                 window_start = int(QDateTime.currentSecsSinceEpoch())
                 window_end = window_start + duration
+                
 
             self.settings['interval'] = interval
             self.settings['stagger'] = stagger
@@ -142,21 +148,25 @@ class RunStopSection(QWidget):
             self.settings['window_end'] = window_end
 
             # Get updated relay settings
+            
             if self.advanced_settings:
                 advanced_settings = self.advanced_settings.get_settings()
+                
                 # Ensure all keys are strings for consistency
                 advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
                 self.settings.update(advanced_settings)
+                
 
             # Call the callback with settings that have string keys
             self.run_program_callback(interval, stagger, window_start, window_end)
 
             # Mark job as in progress and update buttons
             self.job_in_progress = True
+            print("5")
             self.update_button_states()
 
         except Exception as e:
-            print(f"Error running program: {e}")
+            print(f"g program: {e}")
 
     def stop_program(self):
         self.stop_program_callback()
@@ -177,4 +187,23 @@ class RunStopSection(QWidget):
 
 
     def change_relay_hats(self):
+        # Clear any old references in the advanced settings
+        self.advanced_settings.clear_layout(self.advanced_settings.layout)
+        self.advanced_settings.trigger_entries.clear()
+
+        # Execute the callback to change the relay hats
         self.change_relay_hats_callback()
+
+        # After changing the relay hats, reinitialize the advanced settings UI
+        self.advanced_settings.create_settings_ui()
+
+        # Update the internal settings with new relay pairs (optional but recommended)
+        self.settings['relay_pairs'] = self.advanced_settings.settings['relay_pairs']
+
+        # Reset the UI to ensure no lingering data or state
+        self.reset_ui()
+
+        # Update the button states to reflect the new configuration
+        self.update_button_states()
+
+

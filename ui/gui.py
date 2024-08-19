@@ -99,8 +99,13 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.splitter.addWidget(self.terminal_output)
 
+        # Create a scroll area for the Advanced Settings section
+        self.advanced_settings_scroll_area = QScrollArea()
+        self.advanced_settings_scroll_area.setWidgetResizable(True)
+
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
-        self.splitter.addWidget(self.advanced_settings)
+        self.advanced_settings_scroll_area.setWidget(self.advanced_settings)
+        self.splitter.addWidget(self.advanced_settings_scroll_area)
 
         self.left_layout.addWidget(self.splitter)
 
@@ -205,6 +210,21 @@ class RodentRefreshmentGUI(QWidget):
                 self.print_to_terminal("Settings have been pushed to the control panel and updated.")
         except Exception as e:
             self.print_to_terminal(f"Error pushing settings: {e}")
+            
+    def reinitialize_advanced_settings(self):
+        """Reinitialize the advanced settings section after relay hats are changed."""
+        
+        # Safely clear existing settings and references
+        self.advanced_settings.clear_layout(self.advanced_settings.layout)
+        self.advanced_settings.trigger_entries.clear()
+
+        # Recreate the UI for advanced settings with the updated relay pairs
+        self.advanced_settings.create_settings_ui()
+
+        # Refresh the advanced settings in the GUI
+        self.advanced_settings_scroll_area.setWidget(self.advanced_settings)
+        self.update()
+
 
     def get_settings(self):
         settings = self.advanced_settings.get_settings()

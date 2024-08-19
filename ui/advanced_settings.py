@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFormLayout
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
@@ -7,7 +7,7 @@ class AdvancedSettingsSection(QGroupBox):
         self.settings = settings
         self.print_to_terminal = print_to_terminal
 
-        self.layout = QVBoxLayout()
+        self.layout = QFormLayout()
         self.setLayout(self.layout)
 
         self.trigger_entries = {}
@@ -15,19 +15,22 @@ class AdvancedSettingsSection(QGroupBox):
         self.create_settings_ui()
 
     def create_settings_ui(self):
+        # Clear the layout before repopulating
         self.clear_layout(self.layout)
 
+        # Populate the UI with new relay settings
         for relay_pair in self.settings['relay_pairs']:
             relay_pair_tuple = tuple(relay_pair)
 
-            entry_layout = QHBoxLayout()
-            entry_layout.addWidget(QLabel(f"Relays {relay_pair[0]} & {relay_pair[1]} Triggers:"))
+            label = QLabel(f"Relays {relay_pair[0]} & {relay_pair[1]} Triggers:")
             trigger_entry = QLineEdit()
             trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
             trigger_entry.setText("0")  # Default all relays to 0 triggers
-            entry_layout.addWidget(trigger_entry)
             self.trigger_entries[relay_pair_tuple] = trigger_entry
-            self.layout.addLayout(entry_layout)
+
+            # Add the label and entry widget directly to the form layout
+            self.layout.addRow(label, trigger_entry)
+
 
     def get_settings(self):
         selected_relays = []
@@ -45,14 +48,25 @@ class AdvancedSettingsSection(QGroupBox):
         }
         return settings
 
-
     def clear_layout(self, layout):
+        """Safely clear the layout by disconnecting and deleting all widgets."""
         while layout.count():
             child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+        layout.update()  # Ensure the layout updates correctly after clearing
+
 
     def update_relay_hats(self, relay_pairs):
-        self.settings['relay_pairs'] = relay_pairs
-        self.create_settings_ui()
-        self.print_to_terminal("Advanced settings updated with new relay hats.")
+        try:
+            # Update relay pairs in the settings
+            self.settings['relay_pairs'] = relay_pairs
+
+            # Clear and recreate the UI elements
+            self.create_settings_ui()
+
+            # Notify the terminal output about the update
+            self.print_to_terminal("Advanced settings updated with new relay hats.")
+        except Exception as e:
+            # Handle any errors that may occur during the update
+            self.print_to_terminal(f"Error updating relay hats: {e}")
