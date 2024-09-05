@@ -1,10 +1,11 @@
 import json
 import os
-
+from PyQt5.QtWidgets import QMessageBox
 def save_settings(settings):
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
     with open(settings_path, 'w') as file:
         json.dump(settings, file, indent=4)
+
 
 def load_settings():
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
@@ -28,6 +29,17 @@ def load_settings():
     settings.setdefault('offline_duration', 60)  # Default to 60 minutes if not set
 
     return settings
+
+
+
+def save_settings(settings):
+    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+    try:
+        with open(settings_path, 'w') as file:
+            json.dump(settings, file, indent=4)
+    except Exception as e:
+        print(f"Error saving settings (save_settings): {e}")
+
 
 def create_relay_pairs(num_hats):
     relay_pairs = []

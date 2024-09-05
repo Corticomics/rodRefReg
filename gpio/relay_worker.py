@@ -1,5 +1,3 @@
-# In relay_worker.py
-
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 import time
 
@@ -14,6 +12,7 @@ class RelayWorker(QObject):
         self.notification_handler = notification_handler  # Store the notification handler
         self._is_running = True
         self.mutex = QMutex()
+        self.timer = QTimer(self)
 
     @pyqtSlot()
     def run_cycle(self):
@@ -24,9 +23,8 @@ class RelayWorker(QObject):
             try:
                 current_time = int(time.time())
                 if current_time < self.settings['window_start']:
-                    # If the current time is before the window, delay the start
                     delay = self.settings['window_start'] - current_time
-                    print(f"Waiting {delay} seconds until the start of the window.")
+                    self.progress.emit(f"Waiting {delay} seconds until the start of the window.")
                     QTimer.singleShot(delay * 1000, self.run_cycle)
                     return
 
@@ -39,13 +37,17 @@ class RelayWorker(QObject):
                             # Send a notification after each relay trigger
                             self.notification_handler.send_slack_notification(f"Triggered {relay_pair} {triggers} times.")
                             time.sleep(self.settings['stagger'])  # Stagger between individual relay activations within a cycle
+
+                    # Schedule the next run
+                    self.progress.emit(f"Cycle completed, waiting for {self.settings['interval']} seconds for next cycle.")
+                    self.timer.singleShot(self.settings['interval'] * 1000, self.run_cycle)
                 else:
                     self._is_running = False  # Stop if the time window is over
                     self.finished.emit()
             except Exception as e:
-                self.progress.emit(f"An error occurred: {e}")
-
+                self.progress.emit(f"An error occurred in run_cycle: {e}")
 
     def stop(self):
         with QMutexLocker(self.mutex):
             self._is_running = False
+        self.timer.stop()  # Stop the timer when stopping the worker

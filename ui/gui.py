@@ -1,16 +1,18 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy, QSizePolicy
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
 from PyQt5.QtCore import Qt
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
 from .advanced_settings import AdvancedSettingsSection
-from .suggest_settings import SuggestSettings
+from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
+from .SlackCredentialsTab import SlackCredentialsTab
+from notifications.notifications import NotificationHandler
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
-from config import load_settings
+from settings.config import load_settings, save_settings
 
 
 class RodentRefreshmentGUI(QWidget):
@@ -35,6 +37,7 @@ class RodentRefreshmentGUI(QWidget):
             self.setStyleSheet("""
                 QWidget {
                     background-color: #f8f9fa;
+                    font-size: 14px;
                 }
                 QGroupBox {
                     background-color: #ffffff;
@@ -48,29 +51,23 @@ class RodentRefreshmentGUI(QWidget):
                     border-radius: 5px;
                     color: #ffffff;
                     padding: 10px;
-                    font-size: 14px;
+                }
+                QPushButton:disabled               
+                    PushButton:disabled {
+                    background-color: #cccccc;
+                    color: #666666;
                 }
                 QPushButton:hover {
                     background-color: #0056b3;
-                }
-                QFrame {
-                    background-color: #ced4da;
-                    height: 1px;
-                    margin: 10px 0;
                 }
                 QLabel {
                     color: #343a40;
                     background-color: #ffffff;
                 }
-                QLineEdit {
+                QLineEdit, QTextEdit {
                     background-color: #ffffff;
                     border: 1px solid #ced4da;
                     padding: 5px;
-                    font-size: 14px;
-                }
-                QTextEdit {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
                 }
             """)
 
@@ -118,10 +115,22 @@ class RodentRefreshmentGUI(QWidget):
         self.upper_layout.addWidget(self.left_scroll)
 
         self.right_layout = QVBoxLayout()
-        self.suggest_settings_section = SuggestSettings(self.suggest_settings, self.push_settings, self.run_program, self.stop_program)
+
+        # Initialize run_stop_section before SuggestSettingsSection
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
+
+        # Add the Suggest Settings Section (with the tab widget) directly to the layout
+        self.suggest_settings_section = SuggestSettingsSection(
+            self.settings, 
+            self.suggest_settings_callback, 
+            self.push_settings_callback,
+            self.save_slack_credentials_callback,
+            self.advanced_settings,
+            self.run_stop_section  # Pass run_stop_section here
+        )
+
         self.right_layout.addWidget(self.suggest_settings_section)
 
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
         self.right_layout.addWidget(self.run_stop_section)
 
         self.right_content = QWidget()
@@ -134,6 +143,7 @@ class RodentRefreshmentGUI(QWidget):
 
         self.main_layout.addLayout(self.upper_layout)
         self.setLayout(self.main_layout)
+
 
     def print_to_terminal(self, message):
         self.terminal_output.print_to_terminal(message)
@@ -161,74 +171,113 @@ class RodentRefreshmentGUI(QWidget):
         self.left_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
         self.right_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
 
-    def suggest_settings(self):
-        values = self.findChild(SuggestSettings).get_entry_values()
-        if values is None:
-            return
-
+    def suggest_settings_callback(self):
+        """Callback for suggesting settings based on user input."""
+        values = self.suggest_settings_section.suggest_tab.entries
         try:
-            frequency = int(values["How often should each cage receive water? (Seconds):"])
-            window_start = int(values["Water window start (hour, 24-hour format):"])
-            window_end = int(values["Water window end (hour, 24-hour format):"])
+            # Loop over each relay pair and fetch the corresponding water volume
+            relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
+            relay_volumes = {}
 
-            suggestion_text = (
-                f"Suggested Settings:\n"
-                f"- Interval: {frequency} seconds\n"
-                f"- Stagger: {'1'} seconds (Assumed)\n"
-                f"- Water Window: {window_start}:00 to {window_end}:00\n"
-            )
+            for relay_pair in relay_pairs:
+                volume_input = values[f"relay_{relay_pair[0]}_{relay_pair[1]}"].text().strip()
+                water_volume = float(volume_input) if volume_input else 0.0  # Default to 0 if empty
+                relay_volumes[relay_pair] = water_volume
 
-            for relay_pair in self.settings['relay_pairs']:
-                question = f"Water volume for relays {relay_pair[0]} & {relay_pair[1]} (uL):"
-                if question in values:
-                    volume_per_relay = int(values[question])
-                    triggers = self.calculate_triggers(volume_per_relay)
-                    suggestion_text += f"- Relays {relay_pair[0]} & {relay_pair[1]} should trigger {triggers} times to dispense {volume_per_relay} micro-liters each.\n"
+            # Parse frequency and duration
+            frequency_input = values["frequency"].text().strip()
+            frequency = int(frequency_input) if frequency_input else 0  # Default to 0 if empty
+            duration_input = values["duration"].text().strip()
+            duration = int(duration_input) if duration_input else 0  # Default to 0 if empty
+
+            # Start datetime
+            start_datetime = values["start_datetime"].dateTime()
+
+            # Calculate total sessions and interval between sessions
+            total_sessions = frequency * duration
+            interval_seconds = 86400 / frequency if frequency > 0 else 0  # Avoid division by zero
+
+            # Store the suggested settings
+            self.suggested_settings = {
+                "start_datetime": start_datetime,
+                "duration": duration,
+                "relay_volumes": relay_volumes,  # Store water volume per relay pair
+                "frequency": frequency,
+                "interval_seconds": interval_seconds,
+                "total_sessions": total_sessions
+            }
+
+            # Prepare suggestion text to print
+            suggestion_text = f"--- Suggested Settings ---\n"
+            suggestion_text += f"Start Date & Time: {start_datetime.toString('yyyy-MM-dd HH:mm:ss')}\n"
+            suggestion_text += f"Duration: {duration} day(s)\n"
+            suggestion_text += f"Dispensing Frequency: {frequency} times per day\n"
+            suggestion_text += f"Total Sessions: {total_sessions}\n"
+            suggestion_text += f"Interval Between Sessions: {interval_seconds / 60:.2f} minutes\n"
+
+            for relay_pair, volume in relay_volumes.items():
+                suggestion_text += f"Water Volume for Relays {relay_pair[0]} & {relay_pair[1]}: {volume} mL\n"
 
             self.print_to_terminal(suggestion_text)
-        except ValueError as e:
-            self.print_to_terminal("Please enter valid numbers for all settings.")
 
-    def calculate_triggers(self, volume_needed):
-        return math.ceil(volume_needed / 10)
-
-    def push_settings(self):
-        try:
-            settings = self.advanced_settings.get_settings()
-            if settings:
-                for relay_pair, checkbox in self.advanced_settings.relay_checkboxes.items():
-                    volume_per_relay = settings['num_triggers'][relay_pair]
-                    triggers = self.calculate_triggers(volume_per_relay)
-                    self.advanced_settings.trigger_entries[relay_pair].setText(str(triggers))
-
-                    if volume_per_relay == 0:
-                        checkbox.setChecked(False)
-                    else:  
-                        checkbox.setChecked(True)
-
-                self.update_all_settings()
-                self.print_to_terminal("Settings have been pushed to the control panel and updated.")
+        except ValueError as ve:
+            self.print_to_terminal(f"Input Error: {ve}")
         except Exception as e:
-            self.print_to_terminal(f"Error pushing settings: {e}")
-            
-    def reinitialize_advanced_settings(self):
-        """Reinitialize the advanced settings section after relay hats are changed."""
-        
-        # Safely clear existing settings and references
-        self.advanced_settings.clear_layout(self.advanced_settings.layout)
-        self.advanced_settings.trigger_entries.clear()
-
-        # Recreate the UI for advanced settings with the updated relay pairs
-        self.advanced_settings.create_settings_ui()
-
-        # Refresh the advanced settings in the GUI
-        self.advanced_settings_scroll_area.setWidget(self.advanced_settings)
-        self.update()
+            self.print_to_terminal(f"An unexpected error occurred: {e}")
 
 
-    def get_settings(self):
-        settings = self.advanced_settings.get_settings()
-        return settings
+    def push_settings_callback(self):
+        """Callback for pushing the suggested settings to the control panel."""
+        try:
+            if not hasattr(self, 'suggested_settings'):
+                self.print_to_terminal("No suggested settings available. Please generate suggestions first.")
+                return
+
+            settings = self.suggested_settings
+
+            # Update RunStopSection
+            self.run_stop_section.start_time_input.setDateTime(settings["start_datetime"])
+            end_datetime = settings["start_datetime"].addDays(settings["duration"])
+            self.run_stop_section.end_time_input.setDateTime(end_datetime)
+            self.run_stop_section.interval_input.setText(str(int(settings["interval_seconds"])))
+            self.run_stop_section.stagger_input.setText("5")  # Assuming a default stagger value
+
+            # Create num_triggers dictionary for AdvancedSettingsSection
+            num_triggers = {}
+            for relay_pair, water_volume in settings["relay_volumes"].items():
+                if water_volume > 0:
+                    trigger_count = int((water_volume * 1000) / 500)  # Example conversion to triggers
+                else:
+                    trigger_count = 0  # Set trigger count to 0 if volume is 0
+                num_triggers[relay_pair] = trigger_count
+
+            # Update AdvancedSettingsSection with the trigger values
+            self.advanced_settings.update_triggers(num_triggers)
+
+            self.print_to_terminal("Suggested settings have been applied successfully.")
+
+        except Exception as e:
+            self.print_to_terminal(f"Error applying suggested settings: {e}")
+
+
+
+
+    
+    def save_slack_credentials_callback(self):
+        # Update settings with the new Slack credentials
+        self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
+        self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
+
+
+        # Save settings to the settings.json file
+        save_settings(self.settings)
+        self.print_to_terminal("Slack credentials saved.")
+
+        # Reinitialize the NotificationHandler with the new credentials
+        global notification_handler
+        notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
+        self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
+
 
 def main(run_program, stop_program, change_relay_hats):
     app = QApplication(sys.argv)

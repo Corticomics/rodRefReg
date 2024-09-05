@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout)
-from PyQt5.QtCore import QDateTime
+from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, parent=None):
@@ -14,6 +14,12 @@ class RunStopSection(QWidget):
         self.job_in_progress = False
 
         self.init_ui()
+
+        # Create a QTimer to keep updating the minimum date/time
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_minimum_datetime)
+        self.timer.start(1000)  # Update every second
+
         if settings:
             self.load_settings(settings)
 
@@ -30,11 +36,15 @@ class RunStopSection(QWidget):
         self.start_time_input = QDateTimeEdit(self.calendar_widget)
         self.start_time_input.setCalendarPopup(True)
         self.start_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        self.start_time_input.setDateTime(QDateTime.currentDateTime())  # Default to now
+        self.start_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
 
         self.end_time_label = QLabel("End Time:")
         self.end_time_input = QDateTimeEdit(self.calendar_widget)
         self.end_time_input.setCalendarPopup(True)
         self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default to 1 hour later
+        self.end_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
 
         calendar_layout = QFormLayout()
         calendar_layout.addRow(self.start_time_label, self.start_time_input)
@@ -93,6 +103,15 @@ class RunStopSection(QWidget):
         self.offline_input.setText(str(settings.get('offline_duration', 60)))  # Use default if not found
         self.interval_input.setText(str(settings['interval']))
         self.stagger_input.setText(str(settings['stagger']))
+
+    def update_minimum_datetime(self):
+        """Update the minimum selectable datetime to 'right now'."""
+        current_datetime = QDateTime.currentDateTime()
+        self.start_time_input.setMinimumDateTime(current_datetime)
+        self.end_time_input.setMinimumDateTime(current_datetime)
+
+    # The rest of your methods remain unchanged...
+
 
     def update_button_states(self):
         """Enable or disable the Run, Stop, and Change Relay Hats buttons based on the job's state."""
@@ -162,7 +181,7 @@ class RunStopSection(QWidget):
 
             # Mark job as in progress and update buttons
             self.job_in_progress = True
-            print("5")
+            
             self.update_button_states()
 
         except Exception as e:

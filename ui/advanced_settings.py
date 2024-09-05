@@ -70,3 +70,19 @@ class AdvancedSettingsSection(QGroupBox):
         except Exception as e:
             # Handle any errors that may occur during the update
             self.print_to_terminal(f"Error updating relay hats: {e}")
+    
+
+    def update_triggers(self, num_triggers):
+        """
+        Update the trigger settings for the relays based on the loaded num_triggers.
+        """
+        try:
+            for relay_pair, trigger_value in num_triggers.items():
+                if relay_pair in self.trigger_entries:
+                    self.trigger_entries[relay_pair].setText(str(trigger_value))
+                else:
+                    print(f"Warning: Relay pair {relay_pair} not found in trigger entries.")
+            print("Advanced settings triggers updated successfully.")
+        except Exception as e:
+            print(f"Error updating triggers in advanced settings: {e}")
+

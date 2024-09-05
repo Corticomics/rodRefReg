@@ -1050,5 +1050,77 @@
     {
         "timestamp": "2024-08-19T16:07:24.199865",
         "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-22T12:46:08.986791",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-22T12:46:18.952110",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-22T13:17:32.019399",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-26T14:12:57.702808",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-26T14:13:07.684526",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-26T14:20:51.606351",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-26T14:26:45.607753",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-08-26T14:36:11.548583",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:02:06.242740",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:02:19.376384",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:02:32.379874",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:02:45.423275",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:02:58.436474",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:05:15.138534",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:05:28.374952",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:05:41.415570",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:05:54.461322",
+        "relay_info": "Triggered (1, 2) 1 times."
+    },
+    {
+        "timestamp": "2024-09-05T16:06:07.367459",
+        "relay_info": "Triggered (1, 2) 1 times."
     }
 ]

@@ -42,14 +42,14 @@ def setup():
     relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
 
     # Initialize Slack notification handler
+
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
 
-
 def run_program(interval, stagger, window_start, window_end):
-    global thread, worker  # Reuse these globally
+    global thread, worker, notification_handler  # Ensure global scope for notification_handler
 
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
@@ -65,9 +65,13 @@ def run_program(interval, stagger, window_start, window_end):
             thread.wait()
         thread = QThread()
 
-        worker = RelayWorker(settings, relay_handler, notification_handler)
+        # Reinitialize NotificationHandler within the worker context
+        worker_notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
+
+        worker = RelayWorker(settings, relay_handler, worker_notification_handler)
         worker.moveToThread(thread)
 
+        # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(cleanup)
@@ -75,17 +79,15 @@ def run_program(interval, stagger, window_start, window_end):
 
         worker.progress.connect(lambda message: print(message))
 
-        thread.start()
-
-        # Set up QTimer to handle the relay triggering with proper intervals
-        if not hasattr(gui, 'timer') or gui.timer is None:
-            gui.timer = QTimer()
-            gui.timer.timeout.connect(lambda: worker.run_cycle())  # Call run_cycle to handle one cycle
-            gui.timer.start(interval * 1000)  # interval is in seconds, QTimer needs milliseconds
+        # Start the worker thread
+        thread.started.connect(worker.run_cycle)  # This starts the run_cycle method when the thread starts
+        thread.start()  # Start the QThread itself
 
         print("Program Started")
     except Exception as e:
-        print(f"Error running program1: {e}")
+        print(f"Error running program: {e}")
+
+
 
 
 
@@ -135,12 +137,6 @@ def cleanup():
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
 
-
-
-
-
-
-
 def stop_program():
     global thread, worker
     try:
@@ -155,8 +151,6 @@ def stop_program():
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
-
-
 
 
 def create_relay_pairs(num_hats):
