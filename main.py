@@ -89,8 +89,15 @@ def run_program(interval, stagger, window_start, window_end):
 
 
 
+# Add a global flag to track cleanup status
+cleanup_done = False
+
 def cleanup():
-    global thread, worker
+    global thread, worker, cleanup_done
+
+    if cleanup_done:
+        print("[DEBUG] Cleanup already performed. Skipping.")
+        return
 
     try:
         print("[DEBUG] Starting cleanup process")
@@ -102,16 +109,19 @@ def cleanup():
         except Exception as e:
             print(f"[ERROR] Error deactivating relays: {e}")
 
-        # Safely disconnect signals if worker still exists
+        # Safely disconnect signals and delete the worker
         if worker is not None:
             try:
-                worker.finished.disconnect()
-                worker.progress.disconnect()
+                # Check if worker.finished is connected before disconnecting
+                if worker.receivers(worker.finished) > 0:
+                    worker.finished.disconnect(thread.quit)
+                # Check if worker.progress is connected before disconnecting
+                if worker.receivers(worker.progress) > 0:
+                    worker.progress.disconnect()
             except (TypeError, RuntimeError) as e:
                 print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
 
-            # Ensure that the worker is deleted only after thread is completely stopped
-            worker.deleteLater()  # Safely delete the worker after thread has quit
+            worker.deleteLater()  # Safely delete the worker after the thread has quit
             worker = None  # Clear the worker reference
             print("[DEBUG] Worker deleted")
 
@@ -130,15 +140,16 @@ def cleanup():
         gui.run_stop_section.job_in_progress = False
         gui.run_stop_section.update_button_states()
 
+        # Mark cleanup as done
+        cleanup_done = True
+
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
 
-
-
 def stop_program():
-    global thread, worker
+    global thread, worker, cleanup_done
     try:
         if worker:
             # Safely stop the worker
@@ -154,11 +165,13 @@ def stop_program():
                 print("[DEBUG] Thread has finished")
 
         # Now cleanup after the thread and worker have fully stopped
+        cleanup_done = False  # Reset the cleanup flag before calling cleanup
         cleanup()
 
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
+
 
 
 def create_relay_pairs(num_hats):
