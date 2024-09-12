@@ -74,10 +74,9 @@ def run_program(interval, stagger, window_start, window_end):
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup)
+        worker.finished.connect(cleanup)  # Call cleanup after job is finished
         thread.finished.connect(thread.deleteLater)
 
-        # This is where you implement the lambda to ensure UI updates happen on the main thread
         worker.progress.connect(lambda message: gui.print_to_terminal(message))  # Ensure progress signal is handled on the main thread
 
         # Start the worker thread
@@ -87,6 +86,7 @@ def run_program(interval, stagger, window_start, window_end):
         print("Program Started")
     except Exception as e:
         print(f"Error running program: {e}")
+
 
 
 def cleanup():

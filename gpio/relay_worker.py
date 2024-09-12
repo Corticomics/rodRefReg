@@ -42,18 +42,23 @@ class RelayWorker(QObject):
                     self.progress.emit(f"Cycle completed, waiting for {self.settings['interval']} seconds for next cycle.")
                     self.timer.singleShot(self.settings['interval'] * 1000, self.run_cycle)
                 else:
-                    self._is_running = False  # Stop if the time window is over
-                    self.stop_timer()  # Ensure the timer is stopped
-                    self.finished.emit()
+                    self._is_running = False  # Mark as not running
+                    self.stop_worker()  # Properly stop worker on natural completion
             except Exception as e:
                 self.progress.emit(f"An error occurred in run_cycle: {e}")
-                self.stop_timer()  # Stop timer on exception too
+                self.stop_worker()  # Stop worker on exception
 
-    def stop_timer(self):
-        if self.timer.isActive():
-            self.timer.stop()
+    def stop_worker(self):
+        """Safely stop the worker and ensure the timer is stopped."""
+        with QMutexLocker(self.mutex):
+            if self.timer.isActive():
+                self.timer.stop()
+            self._is_running = False  # Mark worker as no longer running
+            self.progress.emit("Job finished naturally.")
+            self.finished.emit()  # Emit finished signal after everything is cleaned up
 
     def stop(self):
+        """Request the worker to stop during a job."""
         with QMutexLocker(self.mutex):
             self._is_running = False
-        self.stop_timer()  # Stop the timer when stopping the worker
+        self.stop_worker()  # Stop the worker when manually requested
