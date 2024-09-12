@@ -107,15 +107,13 @@ def cleanup():
             try:
                 worker.finished.disconnect()
                 worker.progress.disconnect()
-            except TypeError as e:
+            except (TypeError, RuntimeError) as e:
                 print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
-            except RuntimeError as e:
-                print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
 
-            # Add a slight delay to ensure worker is fully finished before deleting
-            time.sleep(0.1)  # 100 ms delay for proper cleanup
+            # Ensure that the worker is deleted only after thread is completely stopped
             worker.deleteLater()  # Safely delete the worker after thread has quit
             worker = None  # Clear the worker reference
+            print("[DEBUG] Worker deleted")
 
         # Stop and clear the thread
         if thread is not None and thread.isRunning():
@@ -126,6 +124,7 @@ def cleanup():
                 print(f"[ERROR] Error stopping thread: {e}")
 
         thread = None  # Explicitly set thread to None for reinitialization
+        print("[DEBUG] Thread cleared")
 
         # Reset the GUI buttons and state
         gui.run_stop_section.job_in_progress = False
@@ -137,16 +136,24 @@ def cleanup():
 
 
 
+
 def stop_program():
     global thread, worker
     try:
-        # Safely stop the worker
         if worker:
-            worker.stop()  # Request the worker to stop
-            thread.quit()  # Gracefully exit the thread loop
-            thread.wait()  # Block until the thread has fully finished execution
+            # Safely stop the worker
+            worker.stop()  # Request the worker to stop running
+            print("[DEBUG] Worker stop requested")
 
-        # Cleanup after the thread has stopped
+        if thread:
+            # Ensure the thread is quit and fully stopped
+            if thread.isRunning():
+                print("[DEBUG] Stopping the thread")
+                thread.quit()  # Gracefully quit the thread event loop
+                thread.wait()  # Block until the thread has fully finished execution
+                print("[DEBUG] Thread has finished")
+
+        # Now cleanup after the thread and worker have fully stopped
         cleanup()
 
         print("Program Stopped")

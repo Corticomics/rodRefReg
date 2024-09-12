@@ -110,8 +110,6 @@ class RunStopSection(QWidget):
         self.start_time_input.setMinimumDateTime(current_datetime)
         self.end_time_input.setMinimumDateTime(current_datetime)
 
-    # The rest of your methods remain unchanged...
-
 
     def update_button_states(self):
         """Enable or disable the Run, Stop, and Change Relay Hats buttons based on the job's state."""
@@ -188,11 +186,13 @@ class RunStopSection(QWidget):
             print(f"g program: {e}")
 
     def stop_program(self):
-        self.stop_program_callback()
-
-        # Mark job as not in progress and update buttons
-        self.job_in_progress = False
-        self.update_button_states()
+        """
+        Call the stop_program_callback to stop the job.
+        Ensure that when the stop button is pressed, the program properly stops and cleans up.
+        """
+        self.stop_program_callback()  # Call the actual stop logic
+        self.job_in_progress = False  # Mark the job as stopped
+        self.update_button_states()  # Update the button states accordingly
 
     def reset_ui(self):
         """Reset the UI to the initial state after a job is completed."""

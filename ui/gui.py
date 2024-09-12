@@ -261,8 +261,6 @@ class RodentRefreshmentGUI(QWidget):
 
 
 
-
-    
     def save_slack_credentials_callback(self):
         # Update settings with the new Slack credentials
         self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
