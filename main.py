@@ -77,7 +77,8 @@ def run_program(interval, stagger, window_start, window_end):
         worker.finished.connect(cleanup)
         thread.finished.connect(thread.deleteLater)
 
-        worker.progress.connect(lambda message: print(message))
+        # This is where you implement the lambda to ensure UI updates happen on the main thread
+        worker.progress.connect(lambda message: gui.print_to_terminal(message))  # Ensure progress signal is handled on the main thread
 
         # Start the worker thread
         thread.started.connect(worker.run_cycle)  # This starts the run_cycle method when the thread starts
@@ -86,6 +87,7 @@ def run_program(interval, stagger, window_start, window_end):
         print("Program Started")
     except Exception as e:
         print(f"Error running program: {e}")
+
 
 
 
@@ -105,7 +107,7 @@ def cleanup():
         except Exception as e:
             print(f"[ERROR] Error deactivating relays: {e}")
 
-        # Check if the worker still exists before trying to disconnect signals
+        # Safely disconnect signals if worker still exists
         if worker is not None:
             try:
                 worker.finished.disconnect()
@@ -114,7 +116,8 @@ def cleanup():
                 print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
             except RuntimeError as e:
                 print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
-
+            finally:
+                worker.deleteLater()  # Safely delete the worker after thread has quit
             worker = None  # Clear the worker reference
 
         # Stop and clear the thread
@@ -126,7 +129,6 @@ def cleanup():
                 print(f"[ERROR] Error stopping thread: {e}")
 
         thread = None  # Explicitly set thread to None for reinitialization
-        gui.timer = None  # Clear the timer reference
 
         # Reset the GUI buttons and state
         gui.run_stop_section.job_in_progress = False
@@ -137,15 +139,17 @@ def cleanup():
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
 
+
 def stop_program():
     global thread, worker
     try:
-        if hasattr(gui, 'timer'):
-            gui.timer.stop()  # Stop the QTimer when the program is stopped
-
+        # Safely stop the worker
         if worker:
             worker.stop()  # Request the worker to stop
+            thread.quit()  # Gracefully exit the thread loop
+            thread.wait()  # Block until the thread has fully finished execution
 
+        # Cleanup after the thread has stopped
         cleanup()
 
         print("Program Stopped")
