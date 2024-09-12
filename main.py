@@ -89,11 +89,6 @@ def run_program(interval, stagger, window_start, window_end):
         print(f"Error running program: {e}")
 
 
-
-
-
-
-
 def cleanup():
     global thread, worker
 
@@ -116,8 +111,10 @@ def cleanup():
                 print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
             except RuntimeError as e:
                 print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
-            finally:
-                worker.deleteLater()  # Safely delete the worker after thread has quit
+
+            # Add a slight delay to ensure worker is fully finished before deleting
+            time.sleep(0.1)  # 100 ms delay for proper cleanup
+            worker.deleteLater()  # Safely delete the worker after thread has quit
             worker = None  # Clear the worker reference
 
         # Stop and clear the thread
