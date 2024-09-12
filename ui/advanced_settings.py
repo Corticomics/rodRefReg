@@ -1,76 +1,88 @@
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QCheckBox
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFormLayout
 from PyQt5.QtCore import Qt
 
 class AdvancedSettingsSection(QGroupBox):
-    def __init__(self, settings, update_all_settings_callback, print_to_terminal):
+    def __init__(self, settings, print_to_terminal):
         super().__init__("Advanced Settings")
         self.settings = settings
-        self.update_all_settings_callback = update_all_settings_callback
         self.print_to_terminal = print_to_terminal
 
-        self.layout = QVBoxLayout()
+        self.layout = QFormLayout()
         self.setLayout(self.layout)
 
-        self.relay_checkboxes = {}
         self.trigger_entries = {}
 
         self.create_settings_ui()
 
     def create_settings_ui(self):
+        # Clear the layout before repopulating
         self.clear_layout(self.layout)
 
+        # Populate the UI with new relay settings
         for relay_pair in self.settings['relay_pairs']:
             relay_pair_tuple = tuple(relay_pair)
-            check_box = QCheckBox(f"Enable Relays {relay_pair[0]} & {relay_pair[1]}")
-            check_box.setStyleSheet("QCheckBox { font-size: 14px; padding: 5px; }")
-            check_box.setChecked(True)
-            check_box.stateChanged.connect(lambda state, rp=relay_pair_tuple: self.toggle_relay_callback(rp, state))
-            self.layout.addWidget(check_box)
-            self.relay_checkboxes[relay_pair_tuple] = check_box
 
-            entry_layout = QHBoxLayout()
-            entry_layout.addWidget(QLabel("Triggers:"))
+            label = QLabel(f"Relays {relay_pair[0]} & {relay_pair[1]} Triggers:")
             trigger_entry = QLineEdit()
             trigger_entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-            trigger_entry.setText("0")
-            entry_layout.addWidget(trigger_entry)
+            trigger_entry.setText("0")  # Default all relays to 0 triggers
             self.trigger_entries[relay_pair_tuple] = trigger_entry
-            self.layout.addLayout(entry_layout)
 
-        update_settings_button = QPushButton("Update Settings")
-        update_settings_button.setStyleSheet("QPushButton { font-size: 16px; padding: 10px; }")
-        update_settings_button.clicked.connect(self.update_all_settings_callback)
-        self.layout.addWidget(update_settings_button)
+            # Add the label and entry widget directly to the form layout
+            self.layout.addRow(label, trigger_entry)
 
-    def toggle_relay_callback(self, relay_pair, state):
-        if state == Qt.Checked:
-            self.settings['selected_relays'].append(relay_pair)
-        else:
-            if relay_pair in self.settings['selected_relays']:
-                self.settings['selected_relays'].remove(relay_pair)
-
-    def add_setting_input(self, layout, label_text, default_value):
-        layout.addWidget(QLabel(label_text))
-        entry = QLineEdit()
-        entry.setStyleSheet("QLineEdit { font-size: 14px; padding: 5px; }")
-        entry.setText(str(default_value))
-        layout.addWidget(entry)
-        return entry
 
     def get_settings(self):
+        selected_relays = []
+        num_triggers = {}
+
+        for relay_pair, entry in self.trigger_entries.items():
+            triggers = int(entry.text())
+            if triggers > 0:
+                selected_relays.append(relay_pair)
+                num_triggers[relay_pair] = triggers  # Store as tuple, not string
+
         settings = {
-            'selected_relays': [rp for rp, checkbox in self.relay_checkboxes.items() if checkbox.isChecked()],
-            'num_triggers': {rp: int(self.trigger_entries[rp].text()) for rp in self.trigger_entries}
+            'selected_relays': selected_relays,
+            'num_triggers': num_triggers
         }
         return settings
 
     def clear_layout(self, layout):
+        """Safely clear the layout by disconnecting and deleting all widgets."""
         while layout.count():
             child = layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
+        layout.update()  # Ensure the layout updates correctly after clearing
+
 
     def update_relay_hats(self, relay_pairs):
-        self.settings['relay_pairs'] = relay_pairs
-        self.create_settings_ui()
-        self.print_to_terminal("Advanced settings updated with new relay hats.")
+        try:
+            # Update relay pairs in the settings
+            self.settings['relay_pairs'] = relay_pairs
+
+            # Clear and recreate the UI elements
+            self.create_settings_ui()
+
+            # Notify the terminal output about the update
+            self.print_to_terminal("Advanced settings updated with new relay hats.")
+        except Exception as e:
+            # Handle any errors that may occur during the update
+            self.print_to_terminal(f"Error updating relay hats: {e}")
+    
+
+    def update_triggers(self, num_triggers):
+        """
+        Update the trigger settings for the relays based on the loaded num_triggers.
+        """
+        try:
+            for relay_pair, trigger_value in num_triggers.items():
+                if relay_pair in self.trigger_entries:
+                    self.trigger_entries[relay_pair].setText(str(trigger_value))
+                else:
+                    print(f"Warning: Relay pair {relay_pair} not found in trigger entries.")
+            print("Advanced settings triggers updated successfully.")
+        except Exception as e:
+            print(f"Error updating triggers in advanced settings: {e}")
+

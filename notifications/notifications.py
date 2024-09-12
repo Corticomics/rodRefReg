@@ -23,6 +23,7 @@ class NotificationHandler:
             print(f"{datetime.datetime.now()} - Slack message sent successfully! Response: {response}")
         except SlackApiError as e:
             print(f"{datetime.datetime.now()} - Failed to send Slack message: {e.response['error']}")
+            
             self.log_pump_trigger(message)
 
     def log_pump_trigger(self, relay_info):
@@ -42,7 +43,7 @@ class NotificationHandler:
 
         with open(LOG_FILE, 'w') as f:
             json.dump(logs, f, indent=4)
-
+        
         print(f"Logged pump trigger: {log_entry}")
 
     def is_internet_available(self):
