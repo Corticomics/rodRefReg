@@ -27,6 +27,9 @@ class RodentRefreshmentGUI(QWidget):
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
+        # Connect the system message signal to the print_to_terminal method
+        self.system_message_signal.connect(self.print_to_terminal)
+
         self.init_ui(style)
 
     def init_ui(self, style):
@@ -145,8 +148,11 @@ class RodentRefreshmentGUI(QWidget):
         self.setLayout(self.main_layout)
 
 
+    # In gui.py
     def print_to_terminal(self, message):
+        """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
+
 
     def toggle_welcome_message(self):
         if self.welcome_scroll_area.isVisible():
