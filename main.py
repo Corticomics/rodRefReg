@@ -139,17 +139,22 @@ def cleanup():
 def stop_program():
     global thread, worker
     try:
-        if hasattr(gui, 'timer'):
-            gui.timer.stop()  # Stop the QTimer when the program is stopped
-
         if worker:
             worker.stop()  # Request the worker to stop
+        else:
+            print("Worker is None in stop_program")
+
+        # Wait for the worker to finish
+        if thread and thread.isRunning():
+            thread.quit()
+            thread.wait()
 
         cleanup()
 
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
+
 
 
 def create_relay_pairs(num_hats):

@@ -9,10 +9,11 @@ class RelayWorker(QObject):
         super().__init__()
         self.settings = settings
         self.relay_handler = relay_handler
-        self.notification_handler = notification_handler  # Store the notification handler
+        self.notification_handler = notification_handler
         self._is_running = True
         self.mutex = QMutex()
-        self.timer = QTimer(self)
+        self.main_timer = QTimer(self)
+        self.timers = []  # Keep track of active timers
 
     @pyqtSlot()
     def run_cycle(self):
@@ -20,34 +21,50 @@ class RelayWorker(QObject):
             if not self._is_running:
                 return
 
-            try:
-                current_time = int(time.time())
-                if current_time < self.settings['window_start']:
-                    delay = self.settings['window_start'] - current_time
-                    self.progress.emit(f"Waiting {delay} seconds until the start of the window.")
-                    QTimer.singleShot(delay * 1000, self.run_cycle)
-                    return
+        current_time = int(time.time())
+        if current_time < self.settings['window_start']:
+            delay = self.settings['window_start'] - current_time
+            self.progress.emit(f"Waiting {delay} seconds until the start of the window.")
+            self.main_timer.singleShot(delay * 1000, self.run_cycle)
+            return
 
-                if self.settings['window_start'] <= current_time <= self.settings['window_end']:
-                    for relay_pair_str, triggers in self.settings['num_triggers'].items():
-                        relay_pair = eval(relay_pair_str)
-                        for _ in range(triggers):
-                            relay_info = self.relay_handler.trigger_relays([relay_pair], {relay_pair_str: triggers}, self.settings['stagger'])
-                            self.progress.emit(f"Triggered {relay_pair} {triggers} times. Relay info: {relay_info}")
-                            # Send a notification after each relay trigger
-                            self.notification_handler.send_slack_notification(f"Triggered {relay_pair} {triggers} times.")
-                            time.sleep(self.settings['stagger'])  # Stagger between individual relay activations within a cycle
+        if self.settings['window_start'] <= current_time <= self.settings['window_end']:
+            for relay_pair_str, triggers in self.settings['num_triggers'].items():
+                relay_pair = eval(relay_pair_str)
+                for i in range(triggers):
+                    delay = i * self.settings['stagger'] * 1000  # delay in milliseconds
+                    timer = QTimer(self)
+                    timer.setSingleShot(True)
+                    timer.timeout.connect(lambda rp=relay_pair: self.trigger_relay(rp))
+                    timer.start(delay)
+                    self.timers.append(timer)
 
-                    # Schedule the next run
-                    self.progress.emit(f"Cycle completed, waiting for {self.settings['interval']} seconds for next cycle.")
-                    self.timer.singleShot(self.settings['interval'] * 1000, self.run_cycle)
-                else:
-                    self._is_running = False  # Stop if the time window is over
-                    self.finished.emit()
-            except Exception as e:
-                self.progress.emit(f"An error occurred in run_cycle: {e}")
+            # Schedule the next run
+            self.progress.emit(f"Cycle completed, waiting for {self.settings['interval']} seconds for next cycle.")
+            self.main_timer.singleShot(self.settings['interval'] * 1000, self.run_cycle)
+        else:
+            self._is_running = False  # Stop if the time window is over
+            self.finished.emit()
+
+    def trigger_relay(self, relay_pair):
+        with QMutexLocker(self.mutex):
+            if not self._is_running:
+                return
+        relay_info = self.relay_handler.trigger_relays(
+            [relay_pair],
+            {str(relay_pair): 1},
+            self.settings['stagger']
+        )
+        self.progress.emit(f"Triggered {relay_pair}. Relay info: {relay_info}")
+        self.notification_handler.send_slack_notification(f"Triggered {relay_pair}.")
 
     def stop(self):
         with QMutexLocker(self.mutex):
             self._is_running = False
-        self.timer.stop()  # Stop the timer when stopping the worker
+        self.main_timer.stop()  # Stop the main timer
+        # Stop and delete all scheduled timers
+        for timer in self.timers:
+            timer.stop()
+            timer.deleteLater()
+        self.timers.clear()
+        self.finished.emit()  # Ensure that any waiting threads know we're done
