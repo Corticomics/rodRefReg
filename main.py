@@ -1,7 +1,7 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
-from PyQt5.QtCore import QTimer, QThread
+from PyQt5.QtCore import Qt, QTimer, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -9,13 +9,15 @@ from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 import time
 
-class StreamRedirector:
-    def __init__(self, print_func):
-        self.print_func = print_func
+class StreamRedirector(QObject):
+    message_signal = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
 
     def write(self, message):
-        if message.strip():  # ignore empty messages
-            self.print_func(message)
+        if message.strip():  # Ignore empty messages
+            self.message_signal.emit(message)
 
     def flush(self):
         pass
@@ -48,6 +50,7 @@ def setup():
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
 
+
 def run_program(interval, stagger, window_start, window_end):
     global thread, worker, notification_handler  # Ensure global scope for notification_handler
 
@@ -74,7 +77,7 @@ def run_program(interval, stagger, window_start, window_end):
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup)
+        worker.finished.connect(cleanup, Qt.QueuedConnection)  # Ensure cleanup runs in the main thread
         thread.finished.connect(thread.deleteLater)
 
         worker.progress.connect(lambda message: print(message))
@@ -86,10 +89,6 @@ def run_program(interval, stagger, window_start, window_end):
         print("Program Started")
     except Exception as e:
         print(f"Error running program: {e}")
-
-
-
-
 
 
 def cleanup():
@@ -140,17 +139,22 @@ def cleanup():
 def stop_program():
     global thread, worker
     try:
-        if hasattr(gui, 'timer'):
-            gui.timer.stop()  # Stop the QTimer when the program is stopped
-
         if worker:
             worker.stop()  # Request the worker to stop
+        else:
+            print("Worker is None in stop_program")
+
+        # Wait for the worker to finish
+        if thread and thread.isRunning():
+            thread.quit()
+            thread.wait()
 
         cleanup()
 
         print("Program Stopped")
     except Exception as e:
         print(f"Error stopping program: {e}")
+
 
 
 def create_relay_pairs(num_hats):
@@ -183,18 +187,22 @@ def change_relay_hats():
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 
+
 def main():
     app = QApplication(sys.argv)
     
     # Call the setup function to initialize everything before starting
     setup()
 
-    # Redirect stdout and stderr to the terminal output widget
-    sys.stdout = StreamRedirector(gui.print_to_terminal)
-    sys.stderr = StreamRedirector(gui.print_to_terminal)
+    # Initialize StreamRedirector and connect its signal to the GUI
+    redirector = StreamRedirector()
+    redirector.message_signal.connect(gui.system_message_signal)
+    
+    # Redirect stdout and stderr to the StreamRedirector
+    sys.stdout = redirector
+    sys.stderr = redirector
     
     gui.show()
     sys.exit(app.exec_())
-
 if __name__ == "__main__":
     main()

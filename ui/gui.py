@@ -1,7 +1,7 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
@@ -16,6 +16,7 @@ from settings.config import load_settings, save_settings
 
 
 class RodentRefreshmentGUI(QWidget):
+    system_message_signal = pyqtSignal(str)
     def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
@@ -26,6 +27,9 @@ class RodentRefreshmentGUI(QWidget):
         self.settings = settings
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
+
+        # Connect the system message signal to the print_to_terminal method
+        self.system_message_signal.connect(self.print_to_terminal)
 
         self.init_ui(style)
 
@@ -145,8 +149,11 @@ class RodentRefreshmentGUI(QWidget):
         self.setLayout(self.main_layout)
 
 
+    # In gui.py
     def print_to_terminal(self, message):
+        """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
+
 
     def toggle_welcome_message(self):
         if self.welcome_scroll_area.isVisible():
