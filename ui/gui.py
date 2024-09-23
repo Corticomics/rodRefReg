@@ -1,7 +1,7 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
@@ -16,6 +16,7 @@ from settings.config import load_settings, save_settings
 
 
 class RodentRefreshmentGUI(QWidget):
+    system_message_signal = pyqtSignal(str)
     def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
