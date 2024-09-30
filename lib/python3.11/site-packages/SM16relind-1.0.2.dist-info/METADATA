@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: SM16relind
+Version: 1.0.2
+Summary: Library to control Multi-IO Automation Card
+Home-page: https://sequentmicrosystems.com
+Author: Sequent Microsystems
+Author-email: olcitu@gmail.com
+License: MIT
+Keywords: industrial,raspberry,power,4-20mA,0-10V,optoisolated
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+License-File: LICENSE
+Requires-Dist: smbus2
+

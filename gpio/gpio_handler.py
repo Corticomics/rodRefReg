@@ -1,5 +1,5 @@
 import RPi.GPIO as GPIO
-import sm_16relind
+import SM16relind
 import time
 import datetime
 
