@@ -1,5 +1,0 @@
-mouseuser@raspberrypi:~/Documents/GitHub/rodRefReg $ sudo apt install python3-slack-sdk
-Reading package lists... Done
-Building dependency tree... Done
-Reading state information... Done
-E: Unable to locate package python3-slack-sdk

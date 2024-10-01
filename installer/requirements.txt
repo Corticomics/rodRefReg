@@ -1,0 +1,39 @@
+# PyQt5 for the GUI installer and main application interface
+PyQt5==5.15.4
+
+# GitPython for handling Git operations within Python
+gitpython==3.1.31
+
+# Requests library to check internet connectivity
+requests==2.31.0
+
+# Slack SDK for integrating Slack notifications
+slack_sdk==3.21.3
+
+# For handling logging in the installer and project (Note: logging is part of Python's standard library, so it doesn't need to be included here)
+
+# Virtualenv for creating isolated Python environments
+virtualenv==20.24.3
+
+# GPIO and hardware control libraries
+RPi.GPIO==0.7.0  # GPIO library for controlling relays on Raspberry Pi
+gpiozero==2.0.1  # High-level GPIO control library for Raspberry Pi
+lgpio==0.2.2.0  # Low-level GPIO library for Raspberry Pi
+smbus2==0.4.1   # For I2C communication with the relay hat
+
+# Flask and related dependencies (only if you use Flask in your project)
+Flask==2.2.2  
+Jinja2==3.1.2  
+
+# JSON schema validation
+jsonschema==4.23.0  
+attrs==24.2.0  
+
+# Security and network communication libraries
+certifi==2024.8.30  
+idna==3.10  
+chardet==5.1.0  
+cryptography==38.0.4  
+
+# Matplotlib inline (if you are using Jupyter or any plotting libraries)
+matplotlib-inline==0.1.7  
