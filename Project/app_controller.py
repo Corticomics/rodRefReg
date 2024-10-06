@@ -3,7 +3,7 @@ import sys
 from PyQt5.QtWidgets import QApplication, QInputDialog, QMessageBox
 from PyQt5.QtCore import Qt
 
-from gpio.relay_handler import RelayHandler
+from gpio.gpio_handler import RelayHandler
 from gpio.relay_worker import RelayWorker
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings, create_relay_pairs
