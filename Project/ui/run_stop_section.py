@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QMessageBox)
 from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
@@ -206,18 +206,16 @@ class RunStopSection(QWidget):
 
 
     def change_relay_hats(self):
-        # Clear any old references in the advanced settings
-        self.advanced_settings.clear_layout(self.advanced_settings.layout)
-        self.advanced_settings.trigger_entries.clear()
+        if self.job_in_progress:
+            QMessageBox.warning(self, "Job in Progress", "Cannot change relay hats while a job is running.")
+            return
 
         # Execute the callback to change the relay hats
         self.change_relay_hats_callback()
 
         # After changing the relay hats, reinitialize the advanced settings UI
-        self.advanced_settings.create_settings_ui()
-
-        # Update the internal settings with new relay pairs (optional but recommended)
-        self.settings['relay_pairs'] = self.advanced_settings.settings['relay_pairs']
+        if self.advanced_settings:
+            self.advanced_settings.update_relay_hats(self.settings['relay_pairs'])
 
         # Reset the UI to ensure no lingering data or state
         self.reset_ui()

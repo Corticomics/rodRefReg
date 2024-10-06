@@ -68,7 +68,7 @@ class AdvancedSettingsSection(QGroupBox):
         except Exception as e:
             # Handle any errors that may occur during the update
             self.print_to_terminal(f"Error updating relay hats: {e}")
-
+    
     def update_triggers(self, num_triggers):
         """
         Update the trigger settings for the relays based on the loaded num_triggers.

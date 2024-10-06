@@ -45,7 +45,7 @@ class NotificationHandler:
 
         with open(LOG_FILE, 'w') as f:
             json.dump(logs, f, indent=4)
-        
+
         logging.info(f"Logged pump trigger: {log_entry}")
 
     def is_internet_available(self):

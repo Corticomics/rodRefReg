@@ -10,7 +10,11 @@ class RelayHandler:
         self.num_hats = num_hats
         GPIO.setmode(GPIO.BOARD)
         self.relay_hats = []
-        for i in range(num_hats):
+        self.initialize_hats()
+        logging.info(f"Initialized {num_hats} relay hats.")
+
+    def initialize_hats(self):
+        for i in range(self.num_hats):
             try:
                 hat = sm_16relind.SM16relind(i)
                 self.relay_hats.append(hat)
@@ -50,10 +54,6 @@ class RelayHandler:
         self.num_hats = num_hats
         self.relay_hats = []
         GPIO.cleanup()  # Clean up existing GPIO settings
-        for i in range(num_hats):
-            try:
-                hat = sm_16relind.SM16relind(i)
-                self.relay_hats.append(hat)
-                logging.info(f"Initialized relay hat {i}")
-            except Exception as e:
-                logging.error(f"Failed to initialize hat {i}: {e}")
+        GPIO.setmode(GPIO.BOARD)
+        self.initialize_hats()
+        logging.info(f"Relay hats updated to {num_hats} hats.")

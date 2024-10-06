@@ -2,6 +2,7 @@
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 import time
 import logging
+from ast import literal_eval
 from functools import partial
 
 class RelayWorker(QObject):
@@ -33,7 +34,7 @@ class RelayWorker(QObject):
 
         if self.settings['window_start'] <= current_time <= self.settings['window_end']:
             for relay_pair_str, triggers in self.settings['num_triggers'].items():
-                relay_pair = eval(relay_pair_str)
+                relay_pair = literal_eval(relay_pair_str)
                 for i in range(triggers):
                     delay = i * self.settings['stagger'] * 1000  # delay in milliseconds
                     timer = QTimer(self)

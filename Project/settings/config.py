@@ -1,11 +1,7 @@
+# settings/config.py
 import json
 import os
-from PyQt5.QtWidgets import QMessageBox
-def save_settings(settings):
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    with open(settings_path, 'w') as file:
-        json.dump(settings, file, indent=4)
-
+import logging
 
 def load_settings():
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
@@ -30,16 +26,13 @@ def load_settings():
 
     return settings
 
-
-
 def save_settings(settings):
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
     try:
         with open(settings_path, 'w') as file:
             json.dump(settings, file, indent=4)
     except Exception as e:
-        print(f"Error saving settings (save_settings): {e}")
-
+        logging.error(f"Error saving settings (save_settings): {e}")
 
 def create_relay_pairs(num_hats):
     relay_pairs = []

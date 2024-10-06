@@ -2,6 +2,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton
 from PyQt5.QtCore import pyqtSignal, Qt
 
+from settings.config import save_settings
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
 from .advanced_settings import AdvancedSettingsSection
@@ -133,3 +134,6 @@ class RodentRefreshmentGUI(QWidget):
         from notifications.notifications import NotificationHandler
         self.parent().notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
         self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
+    def reinitialize_advanced_settings(self):
+        """Reinitialize the advanced settings UI after changing relay hats."""
+        self.advanced_settings.update_relay_hats(self.settings['relay_pairs'])
