@@ -1,84 +1,74 @@
-import json
 import os
+import json
 import logging
-
 from PyQt5.QtWidgets import QMessageBox
 
-PUMPS_FILE = os.path.join(os.path.dirname(__file__), 'pumps.json')
+# Define the path to the settings directory and pumps.json
+SETTINGS_DIR = os.path.dirname(os.path.abspath(__file__))
+PUMPS_FILE = os.path.join(SETTINGS_DIR, 'pumps.json')
+SETTINGS_FILE = os.path.join(SETTINGS_DIR, 'settings.json')
+
+def load_settings():
+    """Load application settings from settings.json."""
+    if not os.path.exists(SETTINGS_FILE):
+        # Return default settings if settings.json doesn't exist
+        return {
+            'interval': 3600,
+            'stagger': 1,
+            'window_start': 8,
+            'window_end': 20,
+            'selected_relays': [],
+            'num_triggers': {},
+            'slack_token': "",
+            'channel_id': "",
+            'num_hats': 1,
+            'offline_duration': 60
+        }
+    try:
+        with open(SETTINGS_FILE, 'r') as file:
+            return json.load(file)
+    except Exception as e:
+        logging.error(f"Error loading settings: {e}")
+        QMessageBox.critical(None, "Error", f"Failed to load settings: {e}")
+        return {}
+
+def save_settings(settings):
+    """Save application settings to settings.json."""
+    try:
+        with open(SETTINGS_FILE, 'w') as file:
+            json.dump(settings, file, indent=4)
+    except Exception as e:
+        logging.error(f"Error saving settings: {e}")
+        QMessageBox.critical(None, "Error", f"Failed to save settings: {e}")
 
 def load_pumps():
+    """Load pumps from pumps.json."""
+    if not os.path.exists(PUMPS_FILE):
+        # Return default pumps if pumps.json doesn't exist
+        return [
+            {
+                "name": "Default 20μL Pump",
+                "volume_per_trigger": 20.0
+            }
+        ]
     try:
-        if os.path.exists(PUMPS_FILE):
-            with open(PUMPS_FILE, 'r') as f:
-                pumps = json.load(f)
-                if not isinstance(pumps, list):
-                    raise ValueError("Pumps data is invalid.")
-                return pumps
-        else:
-            # Default pump
-            pumps = [{'name': 'Default 20μL Pump', 'volume_per_trigger': 20.0}]
-            return pumps
-    except json.JSONDecodeError as e:
-        logging.error(f"JSON decode error: {e}")
-        QMessageBox.critical(None, "Error", f"Invalid pumps configuration file: {e}")
-        return [{'name': 'Default 20μL Pump', 'volume_per_trigger': 20.0}]
+        with open(PUMPS_FILE, 'r') as file:
+            return json.load(file)
     except Exception as e:
         logging.error(f"Error loading pumps: {e}")
         QMessageBox.critical(None, "Error", f"Failed to load pumps: {e}")
-        return [{'name': 'Default 20μL Pump', 'volume_per_trigger': 20.0}]
+        return [
+            {
+                "name": "Default 20μL Pump",
+                "volume_per_trigger": 20.0
+            }
+        ]
 
 def save_pumps(pumps):
+    """Save pumps to pumps.json."""
     try:
-        with open(PUMPS_FILE, 'w') as f:
-            json.dump(pumps, f, indent=4)
+        with open(PUMPS_FILE, 'w') as file:
+            json.dump(pumps, file, indent=4)
     except Exception as e:
         logging.error(f"Error saving pumps: {e}")
         QMessageBox.critical(None, "Error", f"Failed to save pumps: {e}")
-
-def save_settings(settings):
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    with open(settings_path, 'w') as file:
-        json.dump(settings, file, indent=4)
-
-
-def load_settings():
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    if os.path.exists(settings_path):
-        with open(settings_path, 'r') as file:
-            settings = json.load(file)
-            settings['relay_pairs'] = create_relay_pairs(settings.get('num_hats', 1))
-    else:
-        settings = {}
-
-    # Set default values for settings if they are not already set
-    settings.setdefault('interval', 3600)
-    settings.setdefault('stagger', 1)
-    settings.setdefault('window_start', 8)
-    settings.setdefault('window_end', 20)
-    settings.setdefault('selected_relays', [])
-    settings.setdefault('num_triggers', {})
-    settings.setdefault('slack_token', "SLACKTOKEN")
-    settings.setdefault('channel_id', "ChannelId")
-    settings.setdefault('num_hats', 1)
-    settings.setdefault('offline_duration', 60)  # Default to 60 minutes if not set
-
-    return settings
-
-
-
-def save_settings(settings):
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    try:
-        with open(settings_path, 'w') as file:
-            json.dump(settings, file, indent=4)
-    except Exception as e:
-        print(f"Error saving settings (save_settings): {e}")
-
-
-def create_relay_pairs(num_hats):
-    relay_pairs = []
-    for hat in range(num_hats):
-        start_relay = hat * 16 + 1
-        for i in range(0, 16, 2):
-            relay_pairs.append((start_relay + i, start_relay + i + 1))
-    return relay_pairs

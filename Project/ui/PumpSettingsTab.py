@@ -1,5 +1,3 @@
-# ui/PumpSettingsTab.py
-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QComboBox, QPushButton,
     QMessageBox
@@ -23,7 +21,7 @@ class PumpSettingsTab(QWidget):
         layout.addWidget(self.pump_combo)
 
         # Pump Specifications Display
-        self.specs_label = QLabel()  # Define specs_label before it's used
+        self.specs_label = QLabel()
         layout.addWidget(self.specs_label)
 
         # Add Custom Pump Button
@@ -33,9 +31,13 @@ class PumpSettingsTab(QWidget):
 
         self.setLayout(layout)
 
-        # Now that specs_label is defined, update the pump list and display specs
+        # Populate pump list
         self.update_pump_list()
+
+        # Connect selection change
         self.pump_combo.currentIndexChanged.connect(self.on_pump_selected)
+
+        # Display specs of the initially selected pump
         self.display_pump_specs()
 
     def update_pump_list(self):

@@ -1,5 +1,3 @@
-# ui/AddPumpDialog.py
-
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QLineEdit, QLabel, QPushButton,
     QFormLayout, QMessageBox, QHBoxLayout

@@ -22,6 +22,10 @@ Methods:
 """
 
 
+import RPi.GPIO as GPIO
+import datetime
+import logging
+
 class RelayWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
@@ -51,7 +55,7 @@ class RelayWorker(QObject):
 
         if self.settings['window_start'] <= current_time <= self.settings['window_end']:
             for relay_pair_str, triggers in self.settings['num_triggers'].items():
-                relay_pair = eval(relay_pair_str)
+                relay_pair = eval(relay_pair_str)  # Convert string back to tuple
                 for i in range(triggers):
                     delay = i * self.settings['stagger'] * 1000  # delay in milliseconds
                     timer = QTimer(self)
@@ -64,7 +68,8 @@ class RelayWorker(QObject):
             self.progress.emit(f"Cycle completed, waiting for {self.settings['interval']} seconds for next cycle.")
             self.main_timer.singleShot(self.settings['interval'] * 1000, self.run_cycle)
         else:
-            self._is_running = False  # Stop if the time window is over
+            with QMutexLocker(self.mutex):
+                self._is_running = False  # Stop if the time window is over
             self.finished.emit()
 
     def trigger_relay(self, relay_pair):
@@ -73,7 +78,7 @@ class RelayWorker(QObject):
                 return
         relay_info = self.relay_handler.trigger_relays(
             [relay_pair],
-            {str(relay_pair): 1},
+            {relay_pair_str: 1 for relay_pair_str in [str(relay_pair)]},  # Ensure string keys
             self.settings['stagger']
         )
         self.progress.emit(f"Triggered {relay_pair}. Relay info: {relay_info}")

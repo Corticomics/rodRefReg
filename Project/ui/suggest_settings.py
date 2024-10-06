@@ -1,5 +1,3 @@
-# ui/SuggestSettingsSection.py
-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog,
     QPushButton, QLabel, QMessageBox
@@ -148,7 +146,7 @@ class SuggestSettingsSection(QWidget):
                         loaded_settings = json.load(f)
 
                     # Convert string keys back to tuples for num_triggers
-                    num_triggers = {eval(k): v for k, v in loaded_settings.get("num_triggers", {}).items()}
+                    num_triggers = {tuple(eval(k)): v for k, v in loaded_settings.get("num_triggers", {}).items()}
 
                     # Update the settings with loaded values
                     self.settings.update(loaded_settings)
@@ -187,7 +185,7 @@ class SuggestSettingsSection(QWidget):
                 new_pump = dialog.get_pump()
                 if new_pump:
                     self.pumps.append(new_pump)
-                    save_pumps(self.pumps)
+                    save_pumps(self.pumps)  # Ensure pumps are saved
                     self.pump_tab.update_pump_list()
                     QMessageBox.information(self, "Success", "Custom pump added successfully.")
                 else:
