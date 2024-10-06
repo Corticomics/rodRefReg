@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFormLayout
 from PyQt5.QtCore import Qt
+import logging
 
 class AdvancedSettingsSection(QGroupBox):
     def __init__(self, settings, print_to_terminal):
@@ -17,6 +18,7 @@ class AdvancedSettingsSection(QGroupBox):
     def create_settings_ui(self):
         # Clear the layout before repopulating
         self.clear_layout(self.layout)
+        self.trigger_entries.clear()
 
         # Populate the UI with new relay settings
         for relay_pair in self.settings['relay_pairs']:
@@ -36,16 +38,41 @@ class AdvancedSettingsSection(QGroupBox):
         num_triggers = {}
 
         for relay_pair, entry in self.trigger_entries.items():
-            triggers = int(entry.text())
-            if triggers > 0:
-                selected_relays.append(relay_pair)
-                num_triggers[relay_pair] = triggers  # Store as tuple, not string
+            try:
+                triggers_text = entry.text().strip()
+                if not triggers_text:
+                    triggers = 0
+                else:
+                    triggers = int(triggers_text)
+                if triggers > 0:
+                    selected_relays.append(relay_pair)
+                    num_triggers[relay_pair] = triggers  # Store as tuple
+            except ValueError:
+                logging.error(f"Invalid trigger value for relay pair {relay_pair}: {entry.text()}")
+                QMessageBox.warning(
+                    self, "Input Error",
+                    f"Invalid trigger value for relay pair {relay_pair}. Please enter a valid integer."
+                )
+                return None  # Abort and return None to indicate error
 
         settings = {
             'selected_relays': selected_relays,
             'num_triggers': num_triggers
         }
         return settings
+
+    def update_triggers(self, num_triggers):
+        try:
+            for relay_pair, trigger_value in num_triggers.items():
+                if relay_pair in self.trigger_entries:
+                    self.trigger_entries[relay_pair].setText(str(trigger_value))
+                else:
+                    logging.warning(f"Relay pair {relay_pair} not found in trigger entries.")
+            logging.info("Advanced settings triggers updated successfully.")
+        except Exception as e:
+            logging.error(f"Error updating triggers in advanced settings: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to update triggers: {e}")
+
 
     def clear_layout(self, layout):
         """Safely clear the layout by disconnecting and deleting all widgets."""
@@ -69,18 +96,3 @@ class AdvancedSettingsSection(QGroupBox):
         except Exception as e:
             # Handle any errors that may occur during the update
             self.print_to_terminal(f"Error updating relay hats: {e}")
-
-    def update_triggers(self, num_triggers):
-        """
-        Update the trigger settings for the relays based on the loaded num_triggers.
-        """
-        try:
-            for relay_pair, trigger_value in num_triggers.items():
-                if relay_pair in self.trigger_entries:
-                    self.trigger_entries[relay_pair].setText(str(trigger_value))
-                else:
-                    print(f"Warning: Relay pair {relay_pair} not found in trigger entries.")
-            print("Advanced settings triggers updated successfully.")
-        except Exception as e:
-            print(f"Error updating triggers in advanced settings: {e}")
-

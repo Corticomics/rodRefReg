@@ -1,13 +1,14 @@
-import sys
-import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from PyQt5.QtCore import Qt, QTimer, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
-from settings.config import load_settings, save_settings
+from settings.config import load_settings, save_settings, load_settings, load_pumps
 import time
+import logging
+import sys
+import os
 
 class StreamRedirector(QObject):
     message_signal = pyqtSignal(str)
@@ -187,21 +188,36 @@ def change_relay_hats():
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 
-def main():
-    app = QApplication(sys.argv)
-    
-    # Call the setup function to initialize everything before starting
-    setup()
 
-    # Initialize StreamRedirector and connect its signal to the GUI
-    redirector = StreamRedirector()
-    redirector.message_signal.connect(gui.system_message_signal)
-    
-    # Redirect stdout and stderr to the StreamRedirector
-    sys.stdout = redirector
-    sys.stderr = redirector
-    
-    gui.show()
-    sys.exit(app.exec_())
+
+def main():
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+    try:
+        app = QApplication(sys.argv)
+
+        # Load settings with error handling
+        settings = load_settings()
+
+        # Load pumps with error handling
+        pumps = load_pumps()
+
+        # Initialize GUI
+        gui = RodentRefreshmentGUI(
+            run_program, stop_program, change_relay_hats,
+            settings, pumps
+        )
+        gui.show()
+
+        sys.exit(app.exec_())
+    except Exception as e:
+        logging.critical(f"Critical error in main application: {e}")
+        QMessageBox.critical(None, "Critical Error", f"An unexpected error occurred: {e}")
+        sys.exit(1)
+
 if __name__ == "__main__":
     main()

@@ -1,6 +1,40 @@
 import json
 import os
+import logging
+
 from PyQt5.QtWidgets import QMessageBox
+
+PUMPS_FILE = os.path.join(os.path.dirname(__file__), 'pumps.json')
+
+def load_pumps():
+    try:
+        if os.path.exists(PUMPS_FILE):
+            with open(PUMPS_FILE, 'r') as f:
+                pumps = json.load(f)
+                if not isinstance(pumps, list):
+                    raise ValueError("Pumps data is invalid.")
+                return pumps
+        else:
+            # Default pump
+            pumps = [{'name': 'Default 20μL Pump', 'volume_per_trigger': 20.0}]
+            return pumps
+    except json.JSONDecodeError as e:
+        logging.error(f"JSON decode error: {e}")
+        QMessageBox.critical(None, "Error", f"Invalid pumps configuration file: {e}")
+        return [{'name': 'Default 20μL Pump', 'volume_per_trigger': 20.0}]
+    except Exception as e:
+        logging.error(f"Error loading pumps: {e}")
+        QMessageBox.critical(None, "Error", f"Failed to load pumps: {e}")
+        return [{'name': 'Default 20μL Pump', 'volume_per_trigger': 20.0}]
+
+def save_pumps(pumps):
+    try:
+        with open(PUMPS_FILE, 'w') as f:
+            json.dump(pumps, f, indent=4)
+    except Exception as e:
+        logging.error(f"Error saving pumps: {e}")
+        QMessageBox.critical(None, "Error", f"Failed to save pumps: {e}")
+
 def save_settings(settings):
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
     with open(settings_path, 'w') as file:
