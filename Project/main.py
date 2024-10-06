@@ -36,9 +36,6 @@ worker = None
 def setup():
     global relay_handler, settings, gui, notification_handler
 
-    # Create the application instance
-    app = QApplication(sys.argv)
-
     # Prompt user for the number of relay hats
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
                                        "Enter the number of relay hats:", min=1, max=8)
@@ -59,16 +56,7 @@ def setup():
 
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
-    gui.show()
 
-    # Redirect stdout and stderr to the GUI
-    stream_redirector = StreamRedirector()
-    stream_redirector.message_signal.connect(gui.print_to_terminal)
-    sys.stdout = stream_redirector
-    sys.stderr = stream_redirector
-
-    # Start the application event loop
-    sys.exit(app.exec_())
 
 def run_program(interval, stagger, window_start, window_end):
     global thread, worker, notification_handler
@@ -206,18 +194,22 @@ def change_relay_hats():
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 def main():
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    global gui  # Ensure gui is accessible in main()
+    app = QApplication(sys.argv)
+    
+    # Call the setup function to initialize everything before starting
+    setup()
 
-    try:
-        setup()
-    except Exception as e:
-        logging.critical(f"Critical error in main application: {e}")
-        QMessageBox.critical(None, "Critical Error", f"An unexpected error occurred: {e}")
-        sys.exit(1)
+    # Initialize StreamRedirector and connect its signal to the GUI
+    redirector = StreamRedirector()
+    redirector.message_signal.connect(gui.print_to_terminal)
+    
+    # Redirect stdout and stderr to the StreamRedirector
+    sys.stdout = redirector
+    sys.stderr = redirector
+    
+    gui.show()
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main()
