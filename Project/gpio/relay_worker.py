@@ -1,5 +1,26 @@
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 import time
+"""
+RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
+
+Attributes:
+    finished (pyqtSignal): Signal emitted when the worker has finished its task.
+    progress (pyqtSignal): Signal emitted to report progress messages.
+
+Methods:
+    __init__(settings, relay_handler, notification_handler):
+        Initializes the RelayWorker with the given settings, relay handler, and notification handler.
+    
+    run_cycle():
+        Main method to run the relay triggering cycle. It schedules relay triggers based on the provided settings.
+    
+    trigger_relay(relay_pair):
+        Triggers the specified relay pair and sends a notification.
+    
+    stop():
+        Stops the relay worker, including all scheduled timers, and emits the finished signal.
+"""
+
 
 class RelayWorker(QObject):
     finished = pyqtSignal()
