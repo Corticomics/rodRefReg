@@ -1,8 +1,10 @@
+# notifications/notifications.py
 import requests
 import json
 import datetime
 import time
 import threading
+import logging
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import os
@@ -13,6 +15,7 @@ class NotificationHandler:
     def __init__(self, slack_token, channel_id):
         self.client = WebClient(token=slack_token)
         self.channel_id = channel_id
+        self.start_retry_thread()
 
     def send_slack_notification(self, message):
         try:
@@ -20,10 +23,9 @@ class NotificationHandler:
                 channel=self.channel_id,
                 text=message
             )
-            print(f"{datetime.datetime.now()} - Slack message sent successfully! Response: {response}")
+            logging.info(f"{datetime.datetime.now()} - Slack message sent successfully! Response: {response}")
         except SlackApiError as e:
-            print(f"{datetime.datetime.now()} - Failed to send Slack message: {e.response['error']}")
-            
+            logging.error(f"{datetime.datetime.now()} - Failed to send Slack message: {e.response['error']}")
             self.log_pump_trigger(message)
 
     def log_pump_trigger(self, relay_info):
@@ -44,7 +46,7 @@ class NotificationHandler:
         with open(LOG_FILE, 'w') as f:
             json.dump(logs, f, indent=4)
         
-        print(f"Logged pump trigger: {log_entry}")
+        logging.info(f"Logged pump trigger: {log_entry}")
 
     def is_internet_available(self):
         try:
@@ -59,7 +61,7 @@ class NotificationHandler:
                 with open(LOG_FILE, 'r') as f:
                     logs = json.load(f)
 
-                for log in logs:
+                for log in logs[:]:  # Iterate over a copy to allow removal
                     message = log["relay_info"]
                     try:
                         self.send_slack_notification(message)

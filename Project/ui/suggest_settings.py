@@ -1,21 +1,23 @@
-from .SuggestSettingsTab import SuggestSettingsTab
-from .SlackCredentialsTab import SlackCredentialsTab
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, 
-    QPushButton, QLabel, QMessageBox
-)
+# ui/suggest_settings.py
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QMessageBox
+from PyQt5.QtCore import Qt
 import json
 import os
+import logging
 
 SAVED_SETTINGS_DIR = "saved_settings"
 
+from .SuggestSettingsTab import SuggestSettingsTab
+from .SlackCredentialsTab import SlackCredentialsTab
+
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, load_callback=None):
+    def __init__(self, settings, suggest_settings_callback, push_settings_callback, 
+                 save_slack_credentials_callback, advanced_settings, run_stop_section, load_callback=None):
         super().__init__()
 
         self.settings = settings
-        self.advanced_settings = advanced_settings  # Store the passed advanced_settings
-        self.run_stop_section = run_stop_section  # Store the passed run_stop_section
+        self.advanced_settings = advanced_settings
+        self.run_stop_section = run_stop_section
         self.save_callback = save_slack_credentials_callback
         self.load_callback = load_callback
 
@@ -59,7 +61,7 @@ class SuggestSettingsSection(QWidget):
             current_settings = {
                 "interval": interval,
                 "stagger": stagger,
-                "num_triggers": {str(k): v for k, v in num_triggers.items()},  # Convert tuple keys to strings
+                "num_triggers": {str(k): v for k, v in num_triggers.items()},
             }
 
             name, ok = QInputDialog.getText(self, "Save Settings", "Enter a name for these settings:")
@@ -68,8 +70,9 @@ class SuggestSettingsSection(QWidget):
                 with open(file_name, 'w') as f:
                     json.dump(current_settings, f, indent=4)
                 self.load_saved_settings()
+                QMessageBox.information(self, "Success", f"Settings '{name}' saved successfully.")
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            logging.error(f"Error saving settings: {e}")
             QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
 
     def load_saved_settings(self):
@@ -81,9 +84,12 @@ class SuggestSettingsSection(QWidget):
 
     def create_dashboard_ui(self):
         # Save/Load Settings
+        from PyQt5.QtWidgets import QListWidget, QPushButton
+
         self.saved_settings_list = QListWidget()
-        self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)  # Add validation for selection change
-        self.dashboard_layout.addWidget(QLabel("Saved Settings"))
+        self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)
+        self.dashboard_layout.addWidget(QMessageBox("Saved Settings"))
+
         self.dashboard_layout.addWidget(self.saved_settings_list)
 
         save_button = QPushButton("Save Current Settings")
@@ -91,7 +97,7 @@ class SuggestSettingsSection(QWidget):
         self.dashboard_layout.addWidget(save_button)
 
         self.load_button = QPushButton("Load Selected Settings")
-        self.load_button.setEnabled(False)  # Disable initially
+        self.load_button.setEnabled(False)
         self.load_button.clicked.connect(self.load_settings)
         self.dashboard_layout.addWidget(self.load_button)
 
@@ -100,16 +106,14 @@ class SuggestSettingsSection(QWidget):
     def validate_selection(self):
         """Enable or disable the load button based on whether a setting is selected."""
         selected_item = self.saved_settings_list.currentItem()
-        if selected_item:  # If an item is selected, enable the button
+        if selected_item:
             self.load_button.setEnabled(True)
             self.load_button.setStyleSheet("")
             self.load_button.setToolTip("")
-                
-        else:  # If no item is selected, disable the button and change the color
+        else:
             self.load_button.setEnabled(False)
             self.load_button.setStyleSheet("")
             self.load_button.setToolTip("")
-
 
     def load_settings(self):
         selected_item = self.saved_settings_list.currentItem()
@@ -126,7 +130,7 @@ class SuggestSettingsSection(QWidget):
 
                     # Update the settings with loaded values
                     self.settings.update(loaded_settings)
-                    self.settings['num_triggers'] = num_triggers  # Update num_triggers with tuple keys
+                    self.settings['num_triggers'] = num_triggers
 
                     # Update UI fields with the loaded settings
                     self.run_stop_section.interval_input.setText(str(self.settings.get('interval', '')))
@@ -140,28 +144,8 @@ class SuggestSettingsSection(QWidget):
                         self.load_callback()
 
                     QMessageBox.information(self, "Load Success", f"Settings '{selected_item.text()}' successfully loaded.")
-
                 except Exception as e:
+                    logging.error(f"Error loading settings: {e}")
                     QMessageBox.critical(self, "Load Error", f"Error loading settings: {str(e)}")
             else:
                 QMessageBox.critical(self, "Load Error", f"Settings file '{full_path}' does not exist.")
-
-
-
-    def save_slack_credentials(self):
-        try:
-            slack_token = self.slack_tab.slack_token_input.text()
-            slack_channel = self.slack_tab.slack_channel_input.text()
-
-            # Save Slack credentials to the existing settings file
-            self.settings['slack_token'] = slack_token
-            self.settings['channel_id'] = slack_channel
-
-            # Save all settings including Slack credentials
-            with open("settings.json", 'w') as f:
-                json.dump(self.settings, f, indent=4)
-
-            QMessageBox.information(self, "Success", "Slack credentials saved successfully.")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save Slack credentials: {e}")
