@@ -10,6 +10,7 @@ from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
 from .SlackCredentialsTab import SlackCredentialsTab
 from notifications.notifications import NotificationHandler
+from .styles import get_default_styles
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from settings.config import load_settings, save_settings
@@ -37,43 +38,7 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        if style == 'bitlearns':
-            self.setStyleSheet("""
-                QWidget {
-                    background-color: #f8f9fa;
-                    font-size: 14px;
-                }
-                QGroupBox {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    border-radius: 5px;
-                    padding: 15px;
-                }
-                QPushButton {
-                    background-color: #007bff;
-                    border: 1px solid #007bff;
-                    border-radius: 5px;
-                    color: #ffffff;
-                    padding: 10px;
-                }
-                QPushButton:disabled               
-                    PushButton:disabled {
-                    background-color: #cccccc;
-                    color: #666666;
-                }
-                QPushButton:hover {
-                    background-color: #0056b3;
-                }
-                QLabel {
-                    color: #343a40;
-                    background-color: #ffffff;
-                }
-                QLineEdit, QTextEdit {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    padding: 5px;
-                }
-            """)
+        self.setStyleSheet(get_default_styles())
 
         self.main_layout = QVBoxLayout()
 

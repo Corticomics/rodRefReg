@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QComboBox, QPushButton,
-    QLineEdit, QDialog, QFormLayout, QMessageBox, QHBoxLayout
+    QMessageBox
 )
 import logging
 
@@ -19,15 +19,12 @@ class PumpSettingsTab(QWidget):
 
         # Pump Selection
         self.pump_combo = QComboBox()
-        self.update_pump_list()
-        self.pump_combo.currentIndexChanged.connect(self.on_pump_selected)
         layout.addWidget(QLabel("Select Pump Type:"))
         layout.addWidget(self.pump_combo)
 
         # Pump Specifications Display
-        self.specs_label = QLabel()
+        self.specs_label = QLabel()  # Define specs_label before it's used
         layout.addWidget(self.specs_label)
-        self.display_pump_specs()
 
         # Add Custom Pump Button
         self.add_pump_button = QPushButton("Add Custom Pump")
@@ -35,6 +32,11 @@ class PumpSettingsTab(QWidget):
         layout.addWidget(self.add_pump_button)
 
         self.setLayout(layout)
+
+        # Now that specs_label is defined, update the pump list and display specs
+        self.update_pump_list()
+        self.pump_combo.currentIndexChanged.connect(self.on_pump_selected)
+        self.display_pump_specs()
 
     def update_pump_list(self):
         try:
