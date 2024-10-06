@@ -61,6 +61,12 @@ def setup():
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
     gui.show()
 
+    # Redirect stdout and stderr to the GUI
+    stream_redirector = StreamRedirector()
+    stream_redirector.message_signal.connect(gui.print_to_terminal)
+    sys.stdout = stream_redirector
+    sys.stderr = stream_redirector
+
     # Start the application event loop
     sys.exit(app.exec_())
 
@@ -93,7 +99,8 @@ def run_program(interval, stagger, window_start, window_end):
         worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
 
-        worker.progress.connect(lambda message: print(message))
+        # Connect worker progress to GUI
+        worker.progress.connect(gui.print_to_terminal)
 
         # Start the worker thread
         thread.started.connect(worker.run_cycle)

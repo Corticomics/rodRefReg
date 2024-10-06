@@ -113,8 +113,6 @@ class RodentRefreshmentGUI(QWidget):
         self.main_layout.addLayout(self.upper_layout)
         self.setLayout(self.main_layout)
 
-
-    # In gui.py
     def print_to_terminal(self, message):
         """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
