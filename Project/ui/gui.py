@@ -1,5 +1,6 @@
 import sys
 import os
+import math
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
 from PyQt5.QtCore import Qt, pyqtSignal
 
@@ -212,11 +213,15 @@ class RodentRefreshmentGUI(QWidget):
             self.run_stop_section.interval_input.setText(str(int(settings["interval_seconds"])))
             self.run_stop_section.stagger_input.setText("5")  # Assuming a default stagger value
 
+            # Get the selected pump's volume per trigger in µL
+            pump_volume_per_trigger_ul = self.suggest_settings_section.selected_pump['volume_per_trigger']
+
             # Create num_triggers dictionary for AdvancedSettingsSection
             num_triggers = {}
             for relay_pair, water_volume in settings["relay_volumes"].items():
                 if water_volume > 0:
-                    trigger_count = int((water_volume * 1000) / 500)  # Example conversion to triggers
+                    # Calculate the number of triggers required
+                    trigger_count = int(math.ceil((water_volume * 1000) / pump_volume_per_trigger_ul))
                 else:
                     trigger_count = 0  # Set trigger count to 0 if volume is 0
                 num_triggers[relay_pair] = trigger_count
@@ -228,8 +233,6 @@ class RodentRefreshmentGUI(QWidget):
 
         except Exception as e:
             self.print_to_terminal(f"Error applying suggested settings: {e}")
-
-
 
 
     
