@@ -187,7 +187,6 @@ def change_relay_hats():
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 
-
 def main():
     app = QApplication(sys.argv)
     

@@ -31,7 +31,6 @@ class AdvancedSettingsSection(QGroupBox):
             # Add the label and entry widget directly to the form layout
             self.layout.addRow(label, trigger_entry)
 
-
     def get_settings(self):
         selected_relays = []
         num_triggers = {}
@@ -70,7 +69,6 @@ class AdvancedSettingsSection(QGroupBox):
         except Exception as e:
             # Handle any errors that may occur during the update
             self.print_to_terminal(f"Error updating relay hats: {e}")
-    
 
     def update_triggers(self, num_triggers):
         """

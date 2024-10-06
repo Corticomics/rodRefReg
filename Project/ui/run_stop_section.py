@@ -79,7 +79,7 @@ class RunStopSection(QWidget):
 
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
-        self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
+        self.relay_hats_button.clicked.connect(self.change_relay_hats)
 
         # Layout
         form_layout = QFormLayout()

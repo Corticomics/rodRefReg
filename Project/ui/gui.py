@@ -285,6 +285,10 @@ class RodentRefreshmentGUI(QWidget):
         notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
         self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
 
+    def reinitialize_advanced_settings(self):
+        """Reinitialize the advanced settings UI after changing relay hats."""
+        self.advanced_settings.update_relay_hats(self.settings['relay_pairs'])
+
 
 def main(run_program, stop_program, change_relay_hats):
     app = QApplication(sys.argv)
