@@ -1,6 +1,7 @@
 # ui/suggest_settings.py
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QMessageBox,QListWidget, QPushButton, QLabel
 from PyQt5.QtCore import Qt
+
 import json
 import os
 import logging
@@ -82,26 +83,28 @@ class SuggestSettingsSection(QWidget):
                 if file_name.endswith(".json"):
                     self.saved_settings_list.addItem(file_name[:-5])
 
-    def create_dashboard_ui(self):
-        # Save/Load Settings
-        from PyQt5.QtWidgets import QListWidget, QPushButton
+    # ui/suggest_settings.py
 
-        self.saved_settings_list = QListWidget()
-        self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)
-        self.dashboard_layout.addWidget(QMessageBox("Saved Settings"))
+def create_dashboard_ui(self):
+    # Save/Load Settings
 
-        self.dashboard_layout.addWidget(self.saved_settings_list)
+    self.saved_settings_list = QListWidget()
+    self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)
+    self.dashboard_layout.addWidget(QLabel("Saved Settings"))  # Use QLabel instead of QMessageBox
 
-        save_button = QPushButton("Save Current Settings")
-        save_button.clicked.connect(self.save_settings)
-        self.dashboard_layout.addWidget(save_button)
+    self.dashboard_layout.addWidget(self.saved_settings_list)
 
-        self.load_button = QPushButton("Load Selected Settings")
-        self.load_button.setEnabled(False)
-        self.load_button.clicked.connect(self.load_settings)
-        self.dashboard_layout.addWidget(self.load_button)
+    save_button = QPushButton("Save Current Settings")
+    save_button.clicked.connect(self.save_settings)
+    self.dashboard_layout.addWidget(save_button)
 
-        self.load_saved_settings()
+    self.load_button = QPushButton("Load Selected Settings")
+    self.load_button.setEnabled(False)
+    self.load_button.clicked.connect(self.load_settings)
+    self.dashboard_layout.addWidget(self.load_button)
+
+    self.load_saved_settings()
+
 
     def validate_selection(self):
         """Enable or disable the load button based on whether a setting is selected."""
