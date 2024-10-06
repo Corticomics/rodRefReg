@@ -1,10 +1,12 @@
-from PyQt5.QtWidgets import QApplication, QInputDialog
+# main.py
+
+from PyQt5.QtWidgets import QApplication, QInputDialog, QMessageBox
 from PyQt5.QtCore import Qt, QTimer, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
-from settings.config import load_settings, save_settings, load_settings, load_pumps
+from settings.config import load_settings, save_settings, create_relay_pairs
 import time
 import logging
 import sys
@@ -23,15 +25,23 @@ class StreamRedirector(QObject):
     def flush(self):
         pass
 
-# Initialize thread and worker globally to reuse them
-thread = QThread()
+# Initialize variables
+relay_handler = None
+settings = None
+gui = None
+notification_handler = None
+thread = None
 worker = None
 
 def setup():
     global relay_handler, settings, gui, notification_handler
 
+    # Create the application instance
+    app = QApplication(sys.argv)
+
     # Prompt user for the number of relay hats
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
+                                       "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         sys.exit()
 
@@ -39,21 +49,23 @@ def setup():
     settings = load_settings()
     settings['num_hats'] = num_hats
     settings['relay_pairs'] = create_relay_pairs(num_hats)
-    
+
     # Initialize relay handler and close all relays
     relay_handler = RelayHandler(settings['relay_pairs'], num_hats)
     relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
 
     # Initialize Slack notification handler
-
     notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
 
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
+    gui.show()
 
+    # Start the application event loop
+    sys.exit(app.exec_())
 
 def run_program(interval, stagger, window_start, window_end):
-    global thread, worker, notification_handler  # Ensure global scope for notification_handler
+    global thread, worker, notification_handler
 
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
@@ -78,19 +90,18 @@ def run_program(interval, stagger, window_start, window_end):
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup, Qt.QueuedConnection)  # Ensure cleanup runs in the main thread
+        worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
 
         worker.progress.connect(lambda message: print(message))
 
         # Start the worker thread
-        thread.started.connect(worker.run_cycle)  # This starts the run_cycle method when the thread starts
-        thread.start()  # Start the QThread itself
+        thread.started.connect(worker.run_cycle)
+        thread.start()
 
         print("Program Started")
     except Exception as e:
         print(f"Error running program: {e}")
-
 
 def cleanup():
     global thread, worker
@@ -120,13 +131,12 @@ def cleanup():
         # Stop and clear the thread
         if thread is not None and thread.isRunning():
             try:
-                thread.quit()  # Gracefully exit the thread loop
-                thread.wait()  # Block until the thread has fully finished execution
+                thread.quit()
+                thread.wait()
             except Exception as e:
                 print(f"[ERROR] Error stopping thread: {e}")
 
         thread = None  # Explicitly set thread to None for reinitialization
-        gui.timer = None  # Clear the timer reference
 
         # Reset the GUI buttons and state
         gui.run_stop_section.job_in_progress = False
@@ -136,12 +146,11 @@ def cleanup():
     except Exception as e:
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
-
 def stop_program():
     global thread, worker
     try:
         if worker:
-            worker.stop()  # Request the worker to stop
+            worker.stop()
         else:
             print("Worker is None in stop_program")
 
@@ -156,8 +165,6 @@ def stop_program():
     except Exception as e:
         print(f"Error stopping program: {e}")
 
-
-
 def create_relay_pairs(num_hats):
     relay_pairs = []
     for hat in range(num_hats):
@@ -170,25 +177,26 @@ def change_relay_hats():
     global relay_handler, settings
 
     # Prompt user for the number of relay hats
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
+                                       "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
 
-    # Update the settings with the new number of relay hats
+    # Update settings
     settings['num_hats'] = num_hats
     settings['relay_pairs'] = create_relay_pairs(num_hats)
-    
-    # Update relay handler with the new relay pairs
-    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-    
-    # Reinitialize the advanced settings UI
+
+    # Update RelayHandler
+    if relay_handler:
+        relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+        relay_handler.set_all_relays(0)
+        print(f"Relay hats updated to {num_hats} hats.")
+
+    # Reinitialize AdvancedSettings UI
     gui.reinitialize_advanced_settings()
 
-    # Print confirmation
+    # Notify user
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
-
-
-
 
 def main():
     # Configure logging
@@ -198,22 +206,7 @@ def main():
     )
 
     try:
-        app = QApplication(sys.argv)
-
-        # Load settings with error handling
-        settings = load_settings()
-
-        # Load pumps with error handling
-        pumps = load_pumps()
-
-        # Initialize GUI
-        gui = RodentRefreshmentGUI(
-            run_program, stop_program, change_relay_hats,
-            settings, pumps
-        )
-        gui.show()
-
-        sys.exit(app.exec_())
+        setup()
     except Exception as e:
         logging.critical(f"Critical error in main application: {e}")
         QMessageBox.critical(None, "Critical Error", f"An unexpected error occurred: {e}")

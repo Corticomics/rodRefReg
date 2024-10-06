@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QMessageBox)
 from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
@@ -206,6 +206,9 @@ class RunStopSection(QWidget):
 
 
     def change_relay_hats(self):
+        if self.job_in_progress:
+            QMessageBox.warning(self, "Job in Progress", "Cannot change relay hats while a job is running.")
+            return
         # Clear any old references in the advanced settings
         self.advanced_settings.clear_layout(self.advanced_settings.layout)
         self.advanced_settings.trigger_entries.clear()
