@@ -1,10 +1,14 @@
 # ui/suggest_settings.py
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QMessageBox,QListWidget, QPushButton, QLabel
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QTabWidget, QMessageBox,
+    QListWidget, QPushButton, QLabel, QInputDialog
+)
 from PyQt5.QtCore import Qt
-
 import json
 import os
 import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 SAVED_SETTINGS_DIR = "saved_settings"
 
@@ -35,7 +39,7 @@ class SuggestSettingsSection(QWidget):
         self.dashboard_tab = QWidget()
         self.dashboard_layout = QVBoxLayout()
         self.dashboard_tab.setLayout(self.dashboard_layout)
-        self.create_dashboard_ui()
+        self.create_dashboard_ui()  # Ensure this method is called after defining it
 
         # Create the Slack Credentials Tab
         self.slack_tab = SlackCredentialsTab(self.settings, self.save_callback)
@@ -46,6 +50,25 @@ class SuggestSettingsSection(QWidget):
         self.tab_widget.addTab(self.slack_tab, "Slack Bot")
 
         self.layout.addWidget(self.tab_widget)
+
+    def create_dashboard_ui(self):
+        # Save/Load Settings
+        self.saved_settings_list = QListWidget()
+        self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)
+        self.dashboard_layout.addWidget(QLabel("Saved Settings"))  # Use QLabel instead of QMessageBox
+
+        self.dashboard_layout.addWidget(self.saved_settings_list)
+
+        save_button = QPushButton("Save Current Settings")
+        save_button.clicked.connect(self.save_settings)
+        self.dashboard_layout.addWidget(save_button)
+
+        self.load_button = QPushButton("Load Selected Settings")
+        self.load_button.setEnabled(False)
+        self.load_button.clicked.connect(self.load_settings)
+        self.dashboard_layout.addWidget(self.load_button)
+
+        self.load_saved_settings()
 
     def save_settings(self):
         try:
@@ -82,29 +105,6 @@ class SuggestSettingsSection(QWidget):
             for file_name in os.listdir(SAVED_SETTINGS_DIR):
                 if file_name.endswith(".json"):
                     self.saved_settings_list.addItem(file_name[:-5])
-
-    # ui/suggest_settings.py
-
-def create_dashboard_ui(self):
-    # Save/Load Settings
-
-    self.saved_settings_list = QListWidget()
-    self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)
-    self.dashboard_layout.addWidget(QLabel("Saved Settings"))  # Use QLabel instead of QMessageBox
-
-    self.dashboard_layout.addWidget(self.saved_settings_list)
-
-    save_button = QPushButton("Save Current Settings")
-    save_button.clicked.connect(self.save_settings)
-    self.dashboard_layout.addWidget(save_button)
-
-    self.load_button = QPushButton("Load Selected Settings")
-    self.load_button.setEnabled(False)
-    self.load_button.clicked.connect(self.load_settings)
-    self.dashboard_layout.addWidget(self.load_button)
-
-    self.load_saved_settings()
-
 
     def validate_selection(self):
         """Enable or disable the load button based on whether a setting is selected."""
@@ -152,3 +152,7 @@ def create_dashboard_ui(self):
                     QMessageBox.critical(self, "Load Error", f"Error loading settings: {str(e)}")
             else:
                 QMessageBox.critical(self, "Load Error", f"Settings file '{full_path}' does not exist.")
+
+    def save_slack_credentials(self):
+        # Implement the save_slack_credentials method if needed
+        pass
