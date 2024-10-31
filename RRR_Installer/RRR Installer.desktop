@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=RRR Installer
+Comment=Install the Rodent Refreshment Regulator
+Exec=/home/pi/RRR_Installer/installer_main
+Icon=/home/pi/RRR_Installer/resources/icon.png
+Terminal=false
+Categories=Utility;
