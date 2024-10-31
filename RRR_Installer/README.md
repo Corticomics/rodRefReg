@@ -15,7 +15,11 @@ Installation Instructions:
 
 3. **Run the Installer**
 
-   - Open the `RRR_Installer` folder.
+   - Open the extracted `RRR_Installer` folder.
+   - Ensure that the `installer_main` file has execute permissions:
+     ```bash
+     chmod +x installer_main
+     ```
    - Double-click on the `RRR Installer.desktop` file.
    - If prompted with a security warning, select "Trust and Launch".
 
@@ -23,7 +27,7 @@ Installation Instructions:
 
    - Enter your **Slack Token** and **Channel ID** when prompted.
    - Click **"Install"** to begin the installation.
-   - The installer will guide you through the process.
+   - The installer will guide you through the process, including installing any missing dependencies.
    - You may be prompted to enter your password to authorize administrative actions.
 
 5. **After Installation**
@@ -58,12 +62,11 @@ Installation Instructions:
 
 - **Missing Dependencies**
 
-  - The installer checks for required tools like `git`, `pip3`, and `pkexec`.
-  - If any are missing and cannot be installed, the installer will inform you.
+  - The installer will check for and install required dependencies automatically.
+  - Ensure that your Raspberry Pi is connected to the internet during installation.
 
 - **Network Issues**
 
-  - Ensure that your Raspberry Pi is connected to the internet during installation.
   - If network issues occur, retry the installation after checking your connection.
 
 **Support**
@@ -71,4 +74,3 @@ Installation Instructions:
 For assistance, please contact support@example.com.
 
 Thank you!
-

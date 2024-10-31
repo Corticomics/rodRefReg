@@ -11,11 +11,6 @@ import subprocess
 import logging
 import re
 from shutil import which
-from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-    QVBoxLayout, QMessageBox, QTextEdit, QProgressBar, QHBoxLayout
-)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 # Configure logging
 logging.basicConfig(
@@ -23,6 +18,41 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+def check_pyqt5_installed():
+    try:
+        import PyQt5
+        return True
+    except ImportError:
+        return False
+
+def install_pyqt5():
+    logging.info("PyQt5 is not installed. Installing now...")
+    try:
+        # Update package list and install PyQt5
+        subprocess.check_call(['pkexec', 'apt-get', 'update'])
+        subprocess.check_call(['pkexec', 'apt-get', 'install', '-y', 'python3-pyqt5'])
+        logging.info("PyQt5 installed successfully.")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to install PyQt5: {e}")
+        print(f"Failed to install PyQt5: {e}")
+        sys.exit(1)
+
+# Check if PyQt5 is installed before importing it
+if not check_pyqt5_installed():
+    install_pyqt5()
+
+# Now attempt to import PyQt5
+try:
+    from PyQt5.QtWidgets import (
+        QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
+        QVBoxLayout, QMessageBox, QTextEdit, QProgressBar, QHBoxLayout
+    )
+    from PyQt5.QtCore import Qt, QThread, pyqtSignal
+except ImportError:
+    logging.error("PyQt5 is still not available after installation. Exiting.")
+    print("PyQt5 is still not available after installation. Exiting.")
+    sys.exit(1)
 
 class InstallerThread(QThread):
     progress_update = pyqtSignal(str)
@@ -32,13 +62,13 @@ class InstallerThread(QThread):
     def __init__(self, config_data):
         super().__init__()
         self.config_data = config_data
-        self.total_steps = 5  # Update if the number of steps changes
+        self.total_steps = 6  # Update if the number of steps changes
 
     def run(self):
         try:
-            # Step 1: Install system dependencies
-            self.progress_update.emit("Installing system dependencies...")
-            self.install_system_dependencies()
+            # Step 1: Check and install system dependencies
+            self.progress_update.emit("Checking and installing system dependencies...")
+            self.check_and_install_system_packages()
             self.progress_increment.emit(1)
 
             # Step 2: Install Python packages
@@ -73,52 +103,90 @@ class InstallerThread(QThread):
             self.progress_update.emit(f"Installation failed: {str(e)}")
             self.installation_complete.emit(False)
 
-    def check_tool_availability(self, tool_name):
-        """Check if a tool is available in the system path."""
-        if which(tool_name) is None:
-            error_msg = f"Required tool '{tool_name}' is not available."
-            logging.error(error_msg)
-            self.progress_update.emit(error_msg)
+    def is_package_installed(self, package_name):
+        """Check if a system package is installed."""
+        try:
+            output = subprocess.check_output(['dpkg', '-s', package_name], stderr=subprocess.STDOUT)
+            return 'Status: install ok installed' in output.decode()
+        except subprocess.CalledProcessError:
             return False
-        return True
 
-    def install_system_dependencies(self):
-        packages = ['git', 'python3-pip', 'python3-venv', 'python3-pyqt5']
-        cmd = ['pkexec', sys.executable, 'installer_backend.py', 'install_system_dependencies'] + packages
-        logging.info("Installing system dependencies via backend script...")
-        subprocess.check_call(cmd)
+    def check_and_install_system_packages(self):
+        """Check and install required system packages."""
+        packages = ['git', 'python3-pip', 'python3-venv']
+        for package in packages:
+            if not self.is_package_installed(package):
+                self.progress_update.emit(f"Installing {package}...")
+                logging.info(f"Installing {package}...")
+                try:
+                    subprocess.check_call(['pkexec', 'apt-get', 'install', '-y', package])
+                except subprocess.CalledProcessError as e:
+                    error_msg = f"Failed to install {package}: {e}"
+                    logging.error(error_msg)
+                    self.progress_update.emit(error_msg)
+                    self.installation_complete.emit(False)
+                    return
 
     def install_python_packages(self):
+        """Install required Python packages."""
         packages = ['requests', 'slack_sdk']
-        cmd = ['pkexec', sys.executable, 'installer_backend.py', 'install_python_packages'] + packages
-        logging.info("Installing Python packages via backend script...")
-        subprocess.check_call(cmd)
+        logging.info("Installing Python packages...")
+        try:
+            subprocess.check_call(['pip3', 'install'] + packages)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to install Python packages: {e}"
+            logging.error(error_msg)
+            self.progress_update.emit(error_msg)
+            self.installation_complete.emit(False)
+            return
 
     def setup_application(self):
-        repo_url = 'https://github.com/Corticomics/rodRefReg.git'
+        """Clone or update the RRR application repository."""
         app_path = '/opt/rrr'
-        cmd = ['pkexec', sys.executable, 'installer_backend.py', 'clone_repository', repo_url, app_path]
-        logging.info("Setting up the application via backend script...")
-        subprocess.check_call(cmd)
+        repo_url = 'https://github.com/Corticomics/rodRefReg.git'
+
+        if not self.is_package_installed('git'):
+            error_msg = "git is not available after installation. Please check your system."
+            logging.error(error_msg)
+            self.progress_update.emit(error_msg)
+            self.installation_complete.emit(False)
+            return
+
+        if not os.path.exists(app_path):
+            cmd = ['pkexec', 'git', 'clone', repo_url, app_path]
+            logging.info("Cloning the RRR application repository...")
+            subprocess.check_call(cmd)
+        else:
+            cmd = ['pkexec', 'git', '-C', app_path, 'pull']
+            logging.info("Updating the RRR application repository...")
+            subprocess.check_call(cmd)
 
     def save_configuration(self):
+        """Save user-provided configuration securely."""
         settings = {
             "slack_token": self.config_data['slack_token'],
             "channel_id": self.config_data['channel_id']
         }
         config_content = f"""
-    slack_token = "{settings['slack_token']}"
-    channel_id = "{settings['channel_id']}"
-    """
+slack_token = "{settings['slack_token']}"
+channel_id = "{settings['channel_id']}"
+"""
         config_path = '/etc/rrr/settings.py'
         temp_config_file = 'settings_temp.py'
+        logging.info("Saving configuration to %s", config_path)
         with open(temp_config_file, 'w') as f:
             f.write(config_content)
 
         cmd = ['pkexec', sys.executable, 'installer_backend.py', 'create_config_file', temp_config_file, config_path]
         logging.info("Saving configuration via backend script...")
-        subprocess.check_call(cmd)
-
+        try:
+            subprocess.check_call(cmd)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to save configuration: {e}"
+            logging.error(error_msg)
+            self.progress_update.emit(error_msg)
+            self.installation_complete.emit(False)
+            return
 
     def finalize_installation(self):
         """Finalize installation steps."""
@@ -171,7 +239,7 @@ class InstallerGUI(QMainWindow):
         # Progress Bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(5)  # Total number of steps
+        self.progress_bar.setMaximum(6)  # Total number of steps
         self.progress_bar.setValue(0)
         main_layout.addWidget(self.progress_bar)
 
@@ -250,7 +318,7 @@ class InstallerGUI(QMainWindow):
 def main():
     # Check if running as root (we do not want to run the GUI as root)
     if os.geteuid() == 0:
-        QMessageBox.critical(None, "Error", "Please run the installer as a normal user, not as root.")
+        print("Please run the installer as a normal user, not as root.")
         sys.exit(1)
 
     app = QApplication(sys.argv)
