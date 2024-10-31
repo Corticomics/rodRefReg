@@ -12,6 +12,16 @@ import logging
 import re
 from shutil import which
 
+# Directly import PyQt5 modules
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
+    QVBoxLayout, QMessageBox, QTextEdit, QProgressBar, QHBoxLayout
+)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+
+# Rest of your installer code remains the same...
+
+
 # Configure logging
 logging.basicConfig(
     filename='installer.log',
