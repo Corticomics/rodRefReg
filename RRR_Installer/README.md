@@ -74,3 +74,21 @@ Installation Instructions:
 For assistance, please contact support@example.com.
 
 Thank you!
+
+conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/RRR_Installer $ cd dist
+conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/RRR_Installer/dist $ ./installer_main
+Hit:1 http://deb.debian.org/debian bookworm InRelease
+Hit:2 http://deb.debian.org/debian-security bookworm-security InRelease
+Hit:3 http://deb.debian.org/debian bookworm-updates InRelease                  
+Get:4 http://archive.raspberrypi.com/debian bookworm InRelease [39.0 kB]       
+Get:5 http://archive.raspberrypi.com/debian bookworm/main arm64 Packages [501 kB]
+Get:6 http://archive.raspberrypi.com/debian bookworm/main armhf Packages [531 kB]
+Fetched 1,072 kB in 2s (498 kB/s) 
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+python3-pyqt5 is already the newest version (5.15.9+dfsg-1).
+python3-pyqt5 set to manually installed.
+0 upgraded, 0 newly installed, 0 to remove and 13 not upgraded.
+PyQt5 is still not available after installation. Exiting.
