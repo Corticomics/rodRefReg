@@ -19,50 +19,12 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
-# Rest of your installer code remains the same...
-
-
 # Configure logging
 logging.basicConfig(
     filename='installer.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
-def check_pyqt5_installed():
-    try:
-        import PyQt5
-        return True
-    except ImportError:
-        return False
-
-def install_pyqt5():
-    logging.info("PyQt5 is not installed. Installing now...")
-    try:
-        # Update package list and install PyQt5
-        subprocess.check_call(['pkexec', 'apt-get', 'update'])
-        subprocess.check_call(['pkexec', 'apt-get', 'install', '-y', 'python3-pyqt5'])
-        logging.info("PyQt5 installed successfully.")
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to install PyQt5: {e}")
-        print(f"Failed to install PyQt5: {e}")
-        sys.exit(1)
-
-# Check if PyQt5 is installed before importing it
-if not check_pyqt5_installed():
-    install_pyqt5()
-
-# Now attempt to import PyQt5
-try:
-    from PyQt5.QtWidgets import (
-        QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-        QVBoxLayout, QMessageBox, QTextEdit, QProgressBar, QHBoxLayout
-    )
-    from PyQt5.QtCore import Qt, QThread, pyqtSignal
-except ImportError:
-    logging.error("PyQt5 is still not available after installation. Exiting.")
-    print("PyQt5 is still not available after installation. Exiting.")
-    sys.exit(1)
 
 class InstallerThread(QThread):
     progress_update = pyqtSignal(str)
@@ -72,7 +34,7 @@ class InstallerThread(QThread):
     def __init__(self, config_data):
         super().__init__()
         self.config_data = config_data
-        self.total_steps = 6  # Update if the number of steps changes
+        self.total_steps = 5  # Update if the number of steps changes
 
     def run(self):
         try:
@@ -142,7 +104,7 @@ class InstallerThread(QThread):
         packages = ['requests', 'slack_sdk']
         logging.info("Installing Python packages...")
         try:
-            subprocess.check_call(['pip3', 'install'] + packages)
+            subprocess.check_call(['pkexec', 'python3', '-m', 'pip', 'install'] + packages)
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to install Python packages: {e}"
             logging.error(error_msg)
@@ -187,10 +149,12 @@ channel_id = "{settings['channel_id']}"
         with open(temp_config_file, 'w') as f:
             f.write(config_content)
 
-        cmd = ['pkexec', sys.executable, 'installer_backend.py', 'create_config_file', temp_config_file, config_path]
-        logging.info("Saving configuration via backend script...")
         try:
-            subprocess.check_call(cmd)
+            # Use pkexec to create directory and move file
+            subprocess.check_call(['pkexec', 'mkdir', '-p', '/etc/rrr'])
+            subprocess.check_call(['pkexec', 'mv', temp_config_file, config_path])
+            subprocess.check_call(['pkexec', 'chmod', '600', config_path])
+            logging.info("Configuration saved successfully.")
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to save configuration: {e}"
             logging.error(error_msg)
@@ -249,7 +213,7 @@ class InstallerGUI(QMainWindow):
         # Progress Bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(6)  # Total number of steps
+        self.progress_bar.setMaximum(5)  # Total number of steps
         self.progress_bar.setValue(0)
         main_layout.addWidget(self.progress_bar)
 
@@ -309,14 +273,54 @@ class InstallerGUI(QMainWindow):
         QApplication.processEvents()
 
     def installation_finished(self, success):
+        self.progress_bar.setValue(self.progress_bar.maximum())
         if success:
-            QMessageBox.information(self, "Installation Complete", "The RRR application has been installed successfully.")
+            # Create desktop shortcut
+            self.create_desktop_shortcut()
+            reply = QMessageBox.question(
+                self,
+                "Installation Complete",
+                "The RRR application has been installed successfully.\nDo you want to launch the application now?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                # Launch the application
+                self.launch_application()
             logging.info("Installation completed successfully.")
         else:
             QMessageBox.critical(self, "Installation Failed", "An error occurred during installation. Please check the installer log for details.")
             logging.error("Installation failed.")
         self.install_button.setEnabled(True)
         self.cancel_button.setEnabled(True)
+
+    def launch_application(self):
+        try:
+            subprocess.Popen(['python3', '/opt/rrr/main.py'])
+        except Exception as e:
+            logging.error(f"Failed to launch the application: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to launch the application: {e}")
+
+    def create_desktop_shortcut(self):
+        desktop_entry = f"""
+[Desktop Entry]
+Type=Application
+Name=RRR Application
+Comment=Rodent Refreshment Regulator
+Exec=python3 /opt/rrr/main.py
+Icon=/opt/rrr/resources/icon.png
+Terminal=false
+Categories=Utility;
+"""
+        desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'RRR Application.desktop')
+        try:
+            with open(desktop_path, 'w') as f:
+                f.write(desktop_entry)
+            os.chmod(desktop_path, 0o755)
+            logging.info("Desktop shortcut created at %s", desktop_path)
+        except Exception as e:
+            logging.error(f"Failed to create desktop shortcut: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to create desktop shortcut: {e}")
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Exit Installer', 'Are you sure you want to exit?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
