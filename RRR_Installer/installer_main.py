@@ -12,7 +12,6 @@ import logging
 import re
 from shutil import which
 
-# Directly import PyQt5 modules
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QMessageBox, QTextEdit, QProgressBar, QHBoxLayout
@@ -34,7 +33,7 @@ class InstallerThread(QThread):
     def __init__(self, config_data):
         super().__init__()
         self.config_data = config_data
-        self.total_steps = 5  # Update if the number of steps changes
+        self.total_steps = 5  # Total number of steps in the installation
 
     def run(self):
         try:
@@ -100,11 +99,20 @@ class InstallerThread(QThread):
                     return
 
     def install_python_packages(self):
-        """Install required Python packages."""
-        packages = ['requests', 'slack_sdk']
-        logging.info("Installing Python packages...")
+        """Create virtual environment and install required Python packages."""
+        app_path = '/opt/rrr'
+        venv_path = os.path.join(app_path, 'venv')
+        logging.info("Creating virtual environment at %s", venv_path)
+
         try:
-            subprocess.check_call(['pkexec', 'python3', '-m', 'pip', 'install'] + packages)
+            # Create the virtual environment using pkexec
+            subprocess.check_call(['pkexec', 'python3', '-m', 'venv', venv_path])
+
+            # Install packages into the virtual environment
+            pip_executable = os.path.join(venv_path, 'bin', 'pip')
+            install_cmd = [pip_executable, 'install', 'requests', 'slack_sdk']
+            logging.info("Installing Python packages in virtual environment...")
+            subprocess.check_call(install_cmd)
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to install Python packages: {e}"
             logging.error(error_msg)
@@ -124,14 +132,21 @@ class InstallerThread(QThread):
             self.installation_complete.emit(False)
             return
 
-        if not os.path.exists(app_path):
-            cmd = ['pkexec', 'git', 'clone', repo_url, app_path]
-            logging.info("Cloning the RRR application repository...")
-            subprocess.check_call(cmd)
-        else:
-            cmd = ['pkexec', 'git', '-C', app_path, 'pull']
-            logging.info("Updating the RRR application repository...")
-            subprocess.check_call(cmd)
+        try:
+            if not os.path.exists(app_path):
+                cmd = ['pkexec', 'git', 'clone', repo_url, app_path]
+                logging.info("Cloning the RRR application repository...")
+                subprocess.check_call(cmd)
+            else:
+                cmd = ['pkexec', 'git', '-C', app_path, 'pull']
+                logging.info("Updating the RRR application repository...")
+                subprocess.check_call(cmd)
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to set up the application: {e}"
+            logging.error(error_msg)
+            self.progress_update.emit(error_msg)
+            self.installation_complete.emit(False)
+            return
 
     def save_configuration(self):
         """Save user-provided configuration securely."""
@@ -150,10 +165,9 @@ channel_id = "{settings['channel_id']}"
             f.write(config_content)
 
         try:
-            # Use pkexec to create directory and move file
-            subprocess.check_call(['pkexec', 'mkdir', '-p', '/etc/rrr'])
-            subprocess.check_call(['pkexec', 'mv', temp_config_file, config_path])
-            subprocess.check_call(['pkexec', 'chmod', '600', config_path])
+            # Use pkexec to move the file to the destination
+            move_cmd = f"mkdir -p /etc/rrr && mv {os.path.abspath(temp_config_file)} {config_path} && chmod 600 {config_path}"
+            subprocess.check_call(['pkexec', 'bash', '-c', move_cmd])
             logging.info("Configuration saved successfully.")
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to save configuration: {e}"
@@ -295,8 +309,10 @@ class InstallerGUI(QMainWindow):
         self.cancel_button.setEnabled(True)
 
     def launch_application(self):
+        venv_python = '/opt/rrr/venv/bin/python'
+        app_script = '/opt/rrr/main.py'
         try:
-            subprocess.Popen(['python3', '/opt/rrr/main.py'])
+            subprocess.Popen([venv_python, app_script])
         except Exception as e:
             logging.error(f"Failed to launch the application: {e}")
             QMessageBox.critical(self, "Error", f"Failed to launch the application: {e}")
@@ -307,7 +323,7 @@ class InstallerGUI(QMainWindow):
 Type=Application
 Name=RRR Application
 Comment=Rodent Refreshment Regulator
-Exec=python3 /opt/rrr/main.py
+Exec=/opt/rrr/venv/bin/python /opt/rrr/main.py
 Icon=/opt/rrr/resources/icon.png
 Terminal=false
 Categories=Utility;
