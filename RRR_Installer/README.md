@@ -78,42 +78,25 @@ Thank you!
 conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/RRR_Installer $ ./dist/installer_main
 Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
 Collecting requests
-  Downloading https://www.piwheels.org/simple/requests/requests-2.32.3-py3-none-any.whl (64 kB)
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 64.9/64.9 kB 207.9 kB/s eta 0:00:00
+  Using cached https://www.piwheels.org/simple/requests/requests-2.32.3-py3-none-any.whl (64 kB)
 Collecting slack_sdk
-  Downloading slack_sdk-3.33.3-py2.py3-none-any.whl (291 kB)
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 292.0/292.0 kB 2.8 MB/s eta 0:00:00
+  Using cached slack_sdk-3.33.3-py2.py3-none-any.whl (291 kB)
 Collecting charset-normalizer<4,>=2
-  Downloading charset_normalizer-3.4.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (138 kB)
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 138.2/138.2 kB 4.4 MB/s eta 0:00:00
+  Using cached charset_normalizer-3.4.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (138 kB)
 Collecting idna<4,>=2.5
-  Downloading https://www.piwheels.org/simple/idna/idna-3.10-py3-none-any.whl (70 kB)
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 70.4/70.4 kB 411.0 kB/s eta 0:00:00
+  Using cached https://www.piwheels.org/simple/idna/idna-3.10-py3-none-any.whl (70 kB)
 Collecting urllib3<3,>=1.21.1
-  Downloading https://www.piwheels.org/simple/urllib3/urllib3-2.2.3-py3-none-any.whl (126 kB)
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 126.3/126.3 kB 763.5 kB/s eta 0:00:00
+  Using cached https://www.piwheels.org/simple/urllib3/urllib3-2.2.3-py3-none-any.whl (126 kB)
 Collecting certifi>=2017.4.17
-  Downloading https://www.piwheels.org/simple/certifi/certifi-2024.8.30-py3-none-any.whl (167 kB)
-     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 167.3/167.3 kB 2.3 MB/s eta 0:00:00
+  Using cached https://www.piwheels.org/simple/certifi/certifi-2024.8.30-py3-none-any.whl (167 kB)
 Installing collected packages: urllib3, slack_sdk, idna, charset-normalizer, certifi, requests
-ERROR: Could not install packages due to an OSError: [Errno 13] Permission denied: '/opt/rrr/venv/lib/python3.11/site-packages/urllib3'
-Check the permissions.
-
-remote: Enumerating objects: 8, done.
-remote: Counting objects: 100% (8/8), done.
-remote: Compressing objects: 100% (4/4), done.
-remote: Total 8 (delta 4), reused 8 (delta 4), pack-reused 0 (from 0)
-Unpacking objects: 100% (8/8), 1.85 KiB | 270.00 KiB/s, done.
-From https://github.com/Corticomics/rodRefReg
-   a2c2535..3192ee6  OOP-enhancement -> origin/OOP-enhancement
-Already up to date.
-/opt/rrr/venv/bin/python: can't open file '/opt/rrr/main.py': [Errno 2] No such file or directory
-
-
-Checking and installing system dependencies...
-Installing Python packages...
-Failed to install Python packages: Command '['/opt/rrr/venv/bin/pip', 'install', 'requests', 'slack_sdk']' returned non-zero exit status 1.
-Setting up the application...
-Saving configuration...
-Finalizing installation...
-Installation completed successfully.
+Successfully installed certifi-2024.8.30 charset-normalizer-3.4.0 idna-3.10 requests-2.32.3 slack_sdk-3.33.3 urllib3-2.2.3
+Cloning into '/home/conelab-rrr2/.rrr/rrr_app'...
+remote: Enumerating objects: 11812, done.
+remote: Counting objects: 100% (200/200), done.
+remote: Compressing objects: 100% (130/130), done.
+remote: Total 11812 (delta 122), reused 133 (delta 67), pack-reused 11612 (from 1)
+Receiving objects: 100% (11812/11812), 118.53 MiB | 15.03 MiB/s, done.
+Resolving deltas: 100% (5263/5263), done.
+Updating files: 100% (8867/8867), done.
+/home/conelab-rrr2/.rrr/venv/bin/python: can't open file '/home/conelab-rrr2/.rrr/rrr_app/main.py': [Errno 2] No such file or directory
