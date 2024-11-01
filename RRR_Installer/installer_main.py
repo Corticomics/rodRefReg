@@ -10,6 +10,7 @@ import os
 import subprocess
 import logging
 import re
+import pwd
 from shutil import which
 
 from PyQt5.QtWidgets import (
@@ -100,13 +101,17 @@ class InstallerThread(QThread):
 
     def install_python_packages(self):
         """Create virtual environment and install required Python packages."""
-        app_path = '/opt/rrr'
+        app_path = os.path.expanduser('~/.rrr')
         venv_path = os.path.join(app_path, 'venv')
         logging.info("Creating virtual environment at %s", venv_path)
 
         try:
-            # Create the virtual environment using pkexec
-            subprocess.check_call(['pkexec', 'python3', '-m', 'venv', venv_path])
+            # Create the application directory if it doesn't exist
+            if not os.path.exists(app_path):
+                os.makedirs(app_path)
+
+            # Create the virtual environment
+            subprocess.check_call(['python3', '-m', 'venv', venv_path])
 
             # Install packages into the virtual environment
             pip_executable = os.path.join(venv_path, 'bin', 'pip')
@@ -122,7 +127,7 @@ class InstallerThread(QThread):
 
     def setup_application(self):
         """Clone or update the RRR application repository."""
-        app_path = '/opt/rrr'
+        app_path = os.path.expanduser('~/.rrr')
         repo_url = 'https://github.com/Corticomics/rodRefReg.git'
 
         if not self.is_package_installed('git'):
@@ -133,12 +138,15 @@ class InstallerThread(QThread):
             return
 
         try:
-            if not os.path.exists(app_path):
-                cmd = ['pkexec', 'git', 'clone', repo_url, app_path]
+            repo_path = os.path.join(app_path, 'rrr_app')
+            if not os.path.exists(repo_path):
+                # Clone the repository
+                cmd = ['git', 'clone', repo_url, repo_path]
                 logging.info("Cloning the RRR application repository...")
                 subprocess.check_call(cmd)
             else:
-                cmd = ['pkexec', 'git', '-C', app_path, 'pull']
+                # Pull the latest changes
+                cmd = ['git', '-C', repo_path, 'pull']
                 logging.info("Updating the RRR application repository...")
                 subprocess.check_call(cmd)
         except subprocess.CalledProcessError as e:
@@ -158,18 +166,16 @@ class InstallerThread(QThread):
 slack_token = "{settings['slack_token']}"
 channel_id = "{settings['channel_id']}"
 """
-        config_path = '/etc/rrr/settings.py'
-        temp_config_file = 'settings_temp.py'
+        config_path = os.path.expanduser('~/.rrr/settings.py')
         logging.info("Saving configuration to %s", config_path)
-        with open(temp_config_file, 'w') as f:
-            f.write(config_content)
 
         try:
-            # Use pkexec to move the file to the destination
-            move_cmd = f"mkdir -p /etc/rrr && mv {os.path.abspath(temp_config_file)} {config_path} && chmod 600 {config_path}"
-            subprocess.check_call(['pkexec', 'bash', '-c', move_cmd])
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, 'w') as f:
+                f.write(config_content)
+            os.chmod(config_path, 0o600)  # Set permissions to user read/write only
             logging.info("Configuration saved successfully.")
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             error_msg = f"Failed to save configuration: {e}"
             logging.error(error_msg)
             self.progress_update.emit(error_msg)
@@ -309,8 +315,8 @@ class InstallerGUI(QMainWindow):
         self.cancel_button.setEnabled(True)
 
     def launch_application(self):
-        venv_python = '/opt/rrr/venv/bin/python'
-        app_script = '/opt/rrr/main.py'
+        venv_python = os.path.expanduser('~/.rrr/venv/bin/python')
+        app_script = os.path.expanduser('~/.rrr/rrr_app/main.py')
         try:
             subprocess.Popen([venv_python, app_script])
         except Exception as e:
@@ -323,8 +329,8 @@ class InstallerGUI(QMainWindow):
 Type=Application
 Name=RRR Application
 Comment=Rodent Refreshment Regulator
-Exec=/opt/rrr/venv/bin/python /opt/rrr/main.py
-Icon=/opt/rrr/resources/icon.png
+Exec="{os.path.expanduser('~/.rrr/venv/bin/python')} {os.path.expanduser('~/.rrr/rrr_app/main.py')}"
+Icon={os.path.expanduser('~/.rrr/rrr_app/resources/icon.png')}
 Terminal=false
 Categories=Utility;
 """
