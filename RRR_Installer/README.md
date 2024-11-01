@@ -75,11 +75,38 @@ For assistance, please contact support@example.com.
 
 Thank you!
 
-Checking and installing system dependencies...
-Installing Python packages...
-Failed to install Python packages: Command '['pkexec', 'python3', '-m', 'pip', 'install', 'requests', 'slack_sdk']' returned non-zero exit status 1.
-Setting up the application...
-Saving configuration...
-Failed to save configuration: Command '['pkexec', 'mv', 'settings_temp.py', '/etc/rrr/settings.py']' returned non-zero exit status 1.
-Finalizing installation...
-Installation completed successfully.
+conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/RRR_Installer $ ./dist/installer_main
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Collecting requests
+  Downloading https://www.piwheels.org/simple/requests/requests-2.32.3-py3-none-any.whl (64 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 64.9/64.9 kB 207.9 kB/s eta 0:00:00
+Collecting slack_sdk
+  Downloading slack_sdk-3.33.3-py2.py3-none-any.whl (291 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 292.0/292.0 kB 2.8 MB/s eta 0:00:00
+Collecting charset-normalizer<4,>=2
+  Downloading charset_normalizer-3.4.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (138 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 138.2/138.2 kB 4.4 MB/s eta 0:00:00
+Collecting idna<4,>=2.5
+  Downloading https://www.piwheels.org/simple/idna/idna-3.10-py3-none-any.whl (70 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 70.4/70.4 kB 411.0 kB/s eta 0:00:00
+Collecting urllib3<3,>=1.21.1
+  Downloading https://www.piwheels.org/simple/urllib3/urllib3-2.2.3-py3-none-any.whl (126 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 126.3/126.3 kB 763.5 kB/s eta 0:00:00
+Collecting certifi>=2017.4.17
+  Downloading https://www.piwheels.org/simple/certifi/certifi-2024.8.30-py3-none-any.whl (167 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 167.3/167.3 kB 2.3 MB/s eta 0:00:00
+Installing collected packages: urllib3, slack_sdk, idna, charset-normalizer, certifi, requests
+ERROR: Could not install packages due to an OSError: [Errno 13] Permission denied: '/opt/rrr/venv/lib/python3.11/site-packages/urllib3'
+Check the permissions.
+
+remote: Enumerating objects: 8, done.
+remote: Counting objects: 100% (8/8), done.
+remote: Compressing objects: 100% (4/4), done.
+remote: Total 8 (delta 4), reused 8 (delta 4), pack-reused 0 (from 0)
+Unpacking objects: 100% (8/8), 1.85 KiB | 270.00 KiB/s, done.
+From https://github.com/Corticomics/rodRefReg
+   a2c2535..3192ee6  OOP-enhancement -> origin/OOP-enhancement
+Already up to date.
+/opt/rrr/venv/bin/python: can't open file '/opt/rrr/main.py': [Errno 2] No such file or directory
+
+
