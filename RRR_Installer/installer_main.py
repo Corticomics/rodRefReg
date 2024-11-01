@@ -10,9 +10,6 @@ import os
 import subprocess
 import logging
 import re
-import pwd
-from shutil import which
-
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QMessageBox, QTextEdit, QProgressBar, QHBoxLayout
@@ -140,12 +137,16 @@ class InstallerThread(QThread):
         try:
             repo_path = os.path.join(app_path, 'rrr_app')
             if not os.path.exists(repo_path):
-                # Clone the repository
-                cmd = ['git', 'clone', repo_url, repo_path]
-                logging.info("Cloning the RRR application repository...")
+                # Clone the repository and checkout the 'OOP-enhancement' branch
+                cmd = ['git', 'clone', '--branch', 'OOP-enhancement', repo_url, repo_path]
+                logging.info("Cloning the RRR application repository on 'OOP-enhancement' branch...")
                 subprocess.check_call(cmd)
             else:
-                # Pull the latest changes
+                # Fetch and checkout the 'OOP-enhancement' branch
+                cmd = ['git', '-C', repo_path, 'fetch']
+                subprocess.check_call(cmd)
+                cmd = ['git', '-C', repo_path, 'checkout', 'OOP-enhancement']
+                subprocess.check_call(cmd)
                 cmd = ['git', '-C', repo_path, 'pull']
                 logging.info("Updating the RRR application repository...")
                 subprocess.check_call(cmd)
@@ -316,7 +317,7 @@ class InstallerGUI(QMainWindow):
 
     def launch_application(self):
         venv_python = os.path.expanduser('~/.rrr/venv/bin/python')
-        app_script = os.path.expanduser('~/.rrr/rrr_app/main.py')
+        app_script = os.path.expanduser('~/.rrr/rrr_app/Project/main.py')
         try:
             subprocess.Popen([venv_python, app_script])
         except Exception as e:
@@ -324,13 +325,15 @@ class InstallerGUI(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to launch the application: {e}")
 
     def create_desktop_shortcut(self):
-        desktop_entry = f"""
-[Desktop Entry]
+        venv_python = os.path.expanduser('~/.rrr/venv/bin/python')
+        app_script = os.path.expanduser('~/.rrr/rrr_app/Project/main.py')
+        icon_path = os.path.expanduser('~/.rrr/rrr_app/Project/resources/icon.png')
+        desktop_entry = f"""[Desktop Entry]
 Type=Application
 Name=RRR Application
 Comment=Rodent Refreshment Regulator
-Exec="{os.path.expanduser('~/.rrr/venv/bin/python')} {os.path.expanduser('~/.rrr/rrr_app/main.py')}"
-Icon={os.path.expanduser('~/.rrr/rrr_app/resources/icon.png')}
+Exec="{venv_python} {app_script}"
+Icon={icon_path}
 Terminal=false
 Categories=Utility;
 """
