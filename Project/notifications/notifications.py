@@ -1,4 +1,17 @@
 import requests
+"""
+This module handles notifications via Slack and logs pump triggers.
+Classes:
+    NotificationHandler: Handles sending notifications to Slack, logging pump triggers, 
+                         checking internet availability, and retrying failed notifications.
+Functions:
+    __init__(self, slack_token, channel_id): Initializes the NotificationHandler with Slack token and channel ID.
+    send_slack_notification(self, message): Sends a Slack notification with the given message.
+    log_pump_trigger(self, relay_info): Logs the pump trigger information to a JSON file.
+    is_internet_available(self): Checks if the internet is available by making a request to Google.
+    retry_sending_logs(self): Retries sending failed notifications from the log file when the internet is available.
+    start_retry_thread(self): Starts a background thread to retry sending failed notifications.
+"""
 import json
 import datetime
 import time
