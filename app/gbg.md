@@ -16,4 +16,14 @@ Traceback (most recent call last):
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 85, in init_ui
     self.projects_section = ProjectsSection(
                             ^^^^^^^^^^^^^^^^
-TypeError: ProjectsSection.__init__() takes 3 positional arguments but 6 were given
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/ProjectsSection.py", line 19, in __init__
+    self.init_ui()
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/ProjectsSection.py", line 29, in init_ui
+    self.schedules_tab = SchedulesTab(self.db_manager, self.print_to_terminal, self.run_program, self.stop_program, self.settings)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/SchedulesTab.py", line 20, in __init__
+    self.init_ui()
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/SchedulesTab.py", line 40, in init_ui
+    self.drag_drop_area = DragDropArea(self.db_manager, self.print_to_terminal)
+                          ^^^^^^^^^^^^
+NameError: name 'DragDropArea' is not defined
