@@ -65,12 +65,9 @@ def run_program(interval, stagger, window_start, window_end):
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
 
-        # Ensure settings are properly structured
-        advanced_settings = gui.advanced_settings.get_settings()
-        # Convert tuple keys to strings if necessary
-        if 'num_triggers' in advanced_settings:
-            advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
-        settings.update(advanced_settings)
+        # Retrieve current settings from GUI
+        current_settings = gui.get_current_settings()
+        settings.update(current_settings)
 
         # Reinitialize the thread and worker if already running
         if thread is not None and thread.isRunning():
@@ -79,7 +76,6 @@ def run_program(interval, stagger, window_start, window_end):
         thread = QThread()
 
         # Reinitialize NotificationHandler within the worker context
-        # This ensures that the worker has its own instance of NotificationHandler
         worker_notification_handler = NotificationHandler(settings.get('slack_token'), settings.get('channel_id'))
         # If NotificationHandler requires initialization steps, perform them here
         # For example, starting any necessary threads or connections
