@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QFormLayout, QLineEdit, QLabel, QPushButton, QVBoxLayout, 
-    QHBoxLayout, QMessageBox, QDateTimeEdit
+    QHBoxLayout, QMessageBox, QDateTimeEdit, QTabWidget
 )
 from PyQt5.QtCore import QDateTime, QTimer
 
