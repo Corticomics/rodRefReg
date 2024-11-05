@@ -20,3 +20,4 @@ Traceback (most recent call last):
     self.timer.timeout.connect(self.update_minimum_datetime)
                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'RunStopSection' object has no attribute 'update_minimum_datetime'
+ 
