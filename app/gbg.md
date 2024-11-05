@@ -21,4 +21,4 @@ Traceback (most recent call last):
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/suggest_settings.py", line 36, in init_ui
     self.suggest_tab = SuggestSettingsTab(
                        ^^^^^^^^^^^^^^^^^^
-NameError: name 'Sugge
+NameError: name 'SuggestSettingsTab' is not defined. Did you mean: 'SuggestSettingsSection'?
