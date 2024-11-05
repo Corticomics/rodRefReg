@@ -1,6 +1,8 @@
+# app/gui/gui.py
+
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy, QMessageBox
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from .terminal_output import TerminalOutput
@@ -10,13 +12,14 @@ from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
 from .SlackCredentialsTab import SlackCredentialsTab
 from shared.notifications.notifications import NotificationHandler
+from shared.models.database import DatabaseManager
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from shared.settings.config import load_settings, save_settings
 
-
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
+
     def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
@@ -25,8 +28,11 @@ class RodentRefreshmentGUI(QWidget):
         self.change_relay_hats = change_relay_hats
 
         self.settings = settings
-        self.selected_relays = self.settings['selected_relays']
-        self.num_triggers = self.settings['num_triggers']
+        self.selected_relays = self.settings.get('selected_relays', [])
+        self.num_triggers = self.settings.get('num_triggers', {})
+
+        # Initialize Database Manager
+        self.db_manager = DatabaseManager()
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
@@ -56,12 +62,11 @@ class RodentRefreshmentGUI(QWidget):
                     color: #ffffff;
                     padding: 10px;
                 }
-                QPushButton:disabled               
-                    PushButton:disabled {
+                QPushButton:disabled {
                     background-color: #cccccc;
                     color: #666666;
                 }
-                QPushButton:hover {
+                QPushButton:hover:!disabled {
                     background-color: #0056b3;
                 }
                 QLabel {
@@ -121,7 +126,13 @@ class RodentRefreshmentGUI(QWidget):
         self.right_layout = QVBoxLayout()
 
         # Initialize run_stop_section before SuggestSettingsSection
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
+        self.run_stop_section = RunStopSection(
+            self.run_program, 
+            self.stop_program, 
+            self.change_relay_hats, 
+            self.settings, 
+            self.advanced_settings
+        )
 
         # Add the Suggest Settings Section (with the tab widget) directly to the layout
         self.suggest_settings_section = SuggestSettingsSection(
@@ -130,11 +141,11 @@ class RodentRefreshmentGUI(QWidget):
             self.push_settings_callback,
             self.save_slack_credentials_callback,
             self.advanced_settings,
-            self.run_stop_section  # Pass run_stop_section here
+            self.run_stop_section,
+            load_callback=self.load_project_into_ui  # Callback to handle project loading
         )
 
         self.right_layout.addWidget(self.suggest_settings_section)
-
         self.right_layout.addWidget(self.run_stop_section)
 
         self.right_content = QWidget()
@@ -148,12 +159,9 @@ class RodentRefreshmentGUI(QWidget):
         self.main_layout.addLayout(self.upper_layout)
         self.setLayout(self.main_layout)
 
-
-    # In gui.py
     def print_to_terminal(self, message):
         """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
-
 
     def toggle_welcome_message(self):
         if self.welcome_scroll_area.isVisible():
@@ -183,7 +191,8 @@ class RodentRefreshmentGUI(QWidget):
         values = self.suggest_settings_section.suggest_tab.entries
         try:
             # Loop over each relay pair and fetch the corresponding water volume
-            relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
+            relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8), 
+                          (9, 10), (11, 12), (13, 14), (15, 16)]
             relay_volumes = {}
 
             for relay_pair in relay_pairs:
@@ -232,7 +241,6 @@ class RodentRefreshmentGUI(QWidget):
         except Exception as e:
             self.print_to_terminal(f"An unexpected error occurred: {e}")
 
-
     def push_settings_callback(self):
         """Callback for pushing the suggested settings to the control panel."""
         try:
@@ -253,7 +261,7 @@ class RodentRefreshmentGUI(QWidget):
             num_triggers = {}
             for relay_pair, water_volume in settings["relay_volumes"].items():
                 if water_volume > 0:
-                    trigger_count = int((water_volume * 1000) / 500)  # Example conversion to triggers
+                    trigger_count = int(water_volume / 0.5)  # Assuming 0.5ml per trigger
                 else:
                     trigger_count = 0  # Set trigger count to 0 if volume is 0
                 num_triggers[relay_pair] = trigger_count
@@ -266,15 +274,10 @@ class RodentRefreshmentGUI(QWidget):
         except Exception as e:
             self.print_to_terminal(f"Error applying suggested settings: {e}")
 
-
-
-
-    
     def save_slack_credentials_callback(self):
         # Update settings with the new Slack credentials
         self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
         self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
-
 
         # Save settings to the settings.json file
         save_settings(self.settings)
@@ -285,10 +288,26 @@ class RodentRefreshmentGUI(QWidget):
         notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
         self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
 
+    def load_project_into_ui(self, project_id):
+        """Callback to load a selected project into the ProjectBuilder."""
+        project = self.db_manager.get_project_by_id(project_id)
+        if project:
+            self.run_stop_section.run_program(
+                settings=self.settings  # Pass current settings
+            )
+            self.print_to_terminal(f"Project '{project.project_id}' loaded successfully.")
+        else:
+            self.print_to_terminal(f"Project ID: {project_id} not found.")
 
-def main(run_program, stop_program, change_relay_hats):
+def main():
     app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, load_settings(), style='bitlearns')
+    settings = load_settings()
+    # Initialize relay_handler and notification_handler as per your backend logic
+    relay_handler = None  # Placeholder: Initialize your RelayHandler here
+    notification_handler = NotificationHandler(settings.get('slack_token'), settings.get('channel_id'))
+    notification_handler.start_retry_thread()  # Start retry thread for failed notifications
+    db_manager = DatabaseManager()
+    gui = RodentRefreshmentGUI(None, None, None, settings, style='bitlearns')  # Replace callbacks with actual functions
     gui.show()
     sys.exit(app.exec_())
 

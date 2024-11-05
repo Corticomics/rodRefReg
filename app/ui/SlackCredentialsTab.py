@@ -1,51 +1,62 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox
-import json
-import os
+# app/gui/SlackCredentialsTab.py
+
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QMessageBox
+)
+from PyQt5.QtCore import Qt
 
 class SlackCredentialsTab(QWidget):
-    def __init__(self, settings, save_callback=None):
+    def __init__(self, settings, save_slack_credentials_callback):
         super().__init__()
 
         self.settings = settings
-        self.save_callback = save_callback  # Callback to be invoked after saving
+        self.save_callback = save_slack_credentials_callback
 
-        layout = QVBoxLayout()
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
 
-        # Create fields for Slack token and channel
-        self.slack_token_input = QLineEdit(self)
-        self.slack_token_input.setPlaceholderText("Enter Slack Token")
-        self.slack_token_input.setText(settings.get('slack_token', ''))
-        layout.addWidget(QLabel("Slack Token:"))
-        layout.addWidget(self.slack_token_input)
+        form_layout = QFormLayout()
+        self.entries = {}
 
-        self.slack_channel_input = QLineEdit(self)
-        self.slack_channel_input.setPlaceholderText("Enter Slack Channel ID")
-        self.slack_channel_input.setText(settings.get('channel_id', ''))
-        layout.addWidget(QLabel("Slack Channel ID:"))
-        layout.addWidget(self.slack_channel_input)
+        # Slack Token
+        slack_token_label = QLabel("Slack Bot Token:")
+        self.slack_token_input = QLineEdit()
+        self.slack_token_input.setPlaceholderText("Enter your Slack Bot Token")
+        self.slack_token_input.setText(self.settings.get('slack_token', ''))
+        form_layout.addRow(slack_token_label, self.slack_token_input)
+        self.entries["slack_token"] = self.slack_token_input
 
-        # Save button for Slack credentials
+        # Slack Channel ID
+        slack_channel_label = QLabel("Slack Channel ID:")
+        self.slack_channel_input = QLineEdit()
+        self.slack_channel_input.setPlaceholderText("Enter your Slack Channel ID")
+        self.slack_channel_input.setText(self.settings.get('channel_id', ''))
+        form_layout.addRow(slack_channel_label, self.slack_channel_input)
+        self.entries["slack_channel"] = self.slack_channel_input
+
+        self.layout.addLayout(form_layout)
+
+        # Save Button
         save_button = QPushButton("Save Slack Credentials")
-        save_button.clicked.connect(self.save_credentials)
-        layout.addWidget(save_button)
+        save_button.clicked.connect(self.save_slack_credentials)
+        self.layout.addWidget(save_button)
 
-        self.setLayout(layout)
-
-    def save_credentials(self):
-        self.settings['slack_token'] = self.slack_token_input.text()
-        self.settings['channel_id'] = self.slack_channel_input.text()
-
-        # Save to settings.json
+    def save_slack_credentials(self):
         try:
-            with open('settings.json', 'w') as f:
-                json.dump(self.settings, f, indent=4)
+            slack_token = self.slack_token_input.text().strip()
+            slack_channel = self.slack_channel_input.text().strip()
 
-            # Notify the user
+            if not slack_token or not slack_channel:
+                QMessageBox.warning(self, "Input Error", "Please enter both Slack Bot Token and Channel ID.")
+                return
+
+            # Update settings
+            self.settings['slack_token'] = slack_token
+            self.settings['channel_id'] = slack_channel
+
+            # Call the save callback to handle saving
+            self.save_callback()
+
             QMessageBox.information(self, "Success", "Slack credentials saved successfully.")
-
-            # Call the save callback if exists
-            if self.save_callback:
-                self.save_callback()  # This should invoke save_slack_credentials_callback in RodentRefreshmentGUI
-
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save Slack credentials: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to save Slack credentials: {e}")

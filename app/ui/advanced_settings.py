@@ -1,3 +1,5 @@
+# app/gui/advanced_settings.py
+
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QFormLayout
 from PyQt5.QtCore import Qt
 
@@ -31,7 +33,6 @@ class AdvancedSettingsSection(QGroupBox):
             # Add the label and entry widget directly to the form layout
             self.layout.addRow(label, trigger_entry)
 
-
     def get_settings(self):
         selected_relays = []
         num_triggers = {}
@@ -56,7 +57,6 @@ class AdvancedSettingsSection(QGroupBox):
                 child.widget().deleteLater()
         layout.update()  # Ensure the layout updates correctly after clearing
 
-
     def update_relay_hats(self, relay_pairs):
         try:
             # Update relay pairs in the settings
@@ -70,7 +70,6 @@ class AdvancedSettingsSection(QGroupBox):
         except Exception as e:
             # Handle any errors that may occur during the update
             self.print_to_terminal(f"Error updating relay hats: {e}")
-    
 
     def update_triggers(self, num_triggers):
         """
@@ -85,4 +84,3 @@ class AdvancedSettingsSection(QGroupBox):
             print("Advanced settings triggers updated successfully.")
         except Exception as e:
             print(f"Error updating triggers in advanced settings: {e}")
-
