@@ -11,14 +11,9 @@ Traceback (most recent call last):
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/main.py", line 60, in setup
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, db_manager)
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 38, in __init__
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 41, in __init__
     self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 136, in init_ui
-    self.suggest_settings_section = SuggestSettingsSection(
-                                    ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/suggest_settings.py", line 29, in __init__
-    self.init_ui()
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/suggest_settings.py", line 36, in init_ui
-    self.suggest_tab = SuggestSettingsTab(
-                       ^^^^^^^^^^^^^^^^^^
-NameError: name 'SuggestSettingsTab' is not defined. Did you mean: 'SuggestSettingsSection'?
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 143, in init_ui
+    self.push_settings_callback,           # push_settings_callback
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'RodentRefreshmentGUI' object has no attribute 'push_settings_callback'. Did you mean: 'suggest_settings_callback'?
