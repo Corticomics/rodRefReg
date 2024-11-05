@@ -6,9 +6,11 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QDateTimeEdit, QMessageBox, QCheckBox
 )
 from .SuggestSettingsTab import SuggestSettingsTab
+
 class SuggestSettingsSection(QWidget):
     def __init__(
         self,
+        db_manager,  # Add db_manager here
         settings,
         suggest_settings_callback,
         push_settings_callback,
@@ -19,6 +21,8 @@ class SuggestSettingsSection(QWidget):
     ):
         super().__init__(parent)
 
+        # Initialize db_manager
+        self.db_manager = db_manager  # Store db_manager in an instance variable
         self.settings = settings
         self.suggest_settings_callback = suggest_settings_callback
         self.push_settings_callback = push_settings_callback
@@ -36,7 +40,7 @@ class SuggestSettingsSection(QWidget):
         self.suggest_tab = SuggestSettingsTab(
             self.suggest_settings_callback,
             self.push_settings_callback,
-            self.db_manager  # You may need to pass db_manager here if required
+            self.db_manager  # Ensure db_manager is passed here
         )
         layout.addWidget(self.suggest_tab)
         form_layout = QFormLayout()
@@ -82,7 +86,7 @@ class SuggestSettingsSection(QWidget):
         form_layout.addRow(self.auto_save_checkbox)
 
         layout.addLayout(form_layout)
-
+        
     def toggle_weight_input(self):
         if self.mouse_selector.currentText() == "Manual Input":
             self.weight_input.setEnabled(True)
