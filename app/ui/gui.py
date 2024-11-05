@@ -3,8 +3,8 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSplitter, QSizePolicy, QScrollArea, QLabel, QLineEdit, QTextEdit
 from PyQt5.QtCore import Qt, pyqtSignal
 from .ProjectsSection import ProjectsSection
-from .SuggestSettingsSection import SuggestSettingsSection
-from .RunStopSection import RunStopSection  # Assuming you have a RunStopSection.py
+from .suggest_settings import SuggestSettingsSection
+from .run_stop_section import RunStopSection  # Assuming you have a RunStopSection.py
 from shared.models.database import DatabaseManager
 
 class RodentRefreshmentGUI(QWidget):

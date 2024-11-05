@@ -1,8 +1,8 @@
 # app/ui/ProjectsSection.py
 
 from PyQt5.QtWidgets import QWidget, QTabWidget, QVBoxLayout
-from SchedulesTab import SchedulesTab
-from AnimalsTab import AnimalsTab
+from .SchedulesTab import SchedulesTab
+from .AnimalsTab import AnimalsTab
 
 class ProjectsSection(QWidget):
     def __init__(self, db_manager, print_to_terminal):

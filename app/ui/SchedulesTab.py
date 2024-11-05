@@ -4,9 +4,9 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QMessageBox, QHBoxLayout, QLabel, QGridLayout
 )
 from PyQt5.QtCore import Qt
-from RelayButton import RelayButton
-from drag_drop_area import DragDropArea
-from SummaryDialog import SummaryDialog
+from .RelayButton import RelayButton
+from .drag_drop_area import DragDropArea
+from .SummaryDialog import SummaryDialog
 
 class SchedulesTab(QWidget):
     def __init__(self, db_manager, print_to_terminal):
