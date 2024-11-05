@@ -26,7 +26,6 @@ class RodentRefreshmentGUI(QWidget):
         self.settings = settings
         self.db_manager = db_manager
 
-        # Define callback methods directly
         self.init_ui(style)
 
     def init_ui(self, style):
@@ -70,8 +69,10 @@ class RodentRefreshmentGUI(QWidget):
                 }
             """)
 
+        # Main Layout
         self.main_layout = QVBoxLayout()
 
+        # Welcome Section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
@@ -86,6 +87,7 @@ class RodentRefreshmentGUI(QWidget):
 
         self.upper_layout = QHBoxLayout()
 
+        # Left Layout
         self.left_layout = QVBoxLayout()
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -93,6 +95,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.splitter.addWidget(self.terminal_output)
 
+        # Advanced Settings Section
         self.advanced_settings_scroll_area = QScrollArea()
         self.advanced_settings_scroll_area.setWidgetResizable(True)
         self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
@@ -107,17 +110,19 @@ class RodentRefreshmentGUI(QWidget):
         self.left_scroll.setWidget(self.left_content)
         self.upper_layout.addWidget(self.left_scroll)
 
+        # Right Layout
         self.right_layout = QVBoxLayout()
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
 
-        # Add the Suggest Settings Section
+        # Suggest Settings Section
         self.suggest_settings_section = SuggestSettingsSection(
-            self.settings, 
-            self.suggest_settings_callback, 
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            self.advanced_settings,
-            self.run_stop_section  # Ensuring run_stop_section is passed correctly here
+            db_manager=self.db_manager,
+            settings=self.settings, 
+            suggest_settings_callback=self.suggest_settings_callback, 
+            push_settings_callback=self.push_settings_callback,
+            save_slack_credentials_callback=self.save_slack_credentials_callback,
+            advanced_settings=self.advanced_settings,
+            run_stop_section=self.run_stop_section
         )
 
         self.right_layout.addWidget(self.suggest_settings_section)
@@ -135,7 +140,6 @@ class RodentRefreshmentGUI(QWidget):
         self.setLayout(self.main_layout)
 
     def print_to_terminal(self, message):
-        """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
 
     def toggle_welcome_message(self):
