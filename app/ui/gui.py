@@ -17,7 +17,7 @@ class RodentRefreshmentGUI(QWidget):
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
 
-        self.settings = settings
+        self.settings = settings  # Make sure settings is stored as self.settings
         self.db_manager = db_manager  # Assign db_manager
         self.selected_relays = self.settings.get('selected_relays', [])
         self.num_triggers = self.settings.get('num_triggers', {})
@@ -75,7 +75,7 @@ class RodentRefreshmentGUI(QWidget):
         self.main_layout = QVBoxLayout()
 
         # Run/Stop Section
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, settings)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         self.main_layout.addWidget(self.run_stop_section)
 
         # Upper Layout containing Projects and Suggest Settings
@@ -128,10 +128,3 @@ class RodentRefreshmentGUI(QWidget):
             self.suggest_settings_section.push_settings()
         except Exception as e:
             self.print_to_terminal(f"Error pushing settings: {e}")
-
-    def save_slack_credentials_callback(self):
-        """Callback for saving Slack credentials."""
-        try:
-            self.suggest_settings_section.slack_tab.save_slack_credentials()
-        except Exception as e:
-            self.print_to_terminal(f"Error saving Slack credentials: {e}")
