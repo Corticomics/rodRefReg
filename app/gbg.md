@@ -13,17 +13,7 @@ Traceback (most recent call last):
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 28, in __init__
     self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 85, in init_ui
-    self.projects_section = ProjectsSection(
-                            ^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/ProjectsSection.py", line 19, in __init__
-    self.init_ui()
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/ProjectsSection.py", line 29, in init_ui
-    self.schedules_tab = SchedulesTab(self.db_manager, self.print_to_terminal, self.run_program, self.stop_program, self.settings)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/SchedulesTab.py", line 20, in __init__
-    self.init_ui()
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/SchedulesTab.py", line 40, in init_ui
-    self.drag_drop_area = DragDropArea(self.db_manager, self.print_to_terminal)
-                          ^^^^^^^^^^^^
-NameError: name 'DragDropArea' is not defined
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 81, in init_ui
+    self.change_relay_hats_callback,
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'RodentRefreshmentGUI' object has no attribute 'change_relay_hats_callback'
