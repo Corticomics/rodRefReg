@@ -117,7 +117,7 @@ class RodentRefreshmentGUI(QWidget):
             self.push_settings_callback,
             self.save_slack_credentials_callback,
             self.advanced_settings,
-            self.run_stop_section
+            self.run_stop_section  # Ensuring run_stop_section is passed correctly here
         )
 
         self.right_layout.addWidget(self.suggest_settings_section)
@@ -217,7 +217,7 @@ class RodentRefreshmentGUI(QWidget):
             end_datetime = settings["start_datetime"].addDays(settings["duration"])
             self.run_stop_section.end_time_input.setDateTime(end_datetime)
             self.run_stop_section.interval_input.setText(str(int(settings["interval_seconds"])))
-            self.run_stop_section.stagger_input.setText("5")  # Assuming a default stagger value
+            self.run_stop_section.stagger_input.setText("5")
 
             num_triggers = {}
             for relay_pair, water_volume in settings["relay_volumes"].items():
