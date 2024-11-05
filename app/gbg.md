@@ -13,11 +13,10 @@ Traceback (most recent call last):
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 40, in __init__
     self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 129, in init_ui
-    self.run_stop_section = RunStopSection(
-                            ^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/run_stop_section.py", line 25, in __init__
-    self.timer.timeout.connect(self.update_minimum_datetime)
-                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'RunStopSection' object has no attribute 'update_minimum_datetime'
- 
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 138, in init_ui
+    self.suggest_settings_section = SuggestSettingsSection(
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/suggest_settings.py", line 34, in __init__
+    self.suggest_tab = SuggestSettingsTab(suggest_settings_callback, push_settings_callback, self.db_manager)
+                                                                                             ^^^^^^^^^^^^^^^
+AttributeError: 'SuggestSettingsSection' object has no attribute 'db_manager'
