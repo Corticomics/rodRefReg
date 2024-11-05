@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QSplitter, QSizePolicy, QLabel
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QDrag, QMimeData
+from PyQt5.QtGui import QDrag
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
