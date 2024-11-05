@@ -1,17 +1,30 @@
 # app/ui/SuggestSettingsSection.py
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QCheckBox, QMessageBox
-)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator, QDoubleValidator
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QDateTimeEdit, QMessageBox, QCheckBox
+)
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, db_manager, print_to_terminal):
-        super().__init__()
+    def __init__(
+        self,
+        settings,
+        suggest_settings_callback,
+        push_settings_callback,
+        save_slack_credentials_callback,
+        advanced_settings,
+        run_stop_section,
+        parent=None
+    ):
+        super().__init__(parent)
 
-        self.db_manager = db_manager
-        self.print_to_terminal = print_to_terminal
+        self.settings = settings
+        self.suggest_settings_callback = suggest_settings_callback
+        self.push_settings_callback = push_settings_callback
+        self.save_slack_credentials_callback = save_slack_credentials_callback
+        self.advanced_settings = advanced_settings
+        self.run_stop_section = run_stop_section
 
         self.init_ui()
 
@@ -19,6 +32,13 @@ class SuggestSettingsSection(QWidget):
         layout = QVBoxLayout()
         self.setLayout(layout)
 
+        # Initialize the SuggestSettingsTab with necessary callbacks
+        self.suggest_tab = SuggestSettingsTab(
+            self.suggest_settings_callback,
+            self.push_settings_callback,
+            self.db_manager  # You may need to pass db_manager here if required
+        )
+        layout.addWidget(self.suggest_tab)
         form_layout = QFormLayout()
 
         # Mouse Selection or Manual Input
