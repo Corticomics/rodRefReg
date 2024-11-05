@@ -146,4 +146,4 @@ class RunStopSection(QWidget):
     def update_minimum_datetime(self):
         current_datetime = QDateTime.currentDateTime()
         self.start_time_input.setMinimumDateTime(current_datetime)
-        self.end_time_input.setMinimumDateTime(current_datetime.addSecs(60))  # Ensure end time is at least 1 minute after start
+        self.end_time_input.setMinimumDateTime(current_datetime.addSecs(60))  # Ensure end time is at least 

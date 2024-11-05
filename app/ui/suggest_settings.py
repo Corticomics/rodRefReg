@@ -15,7 +15,7 @@ from .dashboard import Dashboard
 SAVED_SETTINGS_DIR = "saved_settings"
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, load_callback=None):
+    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, db_manager, load_callback=None):
         super().__init__()
 
         self.settings = settings
@@ -23,6 +23,7 @@ class SuggestSettingsSection(QWidget):
         self.run_stop_section = run_stop_section  # Store the passed run_stop_section
         self.save_callback = save_slack_credentials_callback
         self.load_callback = load_callback
+        self.db_manager = db_manager  # Assign db_manager to an instance variable
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
