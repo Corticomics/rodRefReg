@@ -11,9 +11,9 @@ Traceback (most recent call last):
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/main.py", line 60, in setup
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, db_manager)
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 28, in __init__
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 38, in __init__
     self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 81, in init_ui
-    self.change_relay_hats_callback,
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'RodentRefreshmentGUI' object has no attribute 'change_relay_hats_callback'
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 136, in init_ui
+    self.suggest_settings_section = SuggestSettingsSection(
+                                    ^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: SuggestSettingsSection.__init__() takes 3 positional arguments but 7 were given
