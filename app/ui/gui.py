@@ -1,18 +1,51 @@
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
-from PyQt5.QtCore import Qt, pyqtSignal
-
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton,
+    QSplitter, QSizePolicy, QLineEdit, QLabel, QFormLayout, QComboBox, QCheckBox
+)
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
+from PyQt5.QtGui import QDrag, QIntValidator, QDoubleValidator
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
-from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
-from .SlackCredentialsTab import SlackCredentialsTab
 from shared.notifications.notifications import NotificationHandler
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from shared.settings.config import load_settings, save_settings
+
+class DraggableWidget(QLabel):
+    def __init__(self, text):
+        super().__init__(text)
+        self.setFixedSize(120, 40)
+        self.setStyleSheet("border: 1px solid #007bff; background-color: #e7f1ff;")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            drag = QDrag(self)
+            mime_data = QMimeData()
+            mime_data.setText(self.text())
+            drag.setMimeData(mime_data)
+            drag.exec_(Qt.MoveAction)
+
+class DropArea(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setAcceptDrops(True)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+        self.setStyleSheet("border: 1px dashed #0056b3; background-color: #f0f4f9;")
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasText():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        widget = DraggableWidget(event.mimeData().text())
+        self.layout.addWidget(widget)
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
@@ -69,10 +102,8 @@ class RodentRefreshmentGUI(QWidget):
                 }
             """)
 
-        # Main Layout
         self.main_layout = QVBoxLayout()
 
-        # Welcome Section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
@@ -87,7 +118,6 @@ class RodentRefreshmentGUI(QWidget):
 
         self.upper_layout = QHBoxLayout()
 
-        # Left Layout
         self.left_layout = QVBoxLayout()
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -95,12 +125,9 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = TerminalOutput()
         self.splitter.addWidget(self.terminal_output)
 
-        # Advanced Settings Section
-        self.advanced_settings_scroll_area = QScrollArea()
-        self.advanced_settings_scroll_area.setWidgetResizable(True)
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
-        self.advanced_settings_scroll_area.setWidget(self.advanced_settings)
-        self.splitter.addWidget(self.advanced_settings_scroll_area)
+        # Drag and Drop Area - Replaces Advanced Settings
+        self.drop_area = DropArea()
+        self.splitter.addWidget(self.drop_area)
         self.left_layout.addWidget(self.splitter)
 
         self.left_content = QWidget()
@@ -110,19 +137,16 @@ class RodentRefreshmentGUI(QWidget):
         self.left_scroll.setWidget(self.left_content)
         self.upper_layout.addWidget(self.left_scroll)
 
-        # Right Layout
         self.right_layout = QVBoxLayout()
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
 
         # Suggest Settings Section
         self.suggest_settings_section = SuggestSettingsSection(
-            db_manager=self.db_manager,
-            settings=self.settings, 
-            suggest_settings_callback=self.suggest_settings_callback, 
-            push_settings_callback=self.push_settings_callback,
-            save_slack_credentials_callback=self.save_slack_credentials_callback,
-            advanced_settings=self.advanced_settings,
-            run_stop_section=self.run_stop_section
+            self.settings, 
+            self.suggest_settings_callback, 
+            self.push_settings_callback,
+            self.save_slack_credentials_callback,
+            self.run_stop_section
         )
 
         self.right_layout.addWidget(self.suggest_settings_section)
