@@ -1,119 +1,152 @@
 # app/ui/SuggestSettingsSection.py
 
-import os
-import json
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, 
-    QPushButton, QLabel, QMessageBox, QCheckBox
+    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QCheckBox, QMessageBox
 )
 from PyQt5.QtCore import Qt
-
-from .SuggestSettingsTab import SuggestSettingsTab
-from .SlackCredentialsTab import SlackCredentialsTab
-from .dashboard import Dashboard
-
-SAVED_SETTINGS_DIR = "saved_settings"
+from PyQt5.QtGui import QIntValidator, QDoubleValidator
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, db_manager, load_callback=None):
+    def __init__(self, db_manager, print_to_terminal):
         super().__init__()
 
-        self.settings = settings
-        self.advanced_settings = advanced_settings  # Store the passed advanced_settings
-        self.run_stop_section = run_stop_section  # Store the passed run_stop_section
-        self.save_callback = save_slack_credentials_callback
-        self.load_callback = load_callback
-        self.db_manager = db_manager  # Assign db_manager to an instance variable
+        self.db_manager = db_manager
+        self.print_to_terminal = print_to_terminal
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        self.init_ui()
 
-        # Create the tab widget
-        self.tab_widget = QTabWidget(self)
+    def init_ui(self):
+        layout = QVBoxLayout()
+        self.setLayout(layout)
 
-        # Create the Suggest Settings Tab
-        self.suggest_tab = SuggestSettingsTab(suggest_settings_callback, push_settings_callback, self.db_manager)
+        form_layout = QFormLayout()
 
-        # Create the Dashboard Tab
-        self.dashboard_tab = Dashboard(self.db_manager, self.load_callback)
+        # Mouse Selection or Manual Input
+        self.mouse_selector = QComboBox()
+        self.mouse_selector.addItem("Select a mouse")
+        animals = self.db_manager.get_animals()
+        for animal in animals:
+            self.mouse_selector.addItem(f"{animal.animal_id} - {animal.species}")
+        self.mouse_selector.addItem("Manual Input")
+        self.mouse_selector.currentIndexChanged.connect(self.toggle_weight_input)
+        form_layout.addRow(QLabel("Select Mouse:"), self.mouse_selector)
 
-        # Create the Slack Credentials Tab
-        self.slack_tab = SlackCredentialsTab(self.settings, self.save_callback)
+        # Current Weight Input
+        self.weight_input = QLineEdit()
+        self.weight_input.setPlaceholderText("Enter weight in grams")
+        self.weight_input.setEnabled(False)
+        self.weight_input.setValidator(QDoubleValidator(0.0, 1000.0, 2))
+        form_layout.addRow(QLabel("Current Weight (g):"), self.weight_input)
 
-        # Add tabs to the tab widget
-        self.tab_widget.addTab(self.suggest_tab, "Suggest Settings")
-        self.tab_widget.addTab(self.dashboard_tab, "Dashboard")
-        self.tab_widget.addTab(self.slack_tab, "Slack Bot")
+        # Weight-Based Suggestions
+        self.floor_volume = QLineEdit()
+        self.floor_volume.setReadOnly(True)
+        form_layout.addRow(QLabel("Floor Water Volume (mL):"), self.floor_volume)
 
-        self.layout.addWidget(self.tab_widget)
+        self.ceiling_volume = QLineEdit()
+        self.ceiling_volume.setReadOnly(True)
+        form_layout.addRow(QLabel("Ceiling Water Volume (mL):"), self.ceiling_volume)
 
-        # Add Checkbox for Auto-Save Project
+        # Suggest and Push Buttons
+        self.suggest_button = QPushButton("Suggest Settings")
+        self.suggest_button.clicked.connect(self.suggest_settings)
+        form_layout.addRow(self.suggest_button)
+
+        self.push_button = QPushButton("Push Settings")
+        self.push_button.clicked.connect(self.push_settings)
+        self.push_button.setEnabled(False)
+        form_layout.addRow(self.push_button)
+
+        # Auto-Save Checkbox
         self.auto_save_checkbox = QCheckBox("Automatically Save Project After Pushing Settings")
-        self.layout.addWidget(self.auto_save_checkbox)
+        form_layout.addRow(self.auto_save_checkbox)
 
-        # Initialize saved settings
-        self.create_dashboard_ui()
+        layout.addLayout(form_layout)
 
-    def create_dashboard_ui(self):
-        # Ensure the saved_settings directory exists
-        if not os.path.exists(SAVED_SETTINGS_DIR):
-            os.makedirs(SAVED_SETTINGS_DIR)
+    def toggle_weight_input(self):
+        if self.mouse_selector.currentText() == "Manual Input":
+            self.weight_input.setEnabled(True)
+        else:
+            self.weight_input.setEnabled(False)
+            self.weight_input.clear()
+            self.floor_volume.clear()
+            self.ceiling_volume.clear()
 
-    def save_settings(self):
-        try:
-            # Ensure the saved_settings directory exists
-            if not os.path.exists(SAVED_SETTINGS_DIR):
-                os.makedirs(SAVED_SETTINGS_DIR)
+    def suggest_settings(self):
+        if self.mouse_selector.currentText() == "Select a mouse":
+            QMessageBox.warning(self, "Selection Required", "Please select a mouse or choose 'Manual Input'.")
+            return
+        elif self.mouse_selector.currentText() == "Manual Input":
+            weight_text = self.weight_input.text()
+            if not weight_text:
+                QMessageBox.warning(self, "Input Required", "Please enter the current weight.")
+                return
+            weight = float(weight_text)
+        else:
+            animal_id = self.mouse_selector.currentText().split(' - ')[0]
+            animal = self.db_manager.get_animal_by_id(animal_id)
+            if animal:
+                weight = animal.body_weight
+            else:
+                QMessageBox.warning(self, "Error", "Selected animal not found.")
+                return
 
-            # Get the current values from the input fields
-            interval = int(self.run_stop_section.interval_input.text())
-            stagger = int(self.run_stop_section.stagger_input.text())
+        # Calculate suggestions based on weight
+        floor = self.calculate_floor_volume(weight)
+        ceiling = self.calculate_ceiling_volume(weight)
 
-            num_triggers = self.advanced_settings.get_settings()['num_triggers']
+        self.floor_volume.setText(f"{floor:.2f}")
+        self.ceiling_volume.setText(f"{ceiling:.2f}")
 
-            current_settings = {
-                "interval": interval,
-                "stagger": stagger,
-                "num_triggers": {str(k): v for k, v in num_triggers.items()},  # Convert tuple keys to strings
-            }
+        self.push_button.setEnabled(True)
+        self.print_to_terminal(f"Suggested settings based on weight {weight}g.")
 
-            name, ok = QInputDialog.getText(self, "Save Settings", "Enter a name for these settings:")
-            if ok and name:
-                file_name = os.path.join(SAVED_SETTINGS_DIR, f"{name}.json")
-                with open(file_name, 'w') as f:
-                    json.dump(current_settings, f, indent=4)
-                self.load_saved_settings()
-                QMessageBox.information(self, "Save Success", f"Settings '{name}' saved successfully.")
-        except Exception as e:
-            print(f"Error saving settings: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
+    def push_settings(self):
+        # Gather settings
+        floor = self.floor_volume.text()
+        ceiling = self.ceiling_volume.text()
 
-    def load_saved_settings(self):
-        self.dashboard_tab.load_projects()
+        if not floor or not ceiling:
+            QMessageBox.warning(self, "Incomplete Settings", "Please generate suggestions before pushing settings.")
+            return
 
-    def load_settings_from_file(self, file_path):
-        try:
-            with open(file_path, 'r') as f:
-                loaded_settings = json.load(f)
+        # Implement pushing settings logic here
+        # For example, updating hardware, saving to database, etc.
+        self.print_to_terminal(f"Pushing settings: Floor={floor} mL, Ceiling={ceiling} mL")
 
-            # Convert string keys back to tuples for num_triggers
-            num_triggers = {eval(k): v for k, v in loaded_settings.get("num_triggers", {}).items()}
+        if self.auto_save_checkbox.isChecked():
+            self.save_project()
 
-            # Update the settings with loaded values
-            self.settings.update(loaded_settings)
-            self.settings['num_triggers'] = num_triggers  # Update num_triggers with tuple keys
+        QMessageBox.information(self, "Settings Pushed", "Settings have been successfully pushed.")
 
-            # Update UI fields with the loaded settings
-            self.run_stop_section.interval_input.setText(str(self.settings.get('interval', '')))
-            self.run_stop_section.stagger_input.setText(str(self.settings.get('stagger', '')))
+    def save_project(self):
+        project_name, ok = QMessageBox.getText(self, "Save Project", "Enter Project Name:")
+        if ok and project_name:
+            assigned_relays = {}  # Gather relay assignments as needed
+            animals = []
+            if self.mouse_selector.currentText() != "Manual Input":
+                animal_id = self.mouse_selector.currentText().split(' - ')[0]
+                animal = self.db_manager.get_animal_by_id(animal_id)
+                if animal:
+                    animals.append(animal)
+            else:
+                # Handle manual input assignment if applicable
+                pass
 
-            # Update advanced settings triggers
-            if hasattr(self, 'advanced_settings'):
-                self.advanced_settings.update_triggers(self.settings['num_triggers'])
+            project = self.db_manager.create_project(project_name, animals, relay_volumes=assigned_relays)
+            if project:
+                self.print_to_terminal(f"Project '{project.project_name}' saved successfully.")
+                QMessageBox.information(self, "Project Saved", f"Project '{project.project_name}' saved successfully.")
+            else:
+                self.print_to_terminal("Failed to save project.")
+                QMessageBox.critical(self, "Error", "Failed to save project.")
+        else:
+            QMessageBox.warning(self, "Input Required", "Project name cannot be empty.")
 
-            if self.load_callback:
-                self.load_callback()
+    def calculate_floor_volume(self, weight):
+        # Example calculation: 5% of body weight
+        return weight * 0.05
 
-            QMessageBox.information(self, "Load Success", f"Settings loaded successfully from '{file_path}'.")
-        except Exception as e:
-            QMessageBox.critical(self, "Load Error", f"Error loading settings: {str(e)}")
+    def calculate_ceiling_volume(self, weight):
+        # Example calculation: 10% of body weight
+        return weight * 0.10
