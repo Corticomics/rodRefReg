@@ -17,19 +17,20 @@ from settings.config import load_settings, save_settings
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
-    def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
+
+    def __init__(self, run_program, stop_program, change_relay_hats, settings, db_manager, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
-
         self.settings = settings
-        self.selected_relays = self.settings['selected_relays']
-        self.num_triggers = self.settings['num_triggers']
+        self.db_manager = db_manager
 
-        # Connect the system message signal to the print_to_terminal method
-        self.system_message_signal.connect(self.print_to_terminal)
+        # Define the callback methods directly
+        self.suggest_settings_callback = self.suggest_settings_callback
+        self.push_settings_callback = self.push_settings_callback
+        self.save_slack_credentials_callback = self.save_slack_credentials_callback
 
         self.init_ui(style)
 
@@ -267,24 +268,16 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal(f"Error applying suggested settings: {e}")
 
 
-
-
     
     def save_slack_credentials_callback(self):
-        # Update settings with the new Slack credentials
-        self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
-        self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
-
-
-        # Save settings to the settings.json file
-        save_settings(self.settings)
-        self.print_to_terminal("Slack credentials saved.")
-
-        # Reinitialize the NotificationHandler with the new credentials
-        global notification_handler
-        notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
-        self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
-
+        """Callback to save Slack credentials to the settings file."""
+        try:
+            self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
+            self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
+            save_settings(self.settings)
+            self.print_to_terminal("Slack credentials saved and notification handler reinitialized.")
+        except Exception as e:
+            self.print_to_terminal(f"Error saving Slack credentials: {e}")
 
 def main(run_program, stop_program, change_relay_hats):
     app = QApplication(sys.argv)

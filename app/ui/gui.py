@@ -21,6 +21,7 @@ from .suggest_settings import SuggestSettingsSection  # Ensure this import is pr
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
+    
     def __init__(self, run_program, stop_program, change_relay_hats, settings, db_manager, style='bitlearns'):
         super().__init__()
 
@@ -32,8 +33,12 @@ class RodentRefreshmentGUI(QWidget):
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
-        self.db_manager = db_manager  # Assign db_manager
-        self.print_to_terminal = self.print_to_terminal  # Ensure this method exists
+        self.db_manager = db_manager
+        self.print_to_terminal = self.print_to_terminal
+
+        # Define the callback attributes to avoid AttributeError
+        self.suggest_settings_callback = self.suggest_settings_callback  # Defined as a placeholder
+        self.push_settings_callback = self.push_settings_callback_wrapper  # Defined as wrapper
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
@@ -136,16 +141,16 @@ class RodentRefreshmentGUI(QWidget):
         )
 
         # Add the Suggest Settings Section (with the tab widget) directly to the layout
+        # Initialize SuggestSettingsSection with the correct callbacks
         self.suggest_settings_section = SuggestSettingsSection(
             self.db_manager,                       # db_manager
-            self.print_to_terminal,                # print_to_terminal
+            self.settings,                         # settings
             self.suggest_settings_callback,        # suggest_settings_callback
             self.push_settings_callback,           # push_settings_callback
             self.save_slack_credentials_callback,  # save_slack_credentials_callback
             self.advanced_settings,                # advanced_settings
             self.run_stop_section                  # run_stop_section
         )
-
         self.right_layout.addWidget(self.suggest_settings_section)
 
         self.right_layout.addWidget(self.run_stop_section)
