@@ -10,25 +10,21 @@ from .SuggestSettingsTab import SuggestSettingsTab
 class SuggestSettingsSection(QWidget):
     def __init__(
         self,
-        db_manager,  # Add db_manager here
+        db_manager,
         settings,
         suggest_settings_callback,
         push_settings_callback,
         save_slack_credentials_callback,
-        advanced_settings,
-        run_stop_section,
         parent=None
     ):
         super().__init__(parent)
 
         # Initialize db_manager
-        self.db_manager = db_manager  # Store db_manager in an instance variable
+        self.db_manager = db_manager
         self.settings = settings
         self.suggest_settings_callback = suggest_settings_callback
         self.push_settings_callback = push_settings_callback
         self.save_slack_credentials_callback = save_slack_credentials_callback
-        self.advanced_settings = advanced_settings
-        self.run_stop_section = run_stop_section
 
         self.init_ui()
 
@@ -40,7 +36,7 @@ class SuggestSettingsSection(QWidget):
         self.suggest_tab = SuggestSettingsTab(
             self.suggest_settings_callback,
             self.push_settings_callback,
-            self.db_manager  # Ensure db_manager is passed here
+            self.db_manager
         )
         layout.addWidget(self.suggest_tab)
         form_layout = QFormLayout()

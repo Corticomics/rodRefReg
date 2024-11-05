@@ -1,16 +1,21 @@
+# app/ui/gui.py
+
 import sys
 import os
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton,
-    QSplitter, QSizePolicy, QLineEdit, QLabel, QFormLayout, QComboBox, QCheckBox
+    QSplitter, QSizePolicy, QLabel
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt5.QtGui import QDrag, QIntValidator, QDoubleValidator
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QDrag, QMimeData
+
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
 from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
+from .SlackCredentialsTab import SlackCredentialsTab
 from shared.notifications.notifications import NotificationHandler
+from shared.models.database import DatabaseManager
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from shared.settings.config import load_settings, save_settings
@@ -102,8 +107,10 @@ class RodentRefreshmentGUI(QWidget):
                 }
             """)
 
+        # Main Layout
         self.main_layout = QVBoxLayout()
 
+        # Welcome Section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
@@ -118,6 +125,7 @@ class RodentRefreshmentGUI(QWidget):
 
         self.upper_layout = QHBoxLayout()
 
+        # Left Layout
         self.left_layout = QVBoxLayout()
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -137,16 +145,17 @@ class RodentRefreshmentGUI(QWidget):
         self.left_scroll.setWidget(self.left_content)
         self.upper_layout.addWidget(self.left_scroll)
 
+        # Right Layout
         self.right_layout = QVBoxLayout()
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
 
         # Suggest Settings Section
         self.suggest_settings_section = SuggestSettingsSection(
-            self.settings, 
-            self.suggest_settings_callback, 
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            self.run_stop_section
+            db_manager=self.db_manager,
+            settings=self.settings, 
+            suggest_settings_callback=self.suggest_settings_callback, 
+            push_settings_callback=self.push_settings_callback,
+            save_slack_credentials_callback=self.save_slack_credentials_callback
         )
 
         self.right_layout.addWidget(self.suggest_settings_section)
@@ -251,7 +260,10 @@ class RodentRefreshmentGUI(QWidget):
             for relay_pair, water_volume in settings["relay_volumes"].items():
                 trigger_count = int((water_volume * 1000) / 500) if water_volume > 0 else 0
                 num_triggers[relay_pair] = trigger_count
-            self.advanced_settings.update_triggers(num_triggers)
+
+            # Assuming RunStopSection has an update_triggers method
+            self.run_stop_section.update_triggers(num_triggers)
+
             self.print_to_terminal("Suggested settings have been applied successfully.")
         except Exception as e:
             self.print_to_terminal(f"Error applying suggested settings: {e}")
@@ -268,7 +280,10 @@ class RodentRefreshmentGUI(QWidget):
 
 def main(run_program, stop_program, change_relay_hats):
     app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, load_settings(), style='bitlearns')
+    settings = load_settings()
+    db_manager = DatabaseManager()  # Replace with actual initialization
+
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, db_manager, style='bitlearns')
     gui.show()
     sys.exit(app.exec_())
 
