@@ -32,6 +32,9 @@ class RodentRefreshmentGUI(QWidget):
         self.selected_relays = self.settings['selected_relays']
         self.num_triggers = self.settings['num_triggers']
 
+        self.db_manager = db_manager  # Assign db_manager
+        self.print_to_terminal = self.print_to_terminal  # Ensure this method exists
+
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
 
@@ -134,12 +137,13 @@ class RodentRefreshmentGUI(QWidget):
 
         # Add the Suggest Settings Section (with the tab widget) directly to the layout
         self.suggest_settings_section = SuggestSettingsSection(
-            self.settings, 
-            self.suggest_settings_callback, 
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            self.advanced_settings,
-            self.run_stop_section  # Pass run_stop_section here
+            self.db_manager,                       # db_manager
+            self.print_to_terminal,                # print_to_terminal
+            self.suggest_settings_callback,        # suggest_settings_callback
+            self.push_settings_callback,           # push_settings_callback
+            self.save_slack_credentials_callback,  # save_slack_credentials_callback
+            self.advanced_settings,                # advanced_settings
+            self.run_stop_section                  # run_stop_section
         )
 
         self.right_layout.addWidget(self.suggest_settings_section)
@@ -157,12 +161,9 @@ class RodentRefreshmentGUI(QWidget):
         self.main_layout.addLayout(self.upper_layout)
         self.setLayout(self.main_layout)
 
-
-    # In gui.py
     def print_to_terminal(self, message):
         """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
-
 
     def toggle_welcome_message(self):
         if self.welcome_scroll_area.isVisible():
@@ -196,18 +197,18 @@ class RodentRefreshmentGUI(QWidget):
             relay_volumes = {}
 
             for relay_pair in relay_pairs:
-                volume_input = values[f"relay_{relay_pair[0]}_{relay_pair[1]}"].text().strip()
+                volume_input = values.get(f"relay_{relay_pair[0]}_{relay_pair[1]}", QLineEdit()).text().strip()
                 water_volume = float(volume_input) if volume_input else 0.0  # Default to 0 if empty
                 relay_volumes[relay_pair] = water_volume
 
             # Parse frequency and duration
-            frequency_input = values["frequency"].text().strip()
+            frequency_input = values.get("frequency", QLineEdit()).text().strip()
             frequency = int(frequency_input) if frequency_input else 0  # Default to 0 if empty
-            duration_input = values["duration"].text().strip()
+            duration_input = values.get("duration", QLineEdit()).text().strip()
             duration = int(duration_input) if duration_input else 0  # Default to 0 if empty
 
             # Start datetime
-            start_datetime = values["start_datetime"].dateTime()
+            start_datetime = values.get("start_datetime", QDateTimeEdit()).dateTime()
 
             # Calculate total sessions and interval between sessions
             total_sessions = frequency * duration
@@ -241,54 +242,63 @@ class RodentRefreshmentGUI(QWidget):
         except Exception as e:
             self.print_to_terminal(f"An unexpected error occurred: {e}")
 
-
-    def push_settings_callback(self):
-        """Callback for pushing the suggested settings to the control panel."""
+    def push_settings_callback_wrapper(self):
+        """Wrapper to handle auto-save functionality."""
         try:
-            if not hasattr(self, 'suggested_settings'):
-                self.print_to_terminal("No suggested settings available. Please generate suggestions first.")
-                return
+            # Push settings as usual
+            self.push_settings_callback()
 
-            settings = self.suggested_settings
-
-            # Update RunStopSection
-            self.run_stop_section.start_time_input.setDateTime(settings["start_datetime"])
-            end_datetime = settings["start_datetime"].addDays(settings["duration"])
-            self.run_stop_section.end_time_input.setDateTime(end_datetime)
-            self.run_stop_section.interval_input.setText(str(int(settings["interval_seconds"])))
-            self.run_stop_section.stagger_input.setText("5")  # Assuming a default stagger value
-
-            # Create num_triggers dictionary for AdvancedSettingsSection
-            num_triggers = {}
-            for relay_pair, water_volume in settings["relay_volumes"].items():
-                if water_volume > 0:
-                    trigger_count = int((water_volume * 1000) / 500)  # Example conversion to triggers
-                else:
-                    trigger_count = 0  # Set trigger count to 0 if volume is 0
-                num_triggers[relay_pair] = trigger_count
-
-            # Update AdvancedSettingsSection with the trigger values
-            self.advanced_settings.update_triggers(num_triggers)
-
-            self.print_to_terminal("Suggested settings have been applied successfully.")
-
+            # Check if auto-save is enabled
+            if self.suggest_settings_section.suggest_tab.auto_save_checkbox.isChecked():
+                self.save_project()
         except Exception as e:
-            self.print_to_terminal(f"Error applying suggested settings: {e}")
+            self.print_to_terminal(f"Error pushing settings: {e}")
 
+    def save_project(self):
+        """Automatically save the project after pushing settings."""
+        try:
+            # Gather all necessary data to create a project
+            selected_mouse_text = self.suggest_settings_section.suggest_tab.mouse_selector.currentText()
+            if selected_mouse_text == "Manual Input":
+                weight_text = self.suggest_settings_section.suggest_tab.current_weight_input.text().strip()
+                if not weight_text:
+                    QMessageBox.warning(self, "Input Required", "Please enter the current weight.")
+                    return
+                body_weight = float(weight_text)
+                mouse_id = "Manual"
+            else:
+                mouse_id = selected_mouse_text.split(' - ')[0]
+                mouse = self.db_manager.get_animal_by_id(mouse_id)
+                body_weight = mouse.body_weight if mouse else 0.0
 
-    def save_slack_credentials_callback(self):
-        # Update settings with the new Slack credentials
-        self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
-        self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
+            # Gather relay pair assignments and volumes
+            relay_volumes = {}
+            relay_pairs = self.settings.get('relay_pairs', [])
+            for pair in relay_pairs:
+                volume = self.suggest_settings_section.suggest_tab.entries.get(f"relay_{pair[0]}_{pair[1]}", QLineEdit()).text().strip()
+                relay_volumes[pair] = float(volume) if volume else 0.0
 
-        # Save settings to the settings.json file
-        save_settings(self.settings)
-        self.print_to_terminal("Slack credentials saved.")
+            # Create project name based on timestamp
+            import datetime
+            project_name = f"AutoProject_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Reinitialize the NotificationHandler with the new credentials
-        global notification_handler
-        notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
-        self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
+            # Create project in the database
+            if mouse_id != "Manual":
+                animal = self.db_manager.get_animal_by_id(mouse_id)
+                animals = [animal] if animal else []
+            else:
+                animals = []  # Handle manual input assignment if applicable
+
+            project = self.db_manager.create_project(project_name, animals, relay_volumes)
+            if project:
+                self.print_to_terminal(f"Auto-saved project '{project.project_id}' successfully.")
+                QMessageBox.information(self, "Auto-Save Success", f"Project '{project.project_id}' saved successfully.")
+            else:
+                self.print_to_terminal("Failed to auto-save project.")
+                QMessageBox.critical(self, "Auto-Save Error", "Failed to auto-save project.")
+        except Exception as e:
+            self.print_to_terminal(f"Error auto-saving project: {e}")
+            QMessageBox.critical(self, "Auto-Save Error", f"Error auto-saving project: {e}")
 def main(run_program, stop_program, change_relay_hats):
     app = QApplication(sys.argv)
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, load_settings(), style='bitlearns')

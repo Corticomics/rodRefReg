@@ -5,7 +5,7 @@ from PyQt5.QtGui import QIntValidator, QDoubleValidator
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QDateTimeEdit, QMessageBox, QCheckBox
 )
-
+from .SuggestSettingsTab import SuggestSettingsTab
 class SuggestSettingsSection(QWidget):
     def __init__(
         self,
