@@ -9,10 +9,10 @@ from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
 from .SlackCredentialsTab import SlackCredentialsTab
-from notifications.notifications import NotificationHandler
+from shared.notifications.notifications import NotificationHandler
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
-from settings.config import load_settings, save_settings
+from shared.settings.config import load_settings, save_settings
 
 
 class RodentRefreshmentGUI(QWidget):
