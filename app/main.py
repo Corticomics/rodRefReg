@@ -2,11 +2,11 @@ import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from PyQt5.QtCore import Qt, QTimer, QThread, QObject, pyqtSignal
-from gpio.relay_worker import RelayWorker
+from shared.gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
-from gpio.gpio_handler import RelayHandler
-from notifications.notifications import NotificationHandler
-from settings.config import load_settings, save_settings
+from shared.gpio.gpio_handler import RelayHandler
+from shared.notifications.notifications import NotificationHandler
+from shared.settings.config import load_settings, save_settings
 import time
 
 class StreamRedirector(QObject):
