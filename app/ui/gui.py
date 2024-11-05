@@ -1,8 +1,10 @@
-# app/gui/gui.py
+# app/ui/gui.py
 
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy, QMessageBox
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy, QMessageBox
+)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from .terminal_output import TerminalOutput
@@ -11,16 +13,16 @@ from .advanced_settings import AdvancedSettingsSection
 from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
 from .SlackCredentialsTab import SlackCredentialsTab
+from .ProjectsSection import ProjectsSection  # New ProjectsSection
 from shared.notifications.notifications import NotificationHandler
-from shared.models.database import DatabaseManager
+from shared.models.database import DatabaseManager  # Ensure this import is correct
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from shared.settings.config import load_settings, save_settings
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
-    def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
+    def __init__(self, run_program, stop_program, change_relay_hats, settings, db_manager, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
@@ -28,11 +30,9 @@ class RodentRefreshmentGUI(QWidget):
         self.change_relay_hats = change_relay_hats
 
         self.settings = settings
+        self.db_manager = db_manager  # Assign db_manager
         self.selected_relays = self.settings.get('selected_relays', [])
         self.num_triggers = self.settings.get('num_triggers', {})
-
-        # Initialize Database Manager
-        self.db_manager = DatabaseManager()
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
@@ -82,6 +82,7 @@ class RodentRefreshmentGUI(QWidget):
 
         self.main_layout = QVBoxLayout()
 
+        # Welcome Section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
@@ -90,22 +91,26 @@ class RodentRefreshmentGUI(QWidget):
         self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
         self.main_layout.addWidget(self.welcome_scroll_area)
 
+        # Toggle Welcome Message Button
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
+        # Upper Layout containing Left and Right Sections
         self.upper_layout = QHBoxLayout()
 
+        # Left Layout: System Messages and Advanced Settings
         self.left_layout = QVBoxLayout()
 
         # Use QSplitter to make the system messages section resizable
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        # Terminal Output
         self.terminal_output = TerminalOutput()
         self.splitter.addWidget(self.terminal_output)
 
-        # Create a scroll area for the Advanced Settings section
+        # Advanced Settings Section
         self.advanced_settings_scroll_area = QScrollArea()
         self.advanced_settings_scroll_area.setWidgetResizable(True)
 
@@ -123,9 +128,10 @@ class RodentRefreshmentGUI(QWidget):
         self.left_scroll.setWidget(self.left_content)
         self.upper_layout.addWidget(self.left_scroll)
 
+        # Right Layout: Suggest Settings, Run/Stop, and Projects
         self.right_layout = QVBoxLayout()
 
-        # Initialize run_stop_section before SuggestSettingsSection
+        # Initialize RunStopSection before SuggestSettingsSection
         self.run_stop_section = RunStopSection(
             self.run_program, 
             self.stop_program, 
@@ -148,6 +154,16 @@ class RodentRefreshmentGUI(QWidget):
 
         self.right_layout.addWidget(self.suggest_settings_section)
         self.right_layout.addWidget(self.run_stop_section)
+
+        # Add Projects Section
+        self.projects_section = ProjectsSection(
+            self.db_manager,
+            self.print_to_terminal,
+            self.run_program,
+            self.stop_program,
+            self.settings
+        )
+        self.right_layout.addWidget(self.projects_section)
 
         self.right_content = QWidget()
         self.right_content.setLayout(self.right_layout)
@@ -198,6 +214,18 @@ class RodentRefreshmentGUI(QWidget):
         """Callback for pushing the suggested settings to the control panel."""
         try:
             self.suggest_settings_section.suggest_tab.push_settings()
+        except Exception as e:
+            self.print_to_terminal(f"Error pushing settings: {e}")
+
+    def push_settings_callback_wrapper(self):
+        """Wrapper to handle auto-save functionality."""
+        try:
+            # Push settings as usual
+            self.push_settings_callback()
+
+            # Check if auto-save is enabled
+            if self.suggest_settings_section.auto_save_checkbox.isChecked():
+                self.suggest_settings_section.save_project()
         except Exception as e:
             self.print_to_terminal(f"Error pushing settings: {e}")
 

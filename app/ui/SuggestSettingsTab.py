@@ -1,7 +1,7 @@
-# app/gui/SuggestSettingsTab.py
+# app/ui/SuggestSettingsTab.py
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QDateTimeEdit, QMessageBox
+    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QLabel, QPushButton, QComboBox, QDateTimeEdit, QMessageBox, QCheckBox
 )
 from PyQt5.QtCore import QDateTime, Qt
 
@@ -17,22 +17,23 @@ class SuggestSettingsTab(QWidget):
 
         self.db_manager = db_manager  # Store db_manager for later use
 
-        # Dropdown to select existing mice or add a new one
+        # Dropdown to select existing mice or choose 'Manual Input'
         self.mouse_selector = QComboBox()
-        self.load_mice()
+        self.mouse_selector.addItem("Select a mouse")
+        mice = self.db_manager.get_animals()
+        for mouse in mice:
+            self.mouse_selector.addItem(f"{mouse.animal_id} - {mouse.species}")
+        self.mouse_selector.addItem("Manual Input")
+        self.mouse_selector.currentIndexChanged.connect(self.toggle_weight_input)
         form_layout.addRow(QLabel("Select Mouse:"), self.mouse_selector)
         self.entries["selected_mouse"] = self.mouse_selector
 
-        # Button to add a new mouse
-        self.add_mouse_button = QPushButton("Add New Mouse")
-        self.add_mouse_button.clicked.connect(self.add_new_mouse)
-        form_layout.addRow(QLabel(""), self.add_mouse_button)
-
-        # Current Weight input (required field)
-        current_weight_label = QLabel("Current Weight (g):")
+        # Current Weight input (optional)
+        self.current_weight_label = QLabel("Current Weight (g):")
         self.current_weight_input = QLineEdit()
         self.current_weight_input.setPlaceholderText("Enter current weight in grams")
-        form_layout.addRow(current_weight_label, self.current_weight_input)
+        self.current_weight_input.setEnabled(False)  # Initially disabled
+        form_layout.addRow(self.current_weight_label, self.current_weight_input)
         self.entries["current_weight"] = self.current_weight_input
 
         # Floor and Ceiling Water Volume based on Body Weight
@@ -83,6 +84,10 @@ class SuggestSettingsTab(QWidget):
 
         self.layout.addLayout(form_layout)
 
+        # Auto-Save Project Checkbox
+        self.auto_save_checkbox = QCheckBox("Automatically Save Project After Pushing Settings")
+        self.layout.addWidget(self.auto_save_checkbox)
+
         # Buttons
         button_layout = QVBoxLayout()
 
@@ -91,7 +96,7 @@ class SuggestSettingsTab(QWidget):
         button_layout.addWidget(suggest_button)
 
         self.push_button = QPushButton("Push Settings")
-        self.push_button.clicked.connect(push_settings_callback)
+        self.push_button.clicked.connect(self.push_settings_callback_wrapper)
         self.push_button.setEnabled(False)  # Initially disabled
         button_layout.addWidget(self.push_button)
 
@@ -106,35 +111,18 @@ class SuggestSettingsTab(QWidget):
 
         self.update_button_states()
 
-    def load_mice(self):
-        mice = self.db_manager.get_animals()
-        self.mouse_selector.addItem("Select a mouse")
-        for mouse in mice:
-            self.mouse_selector.addItem(f"{mouse.animal_id} - {mouse.species}")
-
-    def add_new_mouse(self):
-        # Implement functionality to add a new mouse
-        text, ok = QInputDialog.getText(self, 'Add New Mouse', 'Enter Mouse ID and Species (e.g., ID - Species):')
-        if ok and text:
-            try:
-                animal_id, species = text.split('-')
-                animal_id = animal_id.strip()
-                species = species.strip()
-                # Prompt for body weight
-                body_weight, ok_weight = QInputDialog.getDouble(self, 'Mouse Weight', 'Enter body weight in grams:', decimals=2, min=0.1)
-                if ok_weight:
-                    # Add to database
-                    new_mouse = self.db_manager.add_animal(animal_id, species, body_weight)
-                    self.mouse_selector.addItem(f"{new_mouse.animal_id} - {new_mouse.species}")
-                    QMessageBox.information(self, "Success", f"Mouse '{new_mouse.animal_id} - {new_mouse.species}' added successfully.")
-                    self.update_selected_mouse()
-            except ValueError:
-                QMessageBox.warning(self, "Input Error", "Please enter the Mouse ID and Species in the correct format (e.g., ID - Species).")
+    def toggle_weight_input(self):
+        selected_text = self.mouse_selector.currentText()
+        if selected_text == "Manual Input":
+            self.current_weight_input.setEnabled(True)
+        else:
+            self.current_weight_input.setEnabled(False)
+            self.update_selected_mouse()
 
     def update_selected_mouse(self):
         """Update the current weight based on selected mouse."""
         selected_text = self.mouse_selector.currentText()
-        if selected_text and selected_text != "Select a mouse":
+        if selected_text and selected_text != "Select a mouse" and selected_text != "Manual Input":
             animal_id = selected_text.split(' - ')[0]
             mouse = self.db_manager.get_animal_by_id(animal_id)
             if mouse:
@@ -175,7 +163,12 @@ class SuggestSettingsTab(QWidget):
         frequency_valid = bool(self.frequency_input.text().strip())
         duration_valid = bool(self.duration_input.text().strip())
         start_datetime_valid = bool(self.start_datetime_input.dateTime().isValid())
-        current_weight_valid = bool(self.current_weight_input.text().strip())
+        
+        # Weight is required only if 'Manual Input' is selected
+        if self.mouse_selector.currentText() == "Manual Input":
+            current_weight_valid = bool(self.current_weight_input.text().strip())
+        else:
+            current_weight_valid = True  # Already filled based on selection
 
         # If all required fields are valid, enable the Push button
         if frequency_valid and duration_valid and start_datetime_valid and current_weight_valid:
@@ -194,3 +187,55 @@ class SuggestSettingsTab(QWidget):
     def update_button_states(self):
         """Initial setup of the Push button state."""
         self.validate_form()  # Initial validation on creation
+
+    def push_settings_callback_wrapper(self):
+        """Wrapper to handle auto-save functionality."""
+        try:
+            # Push settings as usual
+            self.push_settings_callback()
+
+            # Check if auto-save is enabled
+            if self.auto_save_checkbox.isChecked():
+                self.save_project()
+        except Exception as e:
+            self.print_to_terminal(f"Error pushing settings: {e}")
+
+    def save_project(self):
+        """Automatically save the project after pushing settings."""
+        try:
+            # Gather all necessary data to create a project
+            selected_mouse_text = self.mouse_selector.currentText()
+            if selected_mouse_text == "Manual Input":
+                weight_text = self.current_weight_input.text().strip()
+                if not weight_text:
+                    QMessageBox.warning(self, "Input Required", "Please enter the current weight.")
+                    return
+                body_weight = float(weight_text)
+                mouse_id = "Manual"
+            else:
+                mouse_id = selected_mouse_text.split(' - ')[0]
+                mouse = self.db_manager.get_animal_by_id(mouse_id)
+                body_weight = mouse.body_weight if mouse else 0.0
+
+            # Gather relay pair assignments and volumes
+            relay_volumes = {}
+            relay_pairs = self.settings.get('relay_pairs', [])
+            for pair in relay_pairs:
+                volume = self.entries.get(f"relay_{pair[0]}_{pair[1]}", QLineEdit()).text().strip()
+                relay_volumes[pair] = float(volume) if volume else 0.0
+
+            # Create project name based on timestamp
+            import datetime
+            project_name = f"AutoProject_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+            # Create project in the database
+            project = self.db_manager.create_project(project_name, [self.db_manager.get_animal_by_id(mouse_id)], relay_volumes)
+            if project:
+                self.print_to_terminal(f"Auto-saved project '{project.project_id}' successfully.")
+                QMessageBox.information(self, "Auto-Save Success", f"Project '{project.project_id}' saved successfully.")
+            else:
+                self.print_to_terminal("Failed to auto-save project.")
+                QMessageBox.critical(self, "Auto-Save Error", "Failed to auto-save project.")
+        except Exception as e:
+            self.print_to_terminal(f"Error auto-saving project: {e}")
+            QMessageBox.critical(self, "Auto-Save Error", f"Error auto-saving project: {e}")

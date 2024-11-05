@@ -1,10 +1,10 @@
-# app/gui/SuggestSettingsSection.py
+# app/ui/SuggestSettingsSection.py
 
 import os
 import json
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, 
-    QPushButton, QLabel, QMessageBox
+    QPushButton, QLabel, QMessageBox, QCheckBox
 )
 from PyQt5.QtCore import Qt
 
@@ -46,6 +46,10 @@ class SuggestSettingsSection(QWidget):
         self.tab_widget.addTab(self.slack_tab, "Slack Bot")
 
         self.layout.addWidget(self.tab_widget)
+
+        # Add Checkbox for Auto-Save Project
+        self.auto_save_checkbox = QCheckBox("Automatically Save Project After Pushing Settings")
+        self.layout.addWidget(self.auto_save_checkbox)
 
         # Initialize saved settings
         self.create_dashboard_ui()

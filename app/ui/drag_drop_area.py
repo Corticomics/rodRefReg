@@ -1,4 +1,4 @@
-# app/gui/drag_drop_area.py
+# app/ui/drag_drop_area.py
 
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 from PyQt5.QtCore import Qt, QMimeData
@@ -9,51 +9,52 @@ class DragDropArea(QListWidget):
         super().__init__(parent)
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
-        self.setSelectionMode(QListWidget.MultiSelection)
+        self.setSelectionMode(QListWidget.SingleSelection)
         self.selected_animals = []
-
-        self.parent_widget = parent  # Reference to the parent widget for accessing db_manager
+        self.assigned_animals = {}  # Mapping relay pairs to animal IDs
 
     def add_animal(self, animal):
-        item = QListWidgetItem(f"{animal.animal_id} - {animal.species} ({animal.body_weight}g)")
+        item = QListWidgetItem(f"{animal.animal_id} - {animal.species}")
         item.setData(Qt.UserRole, animal)
         self.addItem(item)
 
-    def clear(self):
-        self.selected_animals = []
-        super().clear()
+    def clear_selection(self):
+        self.clear()
+        self.assigned_animals.clear()
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasText():
+        if event.mimeData().hasFormat('application/x-animal'):
             event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasText():
+        if event.mimeData().hasFormat('application/x-animal'):
             event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def dropEvent(self, event):
-        if event.mimeData().hasText():
-            text = event.mimeData().text()
-            # Assume the text format is "ID - Species"
-            try:
-                animal_id, species = text.split(' - ')
-                animal_id = animal_id.strip()
-                species = species.strip()
-                # Fetch animal from database
-                animal = self.parent_widget.db_manager.get_animal_by_id(animal_id)
-                if animal:
-                    self.selected_animals.append(animal)
-                    self.add_animal(animal)
+        if event.mimeData().hasFormat('application/x-animal'):
+            animal_id = event.mimeData().data('application/x-animal').data().decode('utf-8')
+            animal = self.parent().db_manager.get_animal_by_id(animal_id)
+            if animal:
+                # Determine where the animal is dropped
+                target = event.source()
+                relay_pair = self.parent().schedules_tab.relay_buttons.get(target, None)
+                if relay_pair:
+                    self.assigned_animals[relay_pair] = animal
+                    self.parent().print_to_terminal(f"Assigned Animal ID {animal_id} to Relay Pair {relay_pair}")
                     event.acceptProposedAction()
-            except ValueError:
-                pass  # Invalid format
+        else:
+            event.ignore()
 
     def startDrag(self, supportedActions):
         selected_items = self.selectedItems()
         if selected_items:
             drag = QDrag(self)
             mime_data = QMimeData()
-            mime_text = "\n".join([item.text() for item in selected_items])
-            mime_data.setText(mime_text)
+            animal_id = selected_items[0].data(Qt.UserRole).animal_id
+            mime_data.setData('application/x-animal', animal_id.encode('utf-8'))
             drag.setMimeData(mime_data)
             drag.exec_(Qt.MoveAction)
