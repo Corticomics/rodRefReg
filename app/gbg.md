@@ -16,4 +16,9 @@ Traceback (most recent call last):
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 136, in init_ui
     self.suggest_settings_section = SuggestSettingsSection(
                                     ^^^^^^^^^^^^^^^^^^^^^^^
-TypeError: SuggestSettingsSection.__init__() takes 3 positional arguments but 7 were given
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/suggest_settings.py", line 29, in __init__
+    self.init_ui()
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/suggest_settings.py", line 36, in init_ui
+    self.suggest_tab = SuggestSettingsTab(
+                       ^^^^^^^^^^^^^^^^^^
+NameError: name 'Sugge
