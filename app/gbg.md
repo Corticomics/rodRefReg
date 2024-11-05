@@ -13,7 +13,7 @@ Traceback (most recent call last):
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 28, in __init__
     self.init_ui(style)
-  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 78, in init_ui
-    self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, settings)
-                                                                                                        ^^^^^^^^
-NameError: name 'settings' is not defined
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/app/ui/gui.py", line 85, in init_ui
+    self.projects_section = ProjectsSection(
+                            ^^^^^^^^^^^^^^^^
+TypeError: ProjectsSection.__init__() takes 3 positional arguments but 6 were given
