@@ -27,10 +27,6 @@ class RodentRefreshmentGUI(QWidget):
         self.settings = settings
         self.db_manager = db_manager
 
-        # Define the callback methods directly
-        self.suggest_settings_callback = self.suggest_settings_callback
-        self.push_settings_callback = self.push_settings_callback
-        self.save_slack_credentials_callback = self.save_slack_credentials_callback
 
         self.init_ui(style)
 
@@ -126,7 +122,7 @@ class RodentRefreshmentGUI(QWidget):
 
         # Add the Suggest Settings Section (with the tab widget) directly to the layout
         self.suggest_settings_section = SuggestSettingsSection(
-            self.settings, 
+            self.settings,
             self.suggest_settings_callback, 
             self.push_settings_callback,
             self.save_slack_credentials_callback,
