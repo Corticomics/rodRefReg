@@ -4,15 +4,18 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QHBoxLayout, QInputDialog
 )
 from PyQt5.QtCore import Qt
-from .drag_drop_area import DragDropArea
+from .DragDropArea import DragDropArea
 from .SummaryDialog import SummaryDialog
 
 class AnimalsTab(QWidget):
-    def __init__(self, db_manager, print_to_terminal):
+    def __init__(self, db_manager, print_to_terminal, run_program, stop_program, settings):
         super().__init__()
 
         self.db_manager = db_manager
         self.print_to_terminal = print_to_terminal
+        self.run_program = run_program
+        self.stop_program = stop_program
+        self.settings = settings
 
         self.init_ui()
 

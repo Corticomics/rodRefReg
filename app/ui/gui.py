@@ -3,8 +3,8 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSplitter, QSizePolicy, QScrollArea, QLabel, QLineEdit, QTextEdit
 from PyQt5.QtCore import Qt, pyqtSignal
 from .ProjectsSection import ProjectsSection
-from .suggest_settings import SuggestSettingsSection
-from .run_stop_section import RunStopSection  # Assuming you have a RunStopSection.py
+from .SuggestSettingsSection import SuggestSettingsSection
+from .RunStopSection import RunStopSection  # Assuming you have a RunStopSection.py
 from shared.models.database import DatabaseManager
 
 class RodentRefreshmentGUI(QWidget):
@@ -96,12 +96,8 @@ class RodentRefreshmentGUI(QWidget):
 
         # Suggest Settings Section
         self.suggest_settings_section = SuggestSettingsSection(
-            self.settings,
-            self.suggest_settings_callback,
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            self.run_stop_section,
-            self.db_manager
+            self.db_manager,
+            self.print_to_terminal
         )
         self.suggest_scroll = QScrollArea()
         self.suggest_scroll.setWidgetResizable(True)
@@ -114,17 +110,3 @@ class RodentRefreshmentGUI(QWidget):
     def print_to_terminal(self, message):
         """Safely print messages to the terminal."""
         self.run_stop_section.terminal_output.print_to_terminal(message)
-
-    def suggest_settings_callback(self):
-        """Callback for suggesting settings based on user input."""
-        try:
-            self.suggest_settings_section.generate_suggestions()
-        except Exception as e:
-            self.print_to_terminal(f"Error generating suggestions: {e}")
-
-    def push_settings_callback(self):
-        """Callback for pushing the suggested settings to the control panel."""
-        try:
-            self.suggest_settings_section.push_settings()
-        except Exception as e:
-            self.print_to_terminal(f"Error pushing settings: {e}")

@@ -1,19 +1,21 @@
 # app/ui/SchedulesTab.py
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QMessageBox, QHBoxLayout, QLabel, QGridLayout
+    QWidget, QVBoxLayout, QPushButton, QMessageBox, QHBoxLayout, QLabel, QGridLayout, QListWidget, QListWidgetItem
 )
 from PyQt5.QtCore import Qt
 from .RelayButton import RelayButton
-from .drag_drop_area import DragDropArea
 from .SummaryDialog import SummaryDialog
 
 class SchedulesTab(QWidget):
-    def __init__(self, db_manager, print_to_terminal):
+    def __init__(self, db_manager, print_to_terminal, run_program, stop_program, settings):
         super().__init__()
 
         self.db_manager = db_manager
         self.print_to_terminal = print_to_terminal
+        self.run_program = run_program
+        self.stop_program = stop_program
+        self.settings = settings
 
         self.init_ui()
 
@@ -26,8 +28,8 @@ class SchedulesTab(QWidget):
         layout.addLayout(self.relay_grid)
 
         # Initialize Relay Buttons
+        relay_pairs = self.settings.get('relay_pairs', [])
         self.relay_buttons = {}
-        relay_pairs = self.db_manager.settings.get('relay_pairs', [])
         for index, pair in enumerate(relay_pairs):
             relay_button = RelayButton(pair, parent=self)
             relay_button.setFixedSize(150, 50)

@@ -1,4 +1,4 @@
-# app/ui/drag_drop_area.py
+# app/ui/DragDropArea.py
 
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 from PyQt5.QtCore import Qt, QMimeData
@@ -16,6 +16,7 @@ class DragDropArea(QListWidget):
 
     def assign_relay(self, relay_pair, animal):
         self.assigned_relays[relay_pair] = animal
+        self.add_animal(animal)
 
     def clear_assignments(self):
         self.assigned_relays.clear()
@@ -44,7 +45,6 @@ class DragDropArea(QListWidget):
                 relay_pair = event.source().relay_pair  # RelayButton should have relay_pair attribute
                 self.assign_relay(relay_pair, animal)
                 self.print_to_terminal(f"Assigned Animal ID {animal_id} to Relay Pair {relay_pair}")
-                self.add_animal(animal)
                 event.acceptProposedAction()
         else:
             event.ignore()
