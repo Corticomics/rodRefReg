@@ -1,6 +1,7 @@
 # app/ui/SummaryDialog.py
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+from PyQt5.QtCore import Qt
 
 class SummaryDialog(QDialog):
     def __init__(self, summary_text, parent=None):

@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QHBoxLayout, QInputDialog
 )
 from PyQt5.QtCore import Qt
-from .drag_drop_area import DragDropArea
+from .DragDropArea import DragDropArea  # Added Import
 from .SummaryDialog import SummaryDialog
 
 class AnimalsTab(QWidget):
@@ -74,7 +74,14 @@ class AnimalsTab(QWidget):
         current_weight = float(self.table.item(row, 3).text())
         last_watering = self.table.item(row, 4).text()
 
-        new_weight, ok = QInputDialog.getDouble(self, "Edit Weight", f"Enter new weight for Animal ID {animal_id}:", value=current_weight, decimals=2, min=0.1)
+        new_weight, ok = QInputDialog.getDouble(
+            self,
+            "Edit Weight",
+            f"Enter new weight for Animal ID {animal_id}:",
+            value=current_weight,
+            decimals=2,
+            min=0.1
+        )
         if ok:
             success = self.db_manager.update_animal_weight(animal_id, new_weight)
             if success:

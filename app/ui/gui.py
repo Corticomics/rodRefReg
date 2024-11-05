@@ -3,8 +3,8 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSplitter, QSizePolicy, QScrollArea, QLabel, QLineEdit, QTextEdit
 from PyQt5.QtCore import Qt, pyqtSignal
 from .ProjectsSection import ProjectsSection
-from .suggest_settings import SuggestSettingsSection
-from .run_stop_section import RunStopSection  # Assuming you have a RunStopSection.py
+from .SuggestSettingsSection import SuggestSettingsSection
+from .RunStopSection import RunStopSection  # Ensure this file exists and is correctly implemented
 from shared.models.database import DatabaseManager
 
 class RodentRefreshmentGUI(QWidget):
@@ -17,7 +17,7 @@ class RodentRefreshmentGUI(QWidget):
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
 
-        self.settings = settings  # Make sure settings is stored as self.settings
+        self.settings = settings  # Ensure settings are stored as self.settings
         self.db_manager = db_manager  # Assign db_manager
         self.selected_relays = self.settings.get('selected_relays', [])
         self.num_triggers = self.settings.get('num_triggers', {})
@@ -75,7 +75,13 @@ class RodentRefreshmentGUI(QWidget):
         self.main_layout = QVBoxLayout()
 
         # Run/Stop Section
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
+        self.run_stop_section = RunStopSection(
+            self.run_program,
+            self.stop_program,
+            self.change_relay_hats_callback,
+            settings=self.settings,
+            advanced_settings=None  # Pass if applicable
+        )
         self.main_layout.addWidget(self.run_stop_section)
 
         # Upper Layout containing Projects and Suggest Settings

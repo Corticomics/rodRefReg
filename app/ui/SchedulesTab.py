@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from .RelayButton import RelayButton
+from .DragDropArea import DragDropArea  # Added Import
 from .SummaryDialog import SummaryDialog
 
 class SchedulesTab(QWidget):
