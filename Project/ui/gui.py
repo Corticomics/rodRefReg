@@ -5,8 +5,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 from .terminal_output import TerminalOutput
 from .welcome_section import WelcomeSection
-from .advanced_settings import AdvancedSettingsSection
-from .suggest_settings import SuggestSettingsSection
+from .projects_section import ProjectsSection  # New import
 from .run_stop_section import RunStopSection
 from .SlackCredentialsTab import SlackCredentialsTab
 from notifications.notifications import NotificationHandler
@@ -14,9 +13,9 @@ from notifications.notifications import NotificationHandler
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
 from settings.config import load_settings, save_settings
 
-
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
+
     def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
         super().__init__()
 
@@ -25,8 +24,8 @@ class RodentRefreshmentGUI(QWidget):
         self.change_relay_hats = change_relay_hats
 
         self.settings = settings
-        self.selected_relays = self.settings['selected_relays']
-        self.num_triggers = self.settings['num_triggers']
+        self.selected_relays = self.settings.get('selected_relays', [])
+        self.num_triggers = self.settings.get('num_triggers', {})
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
@@ -56,8 +55,7 @@ class RodentRefreshmentGUI(QWidget):
                     color: #ffffff;
                     padding: 10px;
                 }
-                QPushButton:disabled               
-                    PushButton:disabled {
+                QPushButton:disabled {
                     background-color: #cccccc;
                     color: #666666;
                 }
@@ -77,6 +75,7 @@ class RodentRefreshmentGUI(QWidget):
 
         self.main_layout = QVBoxLayout()
 
+        # Welcome Section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
@@ -85,28 +84,27 @@ class RodentRefreshmentGUI(QWidget):
         self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
         self.main_layout.addWidget(self.welcome_scroll_area)
 
+        # Toggle Welcome Button
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
+        # Upper Layout with Splitter
         self.upper_layout = QHBoxLayout()
 
         self.left_layout = QVBoxLayout()
 
-        # Use QSplitter to make the system messages section resizable
+        # Use QSplitter to make the system messages and Projects section resizable
         self.splitter = QSplitter(Qt.Vertical)
         self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        # System Messages
         self.terminal_output = TerminalOutput()
         self.splitter.addWidget(self.terminal_output)
 
-        # Create a scroll area for the Advanced Settings section
-        self.advanced_settings_scroll_area = QScrollArea()
-        self.advanced_settings_scroll_area.setWidgetResizable(True)
-
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
-        self.advanced_settings_scroll_area.setWidget(self.advanced_settings)
-        self.splitter.addWidget(self.advanced_settings_scroll_area)
+        # Projects Section
+        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal)
+        self.splitter.addWidget(self.projects_section)
 
         self.left_layout.addWidget(self.splitter)
 
@@ -120,20 +118,12 @@ class RodentRefreshmentGUI(QWidget):
 
         self.right_layout = QVBoxLayout()
 
-        # Initialize run_stop_section before SuggestSettingsSection
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
+        # Run/Stop Section
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
 
-        # Add the Suggest Settings Section (with the tab widget) directly to the layout
-        self.suggest_settings_section = SuggestSettingsSection(
-            self.settings, 
-            self.suggest_settings_callback, 
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            self.advanced_settings,
-            self.run_stop_section  # Pass run_stop_section here
-        )
-
-        self.right_layout.addWidget(self.suggest_settings_section)
+        # Suggest Settings Section (if any additional components)
+        # Assuming SuggestSettingsSection is now part of ProjectsSection
+        # Otherwise, adjust accordingly
 
         self.right_layout.addWidget(self.run_stop_section)
 
@@ -148,12 +138,9 @@ class RodentRefreshmentGUI(QWidget):
         self.main_layout.addLayout(self.upper_layout)
         self.setLayout(self.main_layout)
 
-
-    # In gui.py
     def print_to_terminal(self, message):
         """Safely print messages to the terminal."""
         self.terminal_output.print_to_terminal(message)
-
 
     def toggle_welcome_message(self):
         if self.welcome_scroll_area.isVisible():
@@ -177,7 +164,6 @@ class RodentRefreshmentGUI(QWidget):
 
         self.left_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
         self.right_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
-
     def suggest_settings_callback(self):
         """Callback for suggesting settings based on user input."""
         values = self.suggest_settings_section.suggest_tab.entries

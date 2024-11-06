@@ -7,6 +7,7 @@ from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
+from controllers.projects_controller import ProjectsController  # New import
 import time
 
 class StreamRedirector(QObject):
@@ -27,40 +28,29 @@ thread = QThread()
 worker = None
 
 def setup():
-    global relay_handler, settings, gui, notification_handler
+    global relay_handler, settings, gui, notification_handler, controller
 
-    # Prompt user for the number of relay hats
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
-    if not ok:
-        sys.exit()
+    # Initialize the Projects Controller
+    controller = ProjectsController()
 
-    # Load settings and initialize relays
+    # Load settings (if any) and initialize relays
     settings = load_settings()
-    settings['num_hats'] = num_hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)
-    
+
     # Initialize relay handler and close all relays
-    relay_handler = RelayHandler(settings['relay_pairs'], num_hats)
+    relay_handler = RelayHandler(settings.get('relay_pairs', []), settings.get('num_hats', 1))
     relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
 
     # Initialize Slack notification handler
-
-    notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
+    notification_handler = NotificationHandler(settings.get('slack_token', 'SLACKTOKEN'), settings.get('channel_id', 'ChannelId'))
 
     # Initialize GUI components
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
 
-
 def run_program(interval, stagger, window_start, window_end):
-    global thread, worker, notification_handler  # Ensure global scope for notification_handler
+    global thread, worker, notification_handler, controller  # Ensure global scope for controller
 
     try:
         print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
-
-        # Ensure settings are properly structured
-        advanced_settings = gui.advanced_settings.get_settings()
-        advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
-        settings.update(advanced_settings)
 
         # Reinitialize the thread and worker
         if thread is not None:
@@ -69,7 +59,7 @@ def run_program(interval, stagger, window_start, window_end):
         thread = QThread()
 
         # Reinitialize NotificationHandler within the worker context
-        worker_notification_handler = NotificationHandler(settings['slack_token'], settings['channel_id'])
+        worker_notification_handler = NotificationHandler(settings.get('slack_token', 'SLACKTOKEN'), settings.get('channel_id', 'ChannelId'))
 
         worker = RelayWorker(settings, relay_handler, worker_notification_handler)
         worker.moveToThread(thread)
@@ -89,7 +79,6 @@ def run_program(interval, stagger, window_start, window_end):
         print("Program Started")
     except Exception as e:
         print(f"Error running program: {e}")
-
 
 def cleanup():
     global thread, worker
@@ -125,16 +114,11 @@ def cleanup():
                 print(f"[ERROR] Error stopping thread: {e}")
 
         thread = None  # Explicitly set thread to None for reinitialization
-        gui.timer = None  # Clear the timer reference
-
-        # Reset the GUI buttons and state
-        gui.run_stop_section.job_in_progress = False
-        gui.run_stop_section.update_button_states()
+        gui.run_stop_section.reset_ui()  # Reset the run_stop_section
 
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
-
 
 def stop_program():
     global thread, worker
@@ -155,16 +139,6 @@ def stop_program():
     except Exception as e:
         print(f"Error stopping program: {e}")
 
-
-
-def create_relay_pairs(num_hats):
-    relay_pairs = []
-    for hat in range(num_hats):
-        start_relay = hat * 16 + 1
-        for i in range(0, 16, 2):
-            relay_pairs.append((start_relay + i, start_relay + i + 1))
-    return relay_pairs
-
 def change_relay_hats():
     global relay_handler, settings
 
@@ -176,33 +150,43 @@ def change_relay_hats():
     # Update the settings with the new number of relay hats
     settings['num_hats'] = num_hats
     settings['relay_pairs'] = create_relay_pairs(num_hats)
-    
+
     # Update relay handler with the new relay pairs
     relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
-    
-    # Reinitialize the advanced settings UI
-    gui.reinitialize_advanced_settings()
+
+    # Reinitialize the Projects Section
+    gui.projects_section.populate_relays()
+
+    # Reset the UI to ensure no lingering data or state
+    cleanup()
 
     # Print confirmation
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
-
+def create_relay_pairs(num_hats):
+    relay_pairs = []
+    for hat in range(num_hats):
+        start_relay = hat * 16 + 1
+        for i in range(0, 16, 2):
+            relay_pairs.append((start_relay + i, start_relay + i + 1))
+    return relay_pairs
 
 def main():
     app = QApplication(sys.argv)
-    
+
     # Call the setup function to initialize everything before starting
     setup()
 
     # Initialize StreamRedirector and connect its signal to the GUI
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
-    
+
     # Redirect stdout and stderr to the StreamRedirector
     sys.stdout = redirector
     sys.stderr = redirector
-    
+
     gui.show()
     sys.exit(app.exec_())
+
 if __name__ == "__main__":
     main()

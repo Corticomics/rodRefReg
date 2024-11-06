@@ -1,18 +1,23 @@
 import json
 import os
-from PyQt5.QtWidgets import QMessageBox
+
 def save_settings(settings):
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    with open(settings_path, 'w') as file:
-        json.dump(settings, file, indent=4)
-
+    try:
+        with open(settings_path, 'w') as file:
+            json.dump(settings, file, indent=4)
+    except Exception as e:
+        print(f"Error saving settings: {e}")
 
 def load_settings():
     settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
     if os.path.exists(settings_path):
-        with open(settings_path, 'r') as file:
-            settings = json.load(file)
-            settings['relay_pairs'] = create_relay_pairs(settings.get('num_hats', 1))
+        try:
+            with open(settings_path, 'r') as file:
+                settings = json.load(file)
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+            settings = {}
     else:
         settings = {}
 
@@ -27,19 +32,10 @@ def load_settings():
     settings.setdefault('channel_id', "ChannelId")
     settings.setdefault('num_hats', 1)
     settings.setdefault('offline_duration', 60)  # Default to 60 minutes if not set
+    settings.setdefault('animals', {})
+    settings.setdefault('schedules', [])
 
     return settings
-
-
-
-def save_settings(settings):
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
-    try:
-        with open(settings_path, 'w') as file:
-            json.dump(settings, file, indent=4)
-    except Exception as e:
-        print(f"Error saving settings (save_settings): {e}")
-
 
 def create_relay_pairs(num_hats):
     relay_pairs = []
