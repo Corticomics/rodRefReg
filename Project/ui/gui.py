@@ -1,17 +1,15 @@
-import sys
-import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
+                             QPushButton, QSplitter, QSizePolicy, QLabel)
 from PyQt5.QtCore import Qt, pyqtSignal
 
-from .terminal_output import TerminalOutput
+# Import sections for the GUI
 from .welcome_section import WelcomeSection
-from .projects_section import ProjectsSection  # New import
 from .run_stop_section import RunStopSection
-from .SlackCredentialsTab import SlackCredentialsTab
-from notifications.notifications import NotificationHandler
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
-from settings.config import load_settings, save_settings
+from .suggest_settings import SuggestSettingsSection
+from .schedules_tab import SchedulesTab
+from .animals_tab import AnimalsTab
+from .projects_section import ProjectsSection
+from settings.config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
@@ -22,20 +20,19 @@ class RodentRefreshmentGUI(QWidget):
         self.run_program = run_program
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
-
         self.settings = settings
-        self.selected_relays = self.settings.get('selected_relays', [])
-        self.num_triggers = self.settings.get('num_triggers', {})
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
 
+        # Initialize the main UI layout
         self.init_ui(style)
 
     def init_ui(self, style):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
+        # Set stylesheet if a specific style is requested
         if style == 'bitlearns':
             self.setStyleSheet("""
                 QWidget {
@@ -59,9 +56,6 @@ class RodentRefreshmentGUI(QWidget):
                     background-color: #cccccc;
                     color: #666666;
                 }
-                QPushButton:hover {
-                    background-color: #0056b3;
-                }
                 QLabel {
                     color: #343a40;
                     background-color: #ffffff;
@@ -73,94 +67,89 @@ class RodentRefreshmentGUI(QWidget):
                 }
             """)
 
-        self.main_layout = QVBoxLayout()
+        # Main layout setup
+        self.main_layout = QVBoxLayout(self)
 
-        # Welcome Section
+        # Welcome section at the top
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
         self.welcome_scroll_area.setWidget(self.welcome_section)
-        self.welcome_scroll_area.setMinimumHeight(self.height() // 2)
-        self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
         self.main_layout.addWidget(self.welcome_scroll_area)
 
-        # Toggle Welcome Button
+        # Toggle button for the welcome message
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
-        # Upper Layout with Splitter
+        # Horizontal layout for the middle content
         self.upper_layout = QHBoxLayout()
 
+        # Left side layout (messages and projects)
         self.left_layout = QVBoxLayout()
 
-        # Use QSplitter to make the system messages and Projects section resizable
-        self.splitter = QSplitter(Qt.Vertical)
-        self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # System messages section
+        self.terminal_output = QLabel("System Messages")  # Placeholder, replace with your TerminalOutput if needed
+        self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.left_layout.addWidget(self.terminal_output)
 
-        # System Messages
-        self.terminal_output = TerminalOutput()
-        self.splitter.addWidget(self.terminal_output)
-
-        # Projects Section
+        # Projects section with tabs for schedules and animals
         self.projects_section = ProjectsSection(self.settings, self.print_to_terminal)
-        self.splitter.addWidget(self.projects_section)
+        self.left_layout.addWidget(self.projects_section)
 
-        self.left_layout.addWidget(self.splitter)
-
+        # Left content with scroll
         self.left_content = QWidget()
         self.left_content.setLayout(self.left_layout)
-
         self.left_scroll = QScrollArea()
         self.left_scroll.setWidgetResizable(True)
         self.left_scroll.setWidget(self.left_content)
         self.upper_layout.addWidget(self.left_scroll)
 
+        # Right side layout for suggested settings and run/stop
         self.right_layout = QVBoxLayout()
 
-        # Run/Stop Section
+        # Suggested settings section
+        self.suggest_settings_section = SuggestSettingsSection(
+            self.settings,
+            self.suggest_settings_callback,
+            self.push_settings_callback,
+            self.save_slack_credentials_callback
+        )
+        self.right_layout.addWidget(self.suggest_settings_section)
+
+        # Run/Stop section
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
-
-        # Suggest Settings Section (if any additional components)
-        # Assuming SuggestSettingsSection is now part of ProjectsSection
-        # Otherwise, adjust accordingly
-
         self.right_layout.addWidget(self.run_stop_section)
 
+        # Right content with scroll
         self.right_content = QWidget()
         self.right_content.setLayout(self.right_layout)
-
         self.right_scroll = QScrollArea()
         self.right_scroll.setWidgetResizable(True)
         self.right_scroll.setWidget(self.right_content)
         self.upper_layout.addWidget(self.right_scroll)
 
+        # Add upper layout to main layout
         self.main_layout.addLayout(self.upper_layout)
-        self.setLayout(self.main_layout)
 
     def print_to_terminal(self, message):
-        """Safely print messages to the terminal."""
-        self.terminal_output.print_to_terminal(message)
+        """Display messages in the system message section."""
+        self.terminal_output.setText(message)  # Replace with .append() if using QTextEdit
 
     def toggle_welcome_message(self):
-        if self.welcome_scroll_area.isVisible():
-            self.welcome_scroll_area.setVisible(False)
-            self.toggle_welcome_button.setText("Show Welcome Message and Instructions")
-        else:
-            self.welcome_scroll_area.setVisible(True)
-            self.toggle_welcome_button.setText("Hide Welcome Message")
-        self.adjust_ui()
+        """Show or hide the welcome section."""
+        visible = self.welcome_scroll_area.isVisible()
+        self.welcome_scroll_area.setVisible(not visible)
+        self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
 
-    def adjust_ui(self):
-        if self.welcome_scroll_area.isVisible():
-            self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
-            self.welcome_scroll_area.setMinimumHeight(self.height() // 2)
-        else:
-            self.welcome_scroll_area.setMaximumHeight(0)
-            self.welcome_scroll_area.setMinimumHeight(0)
+    def suggest_settings_callback(self):
+        # Implement suggested settings logic here
+        print("Suggested settings applied.")
 
-        self.left_scroll.setMaximumHeight(self.height() - self.welcome_scroll_area.maximumHeight() - self.toggle_welcome_button.height())
-        self.right_scroll.setMaximumHeight(self.height() - self.welcome_scroll_area.maximumHeight() - self.toggle_welcome_button.height())
+    def push_settings_callback(self):
+        # Implement push settings logic here
+        print("Settings pushed.")
 
-        self.left_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
-        self.right_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
+    def save_slack_credentials_callback(self):
+        # Implement Slack credentials saving here
+        print("Slack credentials saved.")
