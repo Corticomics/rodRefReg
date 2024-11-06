@@ -229,7 +229,7 @@ class AnimalsTab(QWidget):
         animals = self.settings.get('animals', {})
         for animal_id, info in animals.items():
             display_text = f"ID: {animal_id} | Name: {info.get('name', '')} | Last Watered: {info.get('last_weighted', '')} | Last Weight: {info.get('last_weight', '')}g"
-            item = QListWidget.QListWidgetItem(display_text)
+            item = QListWidgetItem(display_text)  # Corrected line
             item.setData(Qt.UserRole, animal_id)
             self.animals_list.addItem(item)
 
