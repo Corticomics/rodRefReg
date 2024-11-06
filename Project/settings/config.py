@@ -23,20 +23,17 @@ def load_settings():
 
     # Set default values for settings if they are not already set
     settings.setdefault('interval', 3600)
-    settings.setdefault('stagger', 1)
-    settings.setdefault('window_start', 8)
-    settings.setdefault('window_end', 20)
+    settings.setdefault('stagger', 1.0)  # Changed to float
     settings.setdefault('selected_relays', [])
     settings.setdefault('num_triggers', {})
     settings.setdefault('slack_token', "SLACKTOKEN")
     settings.setdefault('channel_id', "ChannelId")
     settings.setdefault('num_hats', 1)
-    settings.setdefault('offline_duration', 60)  # Default to 60 minutes if not set
+    settings.setdefault('offline_duration', 60.0)  # Changed to float if needed
     settings.setdefault('animals', {})
     settings.setdefault('schedules', [])
 
     return settings
-
 def create_relay_pairs(num_hats):
     relay_pairs = []
     for hat in range(num_hats):

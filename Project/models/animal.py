@@ -2,8 +2,8 @@ class Animal:
     def __init__(self, animal_id, name, initial_weight, last_weight, last_weighted):
         self.animal_id = animal_id
         self.name = name
-        self.initial_weight = initial_weight
-        self.last_weight = last_weight
+        self.initial_weight = initial_weight  # Now a float
+        self.last_weight = last_weight        # Now a float
         self.last_weighted = last_weighted
 
     def to_dict(self):

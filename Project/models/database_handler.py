@@ -19,13 +19,13 @@ class DatabaseHandler:
         conn = self.connect()
         cursor = conn.cursor()
 
-        # Create animals table
+        # Create animals table with weights as REAL
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS animals (
-                animal_id INTEGER PRIMARY KEY,
+                animal_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                initial_weight INTEGER,
-                last_weight INTEGER,
+                initial_weight REAL,
+                last_weight REAL,
                 last_weighted TEXT
             )
         ''')
@@ -33,7 +33,7 @@ class DatabaseHandler:
         # Create schedules table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS schedules (
-                schedule_id INTEGER PRIMARY KEY,
+                schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 relay TEXT NOT NULL,
                 animals TEXT NOT NULL  -- Comma-separated animal IDs
