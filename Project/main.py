@@ -8,6 +8,7 @@ from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 from controllers.projects_controller import ProjectsController  # New import
+from models.database_handler import DatabaseHandler  # New import
 import time
 
 class StreamRedirector(QObject):
@@ -28,10 +29,11 @@ thread = QThread()
 worker = None
 
 def setup():
-    global relay_handler, settings, gui, notification_handler, controller
+    global relay_handler, settings, gui, notification_handler, controller, database_handler
 
-    # Initialize the Projects Controller
+    # Initialize the Projects Controller and Database Handler
     controller = ProjectsController()
+    database_handler = DatabaseHandler()
 
     # Load settings (if any) and initialize relays
     settings = load_settings()
@@ -43,8 +45,8 @@ def setup():
     # Initialize Slack notification handler
     notification_handler = NotificationHandler(settings.get('slack_token', 'SLACKTOKEN'), settings.get('channel_id', 'ChannelId'))
 
-    # Initialize GUI components
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings)
+    # Initialize GUI components and pass the database handler to it
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, database_handler=database_handler)
 
 def run_program(interval, stagger, window_start, window_end):
     global thread, worker, notification_handler, controller  # Ensure global scope for controller

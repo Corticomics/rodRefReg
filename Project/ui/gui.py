@@ -9,18 +9,18 @@ from .suggest_settings import SuggestSettingsSection
 from .schedules_tab import SchedulesTab
 from .animals_tab import AnimalsTab
 from .projects_section import ProjectsSection
-from settings.config import load_settings
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
-    def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
+    def __init__(self, run_program, stop_program, change_relay_hats, settings, database_handler, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
         self.settings = settings
+        self.database_handler = database_handler  # Pass database handler to be used in ProjectsSection
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
@@ -94,7 +94,7 @@ class RodentRefreshmentGUI(QWidget):
         self.left_layout.addWidget(self.terminal_output)
 
         # Projects section with tabs for schedules and animals
-        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal)
+        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler)
         self.left_layout.addWidget(self.projects_section)
 
         # Left content with scroll
@@ -143,13 +143,10 @@ class RodentRefreshmentGUI(QWidget):
         self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
 
     def suggest_settings_callback(self):
-        # Implement suggested settings logic here
         print("Suggested settings applied.")
 
     def push_settings_callback(self):
-        # Implement push settings logic here
         print("Settings pushed.")
 
     def save_slack_credentials_callback(self):
-        # Implement Slack credentials saving here
         print("Slack credentials saved.")

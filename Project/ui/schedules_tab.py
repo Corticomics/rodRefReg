@@ -1,20 +1,17 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                             QListWidget, QDialog, QLabel, QFormLayout, QGroupBox)
-from PyQt5.QtCore import Qt, QMimeData
-from PyQt5.QtGui import QDrag
-from .drag_drop_container import DragDropContainer  # Import a new container for drag-and-drop functionality
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QLabel, QDialog
+from .drag_drop_container import DragDropContainer
 
 class SchedulesTab(QWidget):
     def __init__(self, settings, database_handler):
         super().__init__()
         self.settings = settings
-        self.database_handler = database_handler
+        self.database_handler = database_handler  # Set database_handler here
 
         self.layout = QVBoxLayout(self)
         self.setup_ui()
 
     def setup_ui(self):
-        # Available Schedules list and buttons
+        # Available schedules list and buttons
         self.schedules_list = QListWidget()
         self.layout.addWidget(QLabel("Available Schedules"))
         self.layout.addWidget(self.schedules_list)
@@ -22,7 +19,7 @@ class SchedulesTab(QWidget):
         # Load existing schedules
         self.load_schedules()
 
-        # Add Open and Create Schedule buttons
+        # Open and create schedule buttons
         button_layout = QHBoxLayout()
         open_button = QPushButton("Open Schedule")
         open_button.clicked.connect(self.open_schedule)
@@ -33,6 +30,7 @@ class SchedulesTab(QWidget):
         self.layout.addLayout(button_layout)
 
     def load_schedules(self):
+        # Use database_handler to get schedules
         self.schedules_list.clear()
         schedules = self.database_handler.get_all_schedules()
         for schedule in schedules:
@@ -40,20 +38,18 @@ class SchedulesTab(QWidget):
 
     def open_schedule(self):
         selected_item = self.schedules_list.currentItem()
-        if not selected_item:
-            return
-        schedule_id = int(selected_item.text().split(":")[1].strip().split(" - ")[0])
-        schedule = self.database_handler.get_schedule(schedule_id)
-        self.show_schedule_dialog(schedule, edit_mode=True)
+        if selected_item:
+            schedule_id = int(selected_item.text().split(":")[1].strip().split(" - ")[0])
+            schedule = self.database_handler.get_schedule(schedule_id)
+            self.show_schedule_dialog(schedule, edit_mode=True)
 
     def create_schedule(self):
-        # Open the dialog to create a new schedule
         self.show_schedule_dialog(edit_mode=False)
 
     def show_schedule_dialog(self, schedule=None, edit_mode=False):
         dialog = ScheduleDialog(self.database_handler, schedule, edit_mode)
         if dialog.exec_() == QDialog.Accepted:
-            self.load_schedules()  # Reload the schedules after any change
+            self.load_schedules()  # Reload schedules if changes were made
 
 
 class ScheduleDialog(QDialog):
