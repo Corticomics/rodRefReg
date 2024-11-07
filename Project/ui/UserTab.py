@@ -48,8 +48,9 @@ class UserTab(QWidget):
         self.logout_button.setVisible(False)
         self.layout.addWidget(self.logout_button)
 
+
     def handle_login(self):
-        """Handle the login process with error handling."""
+        """Handle the login process with error handling and validation."""
         try:
             username = self.username_input.text().strip()
             password = self.password_input.text().strip()
@@ -58,21 +59,21 @@ class UserTab(QWidget):
                 QMessageBox.warning(self, "Input Required", "Please enter both username and password.")
                 return
 
-            # Authenticate the user and print debug information
+            # Authenticate the user
             user_info = self.login_system.authenticate(username, password)
             if not user_info:
                 QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
                 return
 
-            # Check if user_info has the necessary structure
-            if 'username' not in user_info or 'trainer_id' not in user_info:
-                QMessageBox.critical(self, "Login Error", "User information is incomplete.")
-                print(f"Debug: Received user_info with structure: {user_info}")
+            # Ensure that user_info contains valid data
+            if not isinstance(user_info, dict) or 'username' not in user_info or 'trainer_id' not in user_info:
+                QMessageBox.critical(self, "Login Error", "Invalid user information received.")
+                print(f"Debug: Received invalid user_info: {user_info}")
                 return
 
-            # If structure is correct, set the user
+            # Set the user and emit login signal
             self.set_user(user_info)
-            self.login_signal.emit(user_info)  # Emit login signal
+            self.login_signal.emit(user_info)
 
         except Exception as e:
             QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {str(e)}")

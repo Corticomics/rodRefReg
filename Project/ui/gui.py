@@ -170,15 +170,23 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal(f"Error adjusting window size: {e}")
             QMessageBox.critical(self, "Window Size Error", f"An unexpected error occurred while adjusting window size: {e}")
 
+
     def on_login(self, user):
         """Callback for handling user login with error handling."""
         try:
+            # Validate user information
+            if not isinstance(user, dict) or 'trainer_name' not in user or 'trainer_id' not in user:
+                raise ValueError("Invalid user information received during login.")
+
+            # Proceed with setting current_user
             self.current_user = user
             self.print_to_terminal(f"Logged in as: {user['trainer_name']}")
             self.load_animals_tab(trainer_id=user['trainer_id'])
-        except KeyError as e:
-            self.print_to_terminal(f"Data error: missing key {e} in user data.")
-            QMessageBox.critical(self, "Login Data Error", f"Error accessing user data: missing key {e}")
+
+        except ValueError as ve:
+            self.print_to_terminal(f"Data error during login: {ve}")
+            QMessageBox.critical(self, "Login Data Error", f"Error accessing user data: {ve}")
+
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during login: {e}")
             QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {e}")

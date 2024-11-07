@@ -15,39 +15,59 @@ class LoginSystem:
         print("Running in Guest mode. Displaying all data.")
 
     def login(self, trainer_id):
-        """Attempt to log in a trainer by their ID."""
-        trainer = self.database_handler.get_trainer_by_id(trainer_id)
-        if trainer:
-            self.current_trainer = trainer
-            print(f"Trainer '{trainer['username']}' logged in successfully.")
-            return True
-        else:
-            print("Invalid trainer ID.")
+        """Attempt to log in a trainer by their ID, with error handling."""
+        try:
+            trainer = self.database_handler.get_trainer_by_id(trainer_id)
+            if trainer:
+                self.current_trainer = trainer
+                print(f"Trainer '{trainer['username']}' logged in successfully.")
+                return True
+            else:
+                print("Invalid trainer ID.")
+                return False
+        except Exception as e:
+            print(f"Error during login: {e}")
             return False
 
     def logout(self):
         """Log out the current trainer and switch to 'Guest' mode."""
-        self.current_trainer = None
-        print("Trainer logged out. Switched to Guest mode.")
+        try:
+            self.current_trainer = None
+            print("Trainer logged out. Switched to Guest mode.")
+        except Exception as e:
+            print(f"Error during logout: {e}")
 
     def get_current_trainer(self):
         """Return the current trainer or None if in Guest mode."""
         return self.current_trainer
 
     def authenticate(self, username, password):
-        """Authenticate a trainer by username and password."""
-        trainer_id = self.database_handler.authenticate_trainer(username, password)
-        if trainer_id:
-            self.login(trainer_id)
-            return self.current_trainer
-        return None
+        """Authenticate a trainer by username and password, with error handling."""
+        try:
+            trainer_id = self.database_handler.authenticate_trainer(username, password)
+            if trainer_id:
+                login_successful = self.login(trainer_id)
+                if login_successful:
+                    return self.current_trainer
+                else:
+                    print("Login failed after authentication.")
+            else:
+                print("Authentication failed: invalid username or password.")
+            return None
+        except Exception as e:
+            print(f"Error during authentication: {e}")
+            return None
 
     def create_user(self, username, password):
-        """Create a new trainer profile."""
-        success = self.database_handler.add_trainer(username, password)
-        if success:
-            print(f"Trainer '{username}' created successfully.")
-            return True
-        else:
-            print(f"Failed to create trainer '{username}'. Username may already exist.")
+        """Create a new trainer profile, with error handling."""
+        try:
+            success = self.database_handler.add_trainer(username, password)
+            if success:
+                print(f"Trainer '{username}' created successfully.")
+                return True
+            else:
+                print(f"Failed to create trainer '{username}'. Username may already exist.")
+                return False
+        except Exception as e:
+            print(f"Error during user creation: {e}")
             return False
