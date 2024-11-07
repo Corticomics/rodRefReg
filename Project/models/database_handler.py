@@ -2,7 +2,8 @@
 
 import sqlite3
 from models.animal import Animal
-
+import hashlib
+import os
 class DatabaseHandler:
     def __init__(self, db_path='rrr_database.db'):
         self.db_path = db_path
@@ -23,9 +24,10 @@ class DatabaseHandler:
             # Create trainers table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS trainers (
-                    trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    trainer_name TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL
+                trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trainer_name TEXT UNIQUE NOT NULL,
+                salt TEXT NOT NULL,
+                password TEXT NOT NULL
                 )
             ''')
 
@@ -58,16 +60,34 @@ class DatabaseHandler:
             print(f"Database error during table creation: {e}")
 
     def authenticate_trainer(self, trainer_name, password):
-        """Authenticate a trainer by username and password."""
+        """Authenticate a trainer by username and password using salted SHA-256 hashing."""
         try:
             conn = self.connect()
             cursor = conn.cursor()
-            cursor.execute('SELECT trainer_id FROM trainers WHERE trainer_name = ? AND password = ?', (trainer_name, password))
+            
+            # Retrieve the stored salt and hashed password
+            cursor.execute('SELECT salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
             result = cursor.fetchone()
-            return result[0] if result else None
+
+            if result:
+                salt, stored_hashed_password = result
+
+                # Hash the provided password with the retrieved salt
+                hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+
+                # Compare the hashes
+                if hashed_password == stored_hashed_password:
+                    print("Authentication successful.")
+                    return True
+                else:
+                    print("Authentication failed.")
+                    return False
+            else:
+                print("Trainer not found.")
+                return False
         except sqlite3.Error as e:
             print(f"Error authenticating trainer: {e}")
-            return None
+            return False
 
     def add_animal(self, animal, trainer_id):
         """Add a new animal with lab_animal_id and trainer association."""
@@ -167,17 +187,24 @@ class DatabaseHandler:
             print(f"Error retrieving animals: {e}")
         return animals
 
+
     def add_trainer(self, trainer_name, password):
-        """Add a new trainer to the database."""
+        """Add a new trainer to the database with salted SHA-256 hashed password."""
         try:
+            # Generate a unique salt
+            salt = os.urandom(16).hex()
+            
+            # Hash the password with the salt
+            hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+
             conn = self.connect()
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO trainers (trainer_name, password)
-                VALUES (?, ?)
-            ''', (trainer_name, password))
+                INSERT INTO trainers (trainer_name, salt, password)
+                VALUES (?, ?, ?)
+            ''', (trainer_name, salt, hashed_password))
             conn.commit()
-            print(f"Trainer '{trainer_name}' added successfully.")
+            print(f"Trainer '{trainer_name}' added successfully with a hashed password.")
             return True
         except sqlite3.IntegrityError:
             print(f"Error: Trainer '{trainer_name}' already exists.")
@@ -185,6 +212,27 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             print(f"Database error when adding trainer '{trainer_name}': {e}")
             return False
+        
+    def get_trainer_by_id(self, trainer_id):
+        """Retrieve a trainer's information based on their trainer ID."""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('SELECT trainer_id, trainer_name FROM trainers WHERE trainer_id = ?', (trainer_id,))
+            row = cursor.fetchone()
+            if row:
+                trainer_info = {
+                    'trainer_id': row[0],
+                    'username': row[1]
+                }
+                print(f"Trainer found: {trainer_info}")
+                return trainer_info
+            else:
+                print(f"No trainer found with ID {trainer_id}")
+                return None
+        except sqlite3.Error as e:
+            print(f"Database error retrieving trainer by ID {trainer_id}: {e}")
+            return None
 
     def close(self):
         """Close the database connection."""
