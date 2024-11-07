@@ -1,3 +1,5 @@
+# models/database_handler.py
+
 import sqlite3
 from models.animal import Animal
 
@@ -27,7 +29,7 @@ class DatabaseHandler:
                 )
             ''')
 
-            # Create animals table with a trainer reference
+            # Create animals table with trainer reference
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS animals (
                     ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +70,7 @@ class DatabaseHandler:
             return None
 
     def add_animal(self, animal, trainer_id):
-        """Add a new animal to the database with a manual lab_animal_id and trainer association."""
+        """Add a new animal with lab_animal_id and trainer association."""
         try:
             conn = self.connect()
             cursor = conn.cursor()
