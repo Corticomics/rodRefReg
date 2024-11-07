@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from models.animal import Animal
 
 class DatabaseHandler:
@@ -15,15 +14,15 @@ class DatabaseHandler:
         return self.connection
 
     def create_tables(self):
-        """Create the necessary tables if they don't exist."""
+        """Create necessary tables if they don't exist."""
         conn = self.connect()
         cursor = conn.cursor()
-
         try:
-            # Create animals table with weights as REAL
+            # Create animals table with user-defined animal_id as 'lab_animal_id'
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS animals (
-                    animal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                    lab_animal_id TEXT UNIQUE NOT NULL,  -- User-defined animal ID
                     name TEXT NOT NULL,
                     initial_weight REAL,
                     last_weight REAL,
@@ -46,72 +45,97 @@ class DatabaseHandler:
             print(f"Database error during table creation: {e}")
 
     def add_animal(self, animal):
-        """Add a new animal to the database."""
+        """Add a new animal to the database with manual lab_animal_id."""
         try:
             conn = self.connect()
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO animals (name, initial_weight, last_weight, last_weighted)
-                VALUES (?, ?, ?, ?)
-            ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted))
+                INSERT INTO animals (lab_animal_id, name, initial_weight, last_weight, last_weighted)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted))
             conn.commit()
-            print(f"Animal '{animal.name}' added with ID: {cursor.lastrowid}")
+            print(f"Animal '{animal.name}' added with lab ID: {animal.lab_animal_id}")
             return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            print(f"Error: Animal ID '{animal.lab_animal_id}' already exists.")
+            return None
         except sqlite3.Error as e:
             print(f"Database error when adding animal: {e}")
             return None
 
-    def remove_animal(self, animal_id):
-        """Remove an animal from the database."""
+    def remove_animal(self, lab_animal_id):
+        """
+        Removes an animal from the database based on its lab_animal_id.
+        
+        Args:
+            lab_animal_id (str): The lab-specific animal ID to remove.
+        """
         try:
             conn = self.connect()
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM animals WHERE animal_id = ?', (animal_id,))
+            cursor.execute('DELETE FROM animals WHERE lab_animal_id = ?', (lab_animal_id,))
+            if cursor.rowcount > 0:
+                print(f"Animal with lab ID {lab_animal_id} removed.")
+            else:
+                print(f"No animal found with lab ID {lab_animal_id}.")
             conn.commit()
-            print(f"Animal with ID {animal_id} removed.")
         except sqlite3.Error as e:
-            print(f"Database error when removing animal: {e}")
+            print(f"Error removing animal with lab ID {lab_animal_id}: {e}")
 
     def update_animal(self, animal):
-        """Update an existing animal's information."""
+        """
+        Updates an existing animal's information in the database.
+        
+        Args:
+            animal (Animal): The animal object with updated information.
+        """
         try:
             conn = self.connect()
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE animals
                 SET name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?
-                WHERE animal_id = ?
-            ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.animal_id))
+                WHERE lab_animal_id = ?
+            ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.lab_animal_id))
+            if cursor.rowcount > 0:
+                print(f"Animal with lab ID {animal.lab_animal_id} updated.")
+            else:
+                print(f"No animal found with lab ID {animal.lab_animal_id} to update.")
             conn.commit()
-            print(f"Animal with ID {animal.animal_id} updated.")
         except sqlite3.Error as e:
-            print(f"Database error when updating animal: {e}")
+            print(f"Error updating animal with lab ID {animal.lab_animal_id}: {e}")
 
     def get_all_animals(self):
-        """Retrieve all animals from the database."""
+        """
+        Retrieves all animals from the database.
+        
+        Returns:
+            list[Animal]: A list of Animal objects retrieved from the database.
+        """
+        animals = []
         try:
             conn = self.connect()
             cursor = conn.cursor()
-            cursor.execute('SELECT * FROM animals')
+            cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
             rows = cursor.fetchall()
-            animals = []
             for row in rows:
                 animal = Animal(
-                    animal_id=row[0],
-                    name=row[1],
-                    initial_weight=row[2],
-                    last_weight=row[3],
-                    last_weighted=row[4]
+                    id=row[0],  # Primary key ID
+                    lab_animal_id=row[1],
+                    name=row[2],
+                    initial_weight=row[3],
+                    last_weight=row[4],
+                    last_weighted=row[5]
                 )
                 animals.append(animal)
             print(f"Retrieved {len(animals)} animals from the database.")
-            return animals
         except sqlite3.Error as e:
-            print(f"Database error when retrieving animals: {e}")
-            return []
+            print(f"Error retrieving animals: {e}")
+        return animals
 
     def close(self):
         """Close the database connection."""
         if self.connection:
             self.connection.close()
             self.connection = None
+            print("Database connection closed.")
