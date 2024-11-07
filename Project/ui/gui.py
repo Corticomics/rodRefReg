@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-                             QPushButton, QSplitter, QSizePolicy, QLabel)
+                             QPushButton, QSplitter, QSizePolicy, QPlainTextEdit)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 # Import sections for the GUI
@@ -88,8 +88,9 @@ class RodentRefreshmentGUI(QWidget):
         # Left side layout (messages and projects)
         self.left_layout = QVBoxLayout()
 
-        # System messages section
-        self.terminal_output = QLabel("System Messages")  # Placeholder, replace with your TerminalOutput if needed
+        # System messages section - Updated to use QPlainTextEdit
+        self.terminal_output = QPlainTextEdit()  # Use QPlainTextEdit for real-time output
+        self.terminal_output.setReadOnly(True)
         self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.left_layout.addWidget(self.terminal_output)
 
@@ -137,7 +138,7 @@ class RodentRefreshmentGUI(QWidget):
 
     def print_to_terminal(self, message):
         """Display messages in the system message section."""
-        self.terminal_output.setText(message)  # Replace with .append() if using QTextEdit
+        self.terminal_output.appendPlainText(message)  # Updated to append messages
 
     def toggle_welcome_message(self):
         """Show or hide the welcome section."""

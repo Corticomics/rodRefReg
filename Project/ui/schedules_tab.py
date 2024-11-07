@@ -1,115 +1,110 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QLabel, QDialog
-from .drag_drop_container import DragDropContainer
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QLabel,
+                             QLineEdit, QPushButton, QMessageBox, QDialog, QFormLayout, QListWidgetItem)
+from PyQt5.QtCore import Qt
 
 class SchedulesTab(QWidget):
-    def __init__(self, settings, database_handler):
+    def __init__(self, settings, print_to_terminal, database_handler):
         super().__init__()
+
         self.settings = settings
-        self.database_handler = database_handler  # Set database_handler here
-
-        self.layout = QVBoxLayout(self)
-        self.setup_ui()
-
-    def setup_ui(self):
-        # Available schedules list and buttons
-        self.schedules_list = QListWidget()
-        self.layout.addWidget(QLabel("Available Schedules"))
-        self.layout.addWidget(self.schedules_list)
-
-        # Load existing schedules
-        self.load_schedules()
-
-        # Open and create schedule buttons
-        button_layout = QHBoxLayout()
-        open_button = QPushButton("Open Schedule")
-        open_button.clicked.connect(self.open_schedule)
-        create_button = QPushButton("Create Schedule")
-        create_button.clicked.connect(self.create_schedule)
-        button_layout.addWidget(open_button)
-        button_layout.addWidget(create_button)
-        self.layout.addLayout(button_layout)
-
-    def load_schedules(self):
-        # Use database_handler to get schedules
-        self.schedules_list.clear()
-        schedules = self.database_handler.get_all_schedules()
-        for schedule in schedules:
-            self.schedules_list.addItem(f"Schedule ID: {schedule['schedule_id']} - {schedule['name']}")
-
-    def open_schedule(self):
-        selected_item = self.schedules_list.currentItem()
-        if selected_item:
-            schedule_id = int(selected_item.text().split(":")[1].strip().split(" - ")[0])
-            schedule = self.database_handler.get_schedule(schedule_id)
-            self.show_schedule_dialog(schedule, edit_mode=True)
-
-    def create_schedule(self):
-        self.show_schedule_dialog(edit_mode=False)
-
-    def show_schedule_dialog(self, schedule=None, edit_mode=False):
-        dialog = ScheduleDialog(self.database_handler, schedule, edit_mode)
-        if dialog.exec_() == QDialog.Accepted:
-            self.load_schedules()  # Reload schedules if changes were made
-
-
-class ScheduleDialog(QDialog):
-    def __init__(self, database_handler, schedule=None, edit_mode=False):
-        super().__init__()
+        self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
-        self.schedule = schedule or {}
-        self.edit_mode = edit_mode
-        self.setup_ui()
 
-    def setup_ui(self):
-        self.setWindowTitle("Edit Schedule" if self.edit_mode else "Create Schedule")
-        layout = QVBoxLayout(self)
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
 
-        # Display relay containers as bins
-        relays_layout = QHBoxLayout()
-        relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]
+        # Animal List - displays animals from the database
+        self.animal_list = QListWidget()
+        self.animal_list.setDragEnabled(True)
+        self.layout.addWidget(QLabel("Available Animals"))
+        self.layout.addWidget(self.animal_list)
+
+        # Load animals from the database
+        self.load_animals()
+
+        # Relay containers for animals
+        self.relay_layout = QHBoxLayout()
         self.relay_containers = {}
+        
+        # Assume we have 4 relay pairs for demonstration
+        for relay_id in range(1, 5):
+            container = QListWidget()
+            container.setAcceptDrops(True)
+            container.setDragDropMode(QListWidget.InternalMove)
+            container.setObjectName(f"Relay {relay_id}")
+            self.relay_containers[relay_id] = container
 
-        for pair in relay_pairs:
-            container = DragDropContainer(pair)
-            container.setTitle(f"Relay {pair[0]} & {pair[1]}")
-            self.relay_containers[pair] = container
-            relays_layout.addWidget(container)
+            relay_layout = QVBoxLayout()
+            relay_layout.addWidget(QLabel(f"Relay {relay_id}"))
+            relay_layout.addWidget(container)
+            self.relay_layout.addLayout(relay_layout)
 
-        layout.addLayout(relays_layout)
+        self.layout.addLayout(self.relay_layout)
 
-        # Add Save/Cancel buttons
-        button_layout = QHBoxLayout()
-        save_button = QPushButton("Save" if self.edit_mode else "Create")
-        save_button.clicked.connect(self.save_schedule)
-        cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(self.reject)
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(cancel_button)
-        layout.addLayout(button_layout)
+        # Button to finalize schedule and enter water quantities
+        self.finalize_button = QPushButton("Finalize Schedule")
+        self.finalize_button.clicked.connect(self.finalize_schedule)
+        self.layout.addWidget(self.finalize_button)
 
-        # If editing, load animals into containers
-        if self.edit_mode and self.schedule:
-            self.load_animals_into_containers(self.schedule)
+    def load_animals(self):
+        """Load animals from the database and add them to the animal list."""
+        animals = self.database_handler.get_all_animals()
+        for animal in animals:
+            item = QListWidgetItem(f"{animal['id']} - {animal['name']}")
+            item.setData(Qt.UserRole, animal)
+            self.animal_list.addItem(item)
 
-    def load_animals_into_containers(self, schedule):
-        for relay, animals in schedule.get("relay_assignments", {}).items():
-            for animal_id in animals:
-                animal_name = f"Animal {animal_id}"  # Placeholder; fetch the real name if available
-                self.relay_containers[relay].add_animal(animal_name, animal_id)
-
-    def save_schedule(self):
-        # Collect relay assignments
+    def finalize_schedule(self):
+        """Finalize schedule by prompting for water quantities per relay."""
         relay_assignments = {}
-        for relay_pair, container in self.relay_containers.items():
-            relay_assignments[relay_pair] = container.get_animal_ids()
 
-        # Save schedule
-        new_schedule = {
-            "name": self.schedule.get("name", "Unnamed Schedule"),
-            "relay_assignments": relay_assignments
-        }
-        if self.edit_mode:
-            self.database_handler.update_schedule(self.schedule['schedule_id'], new_schedule)
-        else:
-            self.database_handler.add_schedule(new_schedule)
-        self.accept()
+        for relay_id, container in self.relay_containers.items():
+            relay_assignments[relay_id] = []
+            for i in range(container.count()):
+                item = container.item(i)
+                animal = item.data(Qt.UserRole)
+                relay_assignments[relay_id].append(animal)
+
+        # Open water quantity dialog for each relay
+        self.enter_water_quantities(relay_assignments)
+
+    def enter_water_quantities(self, relay_assignments):
+        """Open a dialog to enter water quantity per relay."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Enter Water Quantities")
+        form_layout = QFormLayout(dialog)
+
+        water_inputs = {}
+
+        # Recommended values for water quantity
+        WATER_MIN = 5  # mL
+        WATER_MAX = 10  # mL
+
+        for relay_id, animals in relay_assignments.items():
+            if animals:
+                input_field = QLineEdit()
+                input_field.setPlaceholderText(f"Recommended: {WATER_MIN}-{WATER_MAX} mL")
+                water_inputs[relay_id] = input_field
+                form_layout.addRow(f"Relay {relay_id}:", input_field)
+
+        submit_button = QPushButton("Submit")
+        submit_button.clicked.connect(lambda: self.validate_water_inputs(water_inputs, WATER_MIN, WATER_MAX, dialog))
+        form_layout.addWidget(submit_button)
+
+        dialog.setLayout(form_layout)
+        dialog.exec_()
+
+    def validate_water_inputs(self, water_inputs, min_val, max_val, dialog):
+        """Validate water inputs and display warnings if out of bounds."""
+        for relay_id, input_field in water_inputs.items():
+            try:
+                water_amount = float(input_field.text())
+                if not (min_val <= water_amount <= max_val):
+                    QMessageBox.warning(self, "Water Amount Warning",
+                                        f"Relay {relay_id} water amount is outside recommended range ({min_val}-{max_val} mL).")
+            except ValueError:
+                QMessageBox.critical(self, "Invalid Input", f"Please enter a valid number for Relay {relay_id}.")
+                return  # Exit if any input is invalid
+
+        QMessageBox.information(self, "Schedule Saved", "Schedule and water quantities have been saved.")
+        dialog.accept()  # Close the dialog if inputs are valid
