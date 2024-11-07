@@ -7,7 +7,7 @@ from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
 from .suggest_settings import SuggestSettingsSection
 from .projects_section import ProjectsSection
-from .user_icon import UserIcon  # Import UserIcon for login functionality
+from .UserIcon import UserIcon  # Import UserIcon for login functionality
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
