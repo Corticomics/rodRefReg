@@ -17,7 +17,7 @@ class UserIcon(QLabel):
         self.login_system = login_system
         self.trainer_id = None  # Holds the logged-in trainer ID
         
-        self.setPixmap(QIcon("path_to_user_icon.png").pixmap(32, 32))  # Adjust icon path and size
+        self.setPixmap(QIcon("/ui/src/user-circle-2-svgrepo-com.svg").pixmap(32, 32))  # Adjust icon path and size
         self.setAlignment(Qt.AlignRight)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("User Options")
