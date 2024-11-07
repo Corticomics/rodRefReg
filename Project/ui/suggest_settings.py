@@ -56,15 +56,18 @@ class SuggestSettingsSection(QWidget):
         self.dashboard_layout.addWidget(self.saved_settings_list)
         # Additional dashboard components as needed
 
+
     def on_login(self, user_info):
-        """Handles updating UI on user login."""
+        """Updates the Profile tab after login."""
         self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), user_info['username'])
-        QMessageBox.information(self, "Login Success", f"Welcome, {user_info['username']}!")
+        self.user_tab.set_minimal_profile_view(user_info['username'])
+        self.adjust_window_size()
 
     def on_logout(self):
-        """Handles updating UI on user logout."""
+        """Reverts the Profile tab to guest mode after logout."""
         self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), "Profile")
-        QMessageBox.information(self, "Logged Out", "You have been logged out.")
+        self.user_tab.set_guest_view()
+        self.adjust_window_size()
 
     def save_settings(self):
         try:

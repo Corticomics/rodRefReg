@@ -104,6 +104,27 @@ class UserTab(QWidget):
             QMessageBox.critical(self, "Data Error", f"Missing user information: {str(e)}")
         except Exception as e:
             QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
+            # In UserTab class
+
+    def set_minimal_profile_view(self, username):
+        """Sets a minimal view for logged-in users."""
+        self.info_label.setText(f"Logged in as: {username}")
+        self.username_input.hide()
+        self.password_input.hide()
+        self.login_button.hide()
+        self.create_profile_button.hide()
+        self.logout_button.show()
+        self.setFixedSize(self.sizeHint())
+
+    def set_guest_view(self):
+        """Resets the view for guest mode."""
+        self.info_label.setText("You are running the application in Guest mode.")
+        self.username_input.show()
+        self.password_input.show()
+        self.login_button.show()
+        self.create_profile_button.show()
+        self.logout_button.hide()
+        self.setFixedSize(self.sizeHint())
 
     def logout(self):
         """Logs out the user with error handling."""

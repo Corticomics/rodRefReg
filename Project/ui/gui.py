@@ -114,6 +114,7 @@ class RodentRefreshmentGUI(QWidget):
         # Right layout (suggested settings and run/stop)
         self.right_layout = QVBoxLayout()
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
+        # Inside the __init__ method of RodentRefreshmentGUI, after setting up suggest_settings_section
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
             self.suggest_settings_callback,
@@ -123,8 +124,16 @@ class RodentRefreshmentGUI(QWidget):
             run_stop_section=self.run_stop_section,
             login_system=self.login_system
         )
-        
+
+        # Add the suggest_settings_section to the right layout
         self.right_layout.addWidget(self.suggest_settings_section)
+
+        # Initial adjustment on startup
+        self.adjust_window_size()
+
+        # Connect tab change to adjust window size
+        self.suggest_settings_section.tab_widget.currentChanged.connect(self.adjust_window_size)
+        
         self.right_layout.addWidget(self.run_stop_section)
         self.right_content = QWidget()
         self.right_content.setLayout(self.right_layout)
@@ -140,6 +149,14 @@ class RodentRefreshmentGUI(QWidget):
     def print_to_terminal(self, message):
         """Display messages in the system message section."""
         self.terminal_output.appendPlainText(message)
+    # In RodentRefreshmentGUI class
+
+    def adjust_window_size(self):
+        """Adjusts the main window size to fit the current tab's content."""
+        self.adjustSize()
+        self.resize(self.sizeHint())
+
+    # Connect tab change signal to trigger resizing in SuggestSettingsSection
 
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()
