@@ -108,17 +108,20 @@ class RodentRefreshmentGUI(QWidget):
         # Right side layout for suggested settings and run/stop
         self.right_layout = QVBoxLayout()
 
-        # Suggested settings section
+        # Run/Stop section (created first to be passed to SuggestSettingsSection)
+        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
+        
+        # Suggested settings section (now initialized after run_stop_section)
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
             self.suggest_settings_callback,
             self.push_settings_callback,
-            self.save_slack_credentials_callback
+            self.save_slack_credentials_callback,
+            advanced_settings=None,  # Replace with actual advanced settings if available
+            run_stop_section=self.run_stop_section
         )
+        
         self.right_layout.addWidget(self.suggest_settings_section)
-
-        # Run/Stop section
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         self.right_layout.addWidget(self.run_stop_section)
 
         # Right content with scroll
