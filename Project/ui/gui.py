@@ -1,26 +1,29 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-                             QPushButton, QSplitter, QSizePolicy, QPlainTextEdit, QLabel)
+                             QPushButton, QPlainTextEdit, QLabel)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 # Import sections for the GUI
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
 from .suggest_settings import SuggestSettingsSection
-from .schedules_tab import SchedulesTab
-from .animals_tab import AnimalsTab
 from .projects_section import ProjectsSection
+from .user_icon import UserIcon  # Import UserIcon for login functionality
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
-    def __init__(self, run_program, stop_program, change_relay_hats, settings, database_handler, style='bitlearns'):
+    def __init__(self, run_program, stop_program, change_relay_hats, settings, database_handler, login_system, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
         self.settings = settings
-        self.database_handler = database_handler  # Pass database handler to be used in ProjectsSection
+        self.database_handler = database_handler
+        self.login_system = login_system  # Add login system for managing user sessions
+
+        # Default to guest mode
+        self.current_user = None  
 
         # Connect the system message signal to the print_to_terminal method
         self.system_message_signal.connect(self.print_to_terminal)
@@ -32,43 +35,14 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        # Set stylesheet if a specific style is requested
-        if style == 'bitlearns':
-            self.setStyleSheet("""
-                QWidget {
-                    background-color: #f8f9fa;
-                    font-size: 14px;
-                }
-                QGroupBox {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    border-radius: 5px;
-                    padding: 15px;
-                }
-                QPushButton {
-                    background-color: #007bff;
-                    border: 1px solid #007bff;
-                    border-radius: 5px;
-                    color: #ffffff;
-                    padding: 10px;
-                }
-                QPushButton:disabled {
-                    background-color: #cccccc;
-                    color: #666666;
-                }
-                QLabel {
-                    color: #343a40;
-                    background-color: #ffffff;
-                }
-                QLineEdit, QTextEdit {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    padding: 5px;
-                }
-            """)
-
         # Main layout setup
         self.main_layout = QVBoxLayout(self)
+
+        # User icon for login and profile actions
+        self.user_icon = UserIcon(self, self.database_handler, self.login_system)
+        self.user_icon.login_signal.connect(self.on_login)    # Connect login signal
+        self.user_icon.logout_signal.connect(self.on_logout)  # Connect logout signal
+        self.main_layout.addWidget(self.user_icon, alignment=Qt.AlignRight)
 
         # Welcome section at the top
         self.welcome_section = WelcomeSection()
@@ -89,9 +63,8 @@ class RodentRefreshmentGUI(QWidget):
         self.left_layout = QVBoxLayout()
 
         # System messages section - Updated to use QPlainTextEdit
-        self.terminal_output = QPlainTextEdit()  # Use QPlainTextEdit for real-time output
+        self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
-        self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.terminal_output.setPlainText("System Messages")
         self.left_layout.addWidget(self.terminal_output)
 
@@ -113,13 +86,13 @@ class RodentRefreshmentGUI(QWidget):
         # Run/Stop section (created first to be passed to SuggestSettingsSection)
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         
-        # Suggested settings section (now initialized after run_stop_section)
+        # Suggested settings section
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
             self.suggest_settings_callback,
             self.push_settings_callback,
             self.save_slack_credentials_callback,
-            advanced_settings=None,  # Replace with actual advanced settings if available
+            advanced_settings=None,
             run_stop_section=self.run_stop_section
         )
         
@@ -137,9 +110,12 @@ class RodentRefreshmentGUI(QWidget):
         # Add upper layout to main layout
         self.main_layout.addLayout(self.upper_layout)
 
+        # Load initial data (guest view)
+        self.load_animals_tab()
+
     def print_to_terminal(self, message):
         """Display messages in the system message section."""
-        self.terminal_output.appendPlainText(message)  # Updated to append messages
+        self.terminal_output.appendPlainText(message)
 
     def toggle_welcome_message(self):
         """Show or hide the welcome section."""
@@ -155,3 +131,28 @@ class RodentRefreshmentGUI(QWidget):
 
     def save_slack_credentials_callback(self):
         print("Slack credentials saved.")
+    
+    def on_login(self, user):
+        """Callback for handling user login."""
+        self.current_user = user
+        self.print_to_terminal(f"Logged in as: {user.name}")
+        self.load_animals_tab(trainer_id=user.id)  # Load animals for the logged-in trainer
+
+    def on_logout(self):
+        """Callback for handling user logout, reverting to guest mode."""
+        self.current_user = None
+        self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
+        self.load_animals_tab()  # Load all animals in guest mode
+
+    def load_animals_tab(self, trainer_id=None):
+        """
+        Load the AnimalsTab for the specific trainer.
+        If trainer_id is None, display all animals (guest mode).
+        """
+        if trainer_id:
+            self.projects_section.animals_tab.trainer_id = trainer_id
+            self.print_to_terminal(f"Displaying animals for trainer ID {trainer_id}")
+        else:
+            self.projects_section.animals_tab.trainer_id = None
+            self.print_to_terminal("Displaying all animals (guest mode)")
+        self.projects_section.animals_tab.load_animals()
