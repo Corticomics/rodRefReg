@@ -2,8 +2,8 @@ from PyQt5.QtWidgets import QLabel, QMenu, QAction, QMessageBox
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
 
-from ui.profile_dialog import ProfileDialog
-from ui.login_dialog import LoginDialog
+from ui.ProfileDialog import ProfileDialog
+from ui.LoginDialog import LoginDialog
 
 class UserIcon(QLabel):
     def __init__(self, main_window, db_handler, login_system):
