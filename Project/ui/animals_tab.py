@@ -45,20 +45,20 @@ class AnimalsTab(QWidget):
         self.load_animals()
 
     def load_animals(self):
-        """Load animals from the database into the list widget with error handling."""
+        """Load animals from the database, with error handling."""
         try:
-            self.animals_list.clear()
-            animals = self.database_handler.get_all_animals()
-            for animal in animals:
-                item_text = f"Lab ID: {animal.lab_animal_id} | Name: {animal.name} | Last Weight: {animal.last_weight}g"
-                item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, animal)
-                self.animals_list.addItem(item)
-            self.print_to_terminal("Animals loaded successfully.")
+            if self.trainer_id:
+                animals = self.database_handler.get_animals_by_trainer(self.trainer_id)
+                print(f"Loaded {len(animals)} animals for trainer ID {self.trainer_id}")
+            else:
+                animals = self.database_handler.get_all_animals()
+                print(f"Loaded {len(animals)} animals for all trainers (guest mode)")
+            # Proceed with populating the UI with the animals list
+            self.populate_animal_list(animals)
         except Exception as e:
-            self.print_to_terminal(f"Error loading animals: {e}")
-            QMessageBox.critical(self, "Load Error", f"Failed to load animals: {e}")
-
+            print(f"Exception in AnimalsTab.load_animals: {e}")
+            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals: {e}")
+            
     def add_animal(self):
         """Open dialog to add a new animal with error handling."""
         dialog = QDialog(self)

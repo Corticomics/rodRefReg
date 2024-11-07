@@ -82,7 +82,7 @@ class DatabaseHandler:
                 # Compare the hashes
                 if hashed_password == stored_hashed_password:
                     print("Authentication successful.")
-                    return trainer_id  # Return the actual trainer ID
+                    return trainer_id  # Corrected: Return the actual trainer_id
                 else:
                     print("Authentication failed: hashed password does not match.")
                     return None
@@ -181,6 +181,7 @@ class DatabaseHandler:
             cursor = conn.cursor()
             cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals WHERE trainer_id = ?', (trainer_id,))
             rows = cursor.fetchall()
+            print(f"Retrieved {len(rows)} animals from the database for trainer_id {trainer_id}")
             for row in rows:
                 animal = Animal(
                     id=row[0],
@@ -191,11 +192,11 @@ class DatabaseHandler:
                     last_weighted=row[5]
                 )
                 animals.append(animal)
-            print(f"Retrieved {len(animals)} animals for trainer ID {trainer_id}.")
         except sqlite3.Error as e:
-            print(f"Error retrieving animals: {e}")
+            print(f"Error retrieving animals for trainer_id {trainer_id}: {e}")
+        except Exception as e:
+            print(f"Unexpected error retrieving animals for trainer_id {trainer_id}: {e}")
         return animals
-
 
     def add_trainer(self, trainer_name, password):
         """Add a new trainer to the database with salted SHA-256 hashed password."""

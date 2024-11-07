@@ -11,6 +11,14 @@ from controllers.projects_controller import ProjectsController
 from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem  # Import LoginSystem
 import time
+import sys
+import traceback
+
+def exception_hook(exctype, value, tb):
+    print("".join(traceback.format_exception(exctype, value, tb)))
+    sys.exit(1)
+
+sys.excepthook = exception_hook
 
 class StreamRedirector(QObject):
     message_signal = pyqtSignal(str)
