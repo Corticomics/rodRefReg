@@ -20,7 +20,7 @@ class LoginSystem:
         try:
             print(f"Attempting to retrieve trainer by ID: {trainer_id}")  # Debug
             trainer = self.database_handler.get_trainer_by_id(trainer_id)
-            if trainer and 'trainer_name' in trainer:
+            if trainer and 'username' in trainer:
                 self.current_trainer = trainer
                 print(f"Trainer '{trainer['trainer_name']}' logged in successfully.")
                 return True
