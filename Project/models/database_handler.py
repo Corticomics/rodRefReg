@@ -111,6 +111,29 @@ class DatabaseHandler:
             print(f"Error retrieving animals: {e}")
         return animals
 
+    def get_all_animals(self):
+        """Retrieve all animals in the database, regardless of trainer."""
+        animals = []
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
+            rows = cursor.fetchall()
+            for row in rows:
+                animal = Animal(
+                    id=row[0],
+                    lab_animal_id=row[1],
+                    name=row[2],
+                    initial_weight=row[3],
+                    last_weight=row[4],
+                    last_weighted=row[5]
+                )
+                animals.append(animal)
+            print(f"Retrieved {len(animals)} animals from the database.")
+        except sqlite3.Error as e:
+            print(f"Error retrieving all animals: {e}")
+        return animals
+
     def close(self):
         """Close the database connection."""
         if self.connection:
