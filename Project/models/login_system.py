@@ -19,7 +19,7 @@ class LoginSystem:
         trainer = self.database_handler.get_trainer_by_id(trainer_id)
         if trainer:
             self.current_trainer = trainer
-            print(f"Trainer '{trainer['trainer_name']}' logged in successfully.")
+            print(f"Trainer '{trainer['username']}' logged in successfully.")
             return True
         else:
             print("Invalid trainer ID.")
@@ -34,20 +34,20 @@ class LoginSystem:
         """Return the current trainer or None if in Guest mode."""
         return self.current_trainer
 
-    def authenticate(self, trainer_name, password):
+    def authenticate(self, username, password):
         """Authenticate a trainer by username and password."""
-        trainer_id = self.database_handler.authenticate_trainer(trainer_name, password)
+        trainer_id = self.database_handler.authenticate_trainer(username, password)
         if trainer_id:
             self.login(trainer_id)
             return self.current_trainer
         return None
 
-    def create_user(self, trainer_name, password):
+    def create_user(self, username, password):
         """Create a new trainer profile."""
-        success = self.database_handler.add_trainer(trainer_name, password)
+        success = self.database_handler.add_trainer(username, password)
         if success:
-            print(f"Trainer '{trainer_name}' created successfully.")
+            print(f"Trainer '{username}' created successfully.")
             return True
         else:
-            print(f"Failed to create trainer '{trainer_name}'. Username may already exist.")
+            print(f"Failed to create trainer '{username}'. Username may already exist.")
             return False
