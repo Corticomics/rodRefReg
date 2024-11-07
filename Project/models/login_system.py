@@ -22,7 +22,7 @@ class LoginSystem:
             trainer = self.database_handler.get_trainer_by_id(trainer_id)
             if trainer:
                 self.current_trainer = trainer
-                print(f"Trainer '{trainer['trainer_name']}' logged in successfully.")
+                print(f"Trainer '{trainer['username']}' logged in successfully.")
                 return True
             else:
                 print(f"Login failed: Invalid trainer data received. Data: {trainer}")
