@@ -176,10 +176,11 @@ class RodentRefreshmentGUI(QWidget):
         try:
             # Validate user information
             if not isinstance(user, dict) or 'trainer_name' not in user or 'trainer_id' not in user:
-                raise ValueError("Invalid user information received during login.")
+                raise ValueError(f"Invalid user information received during login: {user}")
 
             # Proceed with setting current_user
             self.current_user = user
+            print(f"Login data received in GUI: {user}")  # Debug
             self.print_to_terminal(f"Logged in as: {user['trainer_name']}")
             self.load_animals_tab(trainer_id=user['trainer_id'])
 

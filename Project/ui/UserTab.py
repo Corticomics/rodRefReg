@@ -60,24 +60,27 @@ class UserTab(QWidget):
                 return
 
             # Authenticate the user
+            print(f"Initiating authentication for username: {username}")  # Debug
             user_info = self.login_system.authenticate(username, password)
             if not user_info:
                 QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
                 return
 
-            # Ensure that user_info contains valid data
+            # Check user_info structure before setting user
             if not isinstance(user_info, dict) or 'username' not in user_info or 'trainer_id' not in user_info:
                 QMessageBox.critical(self, "Login Error", "Invalid user information received.")
-                print(f"Debug: Received invalid user_info: {user_info}")
+                print(f"Debug: Received invalid user_info: {user_info}")  # Log data structure
                 return
 
-            # Set the user and emit login signal
+            # If valid, proceed with setting the user
+            print(f"Login successful: {user_info}")  # Debug
             self.set_user(user_info)
             self.login_signal.emit(user_info)
 
         except Exception as e:
+            print(f"Exception during handle_login: {e}")  # Debug
             QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {str(e)}")
-
+            
     def handle_create_profile(self):
         """Handle the profile creation process with error handling."""
         try:
