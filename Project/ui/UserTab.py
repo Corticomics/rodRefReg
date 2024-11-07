@@ -49,55 +49,72 @@ class UserTab(QWidget):
         self.layout.addWidget(self.logout_button)
 
     def handle_login(self):
-        """Handle the login process."""
-        username = self.username_input.text().strip()
-        password = self.password_input.text().strip()
+        """Handle the login process with error handling."""
+        try:
+            username = self.username_input.text().strip()
+            password = self.password_input.text().strip()
 
-        if username and password:
+            if not username or not password:
+                QMessageBox.warning(self, "Input Required", "Please enter both username and password.")
+                return
+
             user_info = self.login_system.authenticate(username, password)
             if user_info:
                 self.set_user(user_info)
                 self.login_signal.emit(user_info)  # Emit login signal
             else:
                 QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
-        else:
-            QMessageBox.warning(self, "Input Required", "Please enter both username and password.")
+        except Exception as e:
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {str(e)}")
 
     def handle_create_profile(self):
-        """Handle the profile creation process."""
-        username, ok = QInputDialog.getText(self, "Create Profile", "Choose a username:")
-        if ok and username:
+        """Handle the profile creation process with error handling."""
+        try:
+            username, ok = QInputDialog.getText(self, "Create Profile", "Choose a username:")
+            if not ok or not username:
+                QMessageBox.warning(self, "Invalid Username", "Username cannot be empty.")
+                return
+
             password, ok = QInputDialog.getText(self, "Create Profile", "Choose a password:", QLineEdit.Password)
-            if ok and password:
-                success = self.login_system.create_user(username, password)
-                if success:
-                    QMessageBox.information(self, "Profile Created", f"Profile for '{username}' created successfully.")
-                else:
-                    QMessageBox.warning(self, "Creation Failed", f"Username '{username}' is already taken.")
-            elif not password:
+            if not ok or not password:
                 QMessageBox.warning(self, "Invalid Password", "Password cannot be empty.")
-        elif not username:
-            QMessageBox.warning(self, "Invalid Username", "Username cannot be empty.")
+                return
+
+            success = self.login_system.create_user(username, password)
+            if success:
+                QMessageBox.information(self, "Profile Created", f"Profile for '{username}' created successfully.")
+            else:
+                QMessageBox.warning(self, "Creation Failed", f"Username '{username}' is already taken.")
+        except Exception as e:
+            QMessageBox.critical(self, "Profile Creation Error", f"An unexpected error occurred during profile creation: {str(e)}")
 
     def set_user(self, user_info):
-        """Sets the user information after a successful login."""
-        self.current_user = user_info
-        self.info_label.setText(f"Logged in as: {user_info['username']}")
-        self.username_input.clear()
-        self.password_input.clear()
-        self.username_input.setVisible(False)
-        self.password_input.setVisible(False)
-        self.login_button.setVisible(False)
-        self.create_profile_button.setVisible(False)
-        self.logout_button.setVisible(True)
+        """Sets the user information after a successful login with error handling."""
+        try:
+            self.current_user = user_info
+            self.info_label.setText(f"Logged in as: {user_info['username']}")
+            self.username_input.clear()
+            self.password_input.clear()
+            self.username_input.setVisible(False)
+            self.password_input.setVisible(False)
+            self.login_button.setVisible(False)
+            self.create_profile_button.setVisible(False)
+            self.logout_button.setVisible(True)
+        except KeyError as e:
+            QMessageBox.critical(self, "Data Error", f"Missing user information: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
 
     def logout(self):
-        """Logs out the user."""
-        self.current_user = None
-        self.info_label.setText("You are running the application in Guest mode.")
-        self.username_input.setVisible(True)
-        self.password_input.setVisible(True)
-        self.login_button.setVisible(True)
-        self.create_profile_button.setVisible(True)
-        self.logout_button.setVisible(False)
-        self.logout_signal.emit()  # Emit logout signal
+        """Logs out the user with error handling."""
+        try:
+            self.current_user = None
+            self.info_label.setText("You are running the application in Guest mode.")
+            self.username_input.setVisible(True)
+            self.password_input.setVisible(True)
+            self.login_button.setVisible(True)
+            self.create_profile_button.setVisible(True)
+            self.logout_button.setVisible(False)
+            self.logout_signal.emit()  # Emit logout signal
+        except Exception as e:
+            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {str(e)}")
