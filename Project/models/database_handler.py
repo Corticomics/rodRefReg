@@ -18,7 +18,10 @@ class DatabaseHandler:
         conn = self.connect()
         cursor = conn.cursor()
         try:
-            # Create animals table with user-defined animal_id as 'lab_animal_id'
+            # Drop the table if it exists to avoid conflicts (only for development or testing)
+            cursor.execute('DROP TABLE IF EXISTS animals')
+            
+            # Create animals table with both 'ID' and 'lab_animal_id'
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS animals (
                     ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +33,9 @@ class DatabaseHandler:
                 )
             ''')
 
+            # Drop and recreate the schedules table similarly (if needed)
+            cursor.execute('DROP TABLE IF EXISTS schedules')
+            
             # Create schedules table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS schedules (
