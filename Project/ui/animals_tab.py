@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
-from edit_animal_dialog import EditAnimalDialog
+from .edit_animal_dialog import EditAnimalDialog
 
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler):
