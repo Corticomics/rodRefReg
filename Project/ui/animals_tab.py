@@ -1,10 +1,11 @@
 #ui/animals_tab.py
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
-    QLabel, QListWidget, QMessageBox, QHBoxLayout, QDateTimeEdit, QListWidgetItem
+    QLabel, QListWidget, QMessageBox, QHBoxLayout, QDateTimeEdit, QListWidgetItem, QDialog
 )
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
+from edit_animal_dialog import EditAnimalDialog
 
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler):
@@ -118,3 +119,30 @@ class AnimalsTab(QWidget):
             self.database_handler.remove_animal(animal_id)
             self.print_to_terminal(f"Removed animal ID {animal_id}.")
             self.load_animals()
+
+
+    def edit_animal(self):
+        """Open dialogg to edit the selected animal's information"""
+        selected_item = self.animals_list.currentItem()
+        if not selected_item:
+            QMessageBox.warning(self, "No Selection", "Please select an animal to edit.")
+            return
+        
+        animal = selected_item.data(Qt.UserRole)
+        dialog = EditAnimalDialog(animal.animal_id, animal.to_dict(), self)
+        try:
+            if dialog.exec_() == QDialog.Accepted:
+                updated_info = dialog.updated_info
+                updated_animal = Animal(
+                    animal_id=animal.animal_id,
+                    name=updated_info['name'],
+                    initial_weight=updated_info['initial_weight'],
+                    last_weight=updated_info['last_weight'],
+                    last_weighted=updated_info['last_weighted']
+                )
+                self.database_handler.update_animal(updated_animal)
+                self.print_to_terminal(f"Updated animal '{updated_animal.name}' (ID: {updated_animal.animal_id}).")
+                self.load_animals()
+        except Exception as e:
+            print(f"Unhandled exception in edit_animal: {e}")
+
