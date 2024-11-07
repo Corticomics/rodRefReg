@@ -120,6 +120,30 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             print(f"Error removing animal with lab ID {lab_animal_id}: {e}")
 
+    def get_all_animals(self):
+        """Retrieve all animals in the database, regardless of trainer."""
+        animals = []
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
+            rows = cursor.fetchall()
+            for row in rows:
+                animal = Animal(
+                    id=row[0],
+                    lab_animal_id=row[1],
+                    name=row[2],
+                    initial_weight=row[3],
+                    last_weight=row[4],
+                    last_weighted=row[5]
+                )
+                animals.append(animal)
+            print(f"Retrieved {len(animals)} animals from the database.")
+        except sqlite3.Error as e:
+            print(f"Error retrieving all animals: {e}")
+        return animals
+
+
     def get_animals_by_trainer(self, trainer_id):
         """Retrieve animals belonging to a specific trainer."""
         animals = []
@@ -143,28 +167,24 @@ class DatabaseHandler:
             print(f"Error retrieving animals: {e}")
         return animals
 
-    def get_all_animals(self):
-        """Retrieve all animals in the database, regardless of trainer."""
-        animals = []
+    def add_trainer(self, trainer_name, password):
+        """Add a new trainer to the database."""
         try:
             conn = self.connect()
             cursor = conn.cursor()
-            cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
-            rows = cursor.fetchall()
-            for row in rows:
-                animal = Animal(
-                    id=row[0],
-                    lab_animal_id=row[1],
-                    name=row[2],
-                    initial_weight=row[3],
-                    last_weight=row[4],
-                    last_weighted=row[5]
-                )
-                animals.append(animal)
-            print(f"Retrieved {len(animals)} animals from the database.")
+            cursor.execute('''
+                INSERT INTO trainers (trainer_name, password)
+                VALUES (?, ?)
+            ''', (trainer_name, password))
+            conn.commit()
+            print(f"Trainer '{trainer_name}' added successfully.")
+            return True
+        except sqlite3.IntegrityError:
+            print(f"Error: Trainer '{trainer_name}' already exists.")
+            return False
         except sqlite3.Error as e:
-            print(f"Error retrieving all animals: {e}")
-        return animals
+            print(f"Database error when adding trainer '{trainer_name}': {e}")
+            return False
 
     def close(self):
         """Close the database connection."""

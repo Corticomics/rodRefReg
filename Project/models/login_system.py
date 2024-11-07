@@ -1,5 +1,4 @@
 # models/login_system.py
-from models.database_handler import DatabaseHandler
 
 class LoginSystem:
     def __init__(self, database_handler):
@@ -20,7 +19,7 @@ class LoginSystem:
         trainer = self.database_handler.get_trainer_by_id(trainer_id)
         if trainer:
             self.current_trainer = trainer
-            print(f"Trainer '{trainer['name']}' logged in successfully.")
+            print(f"Trainer '{trainer['trainer_name']}' logged in successfully.")
             return True
         else:
             print("Invalid trainer ID.")
@@ -34,3 +33,21 @@ class LoginSystem:
     def get_current_trainer(self):
         """Return the current trainer or None if in Guest mode."""
         return self.current_trainer
+
+    def authenticate(self, trainer_name, password):
+        """Authenticate a trainer by username and password."""
+        trainer_id = self.database_handler.authenticate_trainer(trainer_name, password)
+        if trainer_id:
+            self.login(trainer_id)
+            return self.current_trainer
+        return None
+
+    def create_user(self, trainer_name, password):
+        """Create a new trainer profile."""
+        success = self.database_handler.add_trainer(trainer_name, password)
+        if success:
+            print(f"Trainer '{trainer_name}' created successfully.")
+            return True
+        else:
+            print(f"Failed to create trainer '{trainer_name}'. Username may already exist.")
+            return False
