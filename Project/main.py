@@ -1,14 +1,15 @@
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
-from PyQt5.QtCore import Qt, QTimer, QThread, QObject, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
-from controllers.projects_controller import ProjectsController  # New import
-from models.database_handler import DatabaseHandler  # New import
+from controllers.projects_controller import ProjectsController
+from models.database_handler import DatabaseHandler
+from models.login_system import LoginSystem  # Import LoginSystem
 import time
 
 class StreamRedirector(QObject):
@@ -29,11 +30,16 @@ thread = QThread()
 worker = None
 
 def setup():
-    global relay_handler, settings, gui, notification_handler, controller, database_handler
+    global relay_handler, settings, gui, notification_handler, controller, database_handler, login_system
 
     # Initialize the Projects Controller and Database Handler
     controller = ProjectsController()
     database_handler = DatabaseHandler()
+
+    # Initialize the login system with database handler and assume "Guest" mode if not logged in
+    login_system = LoginSystem(database_handler)
+    if not login_system.is_logged_in():
+        login_system.set_guest_mode()  # Default to guest mode if no login
 
     # Load settings (if any) and initialize relays
     settings = load_settings()
@@ -45,8 +51,8 @@ def setup():
     # Initialize Slack notification handler
     notification_handler = NotificationHandler(settings.get('slack_token', 'SLACKTOKEN'), settings.get('channel_id', 'ChannelId'))
 
-    # Initialize GUI components and pass the database handler to it
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, database_handler=database_handler)
+    # Initialize GUI components, including login system and database handler
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, database_handler=database_handler, login_system=login_system)
 
 def run_program(interval, stagger, window_start, window_end):
     global thread, worker, notification_handler, controller  # Ensure global scope for controller
