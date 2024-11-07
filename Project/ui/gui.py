@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-                             QPushButton, QSplitter, QSizePolicy, QPlainTextEdit)
+                             QPushButton, QSplitter, QSizePolicy, QPlainTextEdit, QLabel)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 # Import sections for the GUI
@@ -92,6 +92,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output = QPlainTextEdit()  # Use QPlainTextEdit for real-time output
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.terminal_output.setPlainText("System Messages")
         self.left_layout.addWidget(self.terminal_output)
 
         # Projects section with tabs for schedules and animals
