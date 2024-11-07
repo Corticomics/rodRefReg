@@ -129,10 +129,12 @@ class RodentRefreshmentGUI(QWidget):
         self.right_layout.addWidget(self.suggest_settings_section)
 
         # Initial adjustment on startup
-        self.adjust_window_size()
-
-        # Connect tab change to adjust window size
-        self.suggest_settings_section.tab_widget.currentChanged.connect(self.adjust_window_size)
+        try:
+            self.adjust_window_size()  # Initial adjustment on startup
+            self.suggest_settings_section.tab_widget.currentChanged.connect(self.adjust_window_size)
+        except Exception as e:
+            self.print_to_terminal(f"Error initializing dynamic window adjustment: {e}")
+            QMessageBox.critical(self, "Initialization Error", f"Error setting up window adjustments: {e}")
         
         self.right_layout.addWidget(self.run_stop_section)
         self.right_content = QWidget()
