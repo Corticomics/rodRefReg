@@ -116,11 +116,12 @@ class RodentRefreshmentGUI(QWidget):
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
-            self.suggest_settings_callback,
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            advanced_settings=None,
-            run_stop_section=self.run_stop_section
+            suggest_settings_callback=self.suggest_settings_callback,
+            push_settings_callback=self.push_settings_callback,
+            save_slack_credentials_callback=self.save_slack_credentials_callback,
+            advanced_settings=self.advanced_settings,
+            run_stop_section=self.run_stop_section,
+            login_system=self.login_system  # Pass login system here
         )
         self.right_layout.addWidget(self.suggest_settings_section)
         self.right_layout.addWidget(self.run_stop_section)
