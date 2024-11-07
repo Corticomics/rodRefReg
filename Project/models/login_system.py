@@ -14,6 +14,7 @@ class LoginSystem:
         self.current_trainer = None
         print("Running in Guest mode. Displaying all data.")
 
+
     def login(self, trainer_id):
         """Attempt to log in a trainer by their ID, with error handling."""
         try:
@@ -35,10 +36,12 @@ class LoginSystem:
         try:
             print(f"Authenticating username: {username}")  # Debug
             trainer_id = self.database_handler.authenticate_trainer(username, password)
+            print(f"Authentication result for {username}: {trainer_id}")  # Debug
+
             if trainer_id:
                 login_successful = self.login(trainer_id)
                 if login_successful:
-                    print(f"Authentication successful for trainer ID: {trainer_id}")  # Debug
+                    print(f"Authentication and login successful for trainer ID: {trainer_id}")
                     return self.current_trainer
                 else:
                     print("Login failed after authentication.")
@@ -48,7 +51,7 @@ class LoginSystem:
         except Exception as e:
             print(f"Error during authentication: {e}")
             return None
-
+        
     def logout(self):
         """Log out the current trainer and switch to 'Guest' mode."""
         try:

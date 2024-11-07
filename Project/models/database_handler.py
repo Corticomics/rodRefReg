@@ -70,21 +70,24 @@ class DatabaseHandler:
             cursor.execute('SELECT salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
             result = cursor.fetchone()
 
+            # Log what is retrieved from the database
+            print(f"Retrieved data for {trainer_name}: {result}")
+
             if result:
                 salt, stored_hashed_password = result
 
                 # Hash the provided password with the retrieved salt
                 hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
 
-                # Compare the hashes
+                # Compare the hashes and log the result
                 if hashed_password == stored_hashed_password:
                     print("Authentication successful.")
                     return True
                 else:
-                    print("Authentication failed.")
+                    print("Authentication failed: hashed password does not match.")
                     return False
             else:
-                print("Trainer not found.")
+                print("Trainer not found in the database.")
                 return False
         except sqlite3.Error as e:
             print(f"Database error during authentication: {e}")
@@ -226,6 +229,9 @@ class DatabaseHandler:
             cursor = conn.cursor()
             cursor.execute('SELECT trainer_id, trainer_name FROM trainers WHERE trainer_id = ?', (trainer_id,))
             row = cursor.fetchone()
+            
+            # Log retrieved data
+            print(f"Data retrieved for trainer ID {trainer_id}: {row}")
             
             if row:
                 trainer_info = {
