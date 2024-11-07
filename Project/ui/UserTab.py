@@ -58,12 +58,22 @@ class UserTab(QWidget):
                 QMessageBox.warning(self, "Input Required", "Please enter both username and password.")
                 return
 
+            # Authenticate the user and print debug information
             user_info = self.login_system.authenticate(username, password)
-            if user_info:
-                self.set_user(user_info)
-                self.login_signal.emit(user_info)  # Emit login signal
-            else:
+            if not user_info:
                 QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
+                return
+
+            # Check if user_info has the necessary structure
+            if 'username' not in user_info or 'trainer_id' not in user_info:
+                QMessageBox.critical(self, "Login Error", "User information is incomplete.")
+                print(f"Debug: Received user_info with structure: {user_info}")
+                return
+
+            # If structure is correct, set the user
+            self.set_user(user_info)
+            self.login_signal.emit(user_info)  # Emit login signal
+
         except Exception as e:
             QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {str(e)}")
 
@@ -92,7 +102,7 @@ class UserTab(QWidget):
         """Sets the user information after a successful login with error handling."""
         try:
             self.current_user = user_info
-            self.info_label.setText(f"Logged in as: {user_info['username']}")
+            self.info_label.setText(f"Logged in as: {user_info.get('username', 'Unknown')}")
             self.username_input.clear()
             self.password_input.clear()
             self.username_input.setVisible(False)
@@ -104,27 +114,43 @@ class UserTab(QWidget):
             QMessageBox.critical(self, "Data Error", f"Missing user information: {str(e)}")
         except Exception as e:
             QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
-            # In UserTab class
 
     def set_minimal_profile_view(self, username):
-        """Sets a minimal view for logged-in users."""
-        self.info_label.setText(f"Logged in as: {username}")
-        self.username_input.hide()
-        self.password_input.hide()
-        self.login_button.hide()
-        self.create_profile_button.hide()
-        self.logout_button.show()
-        self.setFixedSize(self.sizeHint())
+        """Sets a minimal view for logged-in users with error handling."""
+        try:
+            if not username:
+                raise ValueError("Username is required to set the minimal profile view.")
+            
+            self.info_label.setText(f"Logged in as: {username}")
+            self.username_input.hide()
+            self.password_input.hide()
+            self.login_button.hide()
+            self.create_profile_button.hide()
+            self.logout_button.show()
+            self.setFixedSize(self.sizeHint())
+        
+        except ValueError as ve:
+            QMessageBox.critical(self, "Profile View Error", str(ve))
+            print(f"Profile View Error: {ve}")
+        
+        except Exception as e:
+            QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
+            print(f"Unexpected error in set_minimal_profile_view: {e}")
 
     def set_guest_view(self):
-        """Resets the view for guest mode."""
-        self.info_label.setText("You are running the application in Guest mode.")
-        self.username_input.show()
-        self.password_input.show()
-        self.login_button.show()
-        self.create_profile_button.show()
-        self.logout_button.hide()
-        self.setFixedSize(self.sizeHint())
+        """Resets the view for guest mode with error handling."""
+        try:
+            self.info_label.setText("You are running the application in Guest mode.")
+            self.username_input.show()
+            self.password_input.show()
+            self.login_button.show()
+            self.create_profile_button.show()
+            self.logout_button.hide()
+            self.setFixedSize(self.sizeHint())
+        
+        except Exception as e:
+            QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
+            print(f"Unexpected error in set_guest_view: {e}")
 
     def logout(self):
         """Logs out the user with error handling."""
