@@ -88,6 +88,38 @@ class DatabaseHandler:
             print(f"Database error when adding animal: {e}")
             return None
 
+    def update_animal(self, animal):
+        """Update an existing animal's information based on lab_animal_id."""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE animals
+                SET name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?
+                WHERE lab_animal_id = ?
+            ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.lab_animal_id))
+            if cursor.rowcount > 0:
+                print(f"Animal with lab ID {animal.lab_animal_id} updated.")
+            else:
+                print(f"No animal found with lab ID {animal.lab_animal_id} to update.")
+            conn.commit()
+        except sqlite3.Error as e:
+            print(f"Error updating animal with lab ID {animal.lab_animal_id}: {e}")
+
+    def remove_animal(self, lab_animal_id):
+        """Remove an animal from the database based on its lab_animal_id."""
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM animals WHERE lab_animal_id = ?', (lab_animal_id,))
+            if cursor.rowcount > 0:
+                print(f"Animal with lab ID {lab_animal_id} removed.")
+            else:
+                print(f"No animal found with lab ID {lab_animal_id}.")
+            conn.commit()
+        except sqlite3.Error as e:
+            print(f"Error removing animal with lab ID {lab_animal_id}: {e}")
+
     def get_animals_by_trainer(self, trainer_id):
         """Retrieve animals belonging to a specific trainer."""
         animals = []

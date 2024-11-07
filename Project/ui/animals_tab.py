@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
-    QLabel, QListWidget, QMessageBox, QHBoxLayout, QInputDialog, QDialog, QDialogButtonBox, QDateTimeEdit, QListWidgetItem
+    QLabel, QListWidget, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QListWidgetItem
 )
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
@@ -13,16 +13,20 @@ class AnimalsTab(QWidget):
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
 
+        # Initialize layout
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
+        # Instruction label
         instruction_label = QLabel("Manage animal bodyweight data:")
         self.layout.addWidget(instruction_label)
 
+        # List widget for displaying animals
         self.animals_list = QListWidget()
         self.layout.addWidget(QLabel("Animals:"))
         self.layout.addWidget(self.animals_list)
 
+        # Button layout
         buttons_layout = QHBoxLayout()
         add_animal_button = QPushButton("Add Animal")
         remove_animal_button = QPushButton("Remove Selected Animal")
@@ -32,24 +36,31 @@ class AnimalsTab(QWidget):
         buttons_layout.addWidget(edit_animal_button)
         self.layout.addLayout(buttons_layout)
 
+        # Connect button actions
         add_animal_button.clicked.connect(self.add_animal)
         remove_animal_button.clicked.connect(self.remove_animal)
         edit_animal_button.clicked.connect(self.edit_animal)
 
+        # Load existing animals into the list
         self.load_animals()
 
     def load_animals(self):
-        """Load animals from the database into the list widget."""
-        self.animals_list.clear()
-        animals = self.database_handler.get_all_animals()
-        for animal in animals:
-            item_text = f"Lab ID: {animal.lab_animal_id} | Name: {animal.name} | Last Weight: {animal.last_weight}g"
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.UserRole, animal)
-            self.animals_list.addItem(item)
+        """Load animals from the database into the list widget with error handling."""
+        try:
+            self.animals_list.clear()
+            animals = self.database_handler.get_all_animals()
+            for animal in animals:
+                item_text = f"Lab ID: {animal.lab_animal_id} | Name: {animal.name} | Last Weight: {animal.last_weight}g"
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, animal)
+                self.animals_list.addItem(item)
+            self.print_to_terminal("Animals loaded successfully.")
+        except Exception as e:
+            self.print_to_terminal(f"Error loading animals: {e}")
+            QMessageBox.critical(self, "Load Error", f"Failed to load animals: {e}")
 
     def add_animal(self):
-        """Open dialog to add a new animal, including lab_animal_id."""
+        """Open dialog to add a new animal with error handling."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Add New Animal")
         layout = QVBoxLayout()
@@ -88,19 +99,23 @@ class AnimalsTab(QWidget):
                     raise ValueError("Animal ID and name cannot be empty.")
                 
                 new_animal = Animal(None, lab_animal_id, name, initial_weight, last_weight, last_weighted)
-                animal_id = self.database_handler.add_animal(new_animal)
+                animal_id = self.database_handler.add_animal(new_animal, trainer_id=None)  # Assuming `trainer_id` can be None for now
                 
                 if animal_id:
                     self.print_to_terminal(f"Animal '{name}' added with ID: {lab_animal_id}.")
                     self.load_animals()
                 else:
-                    QMessageBox.warning(self, "Error", "Failed to add animal. ID might already exist.")
+                    QMessageBox.warning(self, "Add Error", "Failed to add animal. ID might already exist.")
 
             except ValueError as ve:
                 QMessageBox.warning(self, "Input Error", f"Invalid input: {ve}")
+                self.print_to_terminal(f"Input Error: {ve}")
+            except Exception as e:
+                QMessageBox.critical(self, "Add Error", f"Unexpected error: {e}")
+                self.print_to_terminal(f"Unexpected error during add operation: {e}")
 
     def remove_animal(self):
-        """Remove selected animal from the database."""
+        """Remove selected animal from the database with error handling."""
         selected_item = self.animals_list.currentItem()
         if not selected_item:
             QMessageBox.warning(self, "No Selection", "Please select an animal to remove.")
@@ -109,18 +124,21 @@ class AnimalsTab(QWidget):
         animal = selected_item.data(Qt.UserRole)
         confirm = QMessageBox.question(self, "Confirm Removal", f"Are you sure you want to remove '{animal.name}'?", QMessageBox.Yes | QMessageBox.No)
         if confirm == QMessageBox.Yes:
-            self.database_handler.remove_animal(animal.lab_animal_id)
-            self.print_to_terminal(f"Removed animal '{animal.name}' with Lab ID {animal.lab_animal_id}.")
-            self.load_animals()
-
+            try:
+                self.database_handler.remove_animal(animal.lab_animal_id)
+                self.print_to_terminal(f"Removed animal '{animal.name}' with Lab ID {animal.lab_animal_id}.")
+                self.load_animals()
+            except Exception as e:
+                QMessageBox.critical(self, "Remove Error", f"Error removing animal: {e}")
+                self.print_to_terminal(f"Error removing animal '{animal.lab_animal_id}': {e}")
 
     def edit_animal(self):
-        """Open dialog to edit the selected animal's information"""
+        """Open dialog to edit the selected animal's information with error handling."""
         selected_item = self.animals_list.currentItem()
         if not selected_item:
             QMessageBox.warning(self, "No Selection", "Please select an animal to edit.")
             return
-        
+
         # Retrieve the animal instance from the selected item
         animal = selected_item.data(Qt.UserRole)
         
@@ -131,18 +149,19 @@ class AnimalsTab(QWidget):
             if dialog.exec_() == QDialog.Accepted:
                 updated_info = dialog.updated_info
                 updated_animal = Animal(
-                    lab_animal_id=animal.lab_animal_id,  # Use the user-defined lab animal ID
+                    lab_animal_id=animal.lab_animal_id,
                     name=updated_info['name'],
                     initial_weight=updated_info['initial_weight'],
                     last_weight=updated_info['last_weight'],
                     last_weighted=updated_info['last_weighted']
                 )
                 
-                # Update the animal in the database using the new lab_animal_id-based structure
+                # Update the animal in the database
                 self.database_handler.update_animal(updated_animal)
                 
-                # Notify the terminal and refresh the animal list
+                # Notify and refresh
                 self.print_to_terminal(f"Updated animal '{updated_animal.name}' (Lab ID: {updated_animal.lab_animal_id}).")
                 self.load_animals()
         except Exception as e:
-            print(f"Unhandled exception in edit_animal: {e}")
+            QMessageBox.critical(self, "Edit Error", f"Error updating animal: {e}")
+            self.print_to_terminal(f"Unhandled exception in edit_animal: {e}")
