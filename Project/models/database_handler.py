@@ -4,6 +4,7 @@ import sqlite3
 from models.animal import Animal
 import hashlib
 import os
+from PyQt5.QtWidgets import QMessageBox
 class DatabaseHandler:
     def __init__(self, db_path='rrr_database.db'):
         self.db_path = db_path
@@ -60,7 +61,7 @@ class DatabaseHandler:
             print(f"Database error during table creation: {e}")
 
     def authenticate_trainer(self, trainer_name, password):
-        """Authenticate a trainer by username and password using salted SHA-256 hashing."""
+        """Authenticate a trainer by username and password using salted SHA-256 hashing with error handling."""
         try:
             conn = self.connect()
             cursor = conn.cursor()
@@ -86,7 +87,12 @@ class DatabaseHandler:
                 print("Trainer not found.")
                 return False
         except sqlite3.Error as e:
-            print(f"Error authenticating trainer: {e}")
+            print(f"Database error during authentication: {e}")
+            QMessageBox.critical(None, "Authentication Error", f"A database error occurred: {e}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error during authentication: {e}")
+            QMessageBox.critical(None, "Unexpected Error", f"An unexpected error occurred: {e}")
             return False
 
     def add_animal(self, animal, trainer_id):
@@ -214,12 +220,13 @@ class DatabaseHandler:
             return False
         
     def get_trainer_by_id(self, trainer_id):
-        """Retrieve a trainer's information based on their trainer ID."""
+        """Retrieve a trainer's information based on their trainer ID with error handling."""
         try:
             conn = self.connect()
             cursor = conn.cursor()
             cursor.execute('SELECT trainer_id, trainer_name FROM trainers WHERE trainer_id = ?', (trainer_id,))
             row = cursor.fetchone()
+            
             if row:
                 trainer_info = {
                     'trainer_id': row[0],
@@ -232,6 +239,11 @@ class DatabaseHandler:
                 return None
         except sqlite3.Error as e:
             print(f"Database error retrieving trainer by ID {trainer_id}: {e}")
+            QMessageBox.critical(None, "Database Error", f"A database error occurred: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error retrieving trainer by ID {trainer_id}: {e}")
+            QMessageBox.critical(None, "Unexpected Error", f"An unexpected error occurred: {e}")
             return None
 
     def close(self):
