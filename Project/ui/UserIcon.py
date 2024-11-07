@@ -1,11 +1,15 @@
+# ui/UserIcon.py
+
 from PyQt5.QtWidgets import QLabel, QMenu, QAction, QMessageBox
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
-
+from PyQt5.QtCore import Qt, pyqtSignal
 from ui.ProfileDialog import ProfileDialog
 from ui.LoginDialog import LoginDialog
 
 class UserIcon(QLabel):
+    login_signal = pyqtSignal(dict)  # Emits trainer info on login
+    logout_signal = pyqtSignal()     # Emits logout event
+
     def __init__(self, main_window, db_handler, login_system):
         super().__init__()
         self.main_window = main_window
@@ -15,7 +19,6 @@ class UserIcon(QLabel):
         
         self.setPixmap(QIcon("path_to_user_icon.png").pixmap(32, 32))  # Adjust icon path and size
         self.setAlignment(Qt.AlignRight)
-        
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("User Options")
         
@@ -50,7 +53,11 @@ class UserIcon(QLabel):
         dialog = LoginDialog(self.login_system)
         if dialog.exec_() == QDialog.Accepted:
             self.trainer_id = dialog.trainer_id
-            self.main_window.load_animals_tab(self.trainer_id)
+            trainer_info = {
+                'trainer_id': self.trainer_id,
+                'trainer_name': dialog.trainer_name
+            }
+            self.login_signal.emit(trainer_info)  # Emit login signal with trainer info
             self.update_menu_for_login()
 
     def update_menu_for_login(self):
@@ -70,7 +77,7 @@ class UserIcon(QLabel):
     def logout(self):
         """Logs out the current user and updates the UI."""
         self.trainer_id = None
-        self.main_window.clear_animals_tab()
+        self.logout_signal.emit()  # Emit logout signal
         self.login_action.setVisible(True)
         self.logout_action.setVisible(False)
         self.profile_action.setVisible(False)
