@@ -44,14 +44,18 @@ class DatabaseHandler:
 
     def add_animal(self, animal):
         """Add a new animal to the database."""
-        conn = self.connect()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO animals (name, initial_weight, last_weight, last_weighted)
-            VALUES (?, ?, ?, ?)
-        ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted))
-        conn.commit()
-        return cursor.lastrowid
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO animals (name, initial_weight, last_weight, last_weighted)
+                VALUES (?, ?, ?, ?)
+            ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.Error as e:
+            print(f"Database error when adding animal: {e}")
+            return None
 
     def remove_animal(self, animal_id):
         """Remove an animal from the database."""
