@@ -66,37 +66,37 @@ class DatabaseHandler:
             conn = self.connect()
             cursor = conn.cursor()
             
-            # Retrieve the stored salt and hashed password
-            cursor.execute('SELECT salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
+            # Retrieve the stored salt, hashed password, and trainer_id
+            cursor.execute('SELECT trainer_id, salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
             result = cursor.fetchone()
 
-            # Log what is retrieved from the database
+            # Log the retrieved data
             print(f"Retrieved data for {trainer_name}: {result}")
 
             if result:
-                salt, stored_hashed_password = result
+                trainer_id, salt, stored_hashed_password = result
 
                 # Hash the provided password with the retrieved salt
                 hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
 
-                # Compare the hashes and log the result
+                # Compare the hashes
                 if hashed_password == stored_hashed_password:
                     print("Authentication successful.")
-                    return True
+                    return trainer_id  # Return the actual trainer ID
                 else:
                     print("Authentication failed: hashed password does not match.")
-                    return False
+                    return None
             else:
                 print("Trainer not found in the database.")
-                return False
+                return None
         except sqlite3.Error as e:
             print(f"Database error during authentication: {e}")
             QMessageBox.critical(None, "Authentication Error", f"A database error occurred: {e}")
-            return False
+            return None
         except Exception as e:
             print(f"Unexpected error during authentication: {e}")
             QMessageBox.critical(None, "Unexpected Error", f"An unexpected error occurred: {e}")
-            return False
+            return None
 
     def add_animal(self, animal, trainer_id):
         """Add a new animal with lab_animal_id and trainer association."""
