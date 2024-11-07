@@ -63,6 +63,13 @@ class EditAnimalDialog(QDialog):
             QMessageBox.warning(self, "Input Error", str(e))
 
 
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
+    QLabel, QListWidget, QMessageBox, QHBoxLayout, QDateTimeEdit, QListWidgetItem
+)
+from PyQt5.QtCore import Qt, QDateTime
+from models.animal import Animal
+
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler):
         super().__init__()
@@ -105,16 +112,16 @@ class AnimalsTab(QWidget):
         self.animals_list.clear()
         animals = self.database_handler.get_all_animals()
         for animal in animals:
-            display_text = f"ID: {animal['id']} | Name: {animal.get('name', '')} | Last Watered: {animal.get('last_weighted', '')} | Last Weight: {animal.get('last_weight', '')}g"
+            display_text = f"ID: {animal.animal_id} | Name: {animal.name} | Last Weight: {animal.last_weight}g"
             item = QListWidgetItem(display_text)
-            item.setData(Qt.UserRole, animal['id'])
+            item.setData(Qt.UserRole, animal.animal_id)
             self.animals_list.addItem(item)
 
     def add_animal(self):
         """Add a new animal to the database."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Add New Animal")
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(dialog)
         form_layout = QFormLayout()
 
         name_input = QLineEdit()
@@ -143,17 +150,20 @@ class AnimalsTab(QWidget):
                 last_weight = float(last_weight_input.text().strip())
                 last_weighted = last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm")
 
-                animal_data = {
-                    'name': name,
-                    'initial_weight': initial_weight,
-                    'last_weight': last_weight,
-                    'last_weighted': last_weighted
-                }
-                self.database_handler.add_animal(animal_data)
-                self.print_to_terminal(f"Added animal '{name}'.")
-                self.load_animals()
+                new_animal = Animal(None, name, initial_weight, last_weight, last_weighted)
+                animal_id = self.database_handler.add_animal(new_animal)
+                
+                if animal_id:
+                    self.print_to_terminal(f"Added animal '{name}' with ID {animal_id}.")
+                    self.load_animals()
+                else:
+                    QMessageBox.critical(self, "Database Error", "Failed to add animal to the database.")
+
             except ValueError:
                 QMessageBox.warning(self, "Input Error", "Please enter valid numeric values for weights.")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An unexpected error occurred: {e}")
+                self.print_to_terminal(f"Unhandled exception in add_animal: {e}")
 
     def remove_animal(self):
         """Remove the selected animal from the database."""
@@ -171,21 +181,4 @@ class AnimalsTab(QWidget):
         if confirm == QMessageBox.Yes:
             self.database_handler.remove_animal(animal_id)
             self.print_to_terminal(f"Removed animal ID {animal_id}.")
-            self.load_animals()
-
-    def edit_animal(self):
-        """Edit the selected animal's information."""
-        selected_item = self.animals_list.currentItem()
-        if not selected_item:
-            QMessageBox.warning(self, "No Selection", "Please select an animal to edit.")
-            return
-
-        animal_id = selected_item.data(Qt.UserRole)
-        animal_info = self.database_handler.get_animal(animal_id)
-
-        dialog = EditAnimalDialog(animal_id, animal_info, self)
-        if dialog.exec_() == QDialog.Accepted:
-            updated_info = dialog.updated_info
-            self.database_handler.update_animal(animal_id, updated_info)
-            self.print_to_terminal(f"Updated animal ID {animal_id}.")
             self.load_animals()
