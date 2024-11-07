@@ -1,10 +1,8 @@
-Initiating authentication for username: test
-Authenticating username: test
-Retrieved data for test: ('ae2f7edc50251a5da4296fbd62a14ae9', '40caab0f0c0668121ee03c69833cd26c220059eae02ae271650aa6a719cd9b67')
-Authentication successful.
-Authentication result for test: True
-Attempting to retrieve trainer by ID: True
-Data retrieved for trainer ID True: (1, 'jose')
-Trainer found: {'trainer_id': 1, 'username': 'jose'}
-Login failed: Invalid trainer data received. Data: {'trainer_id': 1, 'username': 'jose'}
-Login failed after authentication.
+Authentication result for test: None
+Authentication failed: invalid username or password.
+Initiating authentication for username: jose
+Authenticating username: jose
+Retrieved data for jose: (1, 'b8de9ccfdc7a9fb03fd494d50fe328ba', '4f5c7ee47a119fdcd3d70ae30057c9f8357204a6977677030db1e9774bccaed4')
+Authentication failed: hashed password does not match.
+Authentication result for jose: None
+Authentication failed: invalid username or password.
