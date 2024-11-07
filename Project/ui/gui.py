@@ -1,7 +1,7 @@
 # ui/gui.py
 
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-                             QPushButton, QPlainTextEdit, QLabel, QMenu, QAction, QInputDialog)
+                             QPushButton, QPlainTextEdit, QLabel, QMenu, QAction, QInputDialog, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
@@ -149,31 +149,50 @@ class RodentRefreshmentGUI(QWidget):
     def print_to_terminal(self, message):
         """Display messages in the system message section."""
         self.terminal_output.appendPlainText(message)
-    # In RodentRefreshmentGUI class
-
-    def adjust_window_size(self):
-        """Adjusts the main window size to fit the current tab's content."""
-        self.adjustSize()
-        self.resize(self.sizeHint())
-
-    # Connect tab change signal to trigger resizing in SuggestSettingsSection
 
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()
         self.welcome_scroll_area.setVisible(not visible)
         self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
 
+    def adjust_window_size(self):
+        """Adjusts the window size based on the current tab content, with error handling."""
+        try:
+            current_tab_index = self.suggest_settings_section.tab_widget.currentIndex()
+            current_tab = self.suggest_settings_section.tab_widget.widget(current_tab_index)
+            
+            # Adjust the window height based on the current tab's height
+            if current_tab:
+                self.resize(self.width(), current_tab.sizeHint().height() + 100)  # Added padding
+        except Exception as e:
+            self.print_to_terminal(f"Error adjusting window size: {e}")
+            QMessageBox.critical(self, "Window Size Error", f"An unexpected error occurred while adjusting window size: {e}")
+
     def on_login(self, user):
-        """Callback for handling user login."""
-        self.current_user = user
-        self.print_to_terminal(f"Logged in as: {user['trainer_name']}")
-        self.load_animals_tab(trainer_id=user['trainer_id'])
+        """Callback for handling user login with error handling."""
+        try:
+            self.current_user = user
+            self.print_to_terminal(f"Logged in as: {user['trainer_name']}")
+            self.load_animals_tab(trainer_id=user['trainer_id'])
+        except KeyError as e:
+            self.print_to_terminal(f"Data error: missing key {e} in user data.")
+            QMessageBox.critical(self, "Login Data Error", f"Error accessing user data: missing key {e}")
+        except Exception as e:
+            self.print_to_terminal(f"Unexpected error during login: {e}")
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {e}")
 
     def on_logout(self):
-        """Callback for handling user logout, reverting to guest mode."""
-        self.current_user = None
-        self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
-        self.load_animals_tab()
+        """Callback for handling user logout, reverting to guest mode, with error handling."""
+        try:
+            self.current_user = None
+            self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
+            self.load_animals_tab()
+        except Exception as e:
+            self.print_to_terminal(f"Unexpected error during logout: {e}")
+            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
+
+
+
 
     def load_animals_tab(self, trainer_id=None):
         """Load the AnimalsTab for the specific trainer. Display all animals in guest mode."""
