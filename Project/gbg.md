@@ -1,36 +1,23 @@
-Authentication result for test: None
-Authentication failed: invalid username or password.
-Initiating authentication for username: jose
-Authenticating username: jose
-Retrieved data for jose: (1, 'b8de9ccfdc7a9fb03fd494d50fe328ba', '4f5c7ee47a119fdcd3d70ae30057c9f8357204a6977677030db1e9774bccaed4')
-Authentication failed: hashed password does not match.
-Authentication result for jose: None
-Authentication failed: invalid username or password.
-
-conelab@raspberrypi:~/Documents/GitHub/new_rrr/RRR/Project $ sqlite3 rrr_database.db
-SQLite version 3.40.1 2022-12-28 14:03:47
-Enter ".help" for usage hints.
-sqlite> .schema
-CREATE TABLE trainers (
-                trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trainer_name TEXT UNIQUE NOT NULL,
-                salt TEXT NOT NULL,
-                password TEXT NOT NULL
-                );
-CREATE TABLE sqlite_sequence(name,seq);
-CREATE TABLE animals (
-                    ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                    lab_animal_id TEXT UNIQUE NOT NULL,
-                    name TEXT NOT NULL,
-                    initial_weight REAL,
-                    last_weight REAL,
-                    last_weighted TEXT,
-                    trainer_id INTEGER,
-                    FOREIGN KEY(trainer_id) REFERENCES trainers(trainer_id)
-                );
-CREATE TABLE schedules (
-                    schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    relay TEXT NOT NULL,
-                    animals TEXT NOT NULL
-                );
+conelab@raspberrypi:~/Documents/GitHub/new_rrr/RRR/Project $ sudo python3 main.py
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-root'
+Tables created or confirmed to exist.
+Tables created or confirmed to exist.
+Running in Guest mode. Displaying all data.
+Initialized relay hat 0
+Traceback (most recent call last):
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/Project/main.py", line 208, in <module>
+    main()
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/Project/main.py", line 194, in main
+    setup()
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/Project/main.py", line 63, in setup
+    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, database_handler=database_handler, login_system=login_system)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/Project/ui/gui.py", line 37, in __init__
+    self.init_ui(style)
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/Project/ui/gui.py", line 75, in init_ui
+    self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/conelab/Documents/GitHub/new_rrr/RRR/Project/ui/projects_section.py", line 24, in __init__
+    self.schedules_tab = SchedulesTab(settings, print_to_terminal, database_handler, trainer_id=self.trainer_id)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: SchedulesTab.__init__() got an unexpected keyword argument 'trainer_id'
