@@ -4,23 +4,20 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton
 from PyQt5.QtCore import pyqtSignal
 
 class UserTab(QWidget):
-    login_signal = pyqtSignal(object)   # Emitted when login is successful, passing user info
-    logout_signal = pyqtSignal()        # Emitted when user logs out
+    login_signal = pyqtSignal(object)
+    logout_signal = pyqtSignal()
 
     def __init__(self, login_system):
         super().__init__()
         self.login_system = login_system
-        self.current_user = None  # Holds the logged-in user info
+        self.current_user = None
 
-        # Set up layout and initial UI state
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
-        # Display current mode (guest/user)
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.layout.addWidget(self.info_label)
 
-        # Username and password input fields for login
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Enter username")
         self.layout.addWidget(QLabel("Username:"))
@@ -32,25 +29,20 @@ class UserTab(QWidget):
         self.layout.addWidget(QLabel("Password:"))
         self.layout.addWidget(self.password_input)
 
-        # Login button
         self.login_button = QPushButton("Log In")
         self.login_button.clicked.connect(self.handle_login)
         self.layout.addWidget(self.login_button)
 
-        # Create New Profile button for registration
         self.create_profile_button = QPushButton("Create New Profile")
         self.create_profile_button.clicked.connect(self.handle_create_profile)
         self.layout.addWidget(self.create_profile_button)
 
-        # Logout button (initially hidden in guest mode)
         self.logout_button = QPushButton("Log Out")
         self.logout_button.clicked.connect(self.logout)
         self.logout_button.setVisible(False)
         self.layout.addWidget(self.logout_button)
 
-
     def handle_login(self):
-        """Handle the login process with error handling and validation."""
         try:
             username = self.username_input.text().strip()
             password = self.password_input.text().strip()
@@ -58,6 +50,22 @@ class UserTab(QWidget):
             if not username or not password:
                 QMessageBox.warning(self, "Input Required", "Please enter both username and password.")
                 return
+
+            print(f"Initiating authentication for username: {username}")
+            user_info = self.login_system.authenticate(username, password)
+            if not user_info:
+                QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
+                return
+
+            print(f"Login successful: {user_info}")
+            self.set_user(user_info)
+            self.login_signal.emit(user_info)
+
+        except Exception as e:
+            print(f"Exception during handle_login: {e}")
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {str(e)}")
+
+    # Rest of the methods remain unchanged.
 
             # Authenticate the user
             print(f"Initiating authentication for username: {username}")  # Debug

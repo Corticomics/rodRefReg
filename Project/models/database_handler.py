@@ -1,15 +1,49 @@
 # models/database_handler.py
+from models.animal import Animal
 
 import sqlite3
-from models.animal import Animal
 import hashlib
 import os
 from PyQt5.QtWidgets import QMessageBox
+
 class DatabaseHandler:
     def __init__(self, db_path='rrr_database.db'):
         self.db_path = db_path
         self.connection = None
         self.create_tables()
+
+    def authenticate_trainer(self, trainer_name, password):
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            cursor.execute('SELECT trainer_id, salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
+            result = cursor.fetchone()
+
+            print(f"Retrieved data for {trainer_name}: {result}")
+
+            if result:
+                trainer_id, salt, stored_hashed_password = result
+                hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
+
+                if hashed_password == stored_hashed_password:
+                    print("Authentication successful.")
+                    return trainer_id
+                else:
+                    print("Authentication failed: hashed password does not match.")
+                    return None
+            else:
+                print("Trainer not found in the database.")
+                return None
+        except sqlite3.Error as e:
+            print(f"Database error during authentication: {e}")
+            QMessageBox.critical(None, "Authentication Error", f"A database error occurred: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error during authentication: {e}")
+            QMessageBox.critical(None, "Unexpected Error", f"An unexpected error occurred: {e}")
+            return None
+
+    # Rest of the methods remain unchanged.
 
     def connect(self):
         """Establish a connection to the SQLite database."""
@@ -59,44 +93,6 @@ class DatabaseHandler:
             print("Tables created or confirmed to exist.")
         except sqlite3.Error as e:
             print(f"Database error during table creation: {e}")
-
-    def authenticate_trainer(self, trainer_name, password):
-        """Authenticate a trainer by username and password using salted SHA-256 hashing with error handling."""
-        try:
-            conn = self.connect()
-            cursor = conn.cursor()
-            
-            # Retrieve the stored salt, hashed password, and trainer_id
-            cursor.execute('SELECT trainer_id, salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
-            result = cursor.fetchone()
-
-            # Log the retrieved data
-            print(f"Retrieved data for {trainer_name}: {result}")
-
-            if result:
-                trainer_id, salt, stored_hashed_password = result
-
-                # Hash the provided password with the retrieved salt
-                hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
-
-                # Compare the hashes
-                if hashed_password == stored_hashed_password:
-                    print("Authentication successful.")
-                    return trainer_id  # Corrected: Return the actual trainer_id
-                else:
-                    print("Authentication failed: hashed password does not match.")
-                    return None
-            else:
-                print("Trainer not found in the database.")
-                return None
-        except sqlite3.Error as e:
-            print(f"Database error during authentication: {e}")
-            QMessageBox.critical(None, "Authentication Error", f"A database error occurred: {e}")
-            return None
-        except Exception as e:
-            print(f"Unexpected error during authentication: {e}")
-            QMessageBox.critical(None, "Unexpected Error", f"An unexpected error occurred: {e}")
-            return None
 
     def add_animal(self, animal, trainer_id):
         """Add a new animal with lab_animal_id and trainer association."""

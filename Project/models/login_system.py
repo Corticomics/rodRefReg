@@ -3,8 +3,29 @@
 class LoginSystem:
     def __init__(self, database_handler):
         self.database_handler = database_handler
-        self.current_trainer = None  # Set to None for guest mode
+        self.current_trainer = None
 
+    def authenticate(self, username, password):
+        try:
+            print(f"Authenticating username: {username}")
+            trainer_id = self.database_handler.authenticate_trainer(username, password)
+            print(f"Authentication result for {username}: {trainer_id}")
+
+            if trainer_id:
+                login_successful = self.login(trainer_id)
+                if login_successful:
+                    print(f"Authentication and login successful for trainer ID: {trainer_id}")
+                    return self.current_trainer
+                else:
+                    print("Login failed after authentication.")
+            else:
+                print("Authentication failed: invalid username or password.")
+            return None
+        except Exception as e:
+            print(f"Error during authentication: {e}")
+            return None
+
+    # Rest of the methods remain unchanged.
     def is_logged_in(self):
         """Check if a trainer is currently logged in."""
         return self.current_trainer is not None
