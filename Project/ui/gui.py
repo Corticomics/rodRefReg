@@ -39,39 +39,43 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        # Apply stylesheet for a clean, GitHub-inspired minimalistic design
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #F5F5F5;
-                font-family: Arial, sans-serif;
-            }
-            QScrollArea {
-                border: none;
-                background-color: #FFFFFF;
-            }
-            QLabel {
-                color: #333333;
-                font-size: 14px;
-            }
-            QPushButton {
-                background-color: #4078c0;
-                color: #FFFFFF;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #5A9ED8;
-            }
-            QPlainTextEdit {
-                background-color: #FAFAFA;
-                border: 1px solid #DDDDDD;
-                padding: 8px;
-                font-family: Consolas, monospace;
-                font-size: 12px;
-            }
-        """)
+        if style == 'bitlearns':
+            self.setStyleSheet("""
+                QWidget {
+                    background-color: #f8f9fa;
+                    font-size: 14px;
+                }
+                QGroupBox {
+                    background-color: #ffffff;
+                    border: 1px solid #ced4da;
+                    border-radius: 5px;
+                    padding: 15px;
+                }
+                QPushButton {
+                    background-color: #007bff;
+                    border: 1px solid #007bff;
+                    border-radius: 5px;
+                    color: #ffffff;
+                    padding: 10px;
+                }
+                QPushButton:disabled               
+                    PushButton:disabled {
+                    background-color: #cccccc;
+                    color: #666666;
+                }
+                QPushButton:hover {
+                    background-color: #0056b3;
+                }
+                QLabel {
+                    color: #343a40;
+                    background-color: #ffffff;
+                }
+                QLineEdit, QTextEdit {
+                    background-color: #ffffff;
+                    border: 1px solid #ced4da;
+                    padding: 5px;
+                }
+            """)
 
         # Main layout setup
         self.main_layout = QVBoxLayout(self)
