@@ -7,11 +7,12 @@ from models.animal import Animal
 from .edit_animal_dialog import EditAnimalDialog
 
 class AnimalsTab(QWidget):
-    def __init__(self, settings, print_to_terminal, database_handler):
+    def __init__(self, settings, print_to_terminal, database_handler, trainer_id=None):
         super().__init__()
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
+        self.trainer_id = trainer_id  # Store trainer_id for filtering
 
         # Initialize layout
         self.layout = QVBoxLayout()
@@ -45,7 +46,7 @@ class AnimalsTab(QWidget):
         self.load_animals()
 
     def load_animals(self):
-        """Load animals from the database, with error handling."""
+        """Load animals from the database, filtered by trainer_id if available."""
         try:
             if self.trainer_id:
                 animals = self.database_handler.get_animals_by_trainer(self.trainer_id)
@@ -53,12 +54,21 @@ class AnimalsTab(QWidget):
             else:
                 animals = self.database_handler.get_all_animals()
                 print(f"Loaded {len(animals)} animals for all trainers (guest mode)")
-            # Proceed with populating the UI with the animals list
+            # Populate the UI with the animals list
             self.populate_animal_list(animals)
         except Exception as e:
             print(f"Exception in AnimalsTab.load_animals: {e}")
             QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals: {e}")
             
+    def populate_animal_list(self, animals):
+        """Populate the animals_list widget with the given animals."""
+        self.animals_list.clear()
+        for animal in animals:
+            item = QListWidgetItem(f"{animal.lab_animal_id} - {animal.name}")
+            item.setData(Qt.UserRole, animal)
+            self.animals_list.addItem(item)
+
+    # Other methods like add_animal, remove_animal, edit_animal remain the same
     def add_animal(self):
         """Open dialog to add a new animal with error handling."""
         dialog = QDialog(self)
