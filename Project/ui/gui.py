@@ -13,7 +13,7 @@ from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 
 class RodentRefreshmentGUI(QWidget):
-    system_message_signal = pyqtSignal(str)  # Move system_message_signal to the class level
+    system_message_signal = pyqtSignal(str)
 
     def __init__(self, run_program, stop_program, change_relay_hats,
                  settings, database_handler, login_system, style='bitlearns'):
@@ -79,23 +79,14 @@ class RodentRefreshmentGUI(QWidget):
         # Main layout setup
         self.main_layout = QVBoxLayout(self)
 
-        # Initialize UserTab and connect login/logout signals
-        self.user_tab = UserTab(self.login_system)
-        self.user_tab.login_signal.connect(self.on_login)  # Connect login signal
-        self.user_tab.logout_signal.connect(self.on_logout)  # Connect logout signal
-        print("Connected login and logout signals to RodentRefreshmentGUI")  # Debug confirmation
-
-        # Add UserTab to the layout
-        self.main_layout.addWidget(self.user_tab)
-
-        # Welcome section
+        # Welcome section setup as before
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
         self.welcome_scroll_area.setWidget(self.welcome_section)
         self.main_layout.addWidget(self.welcome_scroll_area)
 
-        # Toggle welcome message
+        # Toggle button setup as before
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
@@ -103,7 +94,7 @@ class RodentRefreshmentGUI(QWidget):
         # Main content layout
         self.upper_layout = QHBoxLayout()
 
-        # Left layout (messages and projects)
+        # Left layout setup (projects and messages)
         self.left_layout = QVBoxLayout()
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
@@ -118,10 +109,9 @@ class RodentRefreshmentGUI(QWidget):
         self.left_scroll.setWidget(self.left_content)
         self.upper_layout.addWidget(self.left_scroll)
 
-        # Right layout (suggested settings and run/stop)
+        # Right layout setup (suggested settings and run/stop)
         self.right_layout = QVBoxLayout()
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
-
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
             self.suggest_settings_callback,
@@ -131,8 +121,6 @@ class RodentRefreshmentGUI(QWidget):
             run_stop_section=self.run_stop_section,
             login_system=self.login_system
         )
-
-        # Add the suggest_settings_section to the right layout
         self.right_layout.addWidget(self.suggest_settings_section)
         self.right_layout.addWidget(self.run_stop_section)
         self.right_content = QWidget()
@@ -143,8 +131,15 @@ class RodentRefreshmentGUI(QWidget):
         self.upper_layout.addWidget(self.right_scroll)
         self.main_layout.addLayout(self.upper_layout)
 
+        # Add UserTab signal connections without displaying it at the top
+        self.user_tab = UserTab(self.login_system)
+        self.user_tab.login_signal.connect(self.on_login)
+        self.user_tab.logout_signal.connect(self.on_logout)
+
         # Load initial data in guest mode
         self.load_animals_tab()
+
+    # Remaining methods stay the same...
 
     def print_to_terminal(self, message):
         self.terminal_output.appendPlainText(message)
