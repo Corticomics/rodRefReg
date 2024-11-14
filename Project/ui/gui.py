@@ -58,8 +58,7 @@ class RodentRefreshmentGUI(QWidget):
                     color: #ffffff;
                     padding: 10px;
                 }
-                QPushButton:disabled               
-                    PushButton:disabled {
+                QPushButton:disabled {
                     background-color: #cccccc;
                     color: #666666;
                 }
@@ -79,12 +78,6 @@ class RodentRefreshmentGUI(QWidget):
 
         # Main layout setup
         self.main_layout = QVBoxLayout(self)
-
-        # User tab section
-        self.user_tab = UserTab(self.login_system)
-        self.user_tab.login_signal.connect(self.on_login)
-        self.user_tab.logout_signal.connect(self.on_logout)
-        self.main_layout.addWidget(self.user_tab)
 
         # Welcome section
         self.welcome_section = WelcomeSection()
