@@ -1,14 +1,16 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QLabel,
-                             QLineEdit, QPushButton, QMessageBox, QDialog, QFormLayout, QListWidgetItem)
+# ui/schedules_tab.py
+
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QListWidget, QListWidgetItem, QHBoxLayout, QDialog, QFormLayout, QLineEdit, QMessageBox
 from PyQt5.QtCore import Qt
 
 class SchedulesTab(QWidget):
-    def __init__(self, settings, print_to_terminal, database_handler):
+    def __init__(self, settings, print_to_terminal, database_handler, trainer_id=None):
         super().__init__()
-
+        
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
+        self.trainer_id = trainer_id  # Store the trainer_id
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -25,7 +27,7 @@ class SchedulesTab(QWidget):
         # Relay containers for animals
         self.relay_layout = QHBoxLayout()
         self.relay_containers = {}
-        
+
         # Assume we have 4 relay pairs for demonstration
         for relay_id in range(1, 5):
             container = QListWidget()
@@ -48,9 +50,9 @@ class SchedulesTab(QWidget):
 
     def load_animals(self):
         """Load animals from the database and add them to the animal list."""
-        animals = self.database_handler.get_all_animals()
+        animals = self.database_handler.get_all_animals() if self.trainer_id is None else self.database_handler.get_animals_by_trainer(self.trainer_id)
         for animal in animals:
-            item = QListWidgetItem(f"{animal['id']} - {animal['name']}")
+            item = QListWidgetItem(f"{animal.name} ({animal.lab_animal_id})")
             item.setData(Qt.UserRole, animal)
             self.animal_list.addItem(item)
 
