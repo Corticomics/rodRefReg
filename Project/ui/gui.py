@@ -1,5 +1,4 @@
-# ui/gui.py
-
+#ui/gui.py
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QPushButton, QPlainTextEdit, QLabel, QMessageBox
@@ -9,7 +8,7 @@ from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
 from .suggest_settings import SuggestSettingsSection
 from .projects_section import ProjectsSection
-from .UserTab import UserTab  # Updated import
+from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 
@@ -40,12 +39,44 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        # Apply stylesheet (unchanged)
+        # Apply stylesheet for a clean, GitHub-inspired minimalistic design
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #F5F5F5;
+                font-family: Arial, sans-serif;
+            }
+            QScrollArea {
+                border: none;
+                background-color: #FFFFFF;
+            }
+            QLabel {
+                color: #333333;
+                font-size: 14px;
+            }
+            QPushButton {
+                background-color: #4078c0;
+                color: #FFFFFF;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #5A9ED8;
+            }
+            QPlainTextEdit {
+                background-color: #FAFAFA;
+                border: 1px solid #DDDDDD;
+                padding: 8px;
+                font-family: Consolas, monospace;
+                font-size: 12px;
+            }
+        """)
 
         # Main layout setup
         self.main_layout = QVBoxLayout(self)
 
-        # Replace UserIcon with UserTab
+        # User tab section
         self.user_tab = UserTab(self.login_system)
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
@@ -63,7 +94,7 @@ class RodentRefreshmentGUI(QWidget):
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
-        # Main layout
+        # Main content layout
         self.upper_layout = QHBoxLayout()
 
         # Left layout (messages and projects)
@@ -97,9 +128,6 @@ class RodentRefreshmentGUI(QWidget):
 
         # Add the suggest_settings_section to the right layout
         self.right_layout.addWidget(self.suggest_settings_section)
-
-        # Initial adjustment on startup (unchanged)
-
         self.right_layout.addWidget(self.run_stop_section)
         self.right_content = QWidget()
         self.right_content.setLayout(self.right_layout)
@@ -112,9 +140,7 @@ class RodentRefreshmentGUI(QWidget):
         # Load initial data in guest mode
         self.load_animals_tab()
 
-    # The rest of the methods remain the same, no changes needed
     def print_to_terminal(self, message):
-        """Display messages in the system message section."""
         self.terminal_output.appendPlainText(message)
 
     def toggle_welcome_message(self):
@@ -122,6 +148,7 @@ class RodentRefreshmentGUI(QWidget):
         self.welcome_scroll_area.setVisible(not visible)
         self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
 
+    # The rest of the methods remain the same
     def adjust_window_size(self):
         """Adjusts the window size based on the current tab content, with error handling."""
         try:
