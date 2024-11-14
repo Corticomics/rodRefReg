@@ -12,9 +12,9 @@ from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 
-# ui/gui.py
-
 class RodentRefreshmentGUI(QWidget):
+    system_message_signal = pyqtSignal(str)  # Move system_message_signal to the class level
+
     def __init__(self, run_program, stop_program, change_relay_hats,
                  settings, database_handler, login_system, style='bitlearns'):
         super().__init__()
@@ -34,12 +34,6 @@ class RodentRefreshmentGUI(QWidget):
 
         # Initialize the UI with the selected style
         self.init_ui(style)
-
-        # Initialize UserTab and connect login/logout signals
-        self.user_tab = UserTab(self.login_system)
-        self.user_tab.login_signal.connect(self.on_login)  # Connect login signal
-        self.user_tab.logout_signal.connect(self.on_logout)  # Connect logout signal
-        print("Connected login and logout signals to RodentRefreshmentGUI")  # Debug confirmation
 
     def init_ui(self, style):
         self.setWindowTitle("Rodent Refreshment Regulator")
@@ -84,6 +78,15 @@ class RodentRefreshmentGUI(QWidget):
 
         # Main layout setup
         self.main_layout = QVBoxLayout(self)
+
+        # Initialize UserTab and connect login/logout signals
+        self.user_tab = UserTab(self.login_system)
+        self.user_tab.login_signal.connect(self.on_login)  # Connect login signal
+        self.user_tab.logout_signal.connect(self.on_logout)  # Connect logout signal
+        print("Connected login and logout signals to RodentRefreshmentGUI")  # Debug confirmation
+
+        # Add UserTab to the layout
+        self.main_layout.addWidget(self.user_tab)
 
         # Welcome section
         self.welcome_section = WelcomeSection()
