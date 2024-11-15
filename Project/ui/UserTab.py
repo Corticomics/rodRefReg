@@ -7,6 +7,7 @@ import traceback
 class UserTab(QWidget):
     login_signal = pyqtSignal(dict)
     logout_signal = pyqtSignal()
+    size_changed_signal = pyqtSignal()  
 
     def __init__(self, login_system):
         super().__init__()
@@ -134,7 +135,10 @@ class UserTab(QWidget):
             self.login_button.hide()
             self.create_profile_button.hide()
             self.logout_button.show()
-            self.setFixedSize(self.sizeHint())
+            
+            # Adjust the size and emit the signal
+            self.adjustSize()
+            self.size_changed_signal.emit()
         
         except ValueError as ve:
             QMessageBox.critical(self, "Profile View Error", str(ve))
@@ -144,6 +148,23 @@ class UserTab(QWidget):
             QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
             print(f"Unexpected error in set_minimal_profile_view: {e}")
 
+    def set_guest_view(self):
+        """Resets the view for guest mode with error handling."""
+        try:
+            self.info_label.setText("You are running the application in Guest mode.")
+            self.username_input.show()
+            self.password_input.show()
+            self.login_button.show()
+            self.create_profile_button.show()
+            self.logout_button.hide()
+            
+            # Adjust the size and emit the signal
+            self.adjustSize()
+            self.size_changed_signal.emit()
+        
+        except Exception as e:
+            QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
+            print(f"Unexpected error in set_guest_view: {e}")
     def set_guest_view(self):
         """Resets the view for guest mode with error handling."""
         try:

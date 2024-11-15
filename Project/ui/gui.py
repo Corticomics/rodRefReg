@@ -136,6 +136,7 @@ class RodentRefreshmentGUI(QWidget):
         self.user_tab = self.suggest_settings_section.user_tab
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
+        self.user_tab.size_changed_signal.connect(self.adjust_window_size)
         # Load initial data in guest mode
         self.load_animals_tab()
 
@@ -149,20 +150,16 @@ class RodentRefreshmentGUI(QWidget):
         self.welcome_scroll_area.setVisible(not visible)
         self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
 
-    # The rest of the methods remain the same
+    
     def adjust_window_size(self):
-        """Adjusts the window size based on the current tab content, with error handling."""
+        """Adjust the main window size to fit its content."""
         try:
-            current_tab_index = self.suggest_settings_section.tab_widget.currentIndex()
-            current_tab = self.suggest_settings_section.tab_widget.widget(current_tab_index)
-
-            # Adjust the window height based on the current tab's height
-            if current_tab:
-                self.resize(self.width(), current_tab.sizeHint().height() + 100)  # Added padding
+            # Resize the main window to fit its content
+            self.adjustSize()
         except Exception as e:
             self.print_to_terminal(f"Error adjusting window size: {e}")
-            QMessageBox.critical(self, "Window Size Error", f"An unexpected error occurred while adjusting window size: {e}")
-
+            QMessageBox.critical(self, "Window Size Error",
+                                 f"An unexpected error occurred while adjusting window size: {e}")
     @pyqtSlot(dict)
     def on_login(self, user):
         try:
@@ -175,7 +172,7 @@ class RodentRefreshmentGUI(QWidget):
 
             trainer_id = int(user['trainer_id'])  # Ensure trainer_id is an integer
             self.load_animals_tab(trainer_id=trainer_id)
-
+            self.adjust_window_size()
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
             QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
@@ -211,6 +208,8 @@ class RodentRefreshmentGUI(QWidget):
             self.current_user = None
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
+
+            self.adjust_window_size()
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
