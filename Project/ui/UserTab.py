@@ -174,7 +174,7 @@ class UserTab(QWidget):
             self.login_button.show()
             self.create_profile_button.show()
             self.logout_button.hide()
-            self.setFixedSize(self.sizeHint())
+            self.adjustSize()
         
         except Exception as e:
             QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
