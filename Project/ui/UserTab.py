@@ -1,6 +1,7 @@
 # ui/user_tab.py
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSpacerItem, QSizePolicy
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtCore import pyqtSignal
 import traceback
 
@@ -17,6 +18,7 @@ class UserTab(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
+        self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.layout.addWidget(self.info_label)
 
@@ -43,6 +45,8 @@ class UserTab(QWidget):
         self.logout_button.clicked.connect(self.logout)
         self.logout_button.setVisible(False)
         self.layout.addWidget(self.logout_button)
+
+        self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
     def handle_login(self):
         try:

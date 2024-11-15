@@ -1,7 +1,7 @@
 #ui/gui.py
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QPushButton, QPlainTextEdit, QLabel, QMessageBox
+    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import traceback
@@ -47,10 +47,8 @@ class RodentRefreshmentGUI(QWidget):
                     font-size: 14px;
                 }
                 QGroupBox {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    border-radius: 5px;
-                    padding: 15px;
+                    border: none;
+                    padding: 0px;
                 }
                 QPushButton {
                     background-color: #007bff;
@@ -68,10 +66,8 @@ class RodentRefreshmentGUI(QWidget):
                 }
                 QLabel {
                     color: #343a40;
-                    background-color: #ffffff;
                 }
                 QLineEdit, QTextEdit {
-                    background-color: #ffffff;
                     border: 1px solid #ced4da;
                     padding: 5px;
                 }
@@ -140,7 +136,34 @@ class RodentRefreshmentGUI(QWidget):
         # Load initial data in guest mode
         self.load_animals_tab()
 
-    # Remaining methods stay the same...
+        self.upper_layout = QHBoxLayout()
+        self.upper_layout.setContentsMargins(0, 0, 0, 0)
+        self.upper_layout.setSpacing(10)
+
+        # Adjust left layout
+        self.left_layout = QVBoxLayout()
+        self.left_layout.addWidget(self.terminal_output)
+        self.left_layout.addWidget(self.projects_section)
+        self.left_layout.setStretch(0, 1)  # Terminal output
+        self.left_layout.setStretch(1, 3)  # Projects section
+
+        # Adjust right layout
+        self.right_layout = QVBoxLayout()
+        self.right_layout.addWidget(self.suggest_settings_section)
+        self.right_layout.addWidget(self.run_stop_section)
+        self.right_layout.setStretch(0, 2)  # Suggest settings
+        self.right_layout.setStretch(1, 1)  # Run/Stop section
+
+        # Adjust scroll areas
+        self.left_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.right_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # Add scroll areas to upper layout with stretch factors
+        self.upper_layout.addWidget(self.left_scroll, 3)
+        self.upper_layout.addWidget(self.right_scroll, 2)
+
+        self.main_layout.addLayout(self.upper_layout)
+
 
     def print_to_terminal(self, message):
         self.terminal_output.appendPlainText(message)

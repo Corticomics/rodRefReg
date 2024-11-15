@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy)
 from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
@@ -25,6 +25,8 @@ class RunStopSection(QWidget):
 
     def init_ui(self):
         self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layour.setSpacing(10)
 
         # Tab widget for Calendar and Offline modes
         self.tab_widget = QTabWidget()
@@ -96,6 +98,16 @@ class RunStopSection(QWidget):
 
         # Initialize button states
         self.update_button_states()
+
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.run_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.relay_hats_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # Add stretch to push buttons to the bottom
+        self.layout.addStretch()
+
+        self.setLayout(self.layout)
 
     def load_settings(self, settings):
         self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
