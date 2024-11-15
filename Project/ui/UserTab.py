@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtSignal
 import traceback
 
 class UserTab(QWidget):
-    login_signal = pyqtSignal(object)
+    login_signal = pyqtSignal(dict)
     logout_signal = pyqtSignal()
 
     def __init__(self, login_system):
