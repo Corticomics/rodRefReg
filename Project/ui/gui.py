@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QPushButton, QPlainTextEdit, QLabel, QMessageBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import traceback
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
@@ -164,7 +164,7 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal(f"Error adjusting window size: {e}")
             QMessageBox.critical(self, "Window Size Error", f"An unexpected error occurred while adjusting window size: {e}")
 
-
+    @pyqtSlot(dict)
     def on_login(self, user):
         try:
             if not isinstance(user, dict) or 'username' not in user or 'trainer_id' not in user:
