@@ -45,6 +45,7 @@ class UserTab(QWidget):
 
     def handle_login(self):
         try:
+            print('1')
             username = self.username_input.text().strip()
             password = self.password_input.text().strip()
 
