@@ -49,8 +49,10 @@ class AnimalsTab(QWidget):
         """Load animals from the database, filtered by trainer_id if available."""
         try:
             if self.trainer_id:
-                animals = self.database_handler.get_animals_by_trainer(self.trainer_id)
-                print(f"Loaded {len(animals)} animals for trainer ID {self.trainer_id}")
+                # Ensure trainer_id is an integer
+                trainer_id = int(self.trainer_id)
+                animals = self.database_handler.get_animals_by_trainer(trainer_id)
+                print(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
             else:
                 animals = self.database_handler.get_all_animals()
                 print(f"Loaded {len(animals)} animals for all trainers (guest mode)")
@@ -59,7 +61,7 @@ class AnimalsTab(QWidget):
         except Exception as e:
             print(f"Exception in AnimalsTab.load_animals: {e}")
             QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals: {e}")
-            
+    
     def populate_animal_list(self, animals):
         """Populate the animals_list widget with the given animals."""
         self.animals_list.clear()

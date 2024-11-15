@@ -1,3 +1,5 @@
+# models/animal.py
+
 class Animal:
     def __init__(self, animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted):
         self.animal_id = animal_id  # Database-generated ID

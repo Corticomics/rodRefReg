@@ -155,7 +155,7 @@ class DatabaseHandler:
             rows = cursor.fetchall()
             for row in rows:
                 animal = Animal(
-                    id=row[0],
+                    animal_id=row[0],  # Corrected parameter name
                     lab_animal_id=row[1],
                     name=row[2],
                     initial_weight=row[3],
@@ -168,19 +168,19 @@ class DatabaseHandler:
             print(f"Error retrieving all animals: {e}")
         return animals
 
-
     def get_animals_by_trainer(self, trainer_id):
         """Retrieve animals belonging to a specific trainer."""
         animals = []
         try:
             conn = self.connect()
             cursor = conn.cursor()
-            cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals WHERE trainer_id = ?', (trainer_id,))
+            # Ensure trainer_id is passed as a tuple
+            cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals WHERE trainer_id = ?', (int(trainer_id),))
             rows = cursor.fetchall()
             print(f"Retrieved {len(rows)} animals from the database for trainer_id {trainer_id}")
             for row in rows:
                 animal = Animal(
-                    id=row[0],
+                    animal_id=row[0],  # Corrected parameter name
                     lab_animal_id=row[1],
                     name=row[2],
                     initial_weight=row[3],
