@@ -1,7 +1,8 @@
 # ui/user_tab.py
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QInputDialog
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox
 from PyQt5.QtCore import pyqtSignal
+import traceback
 
 class UserTab(QWidget):
     login_signal = pyqtSignal(object)
@@ -63,8 +64,41 @@ class UserTab(QWidget):
 
         except Exception as e:
             print(f"Exception during handle_login: {e}")
-            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {str(e)}")
-            
+            traceback.print_exc()
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login:\n{str(e)}")
+
+    def set_user(self, user_info):
+        """Sets the user information after a successful login."""
+        try:
+            self.current_user = user_info
+            self.info_label.setText(f"Logged in as: {user_info.get('username', 'Unknown')}")
+            self.username_input.clear()
+            self.password_input.clear()
+            self.username_input.setVisible(False)
+            self.password_input.setVisible(False)
+            self.login_button.setVisible(False)
+            self.create_profile_button.setVisible(False)
+            self.logout_button.setVisible(True)
+        except Exception as e:
+            print(f"Error in set_user: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Profile Error", f"An unexpected error occurred:\n{str(e)}")
+
+    def logout(self):
+        try:
+            self.current_user = None
+            self.login_system.logout()
+            self.info_label.setText("You are running the application in Guest mode.")
+            self.username_input.setVisible(True)
+            self.password_input.setVisible(True)
+            self.login_button.setVisible(True)
+            self.create_profile_button.setVisible(True)
+            self.logout_button.setVisible(False)
+            self.logout_signal.emit()
+        except Exception as e:
+            print(f"Error during logout: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout:\n{str(e)}")
     def handle_create_profile(self):
         """Handle the profile creation process with error handling."""
         try:
@@ -86,23 +120,7 @@ class UserTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Profile Creation Error", f"An unexpected error occurred during profile creation: {str(e)}")
 
-    def set_user(self, user_info):
-        """Sets the user information after a successful login with error handling."""
-        try:
-            self.current_user = user_info
-            self.info_label.setText(f"Logged in as: {user_info.get('username', 'Unknown')}")
-            self.username_input.clear()
-            self.password_input.clear()
-            self.username_input.setVisible(False)
-            self.password_input.setVisible(False)
-            self.login_button.setVisible(False)
-            self.create_profile_button.setVisible(False)
-            self.logout_button.setVisible(True)
-        except KeyError as e:
-            QMessageBox.critical(self, "Data Error", f"Missing user information: {str(e)}")
-        except Exception as e:
-            QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
-
+    
     def set_minimal_profile_view(self, username):
         """Sets a minimal view for logged-in users with error handling."""
         try:
@@ -139,17 +157,3 @@ class UserTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
             print(f"Unexpected error in set_guest_view: {e}")
-
-    def logout(self):
-        """Logs out the user with error handling."""
-        try:
-            self.current_user = None
-            self.info_label.setText("You are running the application in Guest mode.")
-            self.username_input.setVisible(True)
-            self.password_input.setVisible(True)
-            self.login_button.setVisible(True)
-            self.create_profile_button.setVisible(True)
-            self.logout_button.setVisible(False)
-            self.logout_signal.emit()  # Emit logout signal
-        except Exception as e:
-            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {str(e)}")

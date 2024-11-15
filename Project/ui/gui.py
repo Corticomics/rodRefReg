@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QPlainTextEdit, QLabel, QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
+import traceback
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
 from .suggest_settings import SuggestSettingsSection
@@ -173,16 +174,38 @@ class RodentRefreshmentGUI(QWidget):
             print(f"Login data received in GUI: {user}")
             self.print_to_terminal(f"Logged in as: {user['username']}")
 
-            self.load_animals_tab(trainer_id=user['trainer_id'])
+            trainer_id = int(user['trainer_id'])  # Ensure trainer_id is an integer
+            self.load_animals_tab(trainer_id=trainer_id)
 
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
-            QMessageBox.critical(self, "Login Data Error", f"Error accessing user data: {ve}")
+            QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
 
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during login: {e}")
-            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login: {e}")
-    
+            traceback.print_exc()
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login:\n{e}")
+
+    def load_animals_tab(self, trainer_id=None):
+        """Load the AnimalsTab for the specific trainer. Display all animals in guest mode."""
+        try:
+            if not hasattr(self.projects_section, 'animals_tab') or self.projects_section.animals_tab is None:
+                raise AttributeError("animals_tab is not initialized in projects_section.")
+
+            if trainer_id:
+                self.projects_section.animals_tab.trainer_id = int(trainer_id)
+                self.print_to_terminal(f"Displaying animals for trainer ID {trainer_id}")
+            else:
+                self.projects_section.animals_tab.trainer_id = None
+                self.print_to_terminal("Displaying all animals (guest mode)")
+
+            self.projects_section.animals_tab.load_animals()
+
+        except Exception as e:
+            print(f"Exception in load_animals_tab: {e}")
+            traceback.print_exc()
+            self.print_to_terminal(f"Error loading animals tab: {e}")
+            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
     def on_logout(self):
         """Callback for handling user logout, reverting to guest mode, with error handling."""
         try:

@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
 from .edit_animal_dialog import EditAnimalDialog
-
+import traceback
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, trainer_id=None):
         super().__init__()
@@ -49,7 +49,6 @@ class AnimalsTab(QWidget):
         """Load animals from the database, filtered by trainer_id if available."""
         try:
             if self.trainer_id:
-                # Ensure trainer_id is an integer
                 trainer_id = int(self.trainer_id)
                 animals = self.database_handler.get_animals_by_trainer(trainer_id)
                 print(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
@@ -60,8 +59,9 @@ class AnimalsTab(QWidget):
             self.populate_animal_list(animals)
         except Exception as e:
             print(f"Exception in AnimalsTab.load_animals: {e}")
-            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals: {e}")
-    
+            traceback.print_exc()
+            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
+
     def populate_animal_list(self, animals):
         """Populate the animals_list widget with the given animals."""
         self.animals_list.clear()
