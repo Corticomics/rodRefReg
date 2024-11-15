@@ -14,10 +14,13 @@ class LoginSystem:
             print(f"Authentication result for {username}: {trainer_id}")
 
             if trainer_id:
+                # Set current trainer as a dictionary with 'username' and 'trainer_id'
+                self.current_trainer = {'username': username, 'trainer_id': trainer_id}
+                
                 login_successful = self.login(trainer_id)
                 if login_successful:
                     print(f"Authentication and login successful for trainer ID: {trainer_id}")
-                    return self.current_trainer
+                    return self.current_trainer  # Returning a dictionary as expected
                 else:
                     print("Login failed after authentication.")
             else:
