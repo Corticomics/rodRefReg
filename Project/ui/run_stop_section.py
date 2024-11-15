@@ -26,7 +26,7 @@ class RunStopSection(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layour.setSpacing(10)
+        self.layout.setSpacing(10)
 
         # Tab widget for Calendar and Offline modes
         self.tab_widget = QTabWidget()
