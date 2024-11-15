@@ -132,11 +132,10 @@ class RodentRefreshmentGUI(QWidget):
         self.upper_layout.addWidget(self.right_scroll)
         self.main_layout.addLayout(self.upper_layout)
 
-        # Add UserTab signal connections without displaying it at the top
-        self.user_tab = UserTab(self.login_system)
+        # Connect TO suggest_settings_section
+        self.user_tab = self.suggest_settings_section.user_tab
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
-
         # Load initial data in guest mode
         self.load_animals_tab()
 
