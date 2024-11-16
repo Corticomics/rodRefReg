@@ -109,7 +109,7 @@ class RodentRefreshmentGUI(QWidget):
         self.upper_layout.addWidget(self.left_scroll)
 
         # Right layout setup (suggested settings and run/stop)
-        self.right_layout = QScrollArea()
+        self.right_layout = QVBoxLayout()
         self.right_layout.setSpacing(10)
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         self.suggest_settings_section = SuggestSettingsSection(
