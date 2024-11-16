@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QSpacerItem)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout)
 from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
@@ -26,7 +26,7 @@ class RunStopSection(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(100)
+        self.layout.setSpacing(10)
 
         # Tab widget for Calendar and Offline modes
         self.tab_widget = QTabWidget()
@@ -34,6 +34,11 @@ class RunStopSection(QWidget):
         self.offline_widget = QWidget()
 
         # Calendar-Based Time Window Selection
+        calendar_layout = QFormLayout()
+        calendar_layout.setSpacing(10)  # Ensure spacing is adequate for the calendar
+        calendar_layout.addRow(self.start_time_label, self.start_time_input)
+        calendar_layout.addRow(self.end_time_label, self.end_time_input)
+        self.calendar_widget.setLayout(calendar_layout)
         self.start_time_label = QLabel("Start Time:")
         self.start_time_input = QDateTimeEdit(self.calendar_widget)
         self.start_time_input.setCalendarPopup(True)
@@ -74,12 +79,10 @@ class RunStopSection(QWidget):
         self.stagger_input = QLineEdit(self)
         self.stagger_input.setPlaceholderText("Enter seconds")
 
-        buttonsspace  = QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.layout.addItem(buttonsspace)
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
-        self.layout.addItem(buttonsspace)
+
 
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
@@ -89,12 +92,20 @@ class RunStopSection(QWidget):
         form_layout = QFormLayout()
         form_layout.addRow(self.interval_label, self.interval_input)
         form_layout.addRow(self.stagger_label, self.stagger_input)
+        
 
+        # Create a separate layout for the buttons with minimal spacing
+        self.button_layout = QHBoxLayout()
+        self.button_layout.setSpacing(5)  # Minimal spacing between buttons
+        self.button_layout.addWidget(self.run_button)
+        self.button_layout.addWidget(self.stop_button)
+        self.button_layout.addWidget(self.relay_hats_button)
+
+        # Add widgets and layouts to the main layout
         self.layout.addWidget(self.tab_widget)
         self.layout.addLayout(form_layout)
-        self.layout.addWidget(self.run_button)
-        self.layout.addWidget(self.stop_button)
-        self.layout.addWidget(self.relay_hats_button)
+        self.layout.addLayout(self.button_layout)  # Add button layout
+        self.layout.addStretch()  # Push content to the top
 
         self.setLayout(self.layout)
 

@@ -90,9 +90,11 @@ class RodentRefreshmentGUI(QWidget):
 
         # Main content layout
         self.upper_layout = QHBoxLayout()
+        self.main_layout.addLayout(self.upper_layout)
 
         # Left layout setup (projects and messages)
         self.left_layout = QVBoxLayout()
+        self.left_layout.setSpacing(10)
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
@@ -107,7 +109,8 @@ class RodentRefreshmentGUI(QWidget):
         self.upper_layout.addWidget(self.left_scroll)
 
         # Right layout setup (suggested settings and run/stop)
-        self.right_layout = QVBoxLayout()
+        self.right_layout = QScrollArea()
+        self.right_layout.setSpacing(10)
         self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
@@ -127,6 +130,8 @@ class RodentRefreshmentGUI(QWidget):
         self.right_scroll.setWidget(self.right_content)
         self.upper_layout.addWidget(self.right_scroll)
         self.main_layout.addLayout(self.upper_layout)
+        self.upper_layout.addLayout(self.left_layout, 1)
+        self.upper_layout.addLayout(self.right_layout, 1)
 
         # Connect TO suggest_settings_section
         self.user_tab = self.suggest_settings_section.user_tab
