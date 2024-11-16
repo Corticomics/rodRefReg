@@ -34,11 +34,7 @@ class RunStopSection(QWidget):
         self.offline_widget = QWidget()
 
         # Calendar-Based Time Window Selection
-        calendar_layout = QFormLayout()
-        calendar_layout.setSpacing(10)  # Ensure spacing is adequate for the calendar
-        calendar_layout.addRow(self.start_time_label, self.start_time_input)
-        calendar_layout.addRow(self.end_time_label, self.end_time_input)
-        self.calendar_widget.setLayout(calendar_layout)
+        
         self.start_time_label = QLabel("Start Time:")
         self.start_time_input = QDateTimeEdit(self.calendar_widget)
         self.start_time_input.setCalendarPopup(True)
@@ -46,6 +42,7 @@ class RunStopSection(QWidget):
         self.start_time_input.setDateTime(QDateTime.currentDateTime())  # Default to now
         self.start_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
 
+        
         self.end_time_label = QLabel("End Time:")
         self.end_time_input = QDateTimeEdit(self.calendar_widget)
         self.end_time_input.setCalendarPopup(True)
@@ -54,6 +51,7 @@ class RunStopSection(QWidget):
         self.end_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
 
         calendar_layout = QFormLayout()
+        calendar_layout.setSpacing(50)  # Ensure spacing is adequate for the calendar
         calendar_layout.addRow(self.start_time_label, self.start_time_input)
         calendar_layout.addRow(self.end_time_label, self.end_time_input)
         self.calendar_widget.setLayout(calendar_layout)
