@@ -75,11 +75,11 @@ class RunStopSection(QWidget):
         self.stagger_input.setPlaceholderText("Enter seconds")
 
         buttonsspace  = QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        self.layout.addWidget(buttonsspace)
+        self.layout.addItem(buttonsspace)
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
-        self.layout.addWidget(buttonsspace)
+        self.layout.addItem(buttonsspace)
 
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
