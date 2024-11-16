@@ -26,7 +26,7 @@ class RunStopSection(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(50)
+        self.layout.setSpacing(20)
 
         # Tab widget for Calendar and Offline modes
         self.tab_widget = QTabWidget()
@@ -34,6 +34,9 @@ class RunStopSection(QWidget):
         self.offline_widget = QWidget()
 
         # Calendar-Based Time Window Selection
+        calendar_layout = QFormLayout()
+        calendar_layout.setSpacing(20)  # Increase form layout spacing
+        calendar_layout.setContentsMargins(20, 20, 20, 20)  # Add margins around the form
         
         self.start_time_label = QLabel("Start Time:")
         self.start_time_input = QDateTimeEdit(self.calendar_widget)
@@ -41,7 +44,7 @@ class RunStopSection(QWidget):
         self.start_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.start_time_input.setDateTime(QDateTime.currentDateTime())  # Default to now
         self.start_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-
+        self.start_time_input.setMinimumWidth(200)  # Set minimum width for the datetime input
         
         self.end_time_label = QLabel("End Time:")
         self.end_time_input = QDateTimeEdit(self.calendar_widget)
@@ -49,9 +52,26 @@ class RunStopSection(QWidget):
         self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default to 1 hour later
         self.end_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
+        self.end_time_input.setMinimumWidth(200)  # Set minimum width for the datetime input
 
-        calendar_layout = QFormLayout()
-        calendar_layout.setSpacing(50)  # Ensure spacing is adequate for the calendar
+        # Style the labels to be more visible
+        label_style = "QLabel { font-size: 11pt; padding: 5px; }"
+        self.start_time_label.setStyleSheet(label_style)
+        self.end_time_label.setStyleSheet(label_style)
+
+        # Style the datetime inputs to be more visible
+        date_time_style = """
+            QDateTimeEdit {
+                padding: 5px;
+                min-height: 25px;
+                background-color: white;
+                border: 1px solid #BDBDBD;
+                border-radius: 4px;
+            }
+        """
+        self.start_time_input.setStyleSheet(date_time_style)
+        self.end_time_input.setStyleSheet(date_time_style)
+
         calendar_layout.addRow(self.start_time_label, self.start_time_input)
         calendar_layout.addRow(self.end_time_label, self.end_time_input)
         self.calendar_widget.setLayout(calendar_layout)
