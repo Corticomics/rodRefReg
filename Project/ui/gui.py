@@ -40,6 +40,12 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
+        # Initialize main layout first
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(10)
+
+        # Apply styles
         if style == 'bitlearns':
             self.setStyleSheet("""
                 QWidget {
@@ -73,45 +79,59 @@ class RodentRefreshmentGUI(QWidget):
                 }
             """)
 
-        # Main layout setup
-        self.main_layout = QVBoxLayout(self)
-
-        # Welcome section setup as before
+        # Welcome section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
         self.welcome_scroll_area.setWidget(self.welcome_section)
         self.main_layout.addWidget(self.welcome_scroll_area)
 
-        # Toggle button setup as before
+        # Toggle welcome button
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
-        # Main content layout
+        # Main content area (upper layout)
         self.upper_layout = QHBoxLayout()
-        self.main_layout.addLayout(self.upper_layout)
+        self.upper_layout.setContentsMargins(0, 0, 0, 0)
+        self.upper_layout.setSpacing(10)
 
-        # Left layout setup (projects and messages)
-        self.left_layout = QVBoxLayout()
-        self.left_layout.setSpacing(10)
+        # Left side setup
+        left_widget = QWidget()
+        self.left_layout = QVBoxLayout(left_widget)
+        
+        # Terminal output
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
-        self.left_layout.addWidget(self.terminal_output)
+        self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.terminal_output.setMinimumHeight(200)
+        
+        # Projects section
         self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler)
-        self.left_layout.addWidget(self.projects_section)
-        self.left_content = QWidget()
-        self.left_content.setLayout(self.left_layout)
+        self.projects_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
+        # Add widgets to left layout with stretch
+        self.left_layout.addWidget(self.terminal_output, 1)
+        self.left_layout.addWidget(self.projects_section, 3)
+        
+        # Create left scroll area
         self.left_scroll = QScrollArea()
+        self.left_scroll.setWidget(left_widget)
         self.left_scroll.setWidgetResizable(True)
-        self.left_scroll.setWidget(self.left_content)
-        self.upper_layout.addWidget(self.left_scroll)
+        self.left_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Right layout setup (suggested settings and run/stop)
-        self.right_layout = QVBoxLayout()
-        self.right_layout.setSpacing(10)
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings)
+        # Right side setup
+        right_widget = QWidget()
+        self.right_layout = QVBoxLayout(right_widget)
+        
+        # Create sections
+        self.run_stop_section = RunStopSection(
+            self.run_program, 
+            self.stop_program, 
+            self.change_relay_hats, 
+            self.settings
+        )
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
             self.suggest_settings_callback,
@@ -121,54 +141,35 @@ class RodentRefreshmentGUI(QWidget):
             run_stop_section=self.run_stop_section,
             login_system=self.login_system
         )
-        self.right_layout.addWidget(self.suggest_settings_section)
-        self.right_layout.addWidget(self.run_stop_section)
-        self.right_content = QWidget()
-        self.right_content.setLayout(self.right_layout)
+        
+        # Add widgets to right layout with stretch
+        self.right_layout.addWidget(self.suggest_settings_section, 2)
+        self.right_layout.addWidget(self.run_stop_section, 1)
+        
+        # Create right scroll area
         self.right_scroll = QScrollArea()
+        self.right_scroll.setWidget(right_widget)
         self.right_scroll.setWidgetResizable(True)
-        self.right_scroll.setWidget(self.right_content)
-        self.upper_layout.addWidget(self.right_scroll)
-        self.main_layout.addLayout(self.upper_layout)
-        self.upper_layout.addLayout(self.left_layout, 1)
-        self.upper_layout.addLayout(self.right_layout, 1)
+        self.right_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Connect TO suggest_settings_section
+        # Add scroll areas to upper layout with proportion
+        self.upper_layout.addWidget(self.left_scroll, 3)
+        self.upper_layout.addWidget(self.right_scroll, 2)
+
+        # Add upper layout to main layout
+        self.main_layout.addLayout(self.upper_layout)
+
+        # Connect user tab related signals
         self.user_tab = self.suggest_settings_section.user_tab
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
         self.user_tab.size_changed_signal.connect(self.adjust_window_size)
-        # Load initial data in guest mode
+
+        # Load initial data
         self.load_animals_tab()
 
-        self.upper_layout = QHBoxLayout()
-        self.upper_layout.setContentsMargins(0, 0, 0, 0)
-        self.upper_layout.setSpacing(10)
-
-        # Adjust left layout
-        self.left_layout = QVBoxLayout()
-        self.left_layout.addWidget(self.terminal_output)
-        self.left_layout.addWidget(self.projects_section)
-        self.left_layout.setStretch(0, 1)  # Terminal output
-        self.left_layout.setStretch(1, 3)  # Projects section
-
-        # Adjust right layout
-        self.right_layout = QVBoxLayout()
-        self.right_layout.addWidget(self.suggest_settings_section)
-        self.right_layout.addWidget(self.run_stop_section)
-        self.right_layout.setStretch(0, 2)  # Suggest settings
-        self.right_layout.setStretch(1, 1)  # Run/Stop section
-
-        # Adjust scroll areas
-        self.left_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.right_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Add scroll areas to upper layout with stretch factors
-        self.upper_layout.addWidget(self.left_scroll, 3)
-        self.upper_layout.addWidget(self.right_scroll, 2)
-
-        self.main_layout.addLayout(self.upper_layout)
-
+        # Maximize window on startup
+        self.showMaximized()
 
     def print_to_terminal(self, message):
         self.terminal_output.appendPlainText(message)
