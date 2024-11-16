@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QSpacerItem)
 from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
@@ -74,10 +74,12 @@ class RunStopSection(QWidget):
         self.stagger_input = QLineEdit(self)
         self.stagger_input.setPlaceholderText("Enter seconds")
 
-        # Buttons
+        buttonsspace  = QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.layout.addWidget(buttonsspace)
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
+        self.layout.addWidget(buttonsspace)
 
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
