@@ -55,7 +55,7 @@ class RunStopSection(QWidget):
         self.end_time_input.setMinimumWidth(200)  # Set minimum width for the datetime input
 
         # Style the labels to be more visible
-        label_style = "QLabel { font-size: 11pt; padding: 10px; }"
+        label_style = "QLabel { font-size: 11pt; padding: 3px; }"
         self.start_time_label.setStyleSheet(label_style)
         self.end_time_label.setStyleSheet(label_style)
 
