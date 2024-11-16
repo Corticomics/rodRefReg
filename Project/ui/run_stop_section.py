@@ -55,7 +55,7 @@ class RunStopSection(QWidget):
         self.end_time_input.setMinimumWidth(200)  # Set minimum width for the datetime input
 
         # Style the labels to be more visible
-        label_style = "QLabel { font-size: 11pt; padding: 5px; }"
+        label_style = "QLabel { font-size: 9pt; padding: 10px; }"
         self.start_time_label.setStyleSheet(label_style)
         self.end_time_label.setStyleSheet(label_style)
 
@@ -67,6 +67,23 @@ class RunStopSection(QWidget):
                 background-color: white;
                 border: 1px solid #BDBDBD;
                 border-radius: 4px;
+            }
+            QCalendarWidget QAbstractItemView {
+                background-color: #525251;
+                selection-background-color: #607cff;
+            }
+
+            QCalendarWidget QWidget {
+                alternate-background-color: #404040;
+            }
+
+            QCalendarWidget QToolButton {
+                color: white;
+                background-color: #525251;
+            }
+
+            QCalendarWidget QMenu {
+                background-color: #525251;
             }
         """
         self.start_time_input.setStyleSheet(date_time_style)
