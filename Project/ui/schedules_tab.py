@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QListWidget, QListWidgetItem, QHBoxLayout, QDialog, QFormLayout, QLineEdit, QMessageBox
 from PyQt5.QtCore import Qt
 from models.relay_unit import RelayUnit
-from models.schedule import Schedule
+from models.Schedule import Schedule
 from datetime import datetime
 
 class SchedulesTab(QWidget):
