@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt
 
 class WelcomeSection(QGroupBox):
     def __init__(self):
-        super().__init__("Rodent Refreshment Regulator Wizard")
+        super().__init__()
         layout = QVBoxLayout()
 
         welcome_label = QLabel("Welcome to the Rodent Refreshment Regulator Wizard")
