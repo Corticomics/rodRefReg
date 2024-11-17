@@ -10,8 +10,6 @@ class SlackCredentialsTab(QWidget):
         self.save_callback = save_callback  # Callback to be invoked after saving
 
         layout = QVBoxLayout()
-        self.slack_token_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.slack_channel_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
 
         # Create fields for Slack token and channel
