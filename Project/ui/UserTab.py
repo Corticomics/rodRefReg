@@ -1,8 +1,7 @@
 # ui/user_tab.py
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSpacerItem, QSizePolicy
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QHBoxLayout
+from PyQt5.QtCore import pyqtSignal, Qt
 import traceback
 
 class UserTab(QWidget):
@@ -15,42 +14,63 @@ class UserTab(QWidget):
         self.login_system = login_system
         self.current_user = None
 
+        # Main layout with centered alignment
         self.layout = QVBoxLayout()
+        self.layout.setAlignment(Qt.AlignCenter)
         self.setLayout(self.layout)
 
-        self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        # Info label
         self.info_label = QLabel("You are running the application in Guest mode.")
+        self.info_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.info_label)
+
+        # Username Label and Input
+        self.username_label = QLabel("Username:")
+        self.username_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.username_label)
 
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Enter username")
-        self.layout.addWidget(QLabel("Username:"))
+        self.username_input.setFixedWidth(200)
+        self.username_input.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.username_input)
+
+        # Password Label and Input
+        self.password_label = QLabel("Password:")
+        self.password_label.setAlignment(Qt.AlignCenter)
+        self.layout.addWidget(self.password_label)
 
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter password")
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.layout.addWidget(QLabel("Password:"))
+        self.password_input.setFixedWidth(200)
+        self.password_input.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.password_input)
 
+        # Button Layout
+        self.button_layout = QHBoxLayout()
+        self.button_layout.setSpacing(10)  # Consistent spacing between buttons
+
         self.login_button = QPushButton("Log In")
+        self.login_button.setFixedWidth(100)
         self.login_button.clicked.connect(self.handle_login)
-        self.layout.addWidget(self.login_button)
+        self.button_layout.addWidget(self.login_button)
 
         self.create_profile_button = QPushButton("Create New Profile")
+        self.create_profile_button.setFixedWidth(150)
         self.create_profile_button.clicked.connect(self.handle_create_profile)
-        self.layout.addWidget(self.create_profile_button)
+        self.button_layout.addWidget(self.create_profile_button)
 
         self.logout_button = QPushButton("Log Out")
+        self.logout_button.setFixedWidth(100)
         self.logout_button.clicked.connect(self.logout)
         self.logout_button.setVisible(False)
-        self.layout.addWidget(self.logout_button)
+        self.button_layout.addWidget(self.logout_button)
 
-        self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        self.layout.addLayout(self.button_layout)
 
     def handle_login(self):
         try:
-            print('1')
             username = self.username_input.text().strip()
             password = self.password_input.text().strip()
 
@@ -58,13 +78,11 @@ class UserTab(QWidget):
                 QMessageBox.warning(self, "Input Required", "Please enter both username and password.")
                 return
 
-            print(f"Initiating authentication for username: {username}")
             user_info = self.login_system.authenticate(username, password)
             if not user_info:
                 QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
                 return
 
-            print(f"Login successful: {user_info}")
             self.set_user(user_info)
             self.login_signal.emit(user_info)
 
@@ -74,17 +92,27 @@ class UserTab(QWidget):
             QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login:\n{str(e)}")
 
     def set_user(self, user_info):
-        """Sets the user information after a successful login."""
         try:
             self.current_user = user_info
             self.info_label.setText(f"Logged in as: {user_info.get('username', 'Unknown')}")
             self.username_input.clear()
             self.password_input.clear()
-            self.username_input.setVisible(False)
-            self.password_input.setVisible(False)
-            self.login_button.setVisible(False)
-            self.create_profile_button.setVisible(False)
-            self.logout_button.setVisible(True)
+
+            # Hide login and create profile inputs/buttons
+            self.username_label.hide()
+            self.username_input.hide()
+            self.password_label.hide()
+            self.password_input.hide()
+            self.login_button.hide()
+            self.create_profile_button.hide()
+
+            # Show logout button
+            self.logout_button.show()
+
+            # Adjust size and emit signal
+            self.adjustSize()
+            self.size_changed_signal.emit()
+
         except Exception as e:
             print(f"Error in set_user: {e}")
             traceback.print_exc()
@@ -95,18 +123,28 @@ class UserTab(QWidget):
             self.current_user = None
             self.login_system.logout()
             self.info_label.setText("You are running the application in Guest mode.")
-            self.username_input.setVisible(True)
-            self.password_input.setVisible(True)
-            self.login_button.setVisible(True)
-            self.create_profile_button.setVisible(True)
-            self.logout_button.setVisible(False)
-            self.logout_signal.emit()
+
+            # Show login and create profile inputs/buttons
+            self.username_label.show()
+            self.username_input.show()
+            self.password_label.show()
+            self.password_input.show()
+            self.login_button.show()
+            self.create_profile_button.show()
+
+            # Hide logout button
+            self.logout_button.hide()
+
+            # Adjust size and emit signal
+            self.adjustSize()
+            self.size_changed_signal.emit()
+
         except Exception as e:
             print(f"Error during logout: {e}")
             traceback.print_exc()
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout:\n{str(e)}")
+
     def handle_create_profile(self):
-        """Handle the profile creation process with error handling."""
         try:
             username, ok = QInputDialog.getText(self, "Create Profile", "Choose a username:")
             if not ok or not username:
@@ -126,9 +164,7 @@ class UserTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Profile Creation Error", f"An unexpected error occurred during profile creation: {str(e)}")
 
-    
     def set_minimal_profile_view(self, username):
-        """Sets a minimal view for logged-in users with error handling."""
         try:
             if not username:
                 raise ValueError("Username is required to set the minimal profile view.")
@@ -136,6 +172,8 @@ class UserTab(QWidget):
             self.info_label.setText(f"Logged in as: {username}")
             self.username_input.hide()
             self.password_input.hide()
+            self.username_label.hide()
+            self.password_label.hide()
             self.login_button.hide()
             self.create_profile_button.hide()
             self.logout_button.show()
@@ -153,11 +191,12 @@ class UserTab(QWidget):
             print(f"Unexpected error in set_minimal_profile_view: {e}")
 
     def set_guest_view(self):
-        """Resets the view for guest mode with error handling."""
         try:
             self.info_label.setText("You are running the application in Guest mode.")
             self.username_input.show()
             self.password_input.show()
+            self.username_label.show()
+            self.password_label.show()
             self.login_button.show()
             self.create_profile_button.show()
             self.logout_button.hide()
@@ -165,20 +204,6 @@ class UserTab(QWidget):
             # Adjust the size and emit the signal
             self.adjustSize()
             self.size_changed_signal.emit()
-        
-        except Exception as e:
-            QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
-            print(f"Unexpected error in set_guest_view: {e}")
-    def set_guest_view(self):
-        """Resets the view for guest mode with error handling."""
-        try:
-            self.info_label.setText("You are running the application in Guest mode.")
-            self.username_input.show()
-            self.password_input.show()
-            self.login_button.show()
-            self.create_profile_button.show()
-            self.logout_button.hide()
-            self.adjustSize()
         
         except Exception as e:
             QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
