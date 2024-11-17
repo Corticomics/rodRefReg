@@ -8,9 +8,9 @@ from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import traceback
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
-from .suggest_settings_section import SuggestSettingsSection
+from .suggest_settings import SuggestSettingsSection
 from .projects_section import ProjectsSection
-from .user_tab import UserTab
+from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 
