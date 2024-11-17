@@ -1,6 +1,7 @@
 # ui/slack_credentials_tab.py
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSizePolicy
+from PyQt5.QtCore import Qt
 import json
 import os
 
