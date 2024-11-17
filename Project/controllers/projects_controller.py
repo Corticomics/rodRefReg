@@ -1,6 +1,6 @@
 from models.database_handler import DatabaseHandler
 from models.animal import Animal
-
+from models.Schedule import Schedule
 class ProjectsController:
     def __init__(self):
         self.db_handler = DatabaseHandler()
@@ -26,21 +26,19 @@ class ProjectsController:
     def get_all_animals(self):
         return self.db_handler.get_all_animals()
 
-    # Schedule-related methods
-    def add_schedule(self, name, relay, animals):
-        schedule = {
-            'name': name,
-            'relay': relay,
-            'animals': animals  # List of animal IDs
-        }
+    # Schedule related methods
+    def add_schedule(self, schedule):
         schedule_id = self.db_handler.add_schedule(schedule)
         return schedule_id
 
     def remove_schedule(self, schedule_id):
         self.db_handler.remove_schedule(schedule_id)
 
-    def get_all_schedules(self):
-        return self.db_handler.get_all_schedules()
+    def get_all_schedules(self, trainer_id=None, role='normal'):
+        if role == 'super':
+            return self.db_handler.get_all_schedules()
+        else:
+            return self.db_handler.get_schedules_by_trainer(trainer_id)
 
     def close(self):
         self.db_handler.close()

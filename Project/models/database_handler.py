@@ -7,6 +7,16 @@ import hashlib
 import os
 import traceback
 
+# models/database_handler.py
+
+import sqlite3
+import hashlib
+import os
+import traceback
+from models.animal import Animal
+from models.schedule import Schedule
+from models.relay_unit import RelayUnit
+
 class DatabaseHandler:
     def __init__(self, db_path='rrr_database.db'):
         self.db_path = db_path
@@ -21,20 +31,21 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # Create trainers table
+                # Create trainers table with role column
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS trainers (
                         trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         trainer_name TEXT UNIQUE NOT NULL,
                         salt TEXT NOT NULL,
-                        password TEXT NOT NULL
+                        password TEXT NOT NULL,
+                        role TEXT DEFAULT 'normal'
                     )
                 ''')
 
                 # Create animals table with trainer reference
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS animals (
-                        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                        animal_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         lab_animal_id TEXT UNIQUE NOT NULL,
                         name TEXT NOT NULL,
                         initial_weight REAL,
@@ -45,13 +56,50 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Create relay units table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS relay_units (
+                        relay_unit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        relay_ids TEXT NOT NULL
+                    )
+                ''')
+
                 # Create schedules table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS schedules (
                         schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,
-                        relay TEXT NOT NULL,
-                        animals TEXT NOT NULL
+                        relay_unit_id INTEGER NOT NULL,
+                        water_volume REAL NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT NOT NULL,
+                        created_by INTEGER NOT NULL,
+                        is_super_user BOOLEAN DEFAULT 0,
+                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id),
+                        FOREIGN KEY(created_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+
+                # Create schedule_animals table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_animals (
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        PRIMARY KEY (schedule_id, animal_id),
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    )
+                ''')
+
+                # Create logs table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS logs (
+                        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        action TEXT NOT NULL,
+                        super_user_id INTEGER NOT NULL,
+                        details TEXT,
+                        FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
                     )
                 ''')
                 conn.commit()
@@ -60,22 +108,91 @@ class DatabaseHandler:
             print(f"Database error during table creation: {e}")
             traceback.print_exc()
 
+    # Add methods to handle relay units
+    def add_relay_unit(self, relay_unit):
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                relay_ids_str = ','.join(map(str, relay_unit.relay_ids))
+                cursor.execute('''
+                    INSERT INTO relay_units (relay_ids)
+                    VALUES (?)
+                ''', (relay_ids_str,))
+                conn.commit()
+                relay_unit.unit_id = cursor.lastrowid
+                print(f"Relay Unit added with ID: {relay_unit.unit_id}")
+                return relay_unit.unit_id
+        except sqlite3.Error as e:
+            print(f"Database error when adding relay unit: {e}")
+            traceback.print_exc()
+            return None
+
+    def get_all_relay_units(self):
+        relay_units = []
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT relay_unit_id, relay_ids FROM relay_units')
+                rows = cursor.fetchall()
+                for row in rows:
+                    relay_ids = tuple(map(int, row[1].split(',')))
+                    relay_unit = RelayUnit(unit_id=row[0], relay_ids=relay_ids)
+                    relay_units.append(relay_unit)
+            return relay_units
+        except sqlite3.Error as e:
+            print(f"Error retrieving relay units: {e}")
+            traceback.print_exc()
+            return []
+
+    # Add methods to handle schedules
+    def add_schedule(self, schedule):
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO schedules (name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (schedule.name, schedule.relay_unit_id, schedule.water_volume, schedule.start_time,
+                      schedule.end_time, schedule.created_by, schedule.is_super_user))
+                schedule.schedule_id = cursor.lastrowid
+
+                # Insert into schedule_animals
+                for animal_id in schedule.animals:
+                    cursor.execute('''
+                        INSERT INTO schedule_animals (schedule_id, animal_id)
+                        VALUES (?, ?)
+                    ''', (schedule.schedule_id, animal_id))
+
+                conn.commit()
+                print(f"Schedule '{schedule.name}' added with ID: {schedule.schedule_id}")
+                return schedule.schedule_id
+        except sqlite3.Error as e:
+            print(f"Database error when adding schedule: {e}")
+            traceback.print_exc()
+            return None
+
+    # Modify existing methods to handle user roles
+    def get_animals(self, trainer_id, role):
+        if role == 'super':
+            return self.get_all_animals()
+        else:
+            return self.get_animals_by_trainer(trainer_id)
+
+    # Rest of the methods remain mostly the same, ensure to retrieve 'role' during authentication
     def authenticate_trainer(self, trainer_name, password):
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT trainer_id, salt, password FROM trainers WHERE trainer_name = ?', (trainer_name,))
+                cursor.execute('SELECT trainer_id, salt, password, role FROM trainers WHERE trainer_name = ?', (trainer_name,))
                 result = cursor.fetchone()
 
-                print(f"Retrieved data for {trainer_name}: {result}")
-
                 if result:
-                    trainer_id, salt, stored_hashed_password = result
+                    trainer_id, salt, stored_hashed_password, role = result
                     hashed_password = hashlib.sha256((salt + password).encode('utf-8')).hexdigest()
 
                     if hashed_password == stored_hashed_password:
                         print("Authentication successful.")
-                        return trainer_id
+                        return {'trainer_id': trainer_id, 'role': role}
                     else:
                         print("Authentication failed: hashed password does not match.")
                         return None
@@ -90,6 +207,33 @@ class DatabaseHandler:
             print(f"Unexpected error during authentication: {e}")
             traceback.print_exc()
             raise
+
+    # Ensure get_trainer_by_id returns the 'role'
+    def get_trainer_by_id(self, trainer_id):
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT trainer_id, trainer_name, role FROM trainers WHERE trainer_id = ?', (int(trainer_id),))
+                row = cursor.fetchone()
+                if row:
+                    trainer_info = {
+                        'trainer_id': row[0],
+                        'username': row[1],
+                        'role': row[2]
+                    }
+                    return trainer_info
+                else:
+                    print(f"No trainer found with ID {trainer_id}")
+                    return None
+        except sqlite3.Error as e:
+            print(f"Database error retrieving trainer by ID {trainer_id}: {e}")
+            traceback.print_exc()
+            raise
+        except Exception as e:
+            print(f"Unexpected error retrieving trainer by ID {trainer_id}: {e}")
+            traceback.print_exc()
+            raise
+    
 
     def add_trainer(self, trainer_name, password):
         """Add a new trainer to the database with salted SHA-256 hashed password."""
@@ -115,32 +259,6 @@ class DatabaseHandler:
             traceback.print_exc()
             return False
 
-    def get_trainer_by_id(self, trainer_id):
-        """Retrieve a trainer's information based on their trainer ID."""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute('SELECT trainer_id, trainer_name FROM trainers WHERE trainer_id = ?', (int(trainer_id),))
-                row = cursor.fetchone()
-                print(f"Data retrieved for trainer ID {trainer_id}: {row}")
-                if row:
-                    trainer_info = {
-                        'trainer_id': row[0],
-                        'username': row[1]
-                    }
-                    print(f"Trainer found: {trainer_info}")
-                    return trainer_info
-                else:
-                    print(f"No trainer found with ID {trainer_id}")
-                    return None
-        except sqlite3.Error as e:
-            print(f"Database error retrieving trainer by ID {trainer_id}: {e}")
-            traceback.print_exc()
-            raise
-        except Exception as e:
-            print(f"Unexpected error retrieving trainer by ID {trainer_id}: {e}")
-            traceback.print_exc()
-            raise
 
     def add_animal(self, animal, trainer_id):
         """Add a new animal with lab_animal_id and trainer association."""

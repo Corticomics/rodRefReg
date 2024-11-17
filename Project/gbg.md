@@ -1,20 +1,42 @@
-System Messages
-Displaying all animals (guest mode)
-1
-Initiating authentication for username: admin
-Authenticating username: admin
-Retrieved data for admin: (2, '2164ac1c66bc249f6a5372638458542c', '501c61296f02aa13fbf7dda5a535c2ac522ff907d8902f4bfe07b89363855a55')
-Authentication successful.
-Authentication result for admin: 2
-Data retrieved for trainer ID 2: (2, 'admin')
-Trainer found: {'trainer_id': 2, 'username': 'admin'}
-Authentication and login successful for trainer ID: 2
-Login successful: {'trainer_id': 2, 'username': 'admin'}
-Login data received in GUI: {'trainer_id': 2, 'username': 'admin'}
-Logged in as: admin
-self.projects_section: <ui.projects_section.ProjectsSection object at 0x7f79dc65f0>
-self.projects_section.animals_tab: <ui.animals_tab.AnimalsTab object at 0x7f79dc7250>
-Displaying animals for trainer ID 2
-About to load animals for trainer_id: 2 (type: <class 'int'>)
-Retrieved 0 animals from the database for trainer_id 2
-Loaded 0 animals for trainer ID 2
+-- Add role column to trainers table
+ALTER TABLE trainers ADD COLUMN role TEXT DEFAULT 'normal';
+
+-- Create relay_units table
+CREATE TABLE IF NOT EXISTS relay_units (
+    relay_unit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    relay_ids TEXT NOT NULL
+);
+
+-- Modify schedules table
+DROP TABLE IF EXISTS schedules;
+CREATE TABLE schedules (
+    schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    relay_unit_id INTEGER NOT NULL,
+    water_volume REAL NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    created_by INTEGER NOT NULL,
+    is_super_user BOOLEAN DEFAULT 0,
+    FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id),
+    FOREIGN KEY(created_by) REFERENCES trainers(trainer_id)
+);
+
+-- Create schedule_animals table
+CREATE TABLE IF NOT EXISTS schedule_animals (
+    schedule_id INTEGER NOT NULL,
+    animal_id INTEGER NOT NULL,
+    PRIMARY KEY (schedule_id, animal_id),
+    FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+    FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+);
+
+-- Create logs table
+CREATE TABLE IF NOT EXISTS logs (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    action TEXT NOT NULL,
+    super_user_id INTEGER NOT NULL,
+    details TEXT,
+    FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
+);

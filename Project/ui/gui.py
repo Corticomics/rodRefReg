@@ -165,11 +165,29 @@ class RodentRefreshmentGUI(QWidget):
         self.user_tab.logout_signal.connect(self.on_logout)
         self.user_tab.size_changed_signal.connect(self.adjust_window_size)
 
+        self.mode_toggle_button = QPushButton("Switch to Super Mode")
+        self.mode_toggle_button.clicked.connect(self.toggle_mode)
+        self.main_layout.addWidget(self.mode_toggle_button)
+
+
         # Load initial data
         self.load_animals_tab()
 
         # Maximize window on startup
         self.showMaximized()
+    
+    def toggle_mode(self):
+        try:
+            self.login_system.switch_mode()
+            new_role = self.login_system.get_current_trainer()['role']
+            self.mode_toggle_button.setText("Switch to Normal Mode" if new_role == 'super' else "Switch to Super Mode")
+            self.print_to_terminal(f"Switched to {new_role.capitalize()} Mode.")
+            # Refresh animals and schedules tabs
+            self.projects_section.schedules_tab.load_animals()
+            self.projects_section.animals_tab.load_animals()
+        except Exception as e:
+            self.print_to_terminal(f"Error toggling mode: {e}")
+            QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
 
     def print_to_terminal(self, message):
         self.terminal_output.appendPlainText(message)
