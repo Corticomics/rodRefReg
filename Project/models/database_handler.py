@@ -169,9 +169,9 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 cursor.execute('''
                     UPDATE animals
-                    SET name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?
-                    WHERE lab_animal_id = ?
-                ''', (animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.lab_animal_id))
+                    SET lab_animal_id = ?, name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?
+                    WHERE ID = ?
+                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.animal_id))
                 if cursor.rowcount > 0:
                     print(f"Animal with lab ID {animal.lab_animal_id} updated.")
                 else:

@@ -155,12 +155,13 @@ class AnimalsTab(QWidget):
         animal = selected_item.data(Qt.UserRole)
         
         # Pass `lab_animal_id` and other details to the EditAnimalDialog
-        dialog = EditAnimalDialog(animal.lab_animal_id, animal.to_dict(), self)
+        dialog = EditAnimalDialog(animal.animal_id, animal.to_dict(), self)
         
         try:
             if dialog.exec_() == QDialog.Accepted:
                 updated_info = dialog.updated_info
                 updated_animal = Animal(
+                    animal_id = animal.animal_id,
                     lab_animal_id=animal.lab_animal_id,
                     name=updated_info['name'],
                     initial_weight=updated_info['initial_weight'],
