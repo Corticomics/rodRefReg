@@ -141,18 +141,10 @@ class RodentRefreshmentGUI(QWidget):
             run_stop_section=self.run_stop_section,
             login_system=self.login_system
         )
-        #test
-        # Set size policies
-        self.run_stop_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-        self.suggest_settings_section.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
-
-        # Add widgets to right layout
-        self.right_layout.addWidget(self.suggest_settings_section)
-        self.right_layout.addWidget(self.run_stop_section)
-
-        # Add right_widget directly to upper_layout
-        self.upper_layout.addWidget(right_widget, 1)  # Use stretch factor if needed
-        #test
+        
+        # Add widgets to right layout with stretch
+        self.right_layout.addWidget(self.suggest_settings_section, 2)
+        self.right_layout.addWidget(self.run_stop_section, 1)
         
         # Create right scroll area
         self.right_scroll = QScrollArea()

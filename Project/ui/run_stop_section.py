@@ -24,7 +24,6 @@ class RunStopSection(QWidget):
             self.load_settings(settings)
 
     def init_ui(self):
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(20)
