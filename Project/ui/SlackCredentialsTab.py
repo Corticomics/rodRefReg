@@ -1,7 +1,4 @@
-# ui/slack_credentials_tab.py
-
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSizePolicy
-from PyQt5.QtCore import Qt
 import json
 import os
 
@@ -13,29 +10,27 @@ class SlackCredentialsTab(QWidget):
         self.save_callback = save_callback  # Callback to be invoked after saving
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        self.slack_token_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.slack_channel_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        
 
         # Create fields for Slack token and channel
         self.slack_token_input = QLineEdit(self)
         self.slack_token_input.setPlaceholderText("Enter Slack Token")
         self.slack_token_input.setText(settings.get('slack_token', ''))
-        self.slack_token_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(QLabel("Slack Token:"))
         layout.addWidget(self.slack_token_input)
 
         self.slack_channel_input = QLineEdit(self)
         self.slack_channel_input.setPlaceholderText("Enter Slack Channel ID")
         self.slack_channel_input.setText(settings.get('channel_id', ''))
-        self.slack_channel_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         layout.addWidget(QLabel("Slack Channel ID:"))
         layout.addWidget(self.slack_channel_input)
 
         # Save button for Slack credentials
         save_button = QPushButton("Save Slack Credentials")
-        save_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         save_button.clicked.connect(self.save_credentials)
-        layout.addWidget(save_button, alignment=Qt.AlignRight)
+        layout.addWidget(save_button)
 
         self.setLayout(layout)
 
