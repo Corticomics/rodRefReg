@@ -196,10 +196,10 @@ class RodentRefreshmentGUI(QWidget):
                 raise ValueError(f"Invalid user information received during login: {user}")
 
             self.current_user = user
-            print(f"Login data received in GUI: {user}")
             self.print_to_terminal(f"Logged in as: {user['username']}")
 
             trainer_id = int(user['trainer_id'])  # Ensure trainer_id is an integer
+            self.projects_section.animals_tab.trainer_id = trainer_id
             self.load_animals_tab(trainer_id=trainer_id)
             self.adjust_window_size()
         except ValueError as ve:
@@ -235,6 +235,7 @@ class RodentRefreshmentGUI(QWidget):
         """Callback for handling user logout, reverting to guest mode, with error handling."""
         try:
             self.current_user = None
+            self.projects_section.trainer_id = None
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
 
@@ -246,9 +247,6 @@ class RodentRefreshmentGUI(QWidget):
     def load_animals_tab(self, trainer_id=None):
         """Load the AnimalsTab for the specific trainer. Display all animals in guest mode."""
         try:
-            # Debugging statements
-            print(f"self.projects_section: {self.projects_section}")
-            print(f"self.projects_section.animals_tab: {getattr(self.projects_section, 'animals_tab', None)}")
 
             if not hasattr(self.projects_section, 'animals_tab') or self.projects_section.animals_tab is None:
                 raise AttributeError("animals_tab is not initialized in projects_section.")

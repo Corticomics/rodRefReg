@@ -111,7 +111,7 @@ class AnimalsTab(QWidget):
                     raise ValueError("Animal ID and name cannot be empty.")
                 
                 new_animal = Animal(None, lab_animal_id, name, initial_weight, last_weight, last_weighted)
-                animal_id = self.database_handler.add_animal(new_animal, trainer_id=None)  # Assuming `trainer_id` can be None for now
+                animal_id = self.database_handler.add_animal(new_animal, trainer_id=self.trainer_id)  # Assuming `trainer_id` can be None for now
                 
                 if animal_id:
                     self.print_to_terminal(f"Animal '{name}' added with ID: {lab_animal_id}.")
