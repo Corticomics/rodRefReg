@@ -14,7 +14,7 @@ import hashlib
 import os
 import traceback
 from models.animal import Animal
-from models.schedule import Schedule
+from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 
 class DatabaseHandler:
