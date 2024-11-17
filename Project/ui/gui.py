@@ -1,4 +1,5 @@
-#ui/gui.py
+# ui/gui.py
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy
@@ -108,7 +109,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output.setMinimumHeight(200)
         
         # Projects section
-        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler)
+        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler, self.login_system)
         self.projects_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         # Add widgets to left layout with stretch
@@ -165,10 +166,10 @@ class RodentRefreshmentGUI(QWidget):
         self.user_tab.logout_signal.connect(self.on_logout)
         self.user_tab.size_changed_signal.connect(self.adjust_window_size)
 
+        # Add mode toggle button
         self.mode_toggle_button = QPushButton("Switch to Super Mode")
         self.mode_toggle_button.clicked.connect(self.toggle_mode)
         self.main_layout.addWidget(self.mode_toggle_button)
-
 
         # Load initial data
         self.load_animals_tab()
@@ -236,40 +237,6 @@ class RodentRefreshmentGUI(QWidget):
                 raise AttributeError("animals_tab is not initialized in projects_section.")
 
             if trainer_id:
-                self.projects_section.animals_tab.trainer_id = int(trainer_id)
-                self.print_to_terminal(f"Displaying animals for trainer ID {trainer_id}")
-            else:
-                self.projects_section.animals_tab.trainer_id = None
-                self.print_to_terminal("Displaying all animals (guest mode)")
-
-            self.projects_section.animals_tab.load_animals()
-
-        except Exception as e:
-            print(f"Exception in load_animals_tab: {e}")
-            traceback.print_exc()
-            self.print_to_terminal(f"Error loading animals tab: {e}")
-            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
-    def on_logout(self):
-        """Callback for handling user logout, reverting to guest mode, with error handling."""
-        try:
-            self.current_user = None
-            self.projects_section.trainer_id = None
-            self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
-            self.load_animals_tab()
-
-            self.adjust_window_size()
-        except Exception as e:
-            self.print_to_terminal(f"Unexpected error during logout: {e}")
-            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
-
-    def load_animals_tab(self, trainer_id=None):
-        """Load the AnimalsTab for the specific trainer. Display all animals in guest mode."""
-        try:
-
-            if not hasattr(self.projects_section, 'animals_tab') or self.projects_section.animals_tab is None:
-                raise AttributeError("animals_tab is not initialized in projects_section.")
-
-            if trainer_id:
                 self.projects_section.animals_tab.trainer_id = trainer_id
                 self.print_to_terminal(f"Displaying animals for trainer ID {trainer_id}")
             else:
@@ -283,8 +250,21 @@ class RodentRefreshmentGUI(QWidget):
 
         except Exception as e:
             self.print_to_terminal(f"Error loading animals tab: {e}")
-            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals: {e}")
+            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
             print(f"Exception in load_animals_tab: {e}")
+
+    def on_logout(self):
+        """Callback for handling user logout, reverting to guest mode, with error handling."""
+        try:
+            self.current_user = None
+            self.projects_section.login_system.logout()  # Ensure login_system is updated
+            self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
+            self.load_animals_tab()
+
+            self.adjust_window_size()
+        except Exception as e:
+            self.print_to_terminal(f"Unexpected error during logout: {e}")
+            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
 
     def suggest_settings_callback(self):
         """Callback for suggesting settings based on user input."""

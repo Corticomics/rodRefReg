@@ -6,7 +6,7 @@ import sqlite3
 import hashlib
 import os
 import traceback
-
+import datetime
 # models/database_handler.py
 
 import sqlite3
@@ -367,6 +367,25 @@ class DatabaseHandler:
             print(f"Unexpected error retrieving animals for trainer_id {trainer_id}: {e}")
             traceback.print_exc()
         return animals
+    
+        # Method to log super user actions
+    def log_action(self, super_user_id, action, details):
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                timestamp = datetime.now().isoformat()
+                cursor.execute('''
+                    INSERT INTO logs (timestamp, action, super_user_id, details)
+                    VALUES (?, ?, ?, ?)
+                ''', (timestamp, action, super_user_id, details))
+                conn.commit()
+                print(f"Action '{action}' logged by super user ID {super_user_id}")
+        except sqlite3.Error as e:
+            print(f"Database error logging action: {e}")
+            traceback.print_exc()
+        except Exception as e:
+            print(f"Unexpected error logging action: {e}")
+            traceback.print_exc()
 
     def close(self):
         """No longer needed since connections are managed per method."""

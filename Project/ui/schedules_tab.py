@@ -69,6 +69,7 @@ class SchedulesTab(QWidget):
         else:
             animals = self.database_handler.get_all_animals()
 
+        self.animal_list.clear()  # Clear existing items before loading
         for animal in animals:
             item = QListWidgetItem(f"{animal.name} ({animal.lab_animal_id})")
             item.setData(Qt.UserRole, animal)
@@ -168,3 +169,8 @@ class SchedulesTab(QWidget):
         action = "created schedule"
         details = "\n".join([str(schedule.to_dict()) for schedule in schedules])
         self.database_handler.log_action(super_user_id, action, details)
+
+    def load_schedules(self):
+        """Load schedules from the database and display them."""
+        # Implement this method based on your application's requirements
+        pass

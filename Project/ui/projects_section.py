@@ -6,13 +6,13 @@ from .animals_tab import AnimalsTab
 from .create_schedule_dialog import CreateScheduleDialog  # Import the new dialog class
 
 class ProjectsSection(QWidget):
-    def __init__(self, settings, print_to_terminal, database_handler, trainer_id=None):
+    def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
 
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
-        self.trainer_id = trainer_id  # Store the trainer_id
+        self.login_system = login_system  # Store the login_system
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -21,11 +21,11 @@ class ProjectsSection(QWidget):
         self.tab_widget = QTabWidget()
 
         # Schedules tab
-        self.schedules_tab = SchedulesTab(settings, print_to_terminal, database_handler, trainer_id=self.trainer_id)
+        self.schedules_tab = SchedulesTab(settings, print_to_terminal, database_handler, login_system)
         self.tab_widget.addTab(self.schedules_tab, "Schedules")
 
         # Animals tab
-        self.animals_tab = AnimalsTab(settings, print_to_terminal, database_handler, trainer_id=self.trainer_id)
+        self.animals_tab = AnimalsTab(settings, print_to_terminal, database_handler, login_system)
         self.tab_widget.addTab(self.animals_tab, "Animals")
 
         self.layout.addWidget(self.tab_widget)
@@ -38,7 +38,7 @@ class ProjectsSection(QWidget):
     def open_create_schedule(self):
         # Open the Create Schedule dialog
         try:
-            dialog = CreateScheduleDialog(self.settings, self.print_to_terminal, self.database_handler, trainer_id=self.trainer_id)
+            dialog = CreateScheduleDialog(self.settings, self.print_to_terminal, self.database_handler, login_system=self.login_system)
             dialog.exec_()
             # After dialog is closed, refresh the schedules tab to show new schedules
             self.schedules_tab.load_schedules()

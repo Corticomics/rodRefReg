@@ -1,3 +1,5 @@
+# ui/animals_tab.py
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
     QLabel, QListWidget, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QListWidgetItem
@@ -6,15 +8,15 @@ from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
 from .edit_animal_dialog import EditAnimalDialog
 import traceback
+
 class AnimalsTab(QWidget):
-    def __init__(self, settings, print_to_terminal, database_handler, trainer_id=None):
+    def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
-        self.trainer_id = trainer_id  # Store trainer_id for filtering
+        self.login_system = login_system  # Store login_system for permission checks
 
-        # Initialize layout
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
@@ -48,13 +50,15 @@ class AnimalsTab(QWidget):
     def load_animals(self):
         """Load animals from the database, filtered by trainer_id if available."""
         try:
-            if self.trainer_id:
-                trainer_id = int(self.trainer_id)
-                animals = self.database_handler.get_animals_by_trainer(trainer_id)
-                print(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
+            current_trainer = self.login_system.get_current_trainer()
+            if current_trainer:
+                trainer_id = current_trainer['trainer_id']
+                role = current_trainer['role']
+                animals = self.database_handler.get_animals(trainer_id, role)
+                self.print_to_terminal(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
             else:
                 animals = self.database_handler.get_all_animals()
-                print(f"Loaded {len(animals)} animals for all trainers (guest mode)")
+                self.print_to_terminal(f"Loaded {len(animals)} animals for all trainers (guest mode)")
             # Populate the UI with the animals list
             self.populate_animal_list(animals)
         except Exception as e:

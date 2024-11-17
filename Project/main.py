@@ -1,10 +1,12 @@
+# main.py
+
 import sys
 import os
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
-from gpio.gpio_handler import RelayHandler
+from gpio.relay_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 from controllers.projects_controller import ProjectsController
@@ -53,7 +55,7 @@ def setup():
     settings = load_settings()
 
     # Initialize relay handler and close all relays
-    relay_handler = RelayHandler(settings.get('relay_pairs', []), settings.get('num_hats', 1))
+    relay_handler = RelayHandler(settings.get('relay_units', []), settings.get('num_hats', 1))
     relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
 
     # Initialize Slack notification handler
@@ -165,13 +167,37 @@ def change_relay_hats():
 
     # Update the settings with the new number of relay hats
     settings['num_hats'] = num_hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    settings['relay_units'] = create_relay_pairs(num_hats)
 
-    # Update relay handler with the new relay pairs
-    relay_handler.update_relay_hats(settings['relay_pairs'], num_hats)
+    # Update relay handler with the new relay units
+    relay_units = []
+    for unit_id, relay_ids in enumerate(settings['relay_units'], start=1):
+        relay_unit = RelayUnit(unit_id=unit_id, relay_ids=relay_ids)
+        relay_units.append(relay_unit)
+    
+    relay_handler.update_relay_units(relay_units, num_hats)
 
-    # Reinitialize the Projects Section
-    gui.projects_section.populate_relays()
+    # Reinitialize the Projects Section's relay units
+    gui.projects_section.relay_units = relay_units
+    gui.projects_section.schedules_tab.relay_units = relay_units
+    gui.projects_section.schedules_tab.relay_containers = {}
+    gui.projects_section.schedules_tab.layout.removeItem(gui.projects_section.schedules_tab.relay_layout)
+    gui.projects_section.schedules_tab.relay_layout = QHBoxLayout()
+
+    for relay_unit in relay_units:
+        container = QListWidget()
+        container.setAcceptDrops(True)
+        container.setDragDropMode(QListWidget.InternalMove)
+        container.setDefaultDropAction(Qt.MoveAction)
+        container.objectName = f"Relay Unit {relay_unit.unit_id}"
+        gui.projects_section.schedules_tab.relay_containers[relay_unit.unit_id] = container
+
+        relay_layout = QVBoxLayout()
+        relay_layout.addWidget(QLabel(str(relay_unit)))
+        relay_layout.addWidget(container)
+        gui.projects_section.schedules_tab.relay_layout.addLayout(relay_layout)
+
+    gui.projects_section.schedules_tab.layout.addLayout(gui.projects_section.schedules_tab.relay_layout)
 
     # Reset the UI to ensure no lingering data or state
     cleanup()
@@ -180,12 +206,13 @@ def change_relay_hats():
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 def create_relay_pairs(num_hats):
-    relay_pairs = []
+    relay_units = []
     for hat in range(num_hats):
         start_relay = hat * 16 + 1
         for i in range(0, 16, 2):
-            relay_pairs.append((start_relay + i, start_relay + i + 1))
-    return relay_pairs
+            relay_pair = (start_relay + i, start_relay + i + 1)
+            relay_units.append(relay_pair)
+    return relay_units
 
 def main():
     app = QApplication(sys.argv)
