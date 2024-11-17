@@ -1,9 +1,8 @@
-
 # ui/suggest_settings_section.py
 import json
 import os
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, QPushButton, QLabel, QMessageBox, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, QPushButton, QLabel, QMessageBox
 from .SuggestSettingsTab import SuggestSettingsTab
 from .SlackCredentialsTab import SlackCredentialsTab
 from .UserTab import UserTab
@@ -25,7 +24,6 @@ class SuggestSettingsSection(QWidget):
 
         # Create the tab widget
         self.tab_widget = QTabWidget(self)
-        
 
         # Suggest Settings Tab
         self.suggest_tab = SuggestSettingsTab(suggest_settings_callback, push_settings_callback)
@@ -48,7 +46,6 @@ class SuggestSettingsSection(QWidget):
         self.user_tab.logout_signal.connect(self.on_logout)  # Handle logout
         self.tab_widget.addTab(self.user_tab, "Profile")  # Initially "Profile" for guests
 
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         self.layout.addWidget(self.tab_widget)
 
     def create_dashboard_ui(self):
@@ -57,7 +54,6 @@ class SuggestSettingsSection(QWidget):
         self.dashboard_layout.addWidget(QLabel("Saved Settings"))
         self.dashboard_layout.addWidget(self.saved_settings_list)
         # Additional dashboard components as needed
-
 
     def on_login(self, user_info):
         """Updates the Profile tab after login."""
@@ -119,7 +115,6 @@ class SuggestSettingsSection(QWidget):
             self.load_button.setStyleSheet("")
             self.load_button.setToolTip("")
 
-
     def load_settings(self):
         selected_item = self.saved_settings_list.currentItem()
         if selected_item:
@@ -154,8 +149,6 @@ class SuggestSettingsSection(QWidget):
                     QMessageBox.critical(self, "Load Error", f"Error loading settings: {str(e)}")
             else:
                 QMessageBox.critical(self, "Load Error", f"Settings file '{full_path}' does not exist.")
-
-
 
     def save_slack_credentials(self):
         try:
