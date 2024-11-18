@@ -55,5 +55,40 @@ class LoginSystem:
         self.current_trainer = None
         print("Running in Guest mode. Displaying all data.")
 
+    def login(self, trainer_id):
+        """Attempt to log in a trainer by their ID."""
+        try:
+            trainer = self.database_handler.get_trainer_by_id(trainer_id)
+            if trainer:
+                self.current_trainer = trainer
+                return True
+            else:
+                print(f"Login failed: No trainer found with ID {trainer_id}")
+                return False
+        except Exception as e:
+            print(f"Error during login: {e}")
+            traceback.print_exc()
+            return False
+
+    def get_current_trainer(self):
+        """Return the current trainer or None if not logged in."""
+        return self.current_trainer
+
+    def create_user(self, username, password):
+        """Create a new trainer profile."""
+        try:
+            success = self.database_handler.add_trainer(username, password)
+            if success:
+                print(f"Trainer '{username}' created successfully.")
+                return True
+            else:
+                print(f"Failed to create trainer '{username}'. Username may already exist.")
+                return False
+        except Exception as e:
+            print(f"Error during user creation: {e}")
+            traceback.print_exc()
+            return False
+
+
 
     
