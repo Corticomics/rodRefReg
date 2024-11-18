@@ -141,8 +141,8 @@ class UserTab(QWidget):
             self.logout_button.show()
             
             # Adjust the size and emit the signal
-            self.adjustSize()
-            self.size_changed_signal.emit()
+            
+
         
         except ValueError as ve:
             QMessageBox.critical(self, "Profile View Error", str(ve))
