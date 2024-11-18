@@ -6,6 +6,7 @@ from models.relay_unit import RelayUnit
 from models.Schedule import Schedule
 from datetime import datetime
 
+# In schedules_tab.py
 class SchedulesTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
@@ -15,24 +16,47 @@ class SchedulesTab(QWidget):
         self.database_handler = database_handler
         self.login_system = login_system
 
-        self.layout = QVBoxLayout()
+        # Change main layout to QHBoxLayout
+        self.layout = QHBoxLayout()
         self.setLayout(self.layout)
 
-        # Animal List - displays animals from the database
+        # Left side: Animal List
+        self.left_layout = QVBoxLayout()
+        self.left_widget = QWidget()
+        self.left_widget.setLayout(self.left_layout)
+
         self.animal_list = QListWidget()
         self.animal_list.setDragEnabled(True)
         self.animal_list.setSelectionMode(QListWidget.SingleSelection)
         self.animal_list.setDefaultDropAction(Qt.MoveAction)
-        self.layout.addWidget(QLabel("Available Animals"))
-        self.layout.addWidget(self.animal_list)
+
+        self.left_layout.addWidget(QLabel("Available Animals"))
+        self.left_layout.addWidget(self.animal_list)
+
+        # Right side: Relay Units
+        self.right_layout = QVBoxLayout()
+        self.right_widget = QWidget()
+        self.right_widget.setLayout(self.right_layout)
+
+        # Relay containers will be added to right_layout
+        self.relay_containers = {}
+        self.load_relay_units()
+
+        # Add left and right widgets to the main layout
+        self.layout.addWidget(self.left_widget)
+        self.layout.addWidget(self.right_widget)
 
         # Load animals from the database
         self.load_animals()
 
-        # Relay containers for animals
-        self.relay_layout = QHBoxLayout()
+        # Finalize Schedule button
+        self.finalize_button = QPushButton("Finalize Schedule")
+        self.finalize_button.clicked.connect(self.finalize_schedule)
+        self.layout.addWidget(self.finalize_button)
         self.relay_containers = {}
 
+    def load_relay_units(self):
+        """Load relay units and create containers."""
         # Load relay units
         self.relay_units = self.database_handler.get_all_relay_units()
         if not self.relay_units:
@@ -44,20 +68,20 @@ class SchedulesTab(QWidget):
             container.setAcceptDrops(True)
             container.setDragDropMode(QListWidget.InternalMove)
             container.setDefaultDropAction(Qt.MoveAction)
+            container.setFixedSize(200, 60)  # Adjust size to fit one animal
+            container.setMaximumHeight(60)
+            container.setStyleSheet("QListWidget { background-color: #f0f0f0; }")
             container.objectName = f"Relay Unit {relay_unit.unit_id}"
             self.relay_containers[relay_unit.unit_id] = container
 
             relay_layout = QVBoxLayout()
-            relay_layout.addWidget(QLabel(str(relay_unit)))
+            relay_label = QLabel(f"Relay Unit {relay_unit.unit_id}")
+            relay_label.setAlignment(Qt.AlignCenter)
+            relay_layout.addWidget(relay_label)
             relay_layout.addWidget(container)
-            self.relay_layout.addLayout(relay_layout)
 
-        self.layout.addLayout(self.relay_layout)
-
-        # Button to finalize schedule and enter water quantities
-        self.finalize_button = QPushButton("Finalize Schedule")
-        self.finalize_button.clicked.connect(self.finalize_schedule)
-        self.layout.addWidget(self.finalize_button)
+            # Add relay_layout to the right_layout
+            self.right_layout.addLayout(relay_layout)
 
     def load_animals(self):
         """Load animals from the database and add them to the animal list."""
