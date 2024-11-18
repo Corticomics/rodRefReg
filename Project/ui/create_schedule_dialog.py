@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
 from PyQt5.QtCore import Qt
-import datetime
+from datetime import datetime
 from models.Schedule import Schedule
 
 class CreateScheduleDialog(QDialog):
@@ -55,8 +55,8 @@ class CreateScheduleDialog(QDialog):
                 name=schedule_name,
                 relay_unit_id=1,  # Example relay_unit_id
                 water_volume=10.0,  # Example water_volume
-                start_time=datetime.now().isoformat(),
-                end_time=datetime.now().isoformat(),
+                start_time=datetime.datetime.now().isoformat(),
+                end_time=datetime.datetime.now().isoformat(),
                 created_by=trainer_id,
                 is_super_user=(role == 'super')
             )
