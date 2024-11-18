@@ -260,7 +260,6 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
 
-            self.adjust_window_size()
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
