@@ -43,12 +43,10 @@ class LoginSystem:
         """Toggle between normal and super modes."""
         if self.current_trainer and self.current_trainer['role'] == 'super':
             self.current_trainer['role'] = 'normal'
-            print("Switched to Normal Mode.")
         else:
             # Verify super user credentials (you might prompt for a password)
             # For simplicity, assuming they can switch directly
             self.current_trainer['role'] = 'super'
-            print("Switched to Super Mode.")
 
     def set_guest_mode(self):
         """Set the system to 'Guest' mode."""
