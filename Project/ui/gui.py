@@ -220,7 +220,6 @@ class RodentRefreshmentGUI(QWidget):
             trainer_id = int(user['trainer_id'])  # Ensure trainer_id is an integer
             self.projects_section.animals_tab.trainer_id = trainer_id
             self.load_animals_tab(trainer_id=trainer_id)
-            self.adjust_window_size()
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
             QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
