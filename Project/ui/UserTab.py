@@ -1,6 +1,6 @@
 # ui/user_tab.py
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSpacerItem, QSizePolicy, QInputDialog
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtCore import pyqtSignal
 import traceback
