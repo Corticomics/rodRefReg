@@ -2,16 +2,18 @@
 
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QInputDialog
+from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
-from gpio.relay_handler import RelayHandler
+from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 from controllers.projects_controller import ProjectsController
 from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem  # Import LoginSystem
+from models.relay_unit import RelayUnit
+
 import time
 import sys
 import traceback
