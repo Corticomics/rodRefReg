@@ -1,18 +1,10 @@
 # models/database_handler.py
 
-from models.animal import Animal
-
 import sqlite3
 import hashlib
 import os
 import traceback
 import datetime
-# models/database_handler.py
-
-import sqlite3
-import hashlib
-import os
-import traceback
 from models.animal import Animal
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
@@ -171,6 +163,76 @@ class DatabaseHandler:
             traceback.print_exc()
             return None
 
+    def remove_schedule(self, schedule_id):
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM schedules WHERE schedule_id = ?', (schedule_id,))
+                cursor.execute('DELETE FROM schedule_animals WHERE schedule_id = ?', (schedule_id,))
+                conn.commit()
+                print(f"Schedule with ID {schedule_id} removed.")
+        except sqlite3.Error as e:
+            print(f"Database error when removing schedule: {e}")
+            traceback.print_exc()
+
+    def get_all_schedules(self):
+        schedules = []
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT schedule_id, name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user FROM schedules')
+                rows = cursor.fetchall()
+                for row in rows:
+                    schedule = Schedule(
+                        schedule_id=row[0],
+                        name=row[1],
+                        relay_unit_id=row[2],
+                        water_volume=row[3],
+                        start_time=row[4],
+                        end_time=row[5],
+                        created_by=row[6],
+                        is_super_user=row[7]
+                    )
+                    # Retrieve associated animals
+                    cursor.execute('SELECT animal_id FROM schedule_animals WHERE schedule_id = ?', (schedule.schedule_id,))
+                    animal_rows = cursor.fetchall()
+                    schedule.animals = [animal_id for (animal_id,) in animal_rows]
+                    schedules.append(schedule)
+            return schedules
+        except sqlite3.Error as e:
+            print(f"Error retrieving all schedules: {e}")
+            traceback.print_exc()
+            return []
+
+    def get_schedules_by_trainer(self, trainer_id):
+        schedules = []
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT schedule_id, name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user FROM schedules WHERE created_by = ?', (trainer_id,))
+                rows = cursor.fetchall()
+                for row in rows:
+                    schedule = Schedule(
+                        schedule_id=row[0],
+                        name=row[1],
+                        relay_unit_id=row[2],
+                        water_volume=row[3],
+                        start_time=row[4],
+                        end_time=row[5],
+                        created_by=row[6],
+                        is_super_user=row[7]
+                    )
+                    # Retrieve associated animals
+                    cursor.execute('SELECT animal_id FROM schedule_animals WHERE schedule_id = ?', (schedule.schedule_id,))
+                    animal_rows = cursor.fetchall()
+                    schedule.animals = [animal_id for (animal_id,) in animal_rows]
+                    schedules.append(schedule)
+            return schedules
+        except sqlite3.Error as e:
+            print(f"Error retrieving schedules for trainer_id {trainer_id}: {e}")
+            traceback.print_exc()
+            return []
+
     # Modify existing methods to handle user roles
     def get_animals(self, trainer_id, role):
         if role == 'super':
@@ -178,7 +240,6 @@ class DatabaseHandler:
         else:
             return self.get_animals_by_trainer(trainer_id)
 
-    # Rest of the methods remain mostly the same, ensure to retrieve 'role' during authentication
     def authenticate_trainer(self, trainer_name, password):
         try:
             with self.connect() as conn:
@@ -233,7 +294,6 @@ class DatabaseHandler:
             print(f"Unexpected error retrieving trainer by ID {trainer_id}: {e}")
             traceback.print_exc()
             raise
-    
 
     def add_trainer(self, trainer_name, password):
         """Add a new trainer to the database with salted SHA-256 hashed password."""
@@ -259,7 +319,6 @@ class DatabaseHandler:
             traceback.print_exc()
             return False
 
-
     def add_animal(self, animal, trainer_id):
         """Add a new animal with lab_animal_id and trainer association."""
         try:
@@ -281,14 +340,14 @@ class DatabaseHandler:
             return None
 
     def update_animal(self, animal):
-        """Update an existing animal's information based on lab_animal_id."""
+        """Update an existing animal's information based on animal_id."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     UPDATE animals
                     SET lab_animal_id = ?, name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?
-                    WHERE ID = ?
+                    WHERE animal_id = ?
                 ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.animal_id))
                 if cursor.rowcount > 0:
                     print(f"Animal with lab ID {animal.lab_animal_id} updated.")
@@ -320,7 +379,7 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
+                cursor.execute('SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
                 rows = cursor.fetchall()
                 for row in rows:
                     animal = Animal(
@@ -345,7 +404,7 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    'SELECT ID, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals WHERE trainer_id = ?',
+                    'SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals WHERE trainer_id = ?',
                     (int(trainer_id),)
                 )
                 rows = cursor.fetchall()
@@ -367,13 +426,13 @@ class DatabaseHandler:
             print(f"Unexpected error retrieving animals for trainer_id {trainer_id}: {e}")
             traceback.print_exc()
         return animals
-    
-        # Method to log super user actions
+
+    # Method to log super user actions
     def log_action(self, super_user_id, action, details):
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                timestamp = datetime.now().isoformat()
+                timestamp = datetime.datetime.now().isoformat()
                 cursor.execute('''
                     INSERT INTO logs (timestamp, action, super_user_id, details)
                     VALUES (?, ?, ?, ?)
