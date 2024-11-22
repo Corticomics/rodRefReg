@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QMessageBox, QLineEdit
+    QMessageBox, QLineEdit, QHBoxLayout
 )
 from PyQt5.QtCore import Qt, QDataStream, QIODevice
 from models.animal import Animal
@@ -29,8 +29,8 @@ class RelayUnitWidget(QWidget):
         self.drag_area_label = QLabel("Drop Animal Here")
         self.drag_area_label.setAlignment(Qt.AlignCenter)
         self.drag_area_label.setStyleSheet("""
-            background-color: #e0e0e0; 
-            border: 2px dashed #000; 
+            background-color: #f8f9fa; 
+            border: 2px dashed #e0e0e0; 
             font-size: 14px;
         """)
         self.drag_area_label.setFixedHeight(50)
@@ -42,7 +42,7 @@ class RelayUnitWidget(QWidget):
         # Animal Information Table
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
-        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight (g)", "Last Watering"])
+        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
         self.animal_table.horizontalHeader().setStretchLastSection(True)
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
@@ -53,16 +53,31 @@ class RelayUnitWidget(QWidget):
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.layout.addWidget(self.recommended_water_label)
 
-        # Desired Water Output Input
+        # **Desired Water Output Input**
+        # Create a horizontal layout for the label and input box
+        desired_output_layout = QHBoxLayout()
+
+        # Label for Desired Water Output
         self.desired_output_label = QLabel("Desired Water Output (mL):")
+        self.desired_output_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.desired_output_label.setFixedWidth(150)  # Optional: Set a fixed width for better alignment
+
+        # Input box for Desired Water Output
         self.desired_output_input = QLineEdit()
         self.desired_output_input.setPlaceholderText("Enter desired water volume")
-        self.desired_output_input.setFixedWidth(200)
-        self.layout.addWidget(self.desired_output_label)
-        self.layout.addWidget(self.desired_output_input)
+        self.desired_output_input.setFixedWidth(200)  # Set a fixed width as desired
+
+        # Add widgets to the horizontal layout
+        desired_output_layout.addWidget(self.desired_output_label)
+        desired_output_layout.addWidget(self.desired_output_input)
+        desired_output_layout.addStretch()  # Pushes the widgets to the left
+
+        # Add the horizontal layout to the main vertical layout
+        self.layout.addLayout(desired_output_layout)
 
         # Connect input change to update desired water output
         self.desired_output_input.textChanged.connect(self.update_desired_water_output)
+
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
     def dragEnterEvent(self, event):
