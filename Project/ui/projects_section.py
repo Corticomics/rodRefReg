@@ -3,7 +3,6 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton, QMessageBox
 from .schedules_tab import SchedulesTab
 from .animals_tab import AnimalsTab
-from .create_schedule_dialog import CreateScheduleDialog  # Import the new dialog class
 
 class ProjectsSection(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
@@ -30,13 +29,15 @@ class ProjectsSection(QWidget):
 
         self.layout.addWidget(self.tab_widget)
 
-    def open_create_schedule(self):
-        # Open the Create Schedule dialog
+        # Add the "Save Current Schedule" button back
+        self.save_schedule_button = QPushButton("Save Current Schedule")
+        self.save_schedule_button.clicked.connect(self.save_current_schedule)
+        self.layout.addWidget(self.save_schedule_button)
+
+    def save_current_schedule(self):
+        # Call the save_current_schedule method of the schedules_tab
         try:
-            dialog = CreateScheduleDialog(self.settings, self.print_to_terminal, self.database_handler, login_system=self.login_system)
-            dialog.exec_()
-            # After dialog is closed, refresh the schedules tab to show new schedules
-            self.schedules_tab.load_schedules()
+            self.schedules_tab.save_current_schedule()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred while creating a schedule: {e}")
-            self.print_to_terminal(f"Error opening Create Schedule dialog: {e}")
+            QMessageBox.critical(self, "Error", f"An error occurred while saving the schedule: {e}")
+            self.print_to_terminal(f"Error saving schedule: {e}")
