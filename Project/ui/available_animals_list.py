@@ -31,3 +31,9 @@ class AvailableAnimalsList(QListWidget):
         drag = QDrag(self)
         drag.setMimeData(mime_data)
         drag.exec_(Qt.MoveAction)
+
+    def create_available_animal_item(self, animal):
+        """Create a QListWidgetItem for the given animal."""
+        item = QListWidgetItem(f"{animal.lab_animal_id} - {animal.name} - Last Watering: {animal.last_watering or 'N/A'}")
+        item.setData(Qt.UserRole, animal)
+        return item
