@@ -25,7 +25,9 @@ class ProjectsController:
 
     def get_all_animals(self):
         return self.db_handler.get_all_animals()
-
+    
+    def get_animal_by_id(self, animal_id):
+        return self.db_handler.get_animal_by_id(animal_id)
     # Schedule related methods
     def add_schedule(self, schedule):
         schedule_id = self.db_handler.add_schedule(schedule)
@@ -39,6 +41,9 @@ class ProjectsController:
             return self.db_handler.get_all_schedules()
         else:
             return self.db_handler.get_schedules_by_trainer(trainer_id)
+        
+    def get_schedule_details(self, schedule_id):
+        return self.db_handler.get_schedule_details(schedule_id)
 
     def close(self):
         self.db_handler.close()

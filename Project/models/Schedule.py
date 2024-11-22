@@ -11,6 +11,7 @@ class Schedule:
         self.created_by = created_by
         self.is_super_user = is_super_user
         self.animals = []  # List of animal IDs assigned to this schedule
+        self.desired_water_outputs = {}  # {animal_id: desired_water_output}
 
     def to_dict(self):
         return {
@@ -22,5 +23,6 @@ class Schedule:
             'end_time': self.end_time,
             'created_by': self.created_by,
             'is_super_user': self.is_super_user,
-            'animals': self.animals
+            'animals': self.animals,
+            'desired_water_outputs': self.desired_water_outputs
         }

@@ -94,6 +94,16 @@ class DatabaseHandler:
                         FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
                     )
                 ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_desired_outputs (
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        desired_output REAL NOT NULL,
+                        PRIMARY KEY (schedule_id, animal_id),
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    )
+            ''')
                 conn.commit()
                 print("Tables created or confirmed to exist.")
         except sqlite3.Error as e:
@@ -136,7 +146,7 @@ class DatabaseHandler:
             traceback.print_exc()
             return []
 
-    # Add methods to handle schedules
+
     def add_schedule(self, schedule):
         try:
             with self.connect() as conn:
@@ -155,11 +165,84 @@ class DatabaseHandler:
                         VALUES (?, ?)
                     ''', (schedule.schedule_id, animal_id))
 
+                # Insert desired water outputs
+                for animal_id, desired_output in schedule.desired_water_outputs.items():
+                    cursor.execute('''
+                        INSERT INTO schedule_desired_outputs (schedule_id, animal_id, desired_output)
+                        VALUES (?, ?, ?)
+                    ''', (schedule.schedule_id, animal_id, desired_output))
+
                 conn.commit()
                 print(f"Schedule '{schedule.name}' added with ID: {schedule.schedule_id}")
                 return schedule.schedule_id
         except sqlite3.Error as e:
             print(f"Database error when adding schedule: {e}")
+            traceback.print_exc()
+            return None
+
+    def get_schedule_details(self, schedule_id):
+        """Retrieve detailed information about a schedule for loading."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT relay_unit_id, water_volume FROM schedules WHERE schedule_id = ?
+                ''', (schedule_id,))
+                schedule_row = cursor.fetchone()
+                if not schedule_row:
+                    return []
+
+                relay_unit_id, water_volume = schedule_row
+                # Get animal IDs
+                cursor.execute('''
+                    SELECT animal_id FROM schedule_animals WHERE schedule_id = ?
+                ''', (schedule_id,))
+                animal_rows = cursor.fetchall()
+                animal_ids = [row[0] for row in animal_rows]
+
+                # Get desired water outputs
+                cursor.execute('''
+                    SELECT animal_id, desired_output FROM schedule_desired_outputs WHERE schedule_id = ?
+                ''', (schedule_id,))
+                desired_output_rows = cursor.fetchall()
+                desired_water_outputs = {row[0]: row[1] for row in desired_output_rows}
+
+                return [{
+                    'relay_unit_id': relay_unit_id,
+                    'water_volume': water_volume,
+                    'animal_ids': animal_ids,
+                    'desired_water_outputs': desired_water_outputs
+                }]
+        except sqlite3.Error as e:
+            print(f"Database error retrieving schedule details: {e}")
+            traceback.print_exc()
+            return []
+
+    def get_animal_by_id(self, animal_id):
+        """Retrieve an animal by its ID."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted
+                    FROM animals WHERE animal_id = ?
+                ''', (animal_id,))
+                row = cursor.fetchone()
+                if row:
+                    animal = Animal(
+                        animal_id=row[0],
+                        lab_animal_id=row[1],
+                        name=row[2],
+                        initial_weight=row[3],
+                        last_weight=row[4],
+                        last_weighted=row[5]
+                    )
+                    return animal
+                else:
+                    print(f"No animal found with ID {animal_id}")
+                    return None
+        except sqlite3.Error as e:
+            print(f"Error retrieving animal with ID {animal_id}: {e}")
             traceback.print_exc()
             return None
 
@@ -445,7 +528,3 @@ class DatabaseHandler:
         except Exception as e:
             print(f"Unexpected error logging action: {e}")
             traceback.print_exc()
-
-    def close(self):
-        """No longer needed since connections are managed per method."""
-        pass  # Method retained for backward compatibility if needed
