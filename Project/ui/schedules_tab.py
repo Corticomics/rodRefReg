@@ -86,7 +86,8 @@ class SchedulesTab(QWidget):
             self.initialize_relay_units()
 
         for relay_unit in self.relay_units:
-            relay_widget = RelayUnitWidget(relay_unit, self.database_handler)
+            # Pass the AvailableAnimalsList reference to each RelayUnitWidget
+            relay_widget = RelayUnitWidget(relay_unit, self.database_handler, self.animal_list)
             self.relay_unit_widgets[relay_unit.unit_id] = relay_widget
             self.relay_units_container_layout.addWidget(relay_widget)
 
@@ -112,8 +113,7 @@ class SchedulesTab(QWidget):
 
         self.animal_list.clear()  # Clear existing items before loading
         for animal in animals:
-            item = QListWidgetItem(f"{animal.name} ({animal.lab_animal_id})")
-            item.setData(Qt.UserRole, animal)
+            item = self.animal_list.create_available_animal_item(animal)
             self.animal_list.addItem(item)
 
     def load_schedules(self):

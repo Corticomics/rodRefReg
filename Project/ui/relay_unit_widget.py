@@ -9,10 +9,19 @@ from models.animal import Animal
 from .available_animals_list import AvailableAnimalsList
 
 class RelayUnitWidget(QWidget):
-    def __init__(self, relay_unit, database_handler):
+    def __init__(self, relay_unit, database_handler, available_animals_list):
+        """
+        Initialize the RelayUnitWidget.
+
+        Args:
+            relay_unit (RelayUnit): The relay unit instance.
+            database_handler (DatabaseHandler): Handler for database interactions.
+            available_animals_list (AvailableAnimalsList): Reference to the AvailableAnimalsList widget.
+        """
         super().__init__()
         self.relay_unit = relay_unit
         self.database_handler = database_handler
+        self.available_animals_list = available_animals_list
         self.assigned_animal = None  # Only one animal per relay unit
         self.desired_water_output = 0.0  # Desired water output for the animal
 
@@ -42,7 +51,7 @@ class RelayUnitWidget(QWidget):
         # Animal Information Table
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
-        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
+        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight (g)", "Last Watering"])
         self.animal_table.horizontalHeader().setStretchLastSection(True)
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
@@ -78,15 +87,28 @@ class RelayUnitWidget(QWidget):
         # Connect input change to update desired water output
         self.desired_output_input.textChanged.connect(self.update_desired_water_output)
 
+        # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
     def dragEnterEvent(self, event):
+        """
+        Handle the drag enter event.
+
+        Args:
+            event (QDragEnterEvent): The drag enter event.
+        """
         if event.mimeData().hasFormat('application/x-animal-id'):
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
+        """
+        Handle the drop event.
+
+        Args:
+            event (QDropEvent): The drop event.
+        """
         source_widget = event.source()
         if isinstance(source_widget, AvailableAnimalsList):  # Ensure source is the custom list
             mime = event.mimeData()
@@ -100,8 +122,11 @@ class RelayUnitWidget(QWidget):
                 if animal:
                     # Check if relay unit already has an animal
                     if self.assigned_animal is not None:
-                        QMessageBox.warning(self, "Assignment Error", 
-                                            f"Relay Unit {self.relay_unit.unit_id} already has an animal assigned.")
+                        QMessageBox.warning(
+                            self, 
+                            "Assignment Error", 
+                            f"Relay Unit {self.relay_unit.unit_id} already has an animal assigned."
+                        )
                         event.ignore()
                         return
 
@@ -118,7 +143,12 @@ class RelayUnitWidget(QWidget):
         event.acceptProposedAction()
 
     def add_animal(self, animal):
-        """Assign an animal to the relay unit and update the UI."""
+        """
+        Assign an animal to the relay unit and update the UI.
+
+        Args:
+            animal (Animal): The animal to assign.
+        """
         self.assigned_animal = animal
         self.desired_water_output = 0.0  # Reset desired water output
 
@@ -143,13 +173,26 @@ class RelayUnitWidget(QWidget):
         self.drag_area_label.hide()
 
     def calculate_recommended_water(self, animal):
-        """Calculate recommended water volume based on the animal's weight."""
+        """
+        Calculate recommended water volume based on the animal's weight.
+
+        Args:
+            animal (Animal): The animal for which to calculate water volume.
+
+        Returns:
+            float: Recommended water volume in milliliters.
+        """
         weight = animal.last_weight if animal.last_weight is not None else animal.initial_weight
         recommended_water = round(weight * 0.1, 2)  # Example: 10% of body weight
         return recommended_water
 
     def update_desired_water_output(self, text):
-        """Update the desired water output based on user input."""
+        """
+        Update the desired water output based on user input.
+
+        Args:
+            text (str): The text input from the user.
+        """
         try:
             if text.strip() == "":
                 self.desired_water_output = 0.0
@@ -160,7 +203,12 @@ class RelayUnitWidget(QWidget):
             self.desired_output_input.setText("")
 
     def get_data(self):
-        """Retrieve the current data from the widget."""
+        """
+        Retrieve the current data from the widget.
+
+        Returns:
+            dict: A dictionary containing assigned animals and desired water output.
+        """
         desired_output_text = self.desired_output_input.text().strip()
         try:
             desired_output = float(desired_output_text) if desired_output_text else 0.0
@@ -178,7 +226,13 @@ class RelayUnitWidget(QWidget):
         }
 
     def set_data(self, animals, desired_water_output):
-        """Set the data for the relay unit."""
+        """
+        Set the data for the relay unit.
+
+        Args:
+            animals (list): A list of Animal instances to assign.
+            desired_water_output (dict): Desired water output per animal_id.
+        """
         self.clear_assignments()
         if animals:
             animal = animals[0]  # Assuming only one animal per relay unit
@@ -189,7 +243,9 @@ class RelayUnitWidget(QWidget):
                 self.desired_output_input.setText("0.0")
 
     def clear_assignments(self):
-        """Clear all assigned animals and reset inputs."""
+        """
+        Clear all assigned animals and reset inputs.
+        """
         self.assigned_animal = None
         self.desired_water_output = 0.0
         self.animal_table.setRowCount(0)
@@ -198,7 +254,13 @@ class RelayUnitWidget(QWidget):
         self.drag_area_label.show()
 
     def remove_animal(self, row, column):
-        """Remove the assigned animal from the relay unit."""
+        """
+        Remove the assigned animal from the relay unit.
+
+        Args:
+            row (int): The row of the clicked cell.
+            column (int): The column of the clicked cell.
+        """
         if self.assigned_animal is None:
             QMessageBox.warning(self, "Removal Error", "No animal is assigned to this relay unit.")
             return
@@ -211,11 +273,14 @@ class RelayUnitWidget(QWidget):
             QMessageBox.No
         )
         if confirm == QMessageBox.Yes:
-            # Re-add the animal to the Available Animals list
-            self.parent().available_animals_widget.animal_list.addItem(self.parent().available_animals_widget.create_available_animal_item(self.assigned_animal))
+            try:
+                # Re-add the animal to the Available Animals list
+                new_item = self.available_animals_list.create_available_animal_item(self.assigned_animal)
+                self.available_animals_list.addItem(new_item)
 
-            # Clear the assignment
-            self.clear_assignments()
-
-            # Optional: Log the removal action
-            # self.database_handler.log_action(super_user_id, action, details)
+                # Clear the assignment
+                self.clear_assignments()
+            except AttributeError as e:
+                QMessageBox.critical(self, "Removal Error", f"Failed to re-add animal to available list: {e}")
+            except Exception as e:
+                QMessageBox.critical(self, "Removal Error", f"An unexpected error occurred: {e}")
