@@ -2,19 +2,19 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QLineEdit,
-    QMessageBox
+    QMessageBox, QListWidget
 )
 from PyQt5.QtCore import Qt, QDataStream, QIODevice
 from models.animal import Animal
 from .available_animals_list import AvailableAnimalsList
 
 class RelayUnitWidget(QWidget):
-    def __init__(self, relay_unit, database_handler):
+    def __init__(self, relay_unit):
         super().__init__()
         self.relay_unit = relay_unit
-        self.database_handler = database_handler
         self.assigned_animals = []
-        
+        self.desired_water_output = {}  # {animal_id: desired_output}
+
         # Main layout
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -24,14 +24,14 @@ class RelayUnitWidget(QWidget):
         self.title_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.title_label)
 
-        # Drag-and-Drop Area
+        # Minimalistic Drag-and-Drop Area
         self.drag_area_label = QLabel("Drop Animal Here")
         self.drag_area_label.setAlignment(Qt.AlignCenter)
         self.drag_area_label.setStyleSheet("background-color: #e0e0e0; border: 1px dashed #000;")
         self.drag_area_label.setFixedHeight(30)
         self.layout.addWidget(self.drag_area_label)
 
-        # Enable drag-and-drop
+        # Set up drag-and-drop
         self.setAcceptDrops(True)
 
         # Animal Information Table
@@ -42,14 +42,23 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
         self.animal_table.verticalHeader().setVisible(False)
+        self.animal_table.setFixedHeight(60)
         self.layout.addWidget(self.animal_table)
 
         # Water Volume Display
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.layout.addWidget(self.recommended_water_label)
 
+        self.desired_output_label = QLabel("Desired output by trainer:")
+        self.desired_output_input = QLineEdit()
+        self.layout.addWidget(self.desired_output_label)
+        self.layout.addWidget(self.desired_output_input)
+
+        # Connect the cellClicked signal
+        self.animal_table.cellClicked.connect(self.remove_animal)
+
     def dragEnterEvent(self, event):
-        if event.mimeData().hasFormat('application/x-animal-id'):
+        if event.mimeData().hasFormat('application/x-qabstractitemmodeldatalist'):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
@@ -81,36 +90,32 @@ class RelayUnitWidget(QWidget):
         if len(self.assigned_animals) >= 1:
             QMessageBox.warning(self, "Limit Reached", "Only one animal can be assigned to this relay unit.")
             return
-        try:
-            self.assigned_animals.append(animal)
-            # Update the table
-            self.animal_table.setRowCount(1)
-            self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
-            self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
-            last_weight = str(animal.last_weight) if animal.last_weight is not None else str(animal.initial_weight)
-            self.animal_table.setItem(0, 2, QTableWidgetItem(last_weight))
 
-            # Retrieve last_watering information
-            last_watering = animal.last_watering if animal.last_watering else 'N/A'
-            self.animal_table.setItem(0, 3, QTableWidgetItem(last_watering))
+        self.assigned_animals.append(animal)
+        # Update the table
+        self.animal_table.setRowCount(1)
+        self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
+        self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
+        last_weight = str(animal.last_weight or animal.initial_weight or 'N/A')
+        self.animal_table.setItem(0, 2, QTableWidgetItem(last_weight))
 
-            # Update recommended water volume
-            recommended_volume = self.calculate_recommended_water(animal)
-            self.recommended_water_label.setText(f"Recommended water volume: {recommended_volume} mL")
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Failed to add animal: {str(e)}")
+        # Retrieve last_watering information
+        last_watering = animal.last_watering or 'N/A'
+        self.animal_table.setItem(0, 3, QTableWidgetItem(last_watering))
+
+        info = f"Weight: {animal.last_weight or animal.initial_weight} g"
+        self.animal_table.setItem(0, 1, QTableWidgetItem(info))
+
+        # Update recommended water volume
+        recommended_volume = self.calculate_recommended_water(animal)
+        self.recommended_water_label.setText(f"Recommended water volume: {recommended_volume} mL")
+        # Hide Placeholder
+        self.drag_area_label.hide()
 
     def calculate_recommended_water(self, animal):
-        weight = animal.last_weight if animal.last_weight is not None else animal.initial_weight
+        weight = animal.last_weight or animal.initial_weight or 0
         recommended_water = round(weight * 0.1, 2)  # Example: 10% of body weight
         return recommended_water
-
-    def clear_assignments(self):
-        """Clear all assigned animals and reset inputs."""
-        self.assigned_animals = []
-        self.animal_table.setRowCount(0)
-        self.recommended_water_label.setText("Recommended water volume: N/A")
-        self.drag_area_label.show()
 
     def get_data(self):
         """Retrieve the current data from the widget."""
@@ -138,7 +143,16 @@ class RelayUnitWidget(QWidget):
             animal_id = animals[0].animal_id
             if animal_id in desired_water_output:
                 self.desired_output_input.setText(str(desired_water_output[animal_id]))
-    
+
+    def clear_assignments(self):
+        """Clear all assigned animals and reset inputs."""
+        self.assigned_animals = []
+        self.desired_water_output = {}
+        self.animal_table.setRowCount(0)
+        self.desired_output_input.clear()
+        self.recommended_water_label.setText("Recommended water volume: N/A")
+        self.drag_area_label.show()
+                                             
     def remove_animal(self, row, column):
         reply = QMessageBox.question(
             self,
