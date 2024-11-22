@@ -67,19 +67,15 @@ class SchedulesTab(QWidget):
         self.saved_schedules_layout.addWidget(QLabel("Saved Schedules"))
         self.saved_schedules_layout.addWidget(self.schedule_list)
 
-        # Add columns to main layout
-        self.layout.addWidget(self.available_animals_widget)
-        self.layout.addWidget(self.relay_units_widget)
-        self.layout.addWidget(self.saved_schedules_widget)
+        # Add stretch factors to the layout
+        self.layout.addWidget(self.available_animals_widget, stretch=1)
+        self.layout.addWidget(self.relay_units_widget, stretch=2)  # Increase stretch
+        self.layout.addWidget(self.saved_schedules_widget, stretch=1)
 
         # Load animals and schedules
         self.load_animals()
         self.load_schedules()
 
-        # Save Schedule button
-        self.save_schedule_button = QPushButton("Save Schedule")
-        self.save_schedule_button.clicked.connect(self.save_current_schedule)
-        self.layout.addWidget(self.save_schedule_button)
 
     def load_animals(self):
         """Load animals from the database and add them to the animal list."""

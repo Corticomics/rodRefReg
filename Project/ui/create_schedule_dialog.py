@@ -13,7 +13,7 @@ class CreateScheduleDialog(QDialog):
         self.database_handler = database_handler
         self.login_system = login_system
 
-        self.setWindowTitle("Create Schedule")
+        self.setWindowTitle("Save Schedule")
 
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -27,7 +27,7 @@ class CreateScheduleDialog(QDialog):
         # Add more fields as needed...
 
         # Create Schedule button
-        self.create_button = QPushButton("Create Schedule")
+        self.create_button = QPushButton("Save Current Schedule")
         self.create_button.clicked.connect(self.create_schedule)
         layout.addWidget(self.create_button)
 

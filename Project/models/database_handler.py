@@ -94,6 +94,7 @@ class DatabaseHandler:
                         FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
                     )
                 ''')
+                # Store desired water outputs for each animal in a schedule_id
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS schedule_desired_outputs (
                         schedule_id INTEGER NOT NULL,
@@ -104,6 +105,14 @@ class DatabaseHandler:
                         FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
                     )
             ''')
+                # Add 'last_watering' column to 'animals' table if it doesn't exist
+                cursor.execute("PRAGMA table_info(animals)")
+                columns = [column[1] for column in cursor.fetchall()]
+                if 'last_watering' not in columns:
+                    cursor.execute("ALTER TABLE animals ADD COLUMN last_watering TEXT")
+                    conn.commit()
+                    print("Added 'last_watering' column to 'animals' table.")
+        
                 conn.commit()
                 print("Tables created or confirmed to exist.")
         except sqlite3.Error as e:
@@ -224,7 +233,7 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted
+                    SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering
                     FROM animals WHERE animal_id = ?
                 ''', (animal_id,))
                 row = cursor.fetchone()
@@ -235,7 +244,8 @@ class DatabaseHandler:
                         name=row[2],
                         initial_weight=row[3],
                         last_weight=row[4],
-                        last_weighted=row[5]
+                        last_weighted=row[5],
+                        last_watering=row[6]  # Added last_watering
                     )
                     return animal
                 else:
@@ -401,16 +411,16 @@ class DatabaseHandler:
             print(f"Database error when adding trainer '{trainer_name}': {e}")
             traceback.print_exc()
             return False
-
+        
     def add_animal(self, animal, trainer_id):
         """Add a new animal with lab_animal_id and trainer association."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO animals (lab_animal_id, name, initial_weight, last_weight, last_weighted, trainer_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, trainer_id))
+                    INSERT INTO animals (lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering, trainer_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.last_watering, trainer_id))
                 conn.commit()
                 print(f"Animal '{animal.name}' added with lab ID: {animal.lab_animal_id} for trainer ID: {trainer_id}")
                 return cursor.lastrowid
@@ -429,9 +439,9 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 cursor.execute('''
                     UPDATE animals
-                    SET lab_animal_id = ?, name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?
+                    SET lab_animal_id = ?, name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?, last_watering = ?
                     WHERE animal_id = ?
-                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.animal_id))
+                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.last_watering, animal.animal_id))
                 if cursor.rowcount > 0:
                     print(f"Animal with lab ID {animal.lab_animal_id} updated.")
                 else:
@@ -462,7 +472,7 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals')
+                cursor.execute('SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering FROM animals')
                 rows = cursor.fetchall()
                 for row in rows:
                     animal = Animal(
@@ -471,7 +481,8 @@ class DatabaseHandler:
                         name=row[2],
                         initial_weight=row[3],
                         last_weight=row[4],
-                        last_weighted=row[5]
+                        last_weighted=row[5],
+                        last_watering=row[6]  # Added last_watering
                     )
                     animals.append(animal)
                 print(f"Retrieved {len(animals)} animals from the database.")
@@ -487,7 +498,7 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    'SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted FROM animals WHERE trainer_id = ?',
+                    'SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering FROM animals WHERE trainer_id = ?',
                     (int(trainer_id),)
                 )
                 rows = cursor.fetchall()
@@ -499,7 +510,8 @@ class DatabaseHandler:
                         name=row[2],
                         initial_weight=row[3],
                         last_weight=row[4],
-                        last_weighted=row[5]
+                        last_weighted=row[5],
+                        last_watering=row[6]  # Added last_watering
                     )
                     animals.append(animal)
         except sqlite3.Error as e:
@@ -509,7 +521,7 @@ class DatabaseHandler:
             print(f"Unexpected error retrieving animals for trainer_id {trainer_id}: {e}")
             traceback.print_exc()
         return animals
-
+    
     # Method to log super user actions
     def log_action(self, super_user_id, action, details):
         try:

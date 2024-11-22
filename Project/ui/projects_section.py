@@ -30,11 +30,6 @@ class ProjectsSection(QWidget):
 
         self.layout.addWidget(self.tab_widget)
 
-        # Add a create schedule button that opens the create schedule dialog
-        self.create_schedule_button = QPushButton("Create Schedule")
-        self.create_schedule_button.clicked.connect(self.open_create_schedule)
-        self.layout.addWidget(self.create_schedule_button)
-
     def open_create_schedule(self):
         # Open the Create Schedule dialog
         try:

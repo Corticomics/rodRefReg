@@ -28,6 +28,8 @@ class ProjectsController:
     
     def get_animal_by_id(self, animal_id):
         return self.db_handler.get_animal_by_id(animal_id)
+    
+    
     # Schedule related methods
     def add_schedule(self, schedule):
         schedule_id = self.db_handler.add_schedule(schedule)

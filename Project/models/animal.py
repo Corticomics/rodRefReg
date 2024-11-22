@@ -1,13 +1,14 @@
 # models/animal.py
 
 class Animal:
-    def __init__(self, animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted):
+    def __init__(self, animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering=None):
         self.animal_id = animal_id  # Database-generated ID
         self.lab_animal_id = lab_animal_id  # User-defined lab animal ID
         self.name = name
         self.initial_weight = initial_weight
         self.last_weight = last_weight
         self.last_weighted = last_weighted
+        self.last_watering = last_watering
 
     def to_dict(self):
         return {
@@ -16,7 +17,8 @@ class Animal:
             'name': self.name,
             'initial_weight': self.initial_weight,
             'last_weight': self.last_weight,
-            'last_weighted': self.last_weighted
+            'last_weighted': self.last_weighted,
+            'last_watering': self.last_watering
         }
 
     @staticmethod
