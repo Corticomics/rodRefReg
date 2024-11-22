@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QDataStream, QIODevice
 from models.animal import Animal
-from available_animals_list import AvailableAnimalsList
+from .available_animals_list import AvailableAnimalsList
 
 class RelayUnitWidget(QWidget):
     def __init__(self, relay_unit, database_handler):
