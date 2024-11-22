@@ -36,8 +36,8 @@ class AnimalsTab(QWidget):
 
         # Table widget for displaying animals
         self.animals_table = QTableWidget()
-        self.animals_table.setColumnCount(5)  # Updated column count
-        self.animals_table.setHorizontalHeaderLabels(["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight (g)", "Last Watering"])
+        self.animals_table.setColumnCount(6)  # Updated column count
+        self.animals_table.setHorizontalHeaderLabels(["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight (g)", "Last Weighted", "Last Watering"])
         self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.animals_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animals_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -78,10 +78,12 @@ class AnimalsTab(QWidget):
             name_item = QTableWidgetItem(animal.name)
             initial_weight_item = QTableWidgetItem(str(animal.initial_weight))
             last_weight_item = QTableWidgetItem(str(animal.last_weight) if animal.last_weight is not None else "N/A")
+            last_weighted_item = QTableWidgetItem(animal.last_weighted if animal.last_weighted else "N/A")
             last_watering_item = QTableWidgetItem(animal.last_watering if animal.last_watering else "N/A")
+            
 
             # Align text to center for better readability
-            for item in [lab_animal_id_item, name_item, initial_weight_item, last_weight_item, last_watering_item]:
+            for item in [lab_animal_id_item, name_item, initial_weight_item, last_weight_item, last_weighted_item, last_watering_item]:
                 item.setTextAlignment(Qt.AlignCenter)
 
             # Insert items into the table
@@ -89,7 +91,8 @@ class AnimalsTab(QWidget):
             self.animals_table.setItem(row_position, 1, name_item)
             self.animals_table.setItem(row_position, 2, initial_weight_item)
             self.animals_table.setItem(row_position, 3, last_weight_item)
-            self.animals_table.setItem(row_position, 4, last_watering_item)
+            self.animals_table.setItem(row_position, 4, last_weighted_item)
+            self.animals_table.setItem(row_position, 5, last_watering_item)
 
             # Store the Animal object in the first column's item using Qt.UserRole
             lab_animal_id_item.setData(Qt.UserRole, animal)

@@ -1,14 +1,15 @@
 # ui/schedules_tab.py
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem
 )
 from PyQt5.QtCore import Qt
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
+from .available_animals_list import AvailableAnimalsList  # Import the custom list
 
 class SchedulesTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
@@ -28,10 +29,8 @@ class SchedulesTab(QWidget):
         self.available_animals_layout = QVBoxLayout()
         self.available_animals_widget.setLayout(self.available_animals_layout)
 
-        self.animal_list = QListWidget()
-        self.animal_list.setDragEnabled(True)
-        self.animal_list.setSelectionMode(QListWidget.SingleSelection)
-        self.animal_list.setDefaultDropAction(Qt.MoveAction)
+        self.animal_list = AvailableAnimalsList()  # Use the custom list
+        self.animal_list.setMinimumWidth(200)  # Optional: Set a minimum width
 
         self.available_animals_layout.addWidget(QLabel("Available Animals"))
         self.available_animals_layout.addWidget(self.animal_list)
@@ -67,15 +66,39 @@ class SchedulesTab(QWidget):
         self.saved_schedules_layout.addWidget(QLabel("Saved Schedules"))
         self.saved_schedules_layout.addWidget(self.schedule_list)
 
-        # Add stretch factors to the layout
+        # Add columns to main layout with stretch factors
         self.layout.addWidget(self.available_animals_widget, stretch=1)
-        self.layout.addWidget(self.relay_units_widget, stretch=2)  # Increase stretch
+        self.layout.addWidget(self.relay_units_widget, stretch=2)  # Increase stretch for Relay Units
         self.layout.addWidget(self.saved_schedules_widget, stretch=1)
 
         # Load animals and schedules
         self.load_animals()
         self.load_schedules()
 
+    def load_relay_units(self):
+        """Load relay units and create RelayUnitWidgets."""
+        self.relay_units_container_layout.addStretch()  # Add stretch to push items to the top
+        self.relay_units_container_layout.setSpacing(10)
+
+        # Load relay units from settings or database
+        self.relay_units = self.database_handler.get_all_relay_units()
+        if not self.relay_units:
+            self.initialize_relay_units()
+
+        for relay_unit in self.relay_units:
+            relay_widget = RelayUnitWidget(relay_unit, self.database_handler)
+            self.relay_unit_widgets[relay_unit.unit_id] = relay_widget
+            self.relay_units_container_layout.addWidget(relay_widget)
+
+    def initialize_relay_units(self):
+        """Create relay units based on settings."""
+        relay_pairs = self.settings.get('relay_pairs', [])
+        unit_id = 1
+        for pair in relay_pairs:
+            relay_unit = RelayUnit(unit_id=unit_id, relay_ids=pair)
+            self.database_handler.add_relay_unit(relay_unit)
+            self.relay_units.append(relay_unit)
+            unit_id += 1
 
     def load_animals(self):
         """Load animals from the database and add them to the animal list."""
@@ -92,31 +115,6 @@ class SchedulesTab(QWidget):
             item = QListWidgetItem(f"{animal.name} ({animal.lab_animal_id})")
             item.setData(Qt.UserRole, animal)
             self.animal_list.addItem(item)
-
-    def load_relay_units(self):
-        """Load relay units and create RelayUnitWidgets."""
-        self.relay_units_container_layout.addStretch()  # Add stretch to push items to the top
-        self.relay_units_container_layout.setSpacing(10)
-
-        # Load relay units from settings or database
-        self.relay_units = self.database_handler.get_all_relay_units()
-        if not self.relay_units:
-            self.initialize_relay_units()
-
-        for relay_unit in self.relay_units:
-            relay_widget = RelayUnitWidget(relay_unit)
-            self.relay_unit_widgets[relay_unit.unit_id] = relay_widget
-            self.relay_units_container_layout.addWidget(relay_widget)
-
-    def initialize_relay_units(self):
-        """Create relay units based on settings."""
-        relay_pairs = self.settings.get('relay_pairs', [])
-        unit_id = 1
-        for pair in relay_pairs:
-            relay_unit = RelayUnit(unit_id=unit_id, relay_ids=pair)
-            self.database_handler.add_relay_unit(relay_unit)
-            self.relay_units.append(relay_unit)
-            unit_id += 1
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""
@@ -161,7 +159,7 @@ class SchedulesTab(QWidget):
                     is_super_user=(current_trainer['role'] == 'super')
                 )
                 schedule.animals = [animal.animal_id for animal in relay_data['animals']]
-                schedule.desired_water_output = relay_data['desired_water_output']
+                schedule.desired_water_outputs = relay_data['desired_water_output']
                 schedules.append(schedule)
 
         # Save schedules to the database
@@ -195,8 +193,9 @@ class SchedulesTab(QWidget):
                     if animal:
                         animals.append(animal)
                 # Set data in relay widget
-                desired_water_output = schedule_detail.get('desired_water_output', {})
+                desired_water_output = schedule_detail.get('desired_water_outputs', {})
                 relay_widget.set_data(animals, desired_water_output)
+
     def refresh(self):
         """Refresh the UI components."""
         self.load_animals()
