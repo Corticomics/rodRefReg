@@ -158,14 +158,14 @@ class SchedulesTab(QWidget):
                     schedule_id=None,
                     name=schedule_name,
                     relay_unit_id=unit_id,
-                    water_volume=relay_data['water_amount'],
+                    water_volume=0.0,  # Since we have desired water output per animal
                     start_time=datetime.now().isoformat(),
                     end_time=datetime.now().isoformat(),
                     created_by=current_trainer['trainer_id'],
                     is_super_user=(current_trainer['role'] == 'super')
                 )
                 schedule.animals = [animal.animal_id for animal in relay_data['animals']]
-                schedule.desired_water_outputs = relay_data['desired_water_outputs']
+                schedule.desired_water_output = relay_data['desired_water_output']
                 schedules.append(schedule)
 
         # Save schedules to the database
@@ -199,8 +199,8 @@ class SchedulesTab(QWidget):
                     if animal:
                         animals.append(animal)
                 # Set data in relay widget
-                relay_widget.set_data(animals, schedule_detail['water_volume'], schedule_detail['desired_water_outputs'])
-
+                desired_water_output = schedule_detail.get('desired_water_output', {})
+                relay_widget.set_data(animals, desired_water_output)
     def refresh(self):
         """Refresh the UI components."""
         self.load_animals()

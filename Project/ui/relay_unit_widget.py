@@ -1,46 +1,63 @@
 # ui/relay_unit_widget.py
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QLineEdit, QMessageBox
+    QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QLineEdit,
+    QMessageBox, QListWidget
 )
 from PyQt5.QtCore import Qt
-from .animal_entry_widget import AnimalEntryWidget
+from models.animal import Animal
 
 class RelayUnitWidget(QWidget):
     def __init__(self, relay_unit):
         super().__init__()
         self.relay_unit = relay_unit
         self.assigned_animals = []
-        self.desired_water_outputs = {}
+        self.desired_water_output = {}  # {animal_id: desired_output}
 
+        # Main layout
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
+        # Title Label
         self.title_label = QLabel(f"Relay Unit {relay_unit.unit_id}")
+        self.title_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.title_label)
 
-        self.animal_list_widget = QListWidget()
-        self.animal_list_widget.setAcceptDrops(True)
-        self.animal_list_widget.setDragEnabled(False)
-        self.animal_list_widget.setDragDropMode(QListWidget.DropOnly)
-        self.animal_list_widget.setDefaultDropAction(Qt.MoveAction)
-        self.animal_list_widget.dragEnterEvent = self.drag_enter_event
-        self.animal_list_widget.dropEvent = self.drop_event
-        self.layout.addWidget(self.animal_list_widget)
+        # Minimalistic Drag-and-Drop Area
+        self.drag_area_label = QLabel("Drop Animal Here")
+        self.drag_area_label.setAlignment(Qt.AlignCenter)
+        self.drag_area_label.setStyleSheet("background-color: #e0e0e0; border: 1px dashed #000;")
+        self.drag_area_label.setFixedHeight(30)
+        self.layout.addWidget(self.drag_area_label)
 
-        # Water amount input
-        self.water_amount_input = QLineEdit()
-        self.water_amount_input.setPlaceholderText("Total Water Amount (mL)")
-        self.layout.addWidget(self.water_amount_input)
+        # Set up drag-and-drop
+        self.setAcceptDrops(True)
 
-    def drag_enter_event(self, event):
+        # Animal Information Table
+        self.animal_table = QTableWidget()
+        self.animal_table.setColumnCount(2)
+        self.animal_table.setHorizontalHeaderLabels(["Name", "Info"])
+        self.animal_table.horizontalHeader().setStretchLastSection(True)
+        self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.animal_table.setSelectionMode(QTableWidget.NoSelection)
+        self.animal_table.verticalHeader().setVisible(False)
+        self.animal_table.setFixedHeight(60)
+        self.layout.addWidget(self.animal_table)
+
+        # Water Volume Display
+        self.recommended_water_label = QLabel("Recommended water volume: N/A")
+        self.layout.addWidget(self.recommended_water_label)
+
+        self.desired_output_label = QLabel("Desired output by trainer:")
+        self.desired_output_input = QLineEdit()
+        self.layout.addWidget(self.desired_output_label)
+        self.layout.addWidget(self.desired_output_input)
+
+    def dragEnterEvent(self, event):
         if event.mimeData().hasFormat('application/x-qabstractitemmodeldatalist'):
             event.acceptProposedAction()
 
-    def drop_event(self, event):
-        data = event.mimeData()
-        item_data = data.data('application/x-qabstractitemmodeldatalist')
-        # Process item_data to extract the animal object
+    def dropEvent(self, event):
         source_widget = event.source()
         if isinstance(source_widget, QListWidget):
             selected_items = source_widget.selectedItems()
@@ -52,54 +69,58 @@ class RelayUnitWidget(QWidget):
                 event.acceptProposedAction()
 
     def add_animal(self, animal):
-        if any(a.animal_id == animal.animal_id for a in self.assigned_animals):
-            QMessageBox.warning(self, "Duplicate Animal", "This animal is already assigned to this relay unit.")
+        # Prevent multiple animals if only one is allowed
+        if len(self.assigned_animals) >= 1:
+            QMessageBox.warning(self, "Limit Reached", "Only one animal can be assigned to this relay unit.")
             return
+
         self.assigned_animals.append(animal)
-        animal_entry = AnimalEntryWidget(animal)
-        item = QListWidgetItem()
-        item.setSizeHint(animal_entry.sizeHint())
-        self.animal_list_widget.addItem(item)
-        self.animal_list_widget.setItemWidget(item, animal_entry)
+        # Update the table
+        self.animal_table.setRowCount(1)
+        self.animal_table.setItem(0, 0, QTableWidgetItem(animal.name))
+        info = f"Weight: {animal.last_weight or animal.initial_weight} g"
+        self.animal_table.setItem(0, 1, QTableWidgetItem(info))
+
+        # Update recommended water volume
+        recommended_volume = self.calculate_recommended_water(animal)
+        self.recommended_water_label.setText(f"Recommended water volume: {recommended_volume} mL")
+
+    def calculate_recommended_water(self, animal):
+        weight = animal.last_weight or animal.initial_weight or 0
+        recommended_water = round(weight * 0.1, 2)  # Example: 10% of body weight
+        return recommended_water
 
     def get_data(self):
         """Retrieve the current data from the widget."""
-        water_amount_text = self.water_amount_input.text().strip()
+        desired_output_text = self.desired_output_input.text().strip()
         try:
-            water_amount = float(water_amount_text)
+            desired_output = float(desired_output_text)
         except ValueError:
-            water_amount = 0.0
+            desired_output = 0.0
 
-        desired_water_outputs = {}
-        for index in range(self.animal_list_widget.count()):
-            item = self.animal_list_widget.item(index)
-            animal_entry = self.animal_list_widget.itemWidget(item)
-            desired_output = animal_entry.get_desired_water_output()
-            animal_id = animal_entry.animal.animal_id
-            desired_water_outputs[animal_id] = desired_output
+        desired_water_output = {}
+        if self.assigned_animals:
+            animal = self.assigned_animals[0]
+            desired_water_output[animal.animal_id] = desired_output
 
         return {
             'animals': self.assigned_animals,
-            'water_amount': water_amount,
-            'desired_water_outputs': desired_water_outputs
+            'desired_water_output': desired_water_output
         }
 
-    def set_data(self, animals, water_amount, desired_water_outputs):
+    def set_data(self, animals, desired_water_output):
         """Set the data for the relay unit."""
         self.clear_assignments()
-        self.water_amount_input.setText(str(water_amount))
-        for animal in animals:
-            self.add_animal(animal)
-        for index in range(self.animal_list_widget.count()):
-            item = self.animal_list_widget.item(index)
-            animal_entry = self.animal_list_widget.itemWidget(item)
-            animal_id = animal_entry.animal.animal_id
-            if animal_id in desired_water_outputs:
-                animal_entry.set_desired_water_output(desired_water_outputs[animal_id])
+        if animals:
+            self.add_animal(animals[0])  # Assuming only one animal per relay unit
+            animal_id = animals[0].animal_id
+            if animal_id in desired_water_output:
+                self.desired_output_input.setText(str(desired_water_output[animal_id]))
 
     def clear_assignments(self):
         """Clear all assigned animals and reset inputs."""
         self.assigned_animals = []
-        self.desired_water_outputs = {}
-        self.animal_list_widget.clear()
-        self.water_amount_input.clear()
+        self.desired_water_output = {}
+        self.animal_table.setRowCount(0)
+        self.desired_output_input.clear()
+        self.recommended_water_label.setText("Recommended water volume: N/A")
