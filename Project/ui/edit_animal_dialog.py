@@ -1,3 +1,5 @@
+# ui/edit_animal_dialog.py
+
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDateTimeEdit, QDialogButtonBox, QMessageBox
 from PyQt5.QtCore import QDateTime
 
@@ -15,12 +17,15 @@ class EditAnimalDialog(QDialog):
 
         self.name_input = QLineEdit(animal_data['name'])
         self.initial_weight_input = QLineEdit(str(animal_data['initial_weight']))
-        self.last_weight_input = QLineEdit(str(animal_data['last_weight']))
+        self.last_weight_input = QLineEdit(str(animal_data['last_weight']) if animal_data['last_weight'] is not None else "")
         self.last_weighted_input = QDateTimeEdit()
         self.last_weighted_input.setCalendarPopup(True)
-        self.last_weighted_input.setDateTime(
-            QDateTime.fromString(animal_data['last_weighted'], "yyyy-MM-dd HH:mm")
-        )
+        if animal_data['last_weighted']:
+            self.last_weighted_input.setDateTime(
+                QDateTime.fromString(animal_data['last_weighted'], "yyyy-MM-dd HH:mm")
+            )
+        else:
+            self.last_weighted_input.setDateTime(QDateTime.currentDateTime())
 
         self.last_watering_input = QDateTimeEdit()
         self.last_watering_input.setCalendarPopup(True)
@@ -49,7 +54,7 @@ class EditAnimalDialog(QDialog):
             self.updated_info = {
                 'name': self.name_input.text().strip(),
                 'initial_weight': float(self.initial_weight_input.text().strip()),
-                'last_weight': float(self.last_weight_input.text().strip()),
+                'last_weight': float(self.last_weight_input.text().strip()) if self.last_weight_input.text().strip() else None,
                 'last_weighted': self.last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm"),
                 'last_watering': self.last_watering_input.dateTime().toString("yyyy-MM-dd HH:mm")
             }
