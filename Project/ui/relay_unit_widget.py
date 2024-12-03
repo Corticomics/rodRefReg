@@ -134,17 +134,7 @@ class RelayUnitWidget(QWidget):
         
         # Add delivery slot button with icon or clear text
         self.add_slot_button = QPushButton("+ Add Water Delivery Time")
-        self.add_slot_button.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f0f0;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 5px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        """)
+        
         self.add_slot_button.clicked.connect(self.add_delivery_slot)
         
         # Add widgets to layout
