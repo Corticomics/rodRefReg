@@ -114,6 +114,8 @@ class SchedulesTab(QWidget):
                 self.animal_list,
                 self.pump_controller
             )
+            # Set initial mode from the mode selector
+            relay_widget.set_mode(self.mode_selector.currentText())
             self.relay_unit_widgets[relay_unit.unit_id] = relay_widget
             self.relay_units_container_layout.addWidget(relay_widget)
 
@@ -240,9 +242,8 @@ class SchedulesTab(QWidget):
                 relay_widget = self.relay_unit_widgets[relay_unit_id]
                 
                 # Set delivery mode
-                relay_widget.mode_selector.setCurrentText(
-                    schedule_detail.get('delivery_mode', 'staggered').capitalize()
-                )
+                mode = schedule_detail.get('delivery_mode', 'staggered').capitalize()
+                relay_widget.set_mode(mode)
                 
                 # Load animals
                 animals = []
@@ -286,3 +287,9 @@ class SchedulesTab(QWidget):
     def handle_login_status_change(self):
         """Handle changes in login status"""
         self.refresh()
+
+    def set_delivery_mode(self, mode):
+        """Set the delivery mode for all relay units"""
+        self.mode_selector.setCurrentText(mode)
+        for widget in self.relay_unit_widgets.values():
+            widget.set_mode(mode)
