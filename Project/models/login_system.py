@@ -1,9 +1,13 @@
 # models/login_system.py
 
 import traceback
+from PyQt5.QtCore import QObject, pyqtSignal
 
-class LoginSystem:
+class LoginSystem(QObject):
+    login_status_changed = pyqtSignal()  # Signal for login status changes
+    
     def __init__(self, database_handler):
+        super().__init__()
         self.database_handler = database_handler
         self.current_trainer = None
 
@@ -17,6 +21,7 @@ class LoginSystem:
                     'trainer_id': result['trainer_id'],
                     'role': result['role']
                 }
+                self.login_status_changed.emit()  # Emit signal
                 return self.current_trainer
             else:
                 print("Authentication failed: invalid username or password.")
@@ -29,6 +34,7 @@ class LoginSystem:
     def logout(self):
         """Log out the current trainer."""
         self.current_trainer = None
+        self.login_status_changed.emit()  # Emit signal
         print("Trainer logged out. Switched to Guest mode.")
 
     def get_current_trainer(self):
