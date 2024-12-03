@@ -36,19 +36,27 @@ class ScheduleDropArea(QWidget):
         self.current_schedule = None
         
     def dragEnterEvent(self, event):
-        if event.mimeData().hasFormat('application/x-schedule'):
+        mime_data = event.mimeData()
+        if mime_data.hasFormat('application/x-schedule') or mime_data.hasText():
             event.acceptProposedAction()
             
     def dropEvent(self, event):
         data = event.mimeData()
         if data.hasFormat('application/x-schedule'):
             schedule_data = data.data('application/x-schedule')
-            # Convert QByteArray to Schedule object
-            schedule_dict = eval(bytes(schedule_data).decode())
-            self.current_schedule = Schedule(**schedule_dict)
-            self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
+            try:
+                # Convert QByteArray to Schedule object
+                schedule_dict = eval(bytes(schedule_data).decode())
+                self.current_schedule = Schedule(**schedule_dict)
+                self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
+                event.acceptProposedAction()
+            except Exception as e:
+                print(f"Error processing schedule data: {e}")
+        elif data.hasText():
+            schedule_name = data.text()
+            self.placeholder.setText(f"Schedule: {schedule_name}")
             event.acceptProposedAction()
-            
+    
     def clear(self):
         self.current_schedule = None
         self.placeholder.setText("Drop Schedule Here")

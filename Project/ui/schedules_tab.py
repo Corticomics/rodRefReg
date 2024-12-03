@@ -319,7 +319,9 @@ class SchedulesTab(QWidget):
         if item:
             schedule = item.data(Qt.UserRole)
             mime_data = QMimeData()
-            mime_data.setData('application/x-schedule', schedule.to_dict())
+            # Convert dict to string representation
+            schedule_data = str(schedule.to_dict()).encode()
+            mime_data.setData('application/x-schedule', schedule_data)
             
             drag = QDrag(self)
             drag.setMimeData(mime_data)
