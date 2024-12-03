@@ -51,7 +51,7 @@ class RelayUnitWidget(QWidget):
         # Animal Information Table
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
-        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight (g)", "Last Watering"])
+        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
         self.animal_table.horizontalHeader().setStretchLastSection(True)
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)

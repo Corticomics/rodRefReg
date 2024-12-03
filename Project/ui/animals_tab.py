@@ -37,7 +37,7 @@ class AnimalsTab(QWidget):
         # Table widget for displaying animals
         self.animals_table = QTableWidget()
         self.animals_table.setColumnCount(6)  # Updated column count
-        self.animals_table.setHorizontalHeaderLabels(["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight (g)", "Last Weighted", "Last Watering"])
+        self.animals_table.setHorizontalHeaderLabels(["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"])
         self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.animals_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animals_table.setSelectionBehavior(QTableWidget.SelectRows)
