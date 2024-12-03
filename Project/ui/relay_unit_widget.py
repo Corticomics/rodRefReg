@@ -15,15 +15,17 @@ class WaterDeliverySlot(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout()
         
-        # DateTime picker
+        # DateTime picker with calendar popup
         self.datetime_picker = QDateTimeEdit()
         self.datetime_picker.setCalendarPopup(True)
         self.datetime_picker.setDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
+        self.datetime_picker.setDisplayFormat("yyyy-MM-dd hh:mm AP")
         
         # Volume input
         self.volume_input = QLineEdit()
         self.volume_input.setPlaceholderText("Water volume (mL)")
+        self.volume_input.setFixedWidth(100)
         
         # Delete button
         self.delete_button = QPushButton("×")
@@ -119,21 +121,43 @@ class RelayUnitWidget(QWidget):
         # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
-        # Keep the instant delivery UI elements but don't connect to local mode selector
+        # Container for instant delivery slots
         self.instant_delivery_container = QWidget()
         self.instant_delivery_layout = QVBoxLayout()
         self.instant_delivery_container.setLayout(self.instant_delivery_layout)
         
+        # Scroll area for delivery slots
         self.delivery_scroll = QScrollArea()
         self.delivery_scroll.setWidget(self.instant_delivery_container)
         self.delivery_scroll.setWidgetResizable(True)
+        self.delivery_scroll.setMaximumHeight(200)  # Limit height
         
-        self.add_slot_button = QPushButton("+ Add Delivery Time")
+        # Add delivery slot button with icon or clear text
+        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
+        self.add_slot_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f0f0f0;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        """)
         self.add_slot_button.clicked.connect(self.add_delivery_slot)
         
+        # Add widgets to layout
         self.layout.addWidget(self.delivery_scroll)
         self.layout.addWidget(self.add_slot_button)
         
+        # Initialize UI state
+        self.delivery_slots = []
+        
+        # Hide instant delivery components by default
+        self.delivery_scroll.hide()
+        self.add_slot_button.hide()
+
         # Initialize UI state
         self.delivery_slots = []
         self.set_mode("Staggered")  # Default mode
@@ -382,7 +406,30 @@ class RelayUnitWidget(QWidget):
     def set_mode(self, mode):
         """Set the delivery mode from parent widget"""
         is_instant = mode == "Instant"
+        # Show/hide instant delivery components based on mode
         self.delivery_scroll.setVisible(is_instant)
         self.add_slot_button.setVisible(is_instant)
+        # Show/hide staggered delivery components based on mode
         self.desired_output_label.setVisible(not is_instant)
         self.desired_output_input.setVisible(not is_instant)
+        
+        # Clear existing slots when switching modes
+        if not is_instant:
+            for slot in self.delivery_slots:
+                slot.deleteLater()
+            self.delivery_slots.clear()
+
+    def get_delivery_schedule(self):
+        """Get all scheduled delivery times and volumes"""
+        schedule = []
+        for slot in self.delivery_slots:
+            if slot.isVisible():  # Only include non-deleted slots
+                try:
+                    volume = float(slot.volume_input.text())
+                    schedule.append({
+                        'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
+                        'volume': volume
+                    })
+                except ValueError:
+                    continue
+        return schedule

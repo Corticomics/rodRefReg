@@ -150,7 +150,7 @@ class SchedulesTab(QWidget):
     def on_mode_changed(self, mode):
         """Update all relay units to use the selected mode"""
         for widget in self.relay_unit_widgets.values():
-            widget.mode_selector.setCurrentText(mode)
+            widget.set_mode(mode)
 
     def save_current_schedule(self):
         """Save the current assignments and settings as a new schedule."""
