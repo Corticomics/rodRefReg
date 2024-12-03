@@ -19,6 +19,7 @@ class SchedulesTab(QWidget):
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
         self.login_system = login_system
+        self.pump_controller = settings.get('pump_controller')
 
         # Main layout: Horizontal box layout for three columns
         self.layout = QHBoxLayout()
@@ -88,17 +89,20 @@ class SchedulesTab(QWidget):
 
     def load_relay_units(self):
         """Load relay units and create RelayUnitWidgets."""
-        self.relay_units_container_layout.addStretch()  # Add stretch to push items to the top
+        self.relay_units_container_layout.addStretch()
         self.relay_units_container_layout.setSpacing(10)
 
-        # Load relay units from settings or database
         self.relay_units = self.database_handler.get_all_relay_units()
         if not self.relay_units:
             self.initialize_relay_units()
 
         for relay_unit in self.relay_units:
-            # Pass the AvailableAnimalsList reference to each RelayUnitWidget
-            relay_widget = RelayUnitWidget(relay_unit, self.database_handler, self.animal_list)
+            relay_widget = RelayUnitWidget(
+                relay_unit, 
+                self.database_handler, 
+                self.animal_list,
+                self.pump_controller
+            )
             self.relay_unit_widgets[relay_unit.unit_id] = relay_widget
             self.relay_units_container_layout.addWidget(relay_widget)
 
