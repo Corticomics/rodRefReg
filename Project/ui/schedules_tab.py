@@ -11,6 +11,7 @@ from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
+import traceback
 
 class SchedulesTab(QWidget):
     mode_changed = pyqtSignal(str)  # Signal to emit mode changes
@@ -94,6 +95,9 @@ class SchedulesTab(QWidget):
         # Connect the mode selector to emit the mode_changed signal
         self.mode_selector.currentTextChanged.connect(self.mode_changed.emit)
 
+        # Connect refresh to login system changes
+        self.login_system.login_status_changed.connect(self.refresh)
+
     def load_relay_units(self):
         """Load relay units and create RelayUnitWidgets."""
         self.relay_units_container_layout.addStretch()
@@ -124,19 +128,33 @@ class SchedulesTab(QWidget):
             unit_id += 1
 
     def load_animals(self):
-        """Load animals from the database and add them to the animal list."""
-        current_trainer = self.login_system.get_current_trainer()
-        if current_trainer:
-            trainer_id = current_trainer['trainer_id']
-            role = current_trainer['role']
-            animals = self.database_handler.get_animals(trainer_id, role)
-        else:
-            animals = self.database_handler.get_all_animals()
+        """Load animals into the available animals list."""
+        try:
+            current_trainer = self.login_system.get_current_trainer()
+            if current_trainer:
+                trainer_id = current_trainer['trainer_id']
+                role = current_trainer['role']
+                animals = self.database_handler.get_animals(trainer_id, role)
+                self.print_to_terminal(f"Loading {len(animals)} animals for trainer ID {trainer_id} in SchedulesTab")
+            else:
+                animals = self.database_handler.get_all_animals()
+                self.print_to_terminal(f"Loading {len(animals)} animals in guest mode for SchedulesTab")
 
-        self.animal_list.clear()  # Clear existing items before loading
-        for animal in animals:
-            item = self.animal_list.create_available_animal_item(animal)
-            self.animal_list.addItem(item)
+            # Clear existing items
+            self.animal_list.clear()
+            
+            # Add new items
+            for animal in animals:
+                item = self.animal_list.create_available_animal_item(animal)
+                self.animal_list.addItem(item)
+                
+            # Force update
+            self.animal_list.update()
+
+        except Exception as e:
+            print(f"Exception in SchedulesTab.load_animals: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""
@@ -247,8 +265,10 @@ class SchedulesTab(QWidget):
 
     def refresh(self):
         """Refresh the UI components."""
-        self.load_animals()
+        self.animal_list.clear()  # Clear the list first
+        self.load_animals()  # Reload animals
         self.load_schedules()
+        # Clear relay unit assignments
         for relay_widget in self.relay_unit_widgets.values():
             relay_widget.clear_assignments()
 
@@ -262,3 +282,7 @@ class SchedulesTab(QWidget):
             drag = QDrag(self)
             drag.setMimeData(mime_data)
             drag.exec_(Qt.MoveAction)
+
+    def handle_login_status_change(self):
+        """Handle changes in login status"""
+        self.refresh()
