@@ -319,8 +319,21 @@ class SchedulesTab(QWidget):
         if item:
             schedule = item.data(Qt.UserRole)
             mime_data = QMimeData()
-            # Convert dict to string representation
-            schedule_data = str(schedule.to_dict()).encode()
+            # Properly serialize the schedule data
+            schedule_data = str({
+                'schedule_id': schedule.schedule_id,
+                'name': schedule.name,
+                'relay_unit_id': schedule.relay_unit_id,
+                'water_volume': schedule.water_volume,
+                'start_time': schedule.start_time,
+                'end_time': schedule.end_time,
+                'created_by': schedule.created_by,
+                'is_super_user': schedule.is_super_user,
+                'delivery_mode': schedule.delivery_mode,
+                'animals': schedule.animals,
+                'desired_water_outputs': schedule.desired_water_outputs,
+                'instant_deliveries': schedule.instant_deliveries
+            }).encode()
             mime_data.setData('application/x-schedule', schedule_data)
             
             drag = QDrag(self)

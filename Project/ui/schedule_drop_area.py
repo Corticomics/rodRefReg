@@ -43,15 +43,36 @@ class ScheduleDropArea(QWidget):
     def dropEvent(self, event):
         data = event.mimeData()
         if data.hasFormat('application/x-schedule'):
-            schedule_data = data.data('application/x-schedule')
             try:
-                # Convert QByteArray to Schedule object
+                # Get the schedule data and decode it
+                schedule_data = data.data('application/x-schedule')
                 schedule_dict = eval(bytes(schedule_data).decode())
-                self.current_schedule = Schedule(**schedule_dict)
+                
+                # Create a new Schedule instance with the correct data
+                self.current_schedule = Schedule(
+                    schedule_id=schedule_dict['schedule_id'],
+                    name=schedule_dict['name'],
+                    relay_unit_id=schedule_dict['relay_unit_id'],
+                    water_volume=schedule_dict['water_volume'],
+                    start_time=schedule_dict['start_time'],
+                    end_time=schedule_dict['end_time'],
+                    created_by=schedule_dict['created_by'],
+                    is_super_user=schedule_dict['is_super_user'],
+                    delivery_mode=schedule_dict['delivery_mode']
+                )
+                
+                # Set additional properties
+                self.current_schedule.animals = schedule_dict['animals']
+                self.current_schedule.desired_water_outputs = schedule_dict['desired_water_outputs']
+                self.current_schedule.instant_deliveries = schedule_dict['instant_deliveries']
+                
+                # Update the placeholder text
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
                 event.acceptProposedAction()
+                
             except Exception as e:
                 print(f"Error processing schedule data: {e}")
+                self.placeholder.setText("Error loading schedule")
         elif data.hasText():
             schedule_name = data.text()
             self.placeholder.setText(f"Schedule: {schedule_name}")
