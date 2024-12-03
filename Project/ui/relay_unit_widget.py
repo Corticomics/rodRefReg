@@ -126,7 +126,11 @@ class RelayUnitWidget(QWidget):
         self.instant_delivery_layout = QVBoxLayout()
         self.instant_delivery_container.setLayout(self.instant_delivery_layout)
         
-        # Remove scroll area and add container directly
+        # Add delivery slot button with icon or clear text
+        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
+        self.add_slot_button.clicked.connect(self.add_delivery_slot)
+        
+        # Add widgets to layout
         self.layout.addWidget(self.instant_delivery_container)
         self.layout.addWidget(self.add_slot_button)
         
