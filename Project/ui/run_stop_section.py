@@ -129,10 +129,8 @@ class RunStopSection(QWidget):
         # Main layout assembly
         self.layout.addWidget(self.tab_widget)
         
-        # Add schedule drop area with label
-        form_layout = QFormLayout()
-        form_layout.addRow("Active Schedule:", self.schedule_drop_area)
-        self.layout.addLayout(form_layout)
+        # Add schedule drop area directly (without label)
+        self.layout.addWidget(self.schedule_drop_area)
         
         self.layout.addLayout(self.button_layout)
         self.layout.addStretch()
