@@ -21,9 +21,14 @@ class SchedulesTab(QWidget):
         self.login_system = login_system
         self.pump_controller = settings.get('pump_controller')
 
-        # Main layout
-        self.layout = QVBoxLayout()
+        # Main layout: Horizontal box layout for three columns
+        self.layout = QHBoxLayout()
         self.setLayout(self.layout)
+
+        # Left Column: Available Animals
+        self.available_animals_widget = QWidget()
+        self.available_animals_layout = QVBoxLayout()
+        self.available_animals_widget.setLayout(self.available_animals_layout)
 
         # Add delivery mode selector at the top
         mode_layout = QHBoxLayout()
@@ -34,19 +39,10 @@ class SchedulesTab(QWidget):
         mode_layout.addWidget(self.mode_label)
         mode_layout.addWidget(self.mode_selector)
         mode_layout.addStretch()
-        self.layout.addLayout(mode_layout)
+        self.available_animals_layout.insertLayout(0, mode_layout)
 
-        # Create horizontal layout for columns
-        columns_layout = QHBoxLayout()
-        self.layout.addLayout(columns_layout)
-
-        # Left Column: Available Animals
-        self.available_animals_widget = QWidget()
-        self.available_animals_layout = QVBoxLayout()
-        self.available_animals_widget.setLayout(self.available_animals_layout)
-
-        self.animal_list = AvailableAnimalsList()  # Use the custom list
-        self.animal_list.setMinimumWidth(200)  # Optional: Set a minimum width
+        self.animal_list = AvailableAnimalsList()
+        self.animal_list.setMinimumWidth(200)
 
         self.available_animals_layout.addWidget(QLabel("Available Animals"))
         self.available_animals_layout.addWidget(self.animal_list)
@@ -154,7 +150,7 @@ class SchedulesTab(QWidget):
     def on_mode_changed(self, mode):
         """Update all relay units to use the selected mode"""
         for widget in self.relay_unit_widgets.values():
-            widget.set_mode(mode)
+            widget.mode_selector.setCurrentText(mode)
 
     def save_current_schedule(self):
         """Save the current assignments and settings as a new schedule."""
