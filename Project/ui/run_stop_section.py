@@ -202,6 +202,7 @@ class RunStopSection(QWidget):
             mode = self.schedule_drop_area.get_mode()
             
             if mode == "Staggered":
+                # For staggered mode, use the time window from UI
                 if self.tab_widget.currentIndex() == 0:  # Calendar Mode
                     window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
                     window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
@@ -210,11 +211,17 @@ class RunStopSection(QWidget):
                     window_start = int(QDateTime.currentSecsSinceEpoch())
                     window_end = window_start + duration
             else:  # Instant mode
-                # Use schedule's own timing
-                window_start = int(QDateTime.currentSecsSinceEpoch())
-                window_end = None  # Schedule will determine end time
+                # Use the schedule's instant delivery times
+                if not schedule.instant_deliveries:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "This schedule has no instant delivery times configured")
+                    return
+                
+                # Get earliest and latest delivery times from schedule
+                delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
+                window_start = min(delivery_times).toSecsSinceEpoch()
+                window_end = max(delivery_times).toSecsSinceEpoch()
             
-            # Run the schedule with the selected time window
             self.run_program_callback(schedule, mode, window_start, window_end)
             self.job_in_progress = True
             self.update_button_states()
