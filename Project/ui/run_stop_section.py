@@ -108,7 +108,6 @@ class RunStopSection(QWidget):
 
         # Schedule drop area
         self.schedule_drop_area = ScheduleDropArea()
-        self.schedule_drop_area.mode_changed.connect(self._on_mode_changed)
         
         # Buttons
         self.run_button = QPushButton("Run", self)
