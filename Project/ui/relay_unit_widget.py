@@ -55,6 +55,7 @@ class RelayUnitWidget(QWidget):
         self.assigned_animal = None  # Only one animal per relay unit
         self.desired_water_output = 0.0  # Desired water output for the animal
         self.pump_controller = pump_controller
+        self.current_mode = "Staggered"  # Track mode internally
 
         # Main layout
         self.layout = QVBoxLayout()
@@ -280,27 +281,13 @@ class RelayUnitWidget(QWidget):
 
         data = {
             'animals': [self.assigned_animal] if self.assigned_animal else [],
-            'desired_water_output': desired_water_output
+            'desired_water_output': desired_water_output,
+            'delivery_mode': 'instant' if self.current_mode == "Instant" else 'staggered'
         }
         
-        if self.mode_selector.currentText() == "Instant":
-            data['delivery_mode'] = 'instant'
-            data['delivery_schedule'] = []
-            
-            for slot in self.delivery_slots:
-                if not slot.isVisible():  # Skip deleted slots
-                    continue
-                try:
-                    volume = float(slot.volume_input.text())
-                    data['delivery_schedule'].append({
-                        'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
-                        'volume': volume
-                    })
-                except ValueError:
-                    continue
-        else:
-            data['delivery_mode'] = 'staggered'
-            
+        if data['delivery_mode'] == 'instant':
+            data['delivery_schedule'] = self.get_delivery_schedule()
+        
         return data
 
     def set_data(self, animals, desired_water_output):
@@ -391,6 +378,7 @@ class RelayUnitWidget(QWidget):
 
     def set_mode(self, mode):
         """Set the delivery mode from parent widget"""
+        self.current_mode = mode  # Store the mode
         is_instant = mode == "Instant"
         # Update visibility using container instead of scroll area
         self.instant_delivery_container.setVisible(is_instant)
