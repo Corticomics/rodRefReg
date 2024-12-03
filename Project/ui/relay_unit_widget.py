@@ -126,26 +126,18 @@ class RelayUnitWidget(QWidget):
         self.instant_delivery_layout = QVBoxLayout()
         self.instant_delivery_container.setLayout(self.instant_delivery_layout)
         
-        # Scroll area for delivery slots
-        self.delivery_scroll = QScrollArea()
-        self.delivery_scroll.setWidget(self.instant_delivery_container)
-        self.delivery_scroll.setWidgetResizable(True)
-        self.delivery_scroll.setMaximumHeight(200)  # Limit height
-        
-        # Add delivery slot button with icon or clear text
-        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
-        
-        self.add_slot_button.clicked.connect(self.add_delivery_slot)
-        
-        # Add widgets to layout
-        self.layout.addWidget(self.delivery_scroll)
+        # Remove scroll area and add container directly
+        self.layout.addWidget(self.instant_delivery_container)
         self.layout.addWidget(self.add_slot_button)
+        
+        # Add spacing between relay units
+        self.layout.addSpacing(20)
         
         # Initialize UI state
         self.delivery_slots = []
         
         # Hide instant delivery components by default
-        self.delivery_scroll.hide()
+        self.instant_delivery_container.hide()
         self.add_slot_button.hide()
 
         # Initialize UI state
@@ -396,10 +388,9 @@ class RelayUnitWidget(QWidget):
     def set_mode(self, mode):
         """Set the delivery mode from parent widget"""
         is_instant = mode == "Instant"
-        # Show/hide instant delivery components based on mode
-        self.delivery_scroll.setVisible(is_instant)
+        # Update visibility using container instead of scroll area
+        self.instant_delivery_container.setVisible(is_instant)
         self.add_slot_button.setVisible(is_instant)
-        # Show/hide staggered delivery components based on mode
         self.desired_output_label.setVisible(not is_instant)
         self.desired_output_input.setVisible(not is_instant)
         
