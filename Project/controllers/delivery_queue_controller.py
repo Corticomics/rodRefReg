@@ -28,18 +28,21 @@ class DeliveryQueueController(QObject):
         )
         
     async def load_schedule(self, schedule_id):
-        """Load schedule time instants into delivery queue"""
-        if not self.can_accept_schedule(schedule_id):
-            raise ValueError("No available relay units")
-            
-        instants = await self.database_handler.get_pending_schedule_instants(schedule_id)
-        for instant in instants:
-            entry = (
-                self.sort_queue_entry(instant),
-                instant
-            )
-            heapq.heappush(self.delivery_queue, entry)
-        self.queue_updated.emit()
+        """Load schedule deliveries into queue"""
+        schedule = await self.database_handler.get_schedule_details(schedule_id)
+        
+        if schedule.delivery_mode == 'instant':
+            for delivery in schedule.instant_deliveries:
+                entry = {
+                    'instant_id': f"{schedule_id}_{delivery['datetime'].timestamp()}",
+                    'schedule_id': schedule_id,
+                    'relay_unit_id': delivery['relay_unit_id'],
+                    'delivery_time': delivery['datetime'],
+                    'water_volume': delivery['volume'],
+                    'priority': 1
+                }
+                heapq.heappush(self.delivery_queue, (self.sort_queue_entry(entry), entry))
+        # For staggered mode, queue is managed by RelayWorker
         
     async def requeue_instant(self, instant, delay_minutes=1):
         """Requeue a failed delivery with delay"""

@@ -92,13 +92,16 @@ class RelayWorker(QObject):
 
         if window_start <= current_time <= window_end:
             stagger = self.settings.get('stagger', 5)
+            water_volumes = self.settings.get('water_volumes', {})
+            
             for relay_unit_id, triggers in self.settings['num_triggers'].items():
+                water_volume = water_volumes.get(str(relay_unit_id), self.settings.get('water_volume', 0))
                 for i in range(triggers):
                     delay = i * stagger * 1000
                     timer = QTimer(self)
                     timer.setSingleShot(True)
                     timer.timeout.connect(
-                        lambda r=relay_unit_id: self.trigger_relay(r, self.settings['water_volume'])
+                        lambda r=relay_unit_id, v=water_volume: self.trigger_relay(r, v)
                     )
                     timer.start(delay)
                     self.timers.append(timer)

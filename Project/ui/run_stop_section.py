@@ -105,15 +105,21 @@ class RunStopSection(QWidget):
         self.tab_widget.addTab(self.calendar_widget, "Calendar Mode")
         self.tab_widget.addTab(self.offline_widget, "Offline Mode")
 
-        # Interval and Stagger Inputs
-        self.interval_label = QLabel("Interval (seconds):")
-        self.interval_input = QLineEdit(self)
-        self.interval_input.setPlaceholderText("Enter seconds")
-
-        self.stagger_label = QLabel("Stagger (seconds):")
-        self.stagger_input = QLineEdit(self)
-        self.stagger_input.setPlaceholderText("Enter seconds")
-
+        # Replace interval/stagger inputs with schedule drop area
+        self.schedule_drop_area = QWidget()
+        self.schedule_drop_area.setAcceptDrops(True)
+        self.schedule_drop_area.setStyleSheet("""
+            QWidget {
+                border: 2px dashed #ccc;
+                border-radius: 4px;
+                min-height: 60px;
+            }
+        """)
+        
+        # Add schedule drop area to layout
+        form_layout = QFormLayout()
+        form_layout.addRow("Active Schedule:", self.schedule_drop_area)
+        
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
@@ -209,43 +215,33 @@ class RunStopSection(QWidget):
 
     def run_program(self):
         try:
-            interval = int(self.interval_input.text())
-            stagger = int(self.stagger_input.text())
-            if self.tab_widget.currentIndex() == 0:  # Calendar Mode
-                window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
-                window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
-                
-            else:  # Offline Mode
-                duration = int(self.offline_input.text()) * 60  # Convert minutes to seconds
+            if not self.schedule_drop_area.current_schedule:
+                QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
+                return
+            
+            schedule = self.schedule_drop_area.current_schedule
+            mode = self.schedule_drop_area.get_mode()
+            
+            if mode == "Staggered":
+                if self.tab_widget.currentIndex() == 0:  # Calendar Mode
+                    window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
+                    window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
+                else:  # Offline Mode
+                    duration = int(self.offline_input.text()) * 60
+                    window_start = int(QDateTime.currentSecsSinceEpoch())
+                    window_end = window_start + duration
+            else:  # Instant mode
+                # Use schedule's own timing
                 window_start = int(QDateTime.currentSecsSinceEpoch())
-                window_end = window_start + duration
-                
-
-            self.settings['interval'] = interval
-            self.settings['stagger'] = stagger
-            self.settings['window_start'] = window_start
-            self.settings['window_end'] = window_end
-
-            # Get updated relay settings
+                window_end = None  # Schedule will determine end time
             
-            if self.advanced_settings:
-                advanced_settings = self.advanced_settings.get_settings()
-                
-                # Ensure all keys are strings for consistency
-                advanced_settings['num_triggers'] = {str(k): v for k, v in advanced_settings['num_triggers'].items()}
-                self.settings.update(advanced_settings)
-                
-
-            # Call the callback with settings that have string keys
-            self.run_program_callback(interval, stagger, window_start, window_end)
-
-            # Mark job as in progress and update buttons
+            # Run the schedule with the selected time window
+            self.run_program_callback(schedule, mode, window_start, window_end)
             self.job_in_progress = True
-            
             self.update_button_states()
-
+            
         except Exception as e:
-            print(f"g program: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to run program: {e}")
 
     def stop_program(self):
         """Pause the current schedule and display dispensed volumes"""
@@ -298,5 +294,10 @@ class RunStopSection(QWidget):
 
         # Update the button states to reflect the new configuration
         self.update_button_states()
+
+    def _on_mode_changed(self, mode):
+        """Handle mode changes from schedule drop area"""
+        is_staggered = mode == "Staggered"
+        self.tab_widget.setVisible(is_staggered)
 
 

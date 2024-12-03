@@ -22,30 +22,52 @@ class ScheduleController(QObject):
         self.workers = {}  # Store active RelayWorkers
         self.worker_threads = {}  # Store worker threads
         
-    async def start_schedule(self, schedule_id):
-        """Start executing a schedule by ID"""
+    async def start_schedule(self, schedule, mode, window_start, window_end):
+        """Start executing a schedule in specified mode"""
         try:
-            schedule = await self.database_handler.get_schedule_details(schedule_id)
-            if not schedule:
-                raise ValueError("Schedule not found")
+            schedule_id = schedule.schedule_id
             
-            # Get all pending time instants for this schedule
-            instants = await self.database_handler.get_pending_schedule_instants(schedule_id)
-            if not instants:
-                raise ValueError("No pending deliveries found for schedule")
-                
-            # Create settings for the RelayWorker with time instants
+            # Create base worker settings
             worker_settings = {
-                'delivery_instants': instants,
-                'stagger': 5,  # 5 seconds between triggers
+                'mode': mode,
+                'window_start': window_start,
+                'window_end': window_end,
                 'num_triggers': {}
             }
             
-            # Map animals to relay units and set trigger counts
-            for instant in instants:
-                relay_unit_id = instant['relay_unit_id']
-                if str(relay_unit_id) not in worker_settings['num_triggers']:
-                    worker_settings['num_triggers'][str(relay_unit_id)] = 1
+            if mode == "Instant":
+                # Use schedule's instant delivery times
+                worker_settings['delivery_instants'] = [
+                    {
+                        'relay_unit_id': schedule.relay_unit_id,
+                        'delivery_time': delivery['datetime'],
+                        'water_volume': delivery['volume']
+                    }
+                    for delivery in schedule.instant_deliveries
+                ]
+            else:  # Staggered mode
+                # Calculate delivery times based on window
+                window_duration = window_end - window_start
+                total_units = len(schedule.animals)
+                
+                if total_units == 0:
+                    raise ValueError("No animals assigned to schedule")
+                    
+                # Calculate interval and stagger
+                interval = window_duration / schedule.cycles_per_day
+                stagger = interval / total_units
+                
+                worker_settings.update({
+                    'interval': interval,
+                    'stagger': stagger,
+                    'water_volumes': schedule.desired_water_outputs
+                })
+                
+                # Set trigger counts for each relay unit
+                for animal_id in schedule.animals:
+                    relay_unit_id = await self.database_handler.get_relay_unit_for_animal(animal_id)
+                    if str(relay_unit_id) not in worker_settings['num_triggers']:
+                        worker_settings['num_triggers'][str(relay_unit_id)] = 1
             
             # Create and start RelayWorker
             worker = RelayWorker(worker_settings, self.relay_handler, self.notification_handler)

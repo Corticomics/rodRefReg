@@ -2,7 +2,7 @@
 
 class Schedule:
     def __init__(self, schedule_id, name, relay_unit_id, water_volume, start_time, end_time, 
-                 created_by, is_super_user, delivery_mode='staggered'):
+                 created_by, is_super_user, delivery_mode='staggered', cycles_per_day=1):
         self.schedule_id = schedule_id
         self.name = name
         self.relay_unit_id = relay_unit_id
@@ -12,6 +12,7 @@ class Schedule:
         self.created_by = created_by
         self.is_super_user = is_super_user
         self.delivery_mode = delivery_mode
+        self.cycles_per_day = cycles_per_day #needed?
         
         # For staggered mode
         self.animals = []  # List of animal IDs
@@ -50,3 +51,9 @@ class Schedule:
             data['instant_deliveries'] = self.instant_deliveries
 
         return data
+
+    def get_volume_for_unit(self, relay_unit_id):
+        """Get water volume for a specific relay unit"""
+        if self.delivery_mode == 'staggered':
+            return self.desired_water_outputs.get(str(relay_unit_id), self.water_volume)
+        return self.water_volume
