@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt, pyqtSignal
+from ..models import Schedule
 
 class ScheduleDropArea(QWidget):
 
@@ -41,7 +42,10 @@ class ScheduleDropArea(QWidget):
     def dropEvent(self, event):
         data = event.mimeData()
         if data.hasFormat('application/x-schedule'):
-            self.current_schedule = data.data('application/x-schedule').data()
+            schedule_data = data.data('application/x-schedule')
+            # Convert QByteArray to Schedule object
+            schedule_dict = eval(bytes(schedule_data).decode())
+            self.current_schedule = Schedule(**schedule_dict)
             self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
             event.acceptProposedAction()
             

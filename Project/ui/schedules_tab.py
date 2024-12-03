@@ -317,9 +317,10 @@ class SchedulesTab(QWidget):
         """Start the drag operation."""
         item = self.schedule_list.currentItem()
         if item:
+            schedule = item.data(Qt.UserRole)
             mime_data = QMimeData()
-            mime_data.setText(item.text())  # You can customize this to include more data
-
+            mime_data.setData('application/x-schedule', schedule.to_dict())
+            
             drag = QDrag(self)
             drag.setMimeData(mime_data)
             drag.exec_(Qt.MoveAction)
