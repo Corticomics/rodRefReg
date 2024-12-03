@@ -2,18 +2,12 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt, pyqtSignal
 
 class ScheduleDropArea(QWidget):
-    mode_changed = pyqtSignal(str)  # Signal for mode changes
+
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        
-        # Mode selector
-        self.mode_selector = QComboBox()
-        self.mode_selector.addItems(["Staggered", "Instant"])
-        self.mode_selector.currentTextChanged.connect(self._on_mode_changed)
-        self.layout.addWidget(self.mode_selector)
         
         # Drop area
         self.drop_widget = QWidget()
@@ -40,9 +34,6 @@ class ScheduleDropArea(QWidget):
         self.setAcceptDrops(True)
         self.current_schedule = None
         
-    def _on_mode_changed(self, mode):
-        self.mode_changed.emit(mode)
-        
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat('application/x-schedule'):
             event.acceptProposedAction()
@@ -57,6 +48,4 @@ class ScheduleDropArea(QWidget):
     def clear(self):
         self.current_schedule = None
         self.placeholder.setText("Drop Schedule Here")
-        
-    def get_mode(self):
-        return self.mode_selector.currentText()
+    

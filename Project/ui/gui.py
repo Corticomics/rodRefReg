@@ -171,6 +171,9 @@ class RodentRefreshmentGUI(QWidget):
         self.mode_toggle_button.clicked.connect(self.toggle_mode)
         self.main_layout.addWidget(self.mode_toggle_button)
 
+        # Connect the mode_changed signal from SchedulesTab to RunStopSection
+        self.projects_section.schedules_tab.mode_changed.connect(self.run_stop_section._on_mode_changed)
+
         # Load initial data
         self.load_animals_tab()
 

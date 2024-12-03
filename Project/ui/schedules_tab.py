@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
     QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
@@ -12,6 +12,8 @@ from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
 
 class SchedulesTab(QWidget):
+    mode_changed = pyqtSignal(str)  # Signal to emit mode changes
+
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
 
@@ -86,6 +88,9 @@ class SchedulesTab(QWidget):
         # Load animals and schedules
         self.load_animals()
         self.load_schedules()
+
+        # Connect the mode selector to emit the mode_changed signal
+        self.mode_selector.currentTextChanged.connect(self.mode_changed.emit)
 
     def load_relay_units(self):
         """Load relay units and create RelayUnitWidgets."""
