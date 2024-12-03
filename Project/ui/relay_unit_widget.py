@@ -119,39 +119,24 @@ class RelayUnitWidget(QWidget):
         # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
-        # Add delivery mode selection
-        mode_layout = QHBoxLayout()
-        self.mode_label = QLabel("Delivery Mode:")
-        self.mode_selector = QComboBox()
-        self.mode_selector.addItems(["Instant", "Staggered"])
-        mode_layout.addWidget(self.mode_label)
-        mode_layout.addWidget(self.mode_selector)
-        self.layout.addLayout(mode_layout)
-        
-        # Container for instant delivery slots
+        # Keep the instant delivery UI elements but don't connect to local mode selector
         self.instant_delivery_container = QWidget()
         self.instant_delivery_layout = QVBoxLayout()
         self.instant_delivery_container.setLayout(self.instant_delivery_layout)
         
-        # Scroll area for delivery slots
         self.delivery_scroll = QScrollArea()
         self.delivery_scroll.setWidget(self.instant_delivery_container)
         self.delivery_scroll.setWidgetResizable(True)
         
-        # Add delivery slot button
         self.add_slot_button = QPushButton("+ Add Delivery Time")
         self.add_slot_button.clicked.connect(self.add_delivery_slot)
         
-        # Add widgets to layout
         self.layout.addWidget(self.delivery_scroll)
         self.layout.addWidget(self.add_slot_button)
         
-        # Connect mode selector
-        self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
-        
         # Initialize UI state
         self.delivery_slots = []
-        self.on_mode_changed(self.mode_selector.currentText())
+        self.set_mode("Staggered")  # Default mode
 
     def dragEnterEvent(self, event):
         """
@@ -394,8 +379,8 @@ class RelayUnitWidget(QWidget):
         self.delivery_slots.append(slot)
         self.instant_delivery_layout.addWidget(slot)
 
-    def on_mode_changed(self, mode):
-        """Handle delivery mode changes"""
+    def set_mode(self, mode):
+        """Set the delivery mode from parent widget"""
         is_instant = mode == "Instant"
         self.delivery_scroll.setVisible(is_instant)
         self.add_slot_button.setVisible(is_instant)

@@ -21,20 +21,24 @@ class SchedulesTab(QWidget):
         self.login_system = login_system
         self.pump_controller = settings.get('pump_controller')
 
-        # Main layout: Horizontal box layout for three columns
-        self.layout = QHBoxLayout()
+        # Main layout
+        self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
         # Add delivery mode selector at the top
         mode_layout = QHBoxLayout()
-        self.mode_label = QLabel("Default Delivery Mode:")
+        self.mode_label = QLabel("Delivery Mode:")
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Instant", "Staggered"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
         mode_layout.addWidget(self.mode_label)
         mode_layout.addWidget(self.mode_selector)
         mode_layout.addStretch()
-        self.layout.insertLayout(0, mode_layout)
+        self.layout.addLayout(mode_layout)
+
+        # Create horizontal layout for columns
+        columns_layout = QHBoxLayout()
+        self.layout.addLayout(columns_layout)
 
         # Left Column: Available Animals
         self.available_animals_widget = QWidget()
@@ -150,7 +154,7 @@ class SchedulesTab(QWidget):
     def on_mode_changed(self, mode):
         """Update all relay units to use the selected mode"""
         for widget in self.relay_unit_widgets.values():
-            widget.mode_selector.setCurrentText(mode)
+            widget.set_mode(mode)
 
     def save_current_schedule(self):
         """Save the current assignments and settings as a new schedule."""
