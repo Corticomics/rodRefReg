@@ -34,7 +34,7 @@ class SchedulesTab(QWidget):
         mode_layout = QHBoxLayout()
         self.mode_label = QLabel("Delivery Mode:")
         self.mode_selector = QComboBox()
-        self.mode_selector.addItems(["Instant", "Staggered"])
+        self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
         mode_layout.addWidget(self.mode_label)
         mode_layout.addWidget(self.mode_selector)
