@@ -60,9 +60,27 @@ class RelayUnitWidget(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
-        # Title Label
+        # Add a frame or visual separator
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 10px;
+                margin: 5px;
+            }
+            QLabel[title="true"] {
+                font-weight: bold;
+                font-size: 14px;
+                padding: 5px;
+                background-color: #f5f5f5;
+                border-bottom: 1px solid #e0e0e0;
+            }
+        """)
+
+        # Title Label with styling
         self.title_label = QLabel(f"Relay Unit {relay_unit.unit_id}")
-        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setProperty("title", "true")
         self.layout.addWidget(self.title_label)
 
         # Drag-and-Drop Area
@@ -121,36 +139,34 @@ class RelayUnitWidget(QWidget):
         # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
-        # Container for instant delivery slots
+        # Staggered Mode Section
+        self.staggered_section = QWidget()
+        staggered_layout = QVBoxLayout()
+        staggered_layout.addWidget(self.desired_output_label)
+        staggered_layout.addWidget(self.desired_output_input)
+        self.staggered_section.setLayout(staggered_layout)
+        self.layout.addWidget(self.staggered_section)
+
+        # Instant Mode Section
+        self.instant_section = QWidget()
+        instant_layout = QVBoxLayout()
         self.instant_delivery_container = QWidget()
         self.instant_delivery_layout = QVBoxLayout()
         self.instant_delivery_container.setLayout(self.instant_delivery_layout)
         
-        # Scroll area for delivery slots
-        self.delivery_scroll = QScrollArea()
-        self.delivery_scroll.setWidget(self.instant_delivery_container)
-        self.delivery_scroll.setWidgetResizable(True)
-        self.delivery_scroll.setMaximumHeight(200)  # Limit height
-        
-        # Add delivery slot button with icon or clear text
+        # Add delivery slot button
         self.add_slot_button = QPushButton("+ Add Water Delivery Time")
-        
+
         self.add_slot_button.clicked.connect(self.add_delivery_slot)
         
-        # Add widgets to layout
-        self.layout.addWidget(self.delivery_scroll)
-        self.layout.addWidget(self.add_slot_button)
+        instant_layout.addWidget(self.instant_delivery_container)
+        instant_layout.addWidget(self.add_slot_button)
+        self.instant_section.setLayout(instant_layout)
+        self.layout.addWidget(self.instant_section)
         
         # Initialize UI state
         self.delivery_slots = []
-        
-        # Hide instant delivery components by default
-        self.delivery_scroll.hide()
-        self.add_slot_button.hide()
-
-        # Initialize UI state
-        self.delivery_slots = []
-        self.set_mode("Staggered")  # Default mode
+        self.instant_section.hide()
 
     def dragEnterEvent(self, event):
         """
@@ -396,12 +412,8 @@ class RelayUnitWidget(QWidget):
     def set_mode(self, mode):
         """Set the delivery mode from parent widget"""
         is_instant = mode == "Instant"
-        # Show/hide instant delivery components based on mode
-        self.delivery_scroll.setVisible(is_instant)
-        self.add_slot_button.setVisible(is_instant)
-        # Show/hide staggered delivery components based on mode
-        self.desired_output_label.setVisible(not is_instant)
-        self.desired_output_input.setVisible(not is_instant)
+        self.instant_section.setVisible(is_instant)
+        self.staggered_section.setVisible(not is_instant)
         
         # Clear existing slots when switching modes
         if not is_instant:
