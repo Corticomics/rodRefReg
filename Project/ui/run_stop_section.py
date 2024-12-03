@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox)
 from PyQt5.QtCore import QDateTime, QTimer
 
 class RunStopSection(QWidget):
@@ -248,11 +248,25 @@ class RunStopSection(QWidget):
             print(f"g program: {e}")
 
     def stop_program(self):
-        self.stop_program_callback()
-
-        # Mark job as not in progress and update buttons
-        self.job_in_progress = False
-        self.update_button_states()
+        """Pause the current schedule and display dispensed volumes"""
+        try:
+            self.stop_program_callback()
+            self.job_in_progress = False
+            self.update_button_states()
+            
+            # Display paused message with volumes
+            volumes_text = "\n".join([
+                f"Relay unit {unit}: {volume}mL" 
+                for unit, volume in self.schedule_manager.dispensed_volumes.items()
+            ])
+            QMessageBox.information(
+                self,
+                "Schedule Paused",
+                f"Schedule paused. Volumes dispensed:\n{volumes_text}"
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to pause schedule: {str(e)}")
 
     def reset_ui(self):
         """Reset the UI to the initial state after a job is completed."""

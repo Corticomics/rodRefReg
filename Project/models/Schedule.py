@@ -1,7 +1,8 @@
 # models/schedule.py
 
 class Schedule:
-    def __init__(self, schedule_id, name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user):
+    def __init__(self, schedule_id, name, relay_unit_id, water_volume, start_time, end_time, 
+                 created_by, is_super_user, delivery_mode='staggered'):
         self.schedule_id = schedule_id
         self.name = name
         self.relay_unit_id = relay_unit_id
@@ -10,11 +11,25 @@ class Schedule:
         self.end_time = end_time
         self.created_by = created_by
         self.is_super_user = is_super_user
-        self.animals = []  # List of animal IDs assigned to this schedule
+        self.delivery_mode = delivery_mode
+        
+        # For staggered mode
+        self.animals = []  # List of animal IDs
         self.desired_water_outputs = {}  # {animal_id: desired_water_output}
+        
+        # For instant mode
+        self.instant_deliveries = []  # List of {animal_id, datetime, volume} dicts
+
+    def add_instant_delivery(self, animal_id, delivery_datetime, volume):
+        """Add an instant delivery time for an animal"""
+        self.instant_deliveries.append({
+            'animal_id': animal_id,
+            'datetime': delivery_datetime,
+            'volume': volume
+        })
 
     def to_dict(self):
-        return {
+        data = {
             'schedule_id': self.schedule_id,
             'name': self.name,
             'relay_unit_id': self.relay_unit_id,
@@ -23,6 +38,15 @@ class Schedule:
             'end_time': self.end_time,
             'created_by': self.created_by,
             'is_super_user': self.is_super_user,
-            'animals': self.animals,
-            'desired_water_outputs': self.desired_water_outputs
+            'delivery_mode': self.delivery_mode
         }
+
+        if self.delivery_mode == 'staggered':
+            data.update({
+                'animals': self.animals,
+                'desired_water_outputs': self.desired_water_outputs
+            })
+        else:
+            data['instant_deliveries'] = self.instant_deliveries
+
+        return data

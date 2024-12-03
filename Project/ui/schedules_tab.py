@@ -2,11 +2,11 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox
 )
 from PyQt5.QtCore import Qt
 from datetime import datetime
-from .relay_unit_widget import RelayUnitWidget
+from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
@@ -23,6 +23,17 @@ class SchedulesTab(QWidget):
         # Main layout: Horizontal box layout for three columns
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
+
+        # Add delivery mode selector at the top
+        mode_layout = QHBoxLayout()
+        self.mode_label = QLabel("Default Delivery Mode:")
+        self.mode_selector = QComboBox()
+        self.mode_selector.addItems(["Instant", "Staggered"])
+        self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
+        mode_layout.addWidget(self.mode_label)
+        mode_layout.addWidget(self.mode_selector)
+        mode_layout.addStretch()
+        self.layout.insertLayout(0, mode_layout)
 
         # Left Column: Available Animals
         self.available_animals_widget = QWidget()
@@ -132,6 +143,11 @@ class SchedulesTab(QWidget):
             item.setData(Qt.UserRole, schedule)
             self.schedule_list.addItem(item)
 
+    def on_mode_changed(self, mode):
+        """Update all relay units to use the selected mode"""
+        for widget in self.relay_unit_widgets.values():
+            widget.mode_selector.setCurrentText(mode)
+
     def save_current_schedule(self):
         """Save the current assignments and settings as a new schedule."""
         schedule_name, ok = QInputDialog.getText(self, "Save Schedule", "Enter a name for the schedule:")
@@ -152,22 +168,29 @@ class SchedulesTab(QWidget):
                     schedule_id=None,
                     name=schedule_name,
                     relay_unit_id=unit_id,
-                    water_volume=0.0,  # Since we have desired water output per animal
-                    start_time=datetime.now().isoformat(),
-                    end_time=datetime.now().isoformat(),
+                    delivery_mode=relay_data['delivery_mode'],
                     created_by=current_trainer['trainer_id'],
                     is_super_user=(current_trainer['role'] == 'super')
                 )
+                
+                if relay_data['delivery_mode'] == 'instant':
+                    schedule.delivery_schedule = relay_data['delivery_schedule']
+                else:
+                    schedule.water_volume = relay_data['desired_water_output']
+                    schedule.start_time = datetime.now().isoformat()
+                    schedule.end_time = datetime.now().isoformat()
+                
                 schedule.animals = [animal.animal_id for animal in relay_data['animals']]
-                schedule.desired_water_outputs = relay_data['desired_water_output']
                 schedules.append(schedule)
 
-        # Save schedules to the database
-        for schedule in schedules:
-            self.database_handler.add_schedule(schedule)
-
-        QMessageBox.information(self, "Schedule Saved", "Schedule has been saved successfully.")
-        self.load_schedules()
+        # Save schedules to database
+        try:
+            for schedule in schedules:
+                self.database_handler.add_schedule(schedule)
+            QMessageBox.information(self, "Success", "Schedule saved successfully!")
+            self.load_schedules()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save schedule: {str(e)}")
 
     def load_selected_schedule(self, item):
         """Load the selected schedule and populate the relay units."""
@@ -186,15 +209,30 @@ class SchedulesTab(QWidget):
             relay_unit_id = schedule_detail['relay_unit_id']
             if relay_unit_id in self.relay_unit_widgets:
                 relay_widget = self.relay_unit_widgets[relay_unit_id]
-                # Fetch animal details
+                
+                # Set delivery mode
+                relay_widget.mode_selector.setCurrentText(
+                    schedule_detail.get('delivery_mode', 'staggered').capitalize()
+                )
+                
+                # Load animals
                 animals = []
                 for animal_id in schedule_detail['animal_ids']:
                     animal = self.database_handler.get_animal_by_id(animal_id)
                     if animal:
                         animals.append(animal)
-                # Set data in relay widget
-                desired_water_output = schedule_detail.get('desired_water_outputs', {})
-                relay_widget.set_data(animals, desired_water_output)
+                
+                # Set data based on mode
+                if schedule_detail.get('delivery_mode') == 'instant':
+                    relay_widget.set_data(
+                        animals=animals,
+                        delivery_schedule=schedule_detail.get('delivery_schedule', [])
+                    )
+                else:
+                    relay_widget.set_data(
+                        animals=animals,
+                        desired_water_output=schedule_detail.get('desired_water_outputs', {})
+                    )
 
     def refresh(self):
         """Refresh the UI components."""

@@ -2,14 +2,41 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QMessageBox, QLineEdit, QHBoxLayout
+    QMessageBox, QLineEdit, QHBoxLayout, QPushButton, QDateTimeEdit,
+    QScrollArea, QComboBox
 )
-from PyQt5.QtCore import Qt, QDataStream, QIODevice
+from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime
 from models.animal import Animal
 from .available_animals_list import AvailableAnimalsList
+from datetime import datetime
+
+class WaterDeliverySlot(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout()
+        
+        # DateTime picker
+        self.datetime_picker = QDateTimeEdit()
+        self.datetime_picker.setCalendarPopup(True)
+        self.datetime_picker.setDateTime(QDateTime.currentDateTime())
+        self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
+        
+        # Volume input
+        self.volume_input = QLineEdit()
+        self.volume_input.setPlaceholderText("Water volume (mL)")
+        
+        # Delete button
+        self.delete_button = QPushButton("×")
+        self.delete_button.setMaximumWidth(30)
+        self.delete_button.clicked.connect(self.deleteLater)
+        
+        layout.addWidget(self.datetime_picker)
+        layout.addWidget(self.volume_input)
+        layout.addWidget(self.delete_button)
+        self.setLayout(layout)
 
 class RelayUnitWidget(QWidget):
-    def __init__(self, relay_unit, database_handler, available_animals_list):
+    def __init__(self, relay_unit, database_handler, available_animals_list, pump_controller):
         """
         Initialize the RelayUnitWidget.
 
@@ -17,6 +44,7 @@ class RelayUnitWidget(QWidget):
             relay_unit (RelayUnit): The relay unit instance.
             database_handler (DatabaseHandler): Handler for database interactions.
             available_animals_list (AvailableAnimalsList): Reference to the AvailableAnimalsList widget.
+            pump_controller (PumpController): Reference to the PumpController instance.
         """
         super().__init__()
         self.relay_unit = relay_unit
@@ -24,6 +52,7 @@ class RelayUnitWidget(QWidget):
         self.available_animals_list = available_animals_list
         self.assigned_animal = None  # Only one animal per relay unit
         self.desired_water_output = 0.0  # Desired water output for the animal
+        self.pump_controller = pump_controller
 
         # Main layout
         self.layout = QVBoxLayout()
@@ -67,7 +96,7 @@ class RelayUnitWidget(QWidget):
         desired_output_layout = QHBoxLayout()
 
         # Label for Desired Water Output
-        self.desired_output_label = QLabel("Desired Water Output (mL):")
+        self.desired_output_label = QLabel("Water Output (mL):")
         self.desired_output_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.desired_output_label.setFixedWidth(150)  # Optional: Set a fixed width for better alignment
 
@@ -89,6 +118,40 @@ class RelayUnitWidget(QWidget):
 
         # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
+
+        # Add delivery mode selection
+        mode_layout = QHBoxLayout()
+        self.mode_label = QLabel("Delivery Mode:")
+        self.mode_selector = QComboBox()
+        self.mode_selector.addItems(["Instant", "Staggered"])
+        mode_layout.addWidget(self.mode_label)
+        mode_layout.addWidget(self.mode_selector)
+        self.layout.addLayout(mode_layout)
+        
+        # Container for instant delivery slots
+        self.instant_delivery_container = QWidget()
+        self.instant_delivery_layout = QVBoxLayout()
+        self.instant_delivery_container.setLayout(self.instant_delivery_layout)
+        
+        # Scroll area for delivery slots
+        self.delivery_scroll = QScrollArea()
+        self.delivery_scroll.setWidget(self.instant_delivery_container)
+        self.delivery_scroll.setWidgetResizable(True)
+        
+        # Add delivery slot button
+        self.add_slot_button = QPushButton("+ Add Delivery Time")
+        self.add_slot_button.clicked.connect(self.add_delivery_slot)
+        
+        # Add widgets to layout
+        self.layout.addWidget(self.delivery_scroll)
+        self.layout.addWidget(self.add_slot_button)
+        
+        # Connect mode selector
+        self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
+        
+        # Initialize UI state
+        self.delivery_slots = []
+        self.on_mode_changed(self.mode_selector.currentText())
 
     def dragEnterEvent(self, event):
         """
@@ -220,10 +283,30 @@ class RelayUnitWidget(QWidget):
         if self.assigned_animal:
             desired_water_output[self.assigned_animal.animal_id] = desired_output
 
-        return {
+        data = {
             'animals': [self.assigned_animal] if self.assigned_animal else [],
             'desired_water_output': desired_water_output
         }
+        
+        if self.mode_selector.currentText() == "Instant":
+            data['delivery_mode'] = 'instant'
+            data['delivery_schedule'] = []
+            
+            for slot in self.delivery_slots:
+                if not slot.isVisible():  # Skip deleted slots
+                    continue
+                try:
+                    volume = float(slot.volume_input.text())
+                    data['delivery_schedule'].append({
+                        'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
+                        'volume': volume
+                    })
+                except ValueError:
+                    continue
+        else:
+            data['delivery_mode'] = 'staggered'
+            
+        return data
 
     def set_data(self, animals, desired_water_output):
         """
@@ -284,3 +367,37 @@ class RelayUnitWidget(QWidget):
                 QMessageBox.critical(self, "Removal Error", f"Failed to re-add animal to available list: {e}")
             except Exception as e:
                 QMessageBox.critical(self, "Removal Error", f"An unexpected error occurred: {e}")
+
+    def update_volume_display(self):
+        if self.assigned_animal:
+            recommended = self.assigned_animal.calculate_recommended_water()
+            self.volume_display.setText(f"Recommended: {recommended}mL")
+            
+    def validate_and_dispense(self):
+        if not self.assigned_animal:
+            return
+            
+        try:
+            volume = float(self.volume_input.text())
+            if self.assigned_animal.validate_water_volume(volume):
+                self.pump_controller.dispense_water(self.relay_unit, volume)
+            else:
+                QMessageBox.warning(self, "Invalid Volume", 
+                    "Volume outside recommended range")
+        except ValueError:
+            QMessageBox.warning(self, "Invalid Input", 
+                "Please enter a valid number")
+
+    def add_delivery_slot(self):
+        """Add a new instant delivery time slot"""
+        slot = WaterDeliverySlot()
+        self.delivery_slots.append(slot)
+        self.instant_delivery_layout.addWidget(slot)
+
+    def on_mode_changed(self, mode):
+        """Handle delivery mode changes"""
+        is_instant = mode == "Instant"
+        self.delivery_scroll.setVisible(is_instant)
+        self.add_slot_button.setVisible(is_instant)
+        self.desired_output_label.setVisible(not is_instant)
+        self.desired_output_input.setVisible(not is_instant)

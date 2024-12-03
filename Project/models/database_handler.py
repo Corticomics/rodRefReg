@@ -23,7 +23,8 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # Create trainers table with role column
+                
+                # Create trainers table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS trainers (
                         trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +35,7 @@ class DatabaseHandler:
                     )
                 ''')
 
-                # Create animals table with trainer reference
+                # Create animals table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS animals (
                         animal_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +44,8 @@ class DatabaseHandler:
                         initial_weight REAL,
                         last_weight REAL,
                         last_weighted TEXT,
+                        last_watering TEXT,
+                        last_water_volume REAL,
                         trainer_id INTEGER,
                         FOREIGN KEY(trainer_id) REFERENCES trainers(trainer_id)
                     )
@@ -56,7 +59,7 @@ class DatabaseHandler:
                     )
                 ''')
 
-                # Create schedules table
+                # Create schedules table with delivery_mode
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS schedules (
                         schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,6 +70,8 @@ class DatabaseHandler:
                         end_time TEXT NOT NULL,
                         created_by INTEGER NOT NULL,
                         is_super_user BOOLEAN DEFAULT 0,
+                        delivery_mode TEXT DEFAULT 'staggered',
+                        dispensing_status TEXT DEFAULT 'pending',
                         FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id),
                         FOREIGN KEY(created_by) REFERENCES trainers(trainer_id)
                     )
@@ -83,6 +88,50 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Create schedule_desired_outputs table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_desired_outputs (
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        desired_output REAL NOT NULL,
+                        interval_minutes INTEGER DEFAULT 60,
+                        volume_per_interval REAL,
+                        PRIMARY KEY (schedule_id, animal_id),
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    )
+                ''')
+
+                # Create schedule_instant_deliveries table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_instant_deliveries (
+                        delivery_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        delivery_datetime TEXT NOT NULL,
+                        water_volume REAL NOT NULL,
+                        completed BOOLEAN DEFAULT 0,
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    )
+                ''')
+
+                # Create dispensing_history table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS dispensing_history (
+                        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        relay_unit_id INTEGER NOT NULL,
+                        timestamp TEXT NOT NULL,
+                        volume_dispensed REAL NOT NULL,
+                        status TEXT NOT NULL,
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
+                    )
+                ''')
+
                 # Create logs table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS logs (
@@ -94,27 +143,10 @@ class DatabaseHandler:
                         FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
                     )
                 ''')
-                # Store desired water outputs for each animal in a schedule_id
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS schedule_desired_outputs (
-                        schedule_id INTEGER NOT NULL,
-                        animal_id INTEGER NOT NULL,
-                        desired_output REAL NOT NULL,
-                        PRIMARY KEY (schedule_id, animal_id),
-                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
-                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
-                    )
-            ''')
-                # Add 'last_watering' column to 'animals' table if it doesn't exist
-                cursor.execute("PRAGMA table_info(animals)")
-                columns = [column[1] for column in cursor.fetchall()]
-                if 'last_watering' not in columns:
-                    cursor.execute("ALTER TABLE animals ADD COLUMN last_watering TEXT")
-                    conn.commit()
-                    print("Added 'last_watering' column to 'animals' table.")
-        
+
                 conn.commit()
-                print("Tables created or confirmed to exist.")
+                print("Database schema created/updated successfully.")
+                
         except sqlite3.Error as e:
             print(f"Database error during table creation: {e}")
             traceback.print_exc()
@@ -190,40 +222,58 @@ class DatabaseHandler:
             return None
 
     def get_schedule_details(self, schedule_id):
-        """Retrieve detailed information about a schedule for loading."""
+        """Retrieve detailed information about a schedule."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT relay_unit_id, water_volume FROM schedules WHERE schedule_id = ?
+                    SELECT relay_unit_id, delivery_mode 
+                    FROM schedules WHERE schedule_id = ?
                 ''', (schedule_id,))
                 schedule_row = cursor.fetchone()
                 if not schedule_row:
                     return []
 
-                relay_unit_id, water_volume = schedule_row
-                # Get animal IDs
-                cursor.execute('''
-                    SELECT animal_id FROM schedule_animals WHERE schedule_id = ?
-                ''', (schedule_id,))
-                animal_rows = cursor.fetchall()
-                animal_ids = [row[0] for row in animal_rows]
-
-                # Get desired water outputs
-                cursor.execute('''
-                    SELECT animal_id, desired_output FROM schedule_desired_outputs WHERE schedule_id = ?
-                ''', (schedule_id,))
-                desired_output_rows = cursor.fetchall()
-                desired_water_outputs = {row[0]: row[1] for row in desired_output_rows}
-
-                return [{
+                relay_unit_id, delivery_mode = schedule_row
+                result = {
                     'relay_unit_id': relay_unit_id,
-                    'water_volume': water_volume,
-                    'animal_ids': animal_ids,
-                    'desired_water_outputs': desired_water_outputs
-                }]
+                    'delivery_mode': delivery_mode
+                }
+
+                if delivery_mode == 'instant':
+                    cursor.execute('''
+                        SELECT animal_id, delivery_datetime, water_volume
+                        FROM schedule_instant_deliveries
+                        WHERE schedule_id = ?
+                        ORDER BY delivery_datetime
+                    ''', (schedule_id,))
+                    result['deliveries'] = [
+                        {
+                            'animal_id': row[0],
+                            'datetime': row[1],
+                            'volume': row[2]
+                        } for row in cursor.fetchall()
+                    ]
+                else:
+                    # Existing staggered mode logic
+                    cursor.execute('''
+                        SELECT animal_id FROM schedule_animals 
+                        WHERE schedule_id = ?
+                    ''', (schedule_id,))
+                    result['animal_ids'] = [row[0] for row in cursor.fetchall()]
+                    
+                    cursor.execute('''
+                        SELECT animal_id, desired_output 
+                        FROM schedule_desired_outputs 
+                        WHERE schedule_id = ?
+                    ''', (schedule_id,))
+                    result['desired_water_outputs'] = {
+                        row[0]: row[1] for row in cursor.fetchall()
+                    }
+
+                return [result]
         except sqlite3.Error as e:
-            print(f"Database error retrieving schedule details: {e}")
+            print(f"Database error: {e}")
             traceback.print_exc()
             return []
 
@@ -540,3 +590,189 @@ class DatabaseHandler:
         except Exception as e:
             print(f"Unexpected error logging action: {e}")
             traceback.print_exc()
+
+    def update_schedule_status(self, schedule_id, status, dispensed_volumes=None):
+        """Update schedule status and record dispensed volumes"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE schedules SET status = ? WHERE schedule_id = ?",
+                    (status, schedule_id)
+                )
+                
+                if dispensed_volumes:
+                    # Log the volumes in the logs table
+                    details = f"Dispensed volumes: {str(dispensed_volumes)}"
+                    cursor.execute('''
+                        INSERT INTO logs (timestamp, action, super_user_id, details)
+                        VALUES (?, ?, ?, ?)
+                    ''', (
+                        datetime.now().isoformat(),
+                        'schedule_paused',
+                        0,  # System action
+                        details
+                    ))
+                conn.commit()
+                
+        except sqlite3.Error as e:
+            print(f"Database error updating schedule status: {e}")
+            raise
+
+    def get_active_schedules(self):
+        """Get all active schedules that need processing."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT s.*, sdo.interval_minutes, sdo.volume_per_interval, sdo.animal_id
+                    FROM schedules s
+                    JOIN schedule_desired_outputs sdo ON s.schedule_id = sdo.schedule_id
+                    WHERE s.dispensing_status = 'active'
+                    AND datetime(s.start_time) <= datetime('now')
+                    AND datetime(s.end_time) >= datetime('now')
+                ''')
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Error retrieving active schedules: {e}")
+            traceback.print_exc()
+            return []
+
+    async def update_animal_watering(self, animal_id, volume, timestamp):
+        """Update animal's last watering record"""
+        query = """
+            UPDATE animals 
+            SET last_watering = ?, last_water_volume = ?
+            WHERE animal_id = ?
+        """
+        await self.execute(query, (timestamp, volume, animal_id))
+
+    def add_schedule_instant(self, schedule_id, animal_id, delivery_time, water_volume):
+        """Add a new schedule time instant"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO schedule_time_instants 
+                    (schedule_id, animal_id, delivery_time, water_volume)
+                    VALUES (?, ?, ?, ?)
+                ''', (schedule_id, animal_id, delivery_time.isoformat(), water_volume))
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return None
+
+    def get_pending_schedule_instants(self, schedule_id=None):
+        """Get all pending water delivery instants"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                if schedule_id:
+                    query = '''
+                        SELECT sti.*, ru.relay_unit_id 
+                        FROM schedule_time_instants sti
+                        JOIN schedules s ON sti.schedule_id = s.schedule_id
+                        JOIN relay_units ru ON s.relay_unit_id = ru.relay_unit_id
+                        WHERE sti.schedule_id = ? AND sti.completed = 0
+                        ORDER BY sti.delivery_time ASC
+                    '''
+                    cursor.execute(query, (schedule_id,))
+                else:
+                    query = '''
+                        SELECT sti.*, ru.relay_unit_id 
+                        FROM schedule_time_instants sti
+                        JOIN schedules s ON sti.schedule_id = s.schedule_id
+                        JOIN relay_units ru ON s.relay_unit_id = ru.relay_unit_id
+                        WHERE sti.completed = 0
+                        ORDER BY sti.delivery_time ASC
+                    '''
+                    cursor.execute(query)
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return []
+
+    def mark_instant_completed(self, instant_id, volume_dispensed):
+        """Mark a schedule instant as completed and log the dispensing"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                # Get instant details
+                cursor.execute('''
+                    SELECT sti.schedule_id, sti.animal_id, s.relay_unit_id
+                    FROM schedule_time_instants sti
+                    JOIN schedules s ON sti.schedule_id = s.schedule_id
+                    WHERE sti.instant_id = ?
+                ''', (instant_id,))
+                schedule_id, animal_id, relay_unit_id = cursor.fetchone()
+                
+                # Mark instant completed
+                cursor.execute('''
+                    UPDATE schedule_time_instants
+                    SET completed = 1
+                    WHERE instant_id = ?
+                ''', (instant_id,))
+                
+                # Log in dispensing_history
+                cursor.execute('''
+                    INSERT INTO dispensing_history 
+                    (schedule_id, animal_id, relay_unit_id, timestamp, volume_dispensed, status)
+                    VALUES (?, ?, ?, datetime('now'), ?, 'completed')
+                ''', (schedule_id, animal_id, relay_unit_id, volume_dispensed))
+                
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return False
+
+    def add_instant_schedule(self, schedule_name, relay_unit_id, created_by, is_super_user, deliveries):
+        """Add a new instant delivery schedule"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                # Insert main schedule
+                cursor.execute('''
+                    INSERT INTO schedules 
+                    (name, relay_unit_id, delivery_mode, created_by, is_super_user)
+                    VALUES (?, ?, 'instant', ?, ?)
+                ''', (schedule_name, relay_unit_id, created_by, is_super_user))
+                schedule_id = cursor.lastrowid
+                
+                # Insert delivery times
+                for delivery in deliveries:
+                    cursor.execute('''
+                        INSERT INTO schedule_instant_deliveries 
+                        (schedule_id, animal_id, delivery_datetime, water_volume)
+                        VALUES (?, ?, ?, ?)
+                    ''', (schedule_id, delivery['animal_id'], 
+                         delivery['datetime'].isoformat(), 
+                         delivery['volume']))
+                
+                conn.commit()
+                return schedule_id
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return None
+
+    def get_schedule_instant_deliveries(self, schedule_id):
+        """Get all instant deliveries for a schedule"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT animal_id, delivery_datetime, water_volume, completed
+                    FROM schedule_instant_deliveries
+                    WHERE schedule_id = ?
+                    ORDER BY delivery_datetime
+                ''', (schedule_id,))
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return []
