@@ -24,6 +24,8 @@ class RunStopSection(QWidget):
         if settings:
             self.load_settings(settings)
 
+        self.setAcceptDrops(True)  # Enable dropping
+
     def init_ui(self):
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -282,5 +284,18 @@ class RunStopSection(QWidget):
         """Handle mode changes from schedule drop area"""
         is_staggered = mode == "Staggered"
         self.tab_widget.setVisible(is_staggered)
+
+    def dragEnterEvent(self, event):
+        """Handle the drag enter event."""
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        """Handle the drop event."""
+        schedule_name = event.mimeData().text()
+        # Here you can handle the dropped schedule name
+        # For example, you might want to load the schedule and start it
+        print(f"Schedule dropped: {schedule_name}")
+        # You can call a method to start the schedule here
 
 

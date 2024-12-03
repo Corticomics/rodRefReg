@@ -4,7 +4,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
     QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
+from PyQt5.QtGui import QDrag
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
@@ -75,6 +76,7 @@ class SchedulesTab(QWidget):
         self.saved_schedules_widget.setLayout(self.saved_schedules_layout)
 
         self.schedule_list = QListWidget()
+        self.schedule_list.setDragEnabled(True)  # Enable dragging
         self.schedule_list.itemClicked.connect(self.load_selected_schedule)
 
         self.saved_schedules_layout.addWidget(QLabel("Saved Schedules"))
@@ -249,3 +251,14 @@ class SchedulesTab(QWidget):
         self.load_schedules()
         for relay_widget in self.relay_unit_widgets.values():
             relay_widget.clear_assignments()
+
+    def startDrag(self, event):
+        """Start the drag operation."""
+        item = self.schedule_list.currentItem()
+        if item:
+            mime_data = QMimeData()
+            mime_data.setText(item.text())  # You can customize this to include more data
+
+            drag = QDrag(self)
+            drag.setMimeData(mime_data)
+            drag.exec_(Qt.MoveAction)
