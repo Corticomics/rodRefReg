@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox)
-from PyQt5.QtCore import QDateTime, QTimer
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox)
+from PyQt5.QtCore import QDateTime, QTimer, Qt
 from .schedule_drop_area import ScheduleDropArea
 
 class RunStopSection(QWidget):
@@ -36,8 +36,8 @@ class RunStopSection(QWidget):
 
         # Calendar-Based Time Window Selection
         calendar_layout = QFormLayout()
-        calendar_layout.setSpacing(20)  # Increase form layout spacing
-        calendar_layout.setContentsMargins(20, 20, 20, 20)  # Add margins around the form
+        calendar_layout.setSpacing(20)
+        calendar_layout.setContentsMargins(20, 20, 20, 20)
         
         self.start_time_label = QLabel("Start Time:")
         self.start_time_input = QDateTimeEdit(self.calendar_widget)
@@ -106,50 +106,50 @@ class RunStopSection(QWidget):
         self.tab_widget.addTab(self.calendar_widget, "Calendar Mode")
         self.tab_widget.addTab(self.offline_widget, "Offline Mode")
 
-        # Replace interval/stagger inputs with schedule drop area
+        # Schedule drop area
         self.schedule_drop_area = ScheduleDropArea()
         self.schedule_drop_area.mode_changed.connect(self._on_mode_changed)
-
+        
+        # Buttons
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
-
-
+        
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
         self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
-
-        # Create a separate layout for the buttons with minimal spacing
+        
+        # Button layout
         self.button_layout = QHBoxLayout()
-        self.button_layout.setSpacing(5)  # Minimal spacing between buttons
+        self.button_layout.setSpacing(5)
         self.button_layout.addWidget(self.run_button)
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
-
-        # Add widgets and layouts to the main layout
+        
+        # Main layout assembly
         self.layout.addWidget(self.tab_widget)
-        self.layout.addLayout(self.button_layout)  # Add button layout
-        self.layout.addStretch()  # Push content to the top
-
-        self.setLayout(self.layout)
-
-        # Initialize button states
-        self.update_button_states()
-
+        
+        # Add schedule drop area with label
+        form_layout = QFormLayout()
+        form_layout.addRow("Active Schedule:", self.schedule_drop_area)
+        self.layout.addLayout(form_layout)
+        
+        self.layout.addLayout(self.button_layout)
+        self.layout.addStretch()
+        
+        # Set size policies
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.run_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.relay_hats_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        # Add stretch to push buttons to the bottom
-        self.layout.addStretch()
-
+        
         self.setLayout(self.layout)
+        self.update_button_states()
 
     def load_settings(self, settings):
         self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
         self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
-        self.offline_input.setText(str(settings.get('offline_duration', 60)))  # Use default if not found
+        self.offline_input.setText(str(settings.get('offline_duration', 60)))
 
     def update_minimum_datetime(self):
         """Update the minimum selectable datetime to 'right now'."""
