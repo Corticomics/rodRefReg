@@ -194,11 +194,13 @@ class SchedulesTab(QWidget):
             return
 
         try:
+            # Get delivery mode from mode selector
+            delivery_mode = self.mode_selector.currentText().lower()
+            
             # Collect data from all relay units
             total_volume = 0
             min_time = None
             max_time = None
-            delivery_mode = None
             
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
@@ -206,8 +208,6 @@ class SchedulesTab(QWidget):
                 if not relay_data['animals']:
                     continue
                     
-                delivery_mode = relay_data['delivery_mode']
-                
                 if delivery_mode == 'instant':
                     for delivery in relay_data['delivery_schedule']:
                         total_volume += delivery['volume']
