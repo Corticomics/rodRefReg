@@ -4,6 +4,7 @@ from models.Schedule import Schedule
 
 class ScheduleDropArea(QWidget):
 
+    mode_changed = pyqtSignal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,6 +68,8 @@ class ScheduleDropArea(QWidget):
                 
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
                 event.acceptProposedAction()
+                
+                self.mode_changed.emit(self.current_schedule.delivery_mode.capitalize())
                 
             except Exception as e:
                 print(f"Error processing schedule data: {e}")

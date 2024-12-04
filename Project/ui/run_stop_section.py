@@ -145,6 +145,9 @@ class RunStopSection(QWidget):
         self.setLayout(self.layout)
         self.update_button_states()
 
+        # Add after line 112
+        self.schedule_drop_area.mode_changed.connect(self._on_mode_changed)
+
     def load_settings(self, settings):
         self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
         self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
@@ -284,18 +287,5 @@ class RunStopSection(QWidget):
         """Handle mode changes from schedule drop area"""
         is_staggered = mode == "Staggered"
         self.tab_widget.setVisible(is_staggered)
-
-    def dragEnterEvent(self, event):
-        """Handle the drag enter event."""
-        if event.mimeData().hasText():
-            event.acceptProposedAction()
-
-    def dropEvent(self, event):
-        """Handle the drop event."""
-        schedule_name = event.mimeData().text()
-        # Here you can handle the dropped schedule name
-        # For example, you might want to load the schedule and start it
-        print(f"Schedule dropped: {schedule_name}")
-        # You can call a method to start the schedule here
 
 

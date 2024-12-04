@@ -77,8 +77,10 @@ class SchedulesTab(QWidget):
         self.saved_schedules_widget.setLayout(self.saved_schedules_layout)
 
         self.schedule_list = QListWidget()
-        self.schedule_list.setDragEnabled(True)  # Enable dragging
+        self.schedule_list.setDragEnabled(True)
+        self.schedule_list.setDefaultDropAction(Qt.MoveAction)
         self.schedule_list.itemClicked.connect(self.load_selected_schedule)
+        self.schedule_list.mousePressEvent = self.schedule_list_mouse_press
 
         self.saved_schedules_layout.addWidget(QLabel("Saved Schedules"))
         self.saved_schedules_layout.addWidget(self.schedule_list)
@@ -338,7 +340,7 @@ class SchedulesTab(QWidget):
             
             drag = QDrag(self)
             drag.setMimeData(mime_data)
-            drag.exec_(Qt.MoveAction)
+            drag.exec_(Qt.CopyAction)
 
     def handle_login_status_change(self):
         """Handle changes in login status"""
@@ -349,3 +351,16 @@ class SchedulesTab(QWidget):
         self.mode_selector.setCurrentText(mode)
         for widget in self.relay_unit_widgets.values():
             widget.set_mode(mode)
+
+    def schedule_list_mouse_press(self, event):
+        if event.button() == Qt.LeftButton:
+            item = self.schedule_list.itemAt(event.pos())
+            if item:
+                self.startDrag(event)
+
+    def mousePressEvent(self, event):
+        super().mousePressEvent(event)
+        if event.button() == Qt.LeftButton:
+            item = self.schedule_list.itemAt(event.pos())
+            if item:
+                self.startDrag(event)
