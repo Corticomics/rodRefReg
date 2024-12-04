@@ -204,6 +204,7 @@ class SchedulesTab(QWidget):
             
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
+                print(f"Relay data for unit {unit_id}: {relay_data}")
                 
                 if not relay_data['animals']:
                     continue
@@ -239,6 +240,7 @@ class SchedulesTab(QWidget):
                 is_super_user=(current_trainer['role'] == 'super'),
                 delivery_mode=delivery_mode
             )
+            print(f"Schedule object: {schedule}")
 
             # Add delivery data
             for unit_id, relay_widget in self.relay_unit_widgets.items():
