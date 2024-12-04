@@ -1,4 +1,4 @@
-
+{'schedule_id': 1, 'name': 'test', 'relay_unit_id': 1, 'water_volume': 3.0, 'start_time': '2024-12-03T16:45:28.522000', 'end_time': '2024-12-03T16:53:29.405000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'staggered', 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': []}
 RRR_Automated_Watering_System/
 CREATE TABLE trainers (
                         trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
