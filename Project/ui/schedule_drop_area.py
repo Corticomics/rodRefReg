@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox
 from PyQt5.QtCore import Qt, pyqtSignal
 from models.Schedule import Schedule
+from .schedule_table import ScheduleTable
 
 class ScheduleDropArea(QWidget):
 
@@ -30,7 +31,13 @@ class ScheduleDropArea(QWidget):
         drop_layout = QVBoxLayout()
         drop_layout.addWidget(self.placeholder)
         self.drop_widget.setLayout(drop_layout)
+        
+        # Schedule table (initially hidden)
+        self.schedule_table = ScheduleTable()
+        self.schedule_table.hide()
+        
         self.layout.addWidget(self.drop_widget)
+        self.layout.addWidget(self.schedule_table)
         
         # Enable drag and drop
         self.setAcceptDrops(True)
@@ -71,6 +78,10 @@ class ScheduleDropArea(QWidget):
                 
                 self.mode_changed.emit(self.current_schedule.delivery_mode.capitalize())
                 
+                self.drop_widget.hide()
+                self.schedule_table.show()
+                self.update_table(self.current_schedule)
+                
             except Exception as e:
                 print(f"Error processing schedule data: {e}")
                 self.placeholder.setText("Error loading schedule")
@@ -82,6 +93,9 @@ class ScheduleDropArea(QWidget):
     def clear(self):
         self.current_schedule = None
         self.placeholder.setText("Drop Schedule Here")
+        self.schedule_table.hide()
+        self.schedule_table.setRowCount(0)
+        self.drop_widget.show()
     
     def handle_schedule_drop(self, schedule):
         """Handle schedule drops from any source"""
@@ -96,4 +110,24 @@ class ScheduleDropArea(QWidget):
         except Exception as e:
             print(f"Error handling schedule drop: {e}")
             self.placeholder.setText("Error loading schedule")
+    
+    def update_table(self, schedule):
+        """Update the table with schedule information"""
+        self.schedule_table.setRowCount(0)  # Clear existing rows
+        
+        if schedule.delivery_mode.lower() == 'staggered':
+            for i, animal_id in enumerate(schedule.animals):
+                self.schedule_table.insertRow(i)
+                self.schedule_table.setItem(i, 0, QTableWidgetItem(str(animal_id)))
+                self.schedule_table.setItem(i, 2, QTableWidgetItem(
+                    str(schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume))
+                ))
+                self.schedule_table.setItem(i, 3, QTableWidgetItem(schedule.start_time))
+                self.schedule_table.setItem(i, 4, QTableWidgetItem(schedule.end_time))
+        else:
+            for i, delivery in enumerate(schedule.instant_deliveries):
+                self.schedule_table.insertRow(i)
+                self.schedule_table.setItem(i, 0, QTableWidgetItem(str(delivery['animal_id'])))
+                self.schedule_table.setItem(i, 2, QTableWidgetItem(str(delivery['volume'])))
+                self.schedule_table.setItem(i, 3, QTableWidgetItem(str(delivery['datetime'])))
     
