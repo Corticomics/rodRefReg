@@ -193,10 +193,16 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO schedules (name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (schedule.name, schedule.relay_unit_id, schedule.water_volume, schedule.start_time,
-                      schedule.end_time, schedule.created_by, schedule.is_super_user))
+                    INSERT INTO schedules (
+                        name, relay_unit_id, water_volume, start_time, end_time, 
+                        created_by, is_super_user, delivery_mode
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    schedule.name, schedule.relay_unit_id, schedule.water_volume, 
+                    schedule.start_time, schedule.end_time, schedule.created_by, 
+                    schedule.is_super_user, schedule.delivery_mode
+                ))
                 schedule.schedule_id = cursor.lastrowid
 
                 # Insert into schedule_animals
@@ -206,12 +212,24 @@ class DatabaseHandler:
                         VALUES (?, ?)
                     ''', (schedule.schedule_id, animal_id))
 
-                # Insert desired water outputs
-                for animal_id, desired_output in schedule.desired_water_outputs.items():
-                    cursor.execute('''
-                        INSERT INTO schedule_desired_outputs (schedule_id, animal_id, desired_output)
-                        VALUES (?, ?, ?)
-                    ''', (schedule.schedule_id, animal_id, desired_output))
+                if schedule.delivery_mode == 'instant':
+                    # Insert instant deliveries
+                    for delivery in schedule.instant_deliveries:
+                        cursor.execute('''
+                            INSERT INTO schedule_instant_deliveries 
+                            (schedule_id, animal_id, delivery_datetime, water_volume)
+                            VALUES (?, ?, ?, ?)
+                        ''', (
+                            schedule.schedule_id, delivery['animal_id'],
+                            delivery['datetime'], delivery['volume']
+                        ))
+                else:
+                    # Insert desired water outputs for staggered mode
+                    for animal_id, desired_output in schedule.desired_water_outputs.items():
+                        cursor.execute('''
+                            INSERT INTO schedule_desired_outputs (schedule_id, animal_id, desired_output)
+                            VALUES (?, ?, ?)
+                        ''', (schedule.schedule_id, animal_id, desired_output))
 
                 conn.commit()
                 print(f"Schedule '{schedule.name}' added with ID: {schedule.schedule_id}")
