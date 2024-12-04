@@ -44,11 +44,10 @@ class ScheduleDropArea(QWidget):
         data = event.mimeData()
         if data.hasFormat('application/x-schedule'):
             try:
-                # Get the schedule data and decode it
                 schedule_data = data.data('application/x-schedule')
                 schedule_dict = eval(bytes(schedule_data).decode())
                 
-                # Create a new Schedule instance with the correct data
+                # Create a new Schedule instance
                 self.current_schedule = Schedule(
                     schedule_id=schedule_dict['schedule_id'],
                     name=schedule_dict['name'],
@@ -62,11 +61,10 @@ class ScheduleDropArea(QWidget):
                 )
                 
                 # Set additional properties
-                self.current_schedule.animals = schedule_dict['animals']
-                self.current_schedule.desired_water_outputs = schedule_dict['desired_water_outputs']
-                self.current_schedule.instant_deliveries = schedule_dict['instant_deliveries']
+                self.current_schedule.animals = schedule_dict.get('animals', [])
+                self.current_schedule.desired_water_outputs = schedule_dict.get('desired_water_outputs', {})
+                self.current_schedule.instant_deliveries = schedule_dict.get('instant_deliveries', [])
                 
-                # Update the placeholder text
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
                 event.acceptProposedAction()
                 
@@ -81,4 +79,18 @@ class ScheduleDropArea(QWidget):
     def clear(self):
         self.current_schedule = None
         self.placeholder.setText("Drop Schedule Here")
+    
+    def handle_schedule_drop(self, schedule):
+        """Handle schedule drops from any source"""
+        try:
+            self.current_schedule = schedule
+            self.placeholder.setText(f"Schedule: {schedule.name}")
+            
+            # Update mode if needed
+            if hasattr(self, 'mode_changed'):
+                self.mode_changed.emit(schedule.delivery_mode.capitalize())
+            
+        except Exception as e:
+            print(f"Error handling schedule drop: {e}")
+            self.placeholder.setText("Error loading schedule")
     

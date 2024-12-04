@@ -131,7 +131,8 @@ class RodentRefreshmentGUI(QWidget):
             self.run_program, 
             self.stop_program, 
             self.change_relay_hats, 
-            self.settings
+            self.settings,
+            advanced_settings=None
         )
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
@@ -173,6 +174,13 @@ class RodentRefreshmentGUI(QWidget):
 
         # Connect the mode_changed signal from SchedulesTab to RunStopSection
         self.projects_section.schedules_tab.mode_changed.connect(self.run_stop_section._on_mode_changed)
+
+        # Connect the schedules tab with run_stop_section's schedule drop area
+        self.projects_section.schedules_tab.schedule_list.itemDoubleClicked.connect(
+            lambda item: self.run_stop_section.schedule_drop_area.handle_schedule_drop(
+                item.data(Qt.UserRole)
+            )
+        )
 
         # Load initial data
         self.load_animals_tab()
