@@ -226,20 +226,31 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
+                # First get basic schedule info
                 cursor.execute('''
-                    SELECT relay_unit_id, delivery_mode 
-                    FROM schedules WHERE schedule_id = ?
+                    SELECT s.relay_unit_id, s.delivery_mode, s.water_volume, s.start_time, s.end_time 
+                    FROM schedules s WHERE s.schedule_id = ?
                 ''', (schedule_id,))
                 schedule_row = cursor.fetchone()
                 if not schedule_row:
                     return []
 
-                relay_unit_id, delivery_mode = schedule_row
+                relay_unit_id, delivery_mode, water_volume, start_time, end_time = schedule_row
                 result = {
                     'relay_unit_id': relay_unit_id,
-                    'delivery_mode': delivery_mode
+                    'delivery_mode': delivery_mode,
+                    'water_volume': water_volume,
+                    'start_time': start_time,
+                    'end_time': end_time
                 }
 
+                # Get assigned animals
+                cursor.execute('''
+                    SELECT animal_id FROM schedule_animals 
+                    WHERE schedule_id = ?
+                ''', (schedule_id,))
+                result['animal_ids'] = [row[0] for row in cursor.fetchall()]
+                
                 if delivery_mode == 'instant':
                     cursor.execute('''
                         SELECT animal_id, delivery_datetime, water_volume
@@ -255,20 +266,14 @@ class DatabaseHandler:
                         } for row in cursor.fetchall()
                     ]
                 else:
-                    # Existing staggered mode logic
-                    cursor.execute('''
-                        SELECT animal_id FROM schedule_animals 
-                        WHERE schedule_id = ?
-                    ''', (schedule_id,))
-                    result['animal_ids'] = [row[0] for row in cursor.fetchall()]
-                    
+                    # Get desired water outputs for staggered mode
                     cursor.execute('''
                         SELECT animal_id, desired_output 
                         FROM schedule_desired_outputs 
                         WHERE schedule_id = ?
                     ''', (schedule_id,))
                     result['desired_water_outputs'] = {
-                        row[0]: row[1] for row in cursor.fetchall()
+                        str(row[0]): row[1] for row in cursor.fetchall()
                     }
 
                 return [result]
