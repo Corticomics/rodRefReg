@@ -264,9 +264,6 @@ class RelayUnitWidget(QWidget):
     def get_data(self):
         """
         Retrieve the current data from the widget.
-
-        Returns:
-            dict: A dictionary containing assigned animals and desired water output.
         """
         desired_output_text = self.desired_output_input.text().strip()
         try:
@@ -277,16 +274,28 @@ class RelayUnitWidget(QWidget):
 
         desired_water_output = {}
         if self.assigned_animal:
-            desired_water_output[self.assigned_animal.animal_id] = desired_output
+            desired_water_output[str(self.assigned_animal.animal_id)] = desired_output
 
         data = {
             'animals': [self.assigned_animal] if self.assigned_animal else [],
             'desired_water_output': desired_water_output,
-            'delivery_mode': 'instant' if self.current_mode == "Instant" else 'staggered'
+            'delivery_mode': self.current_mode.lower()
         }
         
         if data['delivery_mode'] == 'instant':
-            data['delivery_schedule'] = self.get_delivery_schedule()
+            schedule = []
+            # Create a list to store references to slots while iterating
+            active_slots = [slot for slot in self.delivery_slots if slot.isVisible()]
+            for slot in active_slots:
+                try:
+                    volume = float(slot.volume_input.text())
+                    schedule.append({
+                        'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
+                        'volume': volume
+                    })
+                except (ValueError, AttributeError):
+                    continue
+            data['delivery_schedule'] = schedule
         
         return data
 
@@ -378,9 +387,10 @@ class RelayUnitWidget(QWidget):
 
     def set_mode(self, mode):
         """Set the delivery mode from parent widget"""
-        self.current_mode = mode  # Store the mode
+        self.current_mode = mode
         is_instant = mode == "Instant"
-        # Update visibility using container instead of scroll area
+        
+        # Update visibility
         self.instant_delivery_container.setVisible(is_instant)
         self.add_slot_button.setVisible(is_instant)
         self.desired_output_label.setVisible(not is_instant)
@@ -388,21 +398,7 @@ class RelayUnitWidget(QWidget):
         
         # Clear existing slots when switching modes
         if not is_instant:
-            for slot in self.delivery_slots:
-                slot.deleteLater()
-            self.delivery_slots.clear()
-
-    def get_delivery_schedule(self):
-        """Get all scheduled delivery times and volumes"""
-        schedule = []
-        for slot in self.delivery_slots:
-            if slot.isVisible():  # Only include non-deleted slots
-                try:
-                    volume = float(slot.volume_input.text())
-                    schedule.append({
-                        'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
-                        'volume': volume
-                    })
-                except ValueError:
-                    continue
-        return schedule
+            while self.delivery_slots:
+                slot = self.delivery_slots.pop()
+                slot.setParent(None)  # Remove parent reference
+                slot.deleteLater()  # Schedule for deletion
