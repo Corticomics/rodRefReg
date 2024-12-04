@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QTableWidgetItem
 from PyQt5.QtCore import Qt, pyqtSignal
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
