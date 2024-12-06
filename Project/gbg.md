@@ -15,3 +15,6 @@ Schedule 'test8' added with ID: 7
 Schedule object: instant, test11, 2.0, 2024-12-06T16:32:23.721000, 2024-12-06T16:32:24.425000, 1, False, [], {}, [{'animal_id': 3, 'datetime': datetime.datetime(2024, 12, 6, 16, 32, 23, 721000), 'volume': 1.0}, {'animal_id': 4, 'datetime': datetime.datetime(2024, 12, 6, 16, 32, 24, 425000), 'volume': 1.0}]
 Schedule 'test11' added with ID: 10
 {'schedule_id': 10, 'name': 'test11', 'relay_unit_id': 1, 'water_volume': 2.0, 'start_time': '2024-12-06T16:32:23.721000', 'end_time': '2024-12-06T16:32:24.425000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'staggered', 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': []}
+
+
+10|test11|1|2.0|2024-12-06T16:32:23.721000|2024-12-06T16:32:24.425000|1|0|instant|pending
