@@ -251,6 +251,7 @@ class SchedulesTab(QWidget):
                 if delivery_mode == 'instant':
                     print(f"save_current_schedule: adding instant deliveries for unit {unit_id}")
                     for delivery in relay_data['delivery_schedule']:
+                        print(f"save_current_schedule: adding instant delivery for animal {relay_data['animals'][0].animal_id} at {delivery['datetime']} with volume {delivery['volume']}")
                         schedule.add_instant_delivery(
                             relay_data['animals'][0].animal_id,
                             delivery['datetime'],
