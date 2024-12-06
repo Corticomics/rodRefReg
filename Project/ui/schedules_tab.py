@@ -240,7 +240,7 @@ class SchedulesTab(QWidget):
                 is_super_user=(current_trainer['role'] == 'super'),
                 delivery_mode=delivery_mode
             )
-            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}")
+            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
 
             # Add delivery data
             for unit_id, relay_widget in self.relay_unit_widgets.items():
@@ -249,6 +249,7 @@ class SchedulesTab(QWidget):
                     continue
 
                 if delivery_mode == 'instant':
+                    print(f"save_current_schedule: adding instant deliveries for unit {unit_id}")
                     for delivery in relay_data['delivery_schedule']:
                         schedule.add_instant_delivery(
                             relay_data['animals'][0].animal_id,
