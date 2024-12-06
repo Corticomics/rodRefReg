@@ -240,7 +240,7 @@ class SchedulesTab(QWidget):
                 is_super_user=(current_trainer['role'] == 'super'),
                 delivery_mode=delivery_mode
             )
-            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
+
 
             # Add delivery data
             for unit_id, relay_widget in self.relay_unit_widgets.items():
@@ -262,6 +262,7 @@ class SchedulesTab(QWidget):
                     schedule.desired_water_outputs.update(relay_data['desired_water_output'])
 
             # Save schedule to database
+            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
             self.database_handler.add_schedule(schedule)
             QMessageBox.information(self, "Success", "Schedule saved successfully!")
             self.load_schedules()
