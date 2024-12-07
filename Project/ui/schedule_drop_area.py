@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QTableWidgetItem
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QTableWidgetItem, QPushButton, QHBoxLayout
 from PyQt5.QtCore import Qt, pyqtSignal
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
@@ -33,8 +33,31 @@ class ScheduleDropArea(QWidget):
         self.placeholder.setAlignment(Qt.AlignCenter)
         self.placeholder.setStyleSheet("border: none; background: none;")
         
+        # Close button
+        self.close_button = QPushButton("×")
+        self.close_button.setFixedSize(20, 20)
+        self.close_button.clicked.connect(self.clear)
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ff4d4d;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #ff0000;
+            }
+        """)
+        self.close_button.hide()  # Initially hidden
+        
+        # Create header layout for placeholder and close button
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(self.placeholder, stretch=1)
+        header_layout.addWidget(self.close_button)
+        
         drop_layout = QVBoxLayout()
-        drop_layout.addWidget(self.placeholder)
+        drop_layout.addLayout(header_layout)
         self.drop_widget.setLayout(drop_layout)
         
         # Schedule table (initially hidden)
@@ -80,6 +103,7 @@ class ScheduleDropArea(QWidget):
                 self.current_schedule.instant_deliveries = schedule_dict.get('instant_deliveries', [])
                 
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
+                self.close_button.show()  # Show close button
                 event.acceptProposedAction()
                 
                 self.mode_changed.emit(self.current_schedule.delivery_mode.capitalize())
@@ -94,6 +118,7 @@ class ScheduleDropArea(QWidget):
         elif data.hasText():
             schedule_name = data.text()
             self.placeholder.setText(f"Schedule: {schedule_name}")
+            self.close_button.show()  # Show close button
             event.acceptProposedAction()
     
     def clear(self):
@@ -102,6 +127,7 @@ class ScheduleDropArea(QWidget):
         self.schedule_table.hide()
         self.schedule_table.setRowCount(0)
         self.drop_widget.show()
+        self.close_button.hide()  # Hide close button
     
     def handle_schedule_drop(self, schedule):
         """Handle schedule drops from any source"""
