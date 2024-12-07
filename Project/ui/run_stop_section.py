@@ -222,7 +222,9 @@ class RunStopSection(QWidget):
                     return
                 
                 # Get earliest and latest delivery times from schedule
-                delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
+                delivery_times = [QDateTime.fromString(d['datetime'].strftime("%Y-%m-%d %H:%M:%S"), 
+                                                     "yyyy-MM-dd HH:mm:ss") 
+                                for d in schedule.instant_deliveries]
                 window_start = min(delivery_times).toSecsSinceEpoch()
                 window_end = max(delivery_times).toSecsSinceEpoch()
             
