@@ -161,3 +161,9 @@ class ScheduleDropArea(QWidget):
                 self.schedule_table.setItem(row, 3, QTableWidgetItem(first_time.strftime("%Y-%m-%d %H:%M:%S")))
                 self.schedule_table.setItem(row, 4, QTableWidgetItem(last_time.strftime("%Y-%m-%d %H:%M:%S")))
     
+    def get_mode(self):
+        """Get the current schedule's delivery mode"""
+        if self.current_schedule:
+            return self.current_schedule.delivery_mode.capitalize()
+        return "Staggered"  # Default mode
+    
