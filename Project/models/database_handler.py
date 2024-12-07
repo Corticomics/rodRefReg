@@ -244,22 +244,23 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # First get basic schedule info
+                # First get basic schedule info including delivery_mode
                 cursor.execute('''
-                    SELECT s.relay_unit_id, s.delivery_mode, s.water_volume, s.start_time, s.end_time 
-                    FROM schedules s WHERE s.schedule_id = ?
+                    SELECT s.*, ru.relay_ids 
+                    FROM schedules s 
+                    JOIN relay_units ru ON s.relay_unit_id = ru.relay_unit_id 
+                    WHERE s.schedule_id = ?
                 ''', (schedule_id,))
                 schedule_row = cursor.fetchone()
                 if not schedule_row:
                     return []
 
-                relay_unit_id, delivery_mode, water_volume, start_time, end_time = schedule_row
                 result = {
-                    'relay_unit_id': relay_unit_id,
-                    'delivery_mode': delivery_mode,
-                    'water_volume': water_volume,
-                    'start_time': start_time,
-                    'end_time': end_time
+                    'relay_unit_id': schedule_row[2],  # relay_unit_id
+                    'delivery_mode': schedule_row[8],  # delivery_mode
+                    'water_volume': schedule_row[3],   # water_volume
+                    'start_time': schedule_row[4],     # start_time
+                    'end_time': schedule_row[5],       # end_time
                 }
 
                 # Get assigned animals
@@ -269,14 +270,14 @@ class DatabaseHandler:
                 ''', (schedule_id,))
                 result['animal_ids'] = [row[0] for row in cursor.fetchall()]
                 
-                if delivery_mode == 'instant':
+                if result['delivery_mode'] == 'instant':
                     cursor.execute('''
                         SELECT animal_id, delivery_datetime, water_volume
                         FROM schedule_instant_deliveries
                         WHERE schedule_id = ?
                         ORDER BY delivery_datetime
                     ''', (schedule_id,))
-                    result['deliveries'] = [
+                    result['delivery_schedule'] = [
                         {
                             'animal_id': row[0],
                             'datetime': row[1],
@@ -284,7 +285,6 @@ class DatabaseHandler:
                         } for row in cursor.fetchall()
                     ]
                 else:
-                    # Get desired water outputs for staggered mode
                     cursor.execute('''
                         SELECT animal_id, desired_output 
                         FROM schedule_desired_outputs 
@@ -346,7 +346,12 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT schedule_id, name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user FROM schedules')
+                cursor.execute('''
+                    SELECT schedule_id, name, relay_unit_id, water_volume, 
+                           start_time, end_time, created_by, is_super_user, 
+                           delivery_mode
+                    FROM schedules
+                ''')
                 rows = cursor.fetchall()
                 for row in rows:
                     schedule = Schedule(
@@ -357,14 +362,43 @@ class DatabaseHandler:
                         start_time=row[4],
                         end_time=row[5],
                         created_by=row[6],
-                        is_super_user=row[7]
+                        is_super_user=row[7],
+                        delivery_mode=row[8]  # Add delivery_mode
                     )
-                    # Retrieve associated animals
-                    cursor.execute('SELECT animal_id FROM schedule_animals WHERE schedule_id = ?', (schedule.schedule_id,))
-                    animal_rows = cursor.fetchall()
-                    schedule.animals = [animal_id for (animal_id,) in animal_rows]
+                    
+                    # Get associated data based on delivery mode
+                    if schedule.delivery_mode == 'instant':
+                        cursor.execute('''
+                            SELECT animal_id, delivery_datetime, water_volume
+                            FROM schedule_instant_deliveries 
+                            WHERE schedule_id = ?
+                        ''', (schedule.schedule_id,))
+                        schedule.instant_deliveries = [
+                            {
+                                'animal_id': row[0],
+                                'datetime': row[1],
+                                'volume': row[2]
+                            } for row in cursor.fetchall()
+                        ]
+                    else:
+                        # Get animals and desired outputs for staggered mode
+                        cursor.execute('''
+                            SELECT animal_id FROM schedule_animals 
+                            WHERE schedule_id = ?
+                        ''', (schedule.schedule_id,))
+                        schedule.animals = [animal_id for (animal_id,) in cursor.fetchall()]
+                        
+                        cursor.execute('''
+                            SELECT animal_id, desired_output 
+                            FROM schedule_desired_outputs 
+                            WHERE schedule_id = ?
+                        ''', (schedule.schedule_id,))
+                        schedule.desired_water_outputs = {
+                            str(row[0]): row[1] for row in cursor.fetchall()
+                        }
+                    
                     schedules.append(schedule)
-            return schedules
+                return schedules
         except sqlite3.Error as e:
             print(f"Error retrieving all schedules: {e}")
             traceback.print_exc()
