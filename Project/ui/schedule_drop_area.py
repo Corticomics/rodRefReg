@@ -137,7 +137,7 @@ class ScheduleDropArea(QWidget):
                         'total_volume': 0
                     }
                 animal_deliveries[animal_id]['deliveries'].append({
-                    'datetime': datetime.fromisoformat(datetime_str),
+                    'datetime': datetime.datetime.fromisoformat(datetime_str),
                     'volume': volume
                 })
                 animal_deliveries[animal_id]['total_volume'] += volume
