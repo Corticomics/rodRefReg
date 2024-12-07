@@ -818,15 +818,17 @@ class DatabaseHandler:
             return None
 
     def get_schedule_instant_deliveries(self, schedule_id):
-        """Get all instant deliveries for a schedule"""
+        """Get all instant deliveries for a schedule with animal details"""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT animal_id, delivery_datetime, water_volume, completed
-                    FROM schedule_instant_deliveries
-                    WHERE schedule_id = ?
-                    ORDER BY delivery_datetime
+                    SELECT sid.animal_id, a.lab_animal_id, a.name, 
+                           sid.delivery_datetime, sid.water_volume, sid.completed
+                    FROM schedule_instant_deliveries sid
+                    JOIN animals a ON sid.animal_id = a.animal_id
+                    WHERE sid.schedule_id = ?
+                    ORDER BY sid.delivery_datetime
                 ''', (schedule_id,))
                 return cursor.fetchall()
         except sqlite3.Error as e:

@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox
 from PyQt5.QtCore import Qt
 
 class ScheduleTable(QTableWidget):
@@ -6,12 +6,13 @@ class ScheduleTable(QTableWidget):
         super().__init__(parent)
         self.setColumnCount(5)
         self.setHorizontalHeaderLabels([
-            "Animal ID", 
-            "Name", 
-            "Volume (mL)", 
-            "Start Time", 
+            "Lab ID",
+            "Name",
+            "Volume (mL)",
+            "Start Time",
             "End Time"
         ])
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         
         # Style and behavior
         self.setAlternatingRowColors(True)

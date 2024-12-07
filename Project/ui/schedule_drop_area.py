@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QComboBox, QTableWidge
 from PyQt5.QtCore import Qt, pyqtSignal
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
+import datetime
 
 class ScheduleDropArea(QWidget):
 
@@ -116,19 +117,43 @@ class ScheduleDropArea(QWidget):
         """Update the table with schedule information"""
         self.schedule_table.setRowCount(0)  # Clear existing rows
         
-        if schedule.delivery_mode.lower() == 'staggered':
-            for i, animal_id in enumerate(schedule.animals):
-                self.schedule_table.insertRow(i)
-                self.schedule_table.setItem(i, 0, QTableWidgetItem(str(animal_id)))
-                self.schedule_table.setItem(i, 2, QTableWidgetItem(
-                    str(schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume))
-                ))
-                self.schedule_table.setItem(i, 3, QTableWidgetItem(schedule.start_time))
-                self.schedule_table.setItem(i, 4, QTableWidgetItem(schedule.end_time))
-        else:
-            for i, delivery in enumerate(schedule.instant_deliveries):
-                self.schedule_table.insertRow(i)
-                self.schedule_table.setItem(i, 0, QTableWidgetItem(str(delivery['animal_id'])))
-                self.schedule_table.setItem(i, 2, QTableWidgetItem(str(delivery['volume'])))
-                self.schedule_table.setItem(i, 3, QTableWidgetItem(str(delivery['datetime'])))
+        if schedule.delivery_mode.lower() == 'instant':
+            # Group deliveries by animal
+            animal_deliveries = {}
+            latest_time = None
+            
+            deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
+            for delivery in deliveries:
+                animal_id, lab_id, name, datetime_str, volume, completed = delivery
+                if animal_id not in animal_deliveries:
+                    animal_deliveries[animal_id] = {
+                        'lab_id': lab_id,
+                        'name': name,
+                        'deliveries': [],
+                        'total_volume': 0
+                    }
+                animal_deliveries[animal_id]['deliveries'].append({
+                    'datetime': datetime.fromisoformat(datetime_str),
+                    'volume': volume
+                })
+                animal_deliveries[animal_id]['total_volume'] += volume
+            
+            # Add rows for each animal
+            for animal_id, data in animal_deliveries.items():
+                row = self.schedule_table.rowCount()
+                self.schedule_table.insertRow(row)
+                
+                # Animal Lab ID and Name
+                self.schedule_table.setItem(row, 0, QTableWidgetItem(data['lab_id']))
+                self.schedule_table.setItem(row, 1, QTableWidgetItem(data['name']))
+                
+                # Total Volume
+                self.schedule_table.setItem(row, 2, QTableWidgetItem(f"{data['total_volume']:.1f}"))
+                
+                # First and Last Delivery Times
+                first_time = min(d['datetime'] for d in data['deliveries'])
+                last_time = max(d['datetime'] for d in data['deliveries'])
+                
+                self.schedule_table.setItem(row, 3, QTableWidgetItem(first_time.strftime("%Y-%m-%d %H:%M:%S")))
+                self.schedule_table.setItem(row, 4, QTableWidgetItem(last_time.strftime("%Y-%m-%d %H:%M:%S")))
     
