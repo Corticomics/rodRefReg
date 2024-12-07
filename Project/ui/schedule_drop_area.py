@@ -50,8 +50,9 @@ class ScheduleDropArea(QWidget):
         self.setAcceptDrops(True)
         self.current_schedule = None
         
-        # Enable double-click handling
+        # Enable double-click handling for both widgets
         self.drop_widget.mouseDoubleClickEvent = self.double_click_event
+        self.schedule_table.mouseDoubleClickEvent = self.double_click_event
         
     def dragEnterEvent(self, event):
         mime_data = event.mimeData()
