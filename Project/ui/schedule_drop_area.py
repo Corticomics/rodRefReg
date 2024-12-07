@@ -3,6 +3,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
 import datetime
+from models.database_handler import DatabaseHandler
 
 class ScheduleDropArea(QWidget):
 
@@ -12,6 +13,9 @@ class ScheduleDropArea(QWidget):
         super().__init__(parent)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
+        
+        # Initialize database handler
+        self.database_handler = DatabaseHandler()
         
         # Drop area
         self.drop_widget = QWidget()
