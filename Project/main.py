@@ -66,11 +66,11 @@ def setup():
     # Initialize GUI components, including login system and database handler
     gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, database_handler=database_handler, login_system=login_system)
 
-def run_program(interval, stagger, window_start, window_end):
-    global thread, worker, notification_handler, controller  # Ensure global scope for controller
+def run_program(schedule, mode, window_start, window_end):
+    global thread, worker, notification_handler, controller
 
     try:
-        print(f"Running program with interval: {interval}, stagger: {stagger}, window_start: {window_start}, window_end: {window_end}")
+        print(f"Running program with schedule: {schedule.name}, mode: {mode}, window_start: {window_start}, window_end: {window_end}")
 
         # Reinitialize the thread and worker
         if thread is not None:
@@ -78,23 +78,36 @@ def run_program(interval, stagger, window_start, window_end):
             thread.wait()
         thread = QThread()
 
-        # Reinitialize NotificationHandler within the worker context
-        worker_notification_handler = NotificationHandler(settings.get('slack_token', 'SLACKTOKEN'), settings.get('channel_id', 'ChannelId'))
-
-        worker = RelayWorker(settings, relay_handler, worker_notification_handler)
+        # Create worker settings
+        worker_settings = {
+            'mode': mode,
+            'window_start': window_start,
+            'window_end': window_end
+        }
+        
+        if mode == "Instant":
+            worker_settings['delivery_instants'] = [
+                {
+                    'relay_unit_id': schedule.relay_unit_id,
+                    'delivery_time': delivery['datetime'].isoformat() if hasattr(delivery['datetime'], 'isoformat') else delivery['datetime'],
+                    'water_volume': delivery['volume']
+                }
+                for delivery in schedule.instant_deliveries
+            ]
+        
+        # Initialize worker with correct settings
+        worker = RelayWorker(worker_settings, relay_handler, notification_handler)
         worker.moveToThread(thread)
 
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup, Qt.QueuedConnection)  # Ensure cleanup runs in the main thread
+        worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
-
         worker.progress.connect(lambda message: print(message))
 
-        # Start the worker thread
-        thread.started.connect(worker.run_cycle)  # This starts the run_cycle method when the thread starts
-        thread.start()  # Start the QThread itself
+        thread.started.connect(worker.run_cycle)
+        thread.start()
 
         print("Program Started")
     except Exception as e:

@@ -36,11 +36,12 @@ class ScheduleController(QObject):
             }
             
             if mode == "Instant":
-                # Use schedule's instant delivery times
+                # Use schedule's instant delivery times and ensure datetime objects
                 worker_settings['delivery_instants'] = [
                     {
                         'relay_unit_id': schedule.relay_unit_id,
-                        'delivery_time': delivery['datetime'],
+                        'delivery_time': delivery['datetime'] if isinstance(delivery['datetime'], datetime) 
+                                       else datetime.fromisoformat(delivery['datetime']),
                         'water_volume': delivery['volume']
                     }
                     for delivery in schedule.instant_deliveries
