@@ -7,11 +7,12 @@ class DeliveryQueueController(QObject):
     delivery_complete = pyqtSignal(dict)
     queue_updated = pyqtSignal()
     
-    def __init__(self, pump_controller, database_handler, relay_handler):
+    def __init__(self, pump_controller, database_handler, relay_handler, volume_calculator):
         super().__init__()
         self.pump_controller = pump_controller
         self.database_handler = database_handler
         self.relay_handler = relay_handler
+        self.volume_calculator = volume_calculator
         self.delivery_queue = []  # Priority queue
         self.active_deliveries = set()  # Track active relay units
         self.check_timer = QTimer()
@@ -39,6 +40,7 @@ class DeliveryQueueController(QObject):
                     'relay_unit_id': delivery['relay_unit_id'],
                     'delivery_time': delivery['datetime'],
                     'water_volume': delivery['volume'],
+                    'num_triggers': self.volume_calculator.calculate_triggers(delivery['volume']),
                     'priority': 1
                 }
                 heapq.heappush(self.delivery_queue, (self.sort_queue_entry(entry), entry))
@@ -75,28 +77,27 @@ class DeliveryQueueController(QObject):
                 instant['animal_id']
             )
             
+            # Get number of triggers from the instant or calculate if not present
+            num_triggers = instant.get('num_triggers', 
+                self.volume_calculator.calculate_triggers(instant['water_volume']))
+            
             success = await self.pump_controller.dispense_water(
                 relay_unit,
-                instant['water_volume']
+                instant['water_volume'],
+                num_triggers
             )
             
             if success:
                 await self.database_handler.mark_instant_completed(
-                    instant['instant_id']
+                    instant['instant_id'],
+                    instant['water_volume']  # Pass actual volume dispensed
                 )
                 self.delivery_status.emit(
-                    f"Delivered {instant['water_volume']}mL to animal {instant['animal_id']}"
+                    f"Delivered {instant['water_volume']}mL using {num_triggers} triggers"
                 )
             else:
-                # Requeue with small delay
-                heapq.heappush(
-                    self.delivery_queue,
-                    (
-                        datetime.now().timestamp() + 60,  # Retry in 1 minute
-                        instant['priority'],
-                        instant
-                    )
-                )
+                await self.requeue_instant(instant)
                 
         except Exception as e:
-            self.delivery_status.emit(f"Delivery error: {str(e)}") 
+            self.delivery_status.emit(f"Delivery error: {str(e)}")
+        

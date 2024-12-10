@@ -32,7 +32,7 @@ class RelayWorker(QObject):
         self.settings = settings
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
-        self._is_running = True
+        self._is_running = False
         self.mutex = QMutex()
         self.main_timer = QTimer(self)
         self.timers = []  # Keep track of active timers
@@ -127,15 +127,17 @@ class RelayWorker(QObject):
             if not self._is_running:
                 return
                 
-        relay_info = self.relay_handler.trigger_relays(
-            [relay_unit_id],
-            {str(relay_unit_id): 1},
-            self.settings.get('stagger', 5)
-        )
-        
-        msg = f"Delivered {water_volume}mL using relay unit {relay_unit_id}"
-        self.progress.emit(msg)
-        self.notification_handler.send_slack_notification(msg)
+            num_triggers = self.settings.get('num_triggers', {}).get(
+                str(relay_unit_id), 
+                self.settings['base_triggers']
+            )
+            
+            relay_info = self.relay_handler.trigger_relays(
+                [relay_unit_id],
+                {str(relay_unit_id): num_triggers},
+                self.settings.get('stagger', 5)
+            )
+            return relay_info
 
     def stop(self):
         with QMutexLocker(self.mutex):

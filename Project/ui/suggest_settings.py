@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QListWidget, QInpu
 from .SuggestSettingsTab import SuggestSettingsTab
 from .SlackCredentialsTab import SlackCredentialsTab
 from .UserTab import UserTab
+from .SettingsTab import SettingsTab
 
 SAVED_SETTINGS_DIR = "saved_settings"
 
@@ -36,9 +37,9 @@ class SuggestSettingsSection(QWidget):
         self.create_dashboard_ui()
         self.tab_widget.addTab(self.dashboard_tab, "Dashboard")
 
-        # Slack Credentials Tab
-        self.slack_tab = SlackCredentialsTab(self.settings, self.save_callback)
-        self.tab_widget.addTab(self.slack_tab, "Slack Bot")
+        # Settings Tab
+        self.settings_tab = SettingsTab(self.settings, self.save_callback)
+        self.tab_widget.addTab(self.settings_tab, "Settings")
 
         # User/Profile Tab
         self.user_tab = UserTab(login_system)

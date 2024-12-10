@@ -13,6 +13,7 @@ from .projects_section import ProjectsSection
 from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
+from utils.volume_calculator import VolumeCalculator
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
@@ -317,9 +318,15 @@ class RodentRefreshmentGUI(QWidget):
             self.run_stop_section.interval_input.setText("86400")  # Assume daily for example
             self.run_stop_section.stagger_input.setText("5")
 
-            # Assuming advanced_settings is properly initialized
+            # Calculate triggers based on volumes
+            volume_calculator = VolumeCalculator(self.settings)
+            calculated_triggers = {
+                pair: volume_calculator.calculate_triggers(vol) 
+                for pair, vol in settings["relay_volumes"].items()
+            }
+            
             if hasattr(self, 'advanced_settings') and self.advanced_settings:
-                self.advanced_settings.update_triggers({pair: int(vol * 2) for pair, vol in settings["relay_volumes"].items()})
+                self.advanced_settings.update_triggers(calculated_triggers)
             self.print_to_terminal("Settings applied successfully.")
 
         except Exception as e:

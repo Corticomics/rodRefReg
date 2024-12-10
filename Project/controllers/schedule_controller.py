@@ -2,6 +2,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 from datetime import datetime
 import asyncio
 from gpio.relay_worker import RelayWorker
+from utils.volume_calculator import VolumeCalculator
 
 class ScheduleController(QObject):
     """
@@ -11,7 +12,7 @@ class ScheduleController(QObject):
     schedule_status = pyqtSignal(str)
     schedule_complete = pyqtSignal(dict)
     
-    def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller):
+    def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller, settings):
         super().__init__()
         self.pump_controller = pump_controller
         self.database_handler = database_handler
@@ -21,28 +22,32 @@ class ScheduleController(QObject):
         self.active_schedules = {}
         self.workers = {}  # Store active RelayWorkers
         self.worker_threads = {}  # Store worker threads
+        self.volume_calculator = VolumeCalculator(settings)
         
     async def start_schedule(self, schedule, mode, window_start, window_end):
         """Start executing a schedule in specified mode"""
         try:
             schedule_id = schedule.schedule_id
             
-            # Create base worker settings
+            # Calculate base water volume and triggers
+            base_volume = schedule.water_volume
+            base_triggers = self.volume_calculator.calculate_triggers(base_volume)
+            
             worker_settings = {
                 'mode': mode,
                 'window_start': window_start,
                 'window_end': window_end,
+                'base_triggers': base_triggers,
                 'num_triggers': {}
             }
             
             if mode == "Instant":
-                # Use schedule's instant delivery times and ensure datetime objects
                 worker_settings['delivery_instants'] = [
                     {
                         'relay_unit_id': schedule.relay_unit_id,
-                        'delivery_time': delivery['datetime'] if isinstance(delivery['datetime'], datetime) 
-                                       else datetime.fromisoformat(delivery['datetime']),
-                        'water_volume': delivery['volume']
+                        'delivery_time': delivery['datetime'],
+                        'water_volume': delivery['volume'],
+                        'num_triggers': self.volume_calculator.calculate_triggers(delivery['volume'])
                     }
                     for delivery in schedule.instant_deliveries
                 ]
