@@ -65,7 +65,6 @@ class ScheduleDropArea(QWidget):
             try:
                 schedule_data = data.data('application/x-schedule')
                 schedule_dict = eval(bytes(schedule_data).decode())
-                print(schedule_dict)
                 
                 # Create a new Schedule instance
                 self.current_schedule = Schedule(
@@ -83,7 +82,13 @@ class ScheduleDropArea(QWidget):
                 # Set additional properties
                 self.current_schedule.animals = schedule_dict.get('animals', [])
                 self.current_schedule.desired_water_outputs = schedule_dict.get('desired_water_outputs', {})
-                self.current_schedule.instant_deliveries = schedule_dict.get('instant_deliveries', [])
+                
+                # Convert instant deliveries datetime strings to datetime objects
+                instant_deliveries = schedule_dict.get('instant_deliveries', [])
+                for delivery in instant_deliveries:
+                    if isinstance(delivery['datetime'], str):
+                        delivery['datetime'] = datetime.datetime.fromisoformat(delivery['datetime'])
+                self.current_schedule.instant_deliveries = instant_deliveries
                 
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
                 event.acceptProposedAction()
