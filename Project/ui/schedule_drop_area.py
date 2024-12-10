@@ -65,6 +65,7 @@ class ScheduleDropArea(QWidget):
             try:
                 schedule_data = data.data('application/x-schedule')
                 schedule_dict = eval(bytes(schedule_data).decode())
+                print(schedule_dict)
                 
                 # Create a new Schedule instance
                 self.current_schedule = Schedule(
