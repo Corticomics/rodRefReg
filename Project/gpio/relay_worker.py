@@ -37,10 +37,14 @@ class RelayWorker(QObject):
         self.main_timer = QTimer(self)
         self.timers = []  # Keep track of active timers
         self.delivery_instants = settings.get('delivery_instants', [])
-        self.mode = settings.get('mode', 'instant')  # 'instant' or 'staggered'
+        self.mode = settings.get('mode', 'instant').lower()
         
     @pyqtSlot()
     def run_cycle(self):
+        """Main entry point for starting the worker"""
+        self._is_running = True  # Set to True when we actually start
+        self.progress.emit(f"Starting {self.mode} cycle")
+        
         if self.mode == 'instant':
             self.run_instant_cycle()
         else:
@@ -49,30 +53,48 @@ class RelayWorker(QObject):
     def run_instant_cycle(self):
         """Handle precise time-based deliveries"""
         with QMutexLocker(self.mutex):
-            if not self._is_running or not self.delivery_instants:
+            if not self.delivery_instants:
+                self.progress.emit("No delivery instants configured")
                 self.finished.emit()
                 return
 
         current_time = datetime.now()
+        scheduled_count = 0
+        
+        self.progress.emit(f"Processing {len(self.delivery_instants)} deliveries")
+        
         for instant in self.delivery_instants:
-            delivery_time = datetime.fromisoformat(instant['delivery_time'])
-            if delivery_time > current_time:
-                delay = (delivery_time - current_time).total_seconds() * 1000
-                timer = QTimer(self)
-                timer.setSingleShot(True)
-                timer.timeout.connect(
-                    lambda i=instant: self.trigger_relay(
-                        i['relay_unit_id'],
-                        i['water_volume']
+            try:
+                delivery_time = datetime.fromisoformat(instant['delivery_time'])
+                self.progress.emit(f"Processing delivery time: {delivery_time}")
+                
+                if delivery_time > current_time:
+                    delay = (delivery_time - current_time).total_seconds() * 1000
+                    self.progress.emit(f"Scheduling delivery in {delay/1000:.2f} seconds")
+                    
+                    timer = QTimer(self)
+                    timer.setSingleShot(True)
+                    timer.timeout.connect(
+                        lambda i=instant: self.trigger_relay(
+                            i['relay_unit_id'],
+                            i['water_volume']
+                        )
                     )
-                )
-                timer.start(int(delay))
-                self.timers.append(timer)
-                self.progress.emit(
-                    f"Scheduled instant delivery for relay unit {instant['relay_unit_id']} "
-                    f"at {delivery_time.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-        self.check_completion()
+                    timer.start(int(delay))
+                    self.timers.append(timer)
+                    scheduled_count += 1
+                else:
+                    self.progress.emit(f"Skipping past delivery time: {delivery_time}")
+            except Exception as e:
+                self.progress.emit(f"Error scheduling delivery: {str(e)}")
+
+        if scheduled_count == 0:
+            self.progress.emit("No future deliveries to schedule")
+            self.finished.emit()
+        else:
+            self.progress.emit(f"Scheduled {scheduled_count} deliveries")
+            # Start the completion checker
+            self.check_completion()
 
     def run_staggered_cycle(self):
         """Handle staggered deliveries within time window"""
