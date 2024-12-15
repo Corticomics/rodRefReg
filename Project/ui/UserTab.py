@@ -27,7 +27,15 @@ class UserTab(QWidget):
         self.layout.setContentsMargins(40, 40, 40, 40)
         self.setLayout(self.layout)
 
-        # Info label with modern typography and subtle animation
+        # Create input fields first
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Enter username")
+        
+        self.password_input = QLineEdit()
+        self.password_input.setPlaceholderText("Enter password")
+        self.password_input.setEchoMode(QLineEdit.Password)
+
+        # Info label with modern typography
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setFont(QFont("Segoe UI", 14, QFont.Medium))
@@ -41,7 +49,7 @@ class UserTab(QWidget):
         """)
         self.layout.addWidget(self.info_label)
 
-        # Login form container with card-like appearance
+        # Login form container
         self.login_container = QFrame()
         self.login_container.setFrameStyle(QFrame.NoFrame)
         self.login_container.setStyleSheet("""
@@ -50,8 +58,6 @@ class UserTab(QWidget):
                 border-radius: 16px;
                 padding: 24px;
                 margin: 8px;
-            }
-            QFrame {
                 border: 1px solid #e0e4e8;
                 box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
             }
@@ -62,12 +68,12 @@ class UserTab(QWidget):
         form_layout.setSpacing(16)
         form_layout.setContentsMargins(24, 24, 24, 24)
 
-        # Style input fields and labels
+        # Add form fields
         self._setup_form_fields(form_layout)
         
         self.layout.addWidget(self.login_container)
         
-        # Buttons with modern styling
+        # Create and add buttons
         self._setup_buttons()
         self.layout.addStretch()
 
