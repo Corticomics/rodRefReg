@@ -40,6 +40,7 @@ class DeliveryQueueController(QObject):
                     'relay_unit_id': delivery['relay_unit_id'],
                     'delivery_time': delivery['datetime'],
                     'water_volume': delivery['volume'],
+                    'num_triggers': self.volume_calculator.calculate_triggers(delivery['volume']),
                     'priority': 1
                 }
                 heapq.heappush(self.delivery_queue, (self.sort_queue_entry(entry), entry))
@@ -99,19 +100,4 @@ class DeliveryQueueController(QObject):
                 
         except Exception as e:
             self.delivery_status.emit(f"Delivery error: {str(e)}")
-        
-    def recalculate_queue_triggers(self):
-        """Recalculate triggers for queued deliveries after pump config change"""
-        updated_queue = []
-        
-        while self.delivery_queue:
-            _, instant = heapq.heappop(self.delivery_queue)
-            # Recalculate triggers with new pump configuration
-            instant['num_triggers'] = self.volume_calculator.calculate_triggers(
-                instant['water_volume']
-            )
-            heapq.heappush(updated_queue, (self.sort_queue_entry(instant), instant))
-        
-        self.delivery_queue = updated_queue
-        self.queue_updated.emit()
         

@@ -11,14 +11,14 @@ from .SettingsTab import SettingsTab
 SAVED_SETTINGS_DIR = "saved_settings"
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, login_system, volume_calculator):
+    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, login_system, load_callback=None):
         super().__init__()
 
         self.settings = settings
         self.advanced_settings = advanced_settings
         self.run_stop_section = run_stop_section
         self.save_callback = save_slack_credentials_callback
-        self.volume_calculator = volume_calculator
+        self.load_callback = load_callback
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -38,13 +38,7 @@ class SuggestSettingsSection(QWidget):
         self.tab_widget.addTab(self.dashboard_tab, "Dashboard")
 
         # Settings Tab
-        self.settings_tab = SettingsTab(
-            self.settings, 
-            self.save_callback, 
-            self.volume_calculator,
-            login_system,
-            self.volume_calculator
-        )
+        self.settings_tab = SettingsTab(self.settings, self.save_callback)
         self.tab_widget.addTab(self.settings_tab, "Settings")
 
         # User/Profile Tab

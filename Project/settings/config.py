@@ -41,23 +41,3 @@ def create_relay_pairs(num_hats):
         for i in range(0, 16, 2):
             relay_pairs.append((start_relay + i, start_relay + i + 1))
     return relay_pairs
-
-def migrate_pump_config_to_database(settings, database_handler):
-    """One-time migration of pump config from settings file to database"""
-    try:
-        if 'pump_volume_ul' in settings or 'calibration_factor' in settings:
-            config_id = database_handler.update_pump_config(
-                settings.get('pump_volume_ul', 50),
-                settings.get('calibration_factor', 1.0),
-                1  # Default admin ID
-            )
-            
-            # Remove from settings file
-            settings.pop('pump_volume_ul', None)
-            settings.pop('calibration_factor', None)
-            save_settings(settings)
-            
-            return config_id
-    except Exception as e:
-        print(f"Error migrating pump config: {e}")
-        return None

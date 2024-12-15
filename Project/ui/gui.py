@@ -38,12 +38,6 @@ class RodentRefreshmentGUI(QWidget):
         # Initialize the UI with the selected style
         self.init_ui(style)
 
-        # Initialize VolumeCalculator with database handler
-        self.volume_calculator = VolumeCalculator(database_handler)
-
-        # Connect pump configuration update signal
-        self.suggest_settings_section.settings_tab.pump_config_saved.connect(self.handle_pump_config_update)
-
     def init_ui(self, style):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
@@ -148,8 +142,7 @@ class RodentRefreshmentGUI(QWidget):
             self.save_slack_credentials_callback,
             advanced_settings=None,
             run_stop_section=self.run_stop_section,
-            login_system=self.login_system,
-            volume_calculator=self.volume_calculator
+            login_system=self.login_system
         )
         
         # Add widgets to right layout with stretch
@@ -287,28 +280,27 @@ class RodentRefreshmentGUI(QWidget):
         """Callback for suggesting settings based on user input."""
         values = self.suggest_settings_section.suggest_tab.entries
         try:
-            # Parse relay pairs and volumes
+            # Parse relay pairs and volumes, frequency, duration
             relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]
-            relay_volumes = {}
-            suggestion_text = "Suggested Settings:\n"
-            
-            for pair in relay_pairs:
-                volume_key = f"relay_{pair[0]}_{pair[1]}"
-                if volume_key in values:
-                    volume_ml = float(values[volume_key].text())
-                    triggers = self.volume_calculator.calculate_triggers(volume_ml)
-                    relay_volumes[pair] = volume_ml
-                    suggestion_text += f"Relay pair {pair}: {volume_ml}mL ({triggers} triggers)\n"
-            
-            # Store suggested settings
+            relay_volumes = {pair: float(values[f"relay_{pair[0]}_{pair[1]}"].text()) for pair in relay_pairs}
+            frequency = int(values["frequency"].text())
+            duration = int(values["duration"].text())
+            start_datetime = values["start_datetime"].dateTime()
+
+            # Store the suggested settings
             self.suggested_settings = {
-                "start_datetime": values["start_datetime"].dateTime(),
-                "duration": int(values["duration"].text()),
-                "relay_volumes": relay_volumes
+                "start_datetime": start_datetime,
+                "duration": duration,
+                "relay_volumes": relay_volumes,
+                "frequency": frequency
             }
-            
+
+            # Print suggestions to terminal
+            suggestion_text = f"Suggested Settings:\nStart: {start_datetime.toString()}\nFrequency: {frequency}\nDuration: {duration}\n"
+            for pair, volume in relay_volumes.items():
+                suggestion_text += f"Volume for Relays {pair}: {volume} mL\n"
             self.print_to_terminal(suggestion_text)
-            
+
         except Exception as e:
             self.print_to_terminal(f"Error generating suggestions: {e}")
 
@@ -350,26 +342,3 @@ class RodentRefreshmentGUI(QWidget):
         global notification_handler
         notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
         self.print_to_terminal("Slack credentials saved and NotificationHandler updated.")
-
-    def handle_pump_config_update(self, new_config):
-        """Handle pump configuration updates"""
-        try:
-            # Update VolumeCalculator
-            self.volume_calculator.load_pump_config()
-            
-            # Update PumpController
-            self.pump_controller.load_pump_config()
-            
-            # Update DeliveryQueueController's VolumeCalculator
-            self.delivery_queue_controller.volume_calculator.load_pump_config()
-            
-            # Update ScheduleController's VolumeCalculator
-            self.schedule_controller.volume_calculator.load_pump_config()
-            
-            self.print_to_terminal(
-                f"Pump configuration updated - Volume: {new_config['pump_volume_ul']}µL, "
-                f"Calibration: {new_config['calibration_factor']}"
-            )
-            
-        except Exception as e:
-            self.print_to_terminal(f"Error updating pump configuration: {e}")

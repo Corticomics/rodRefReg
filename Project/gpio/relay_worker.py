@@ -1,7 +1,6 @@
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 from datetime import datetime
 import time
-import math
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
 
@@ -28,7 +27,7 @@ class RelayWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
 
-    def __init__(self, settings, relay_handler, notification_handler, database_handler):
+    def __init__(self, settings, relay_handler, notification_handler):
         super().__init__()
         self.settings = settings
         self.relay_handler = relay_handler
@@ -39,7 +38,6 @@ class RelayWorker(QObject):
         self.timers = []  # Keep track of active timers
         self.delivery_instants = settings.get('delivery_instants', [])
         self.mode = settings.get('mode', 'instant').lower()
-        self.database_handler = database_handler
         
     @pyqtSlot()
     def run_cycle(self):
@@ -150,14 +148,11 @@ class RelayWorker(QObject):
         with QMutexLocker(self.mutex):
             if not self._is_running:
                 return
-            
-            # Get pump configuration from database
-            pump_config = self.database_handler.get_active_pump_config()
-            
-            # Calculate triggers based on volume and pump config
-            volume_ul = water_volume * 1000  # Convert mL to µL
-            adjusted_volume = volume_ul * pump_config['calibration_factor']
-            num_triggers = math.ceil(adjusted_volume / pump_config['pump_volume_ul'])
+                
+            num_triggers = self.settings.get('num_triggers', {}).get(
+                str(relay_unit_id), 
+                self.settings['base_triggers']
+            )
             
             relay_info = self.relay_handler.trigger_relays(
                 [relay_unit_id],
