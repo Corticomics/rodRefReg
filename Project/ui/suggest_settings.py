@@ -42,7 +42,7 @@ class SuggestSettingsSection(QWidget):
         self.tab_widget.addTab(self.settings_tab, "Settings")
 
         # User/Profile Tab
-        self.user_tab = UserTab(login_system)
+        self.user_tab = UserTab(login_system, self.database_handler)
         self.user_tab.login_signal.connect(self.on_login)  # Handle login
         self.user_tab.logout_signal.connect(self.on_logout)  # Handle logout
         self.tab_widget.addTab(self.user_tab, "Profile")  # Initially "Profile" for guests

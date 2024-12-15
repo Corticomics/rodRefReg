@@ -13,9 +13,10 @@ class UserTab(QWidget):
     logout_signal = pyqtSignal()
     size_changed_signal = pyqtSignal()
 
-    def __init__(self, login_system):
+    def __init__(self, login_system, database_handler=None):
         super().__init__()
         self.login_system = login_system
+        self.database_handler = database_handler
         self.current_user = None
         self.init_ui()
 
@@ -219,8 +220,12 @@ class UserTab(QWidget):
             stats = [
                 ("Trainer ID", str(user_info.get('trainer_id', 'N/A'))),
                 ("Last Login", QDateTime.currentDateTime().toString("yyyy-MM-dd hh:mm")),
-                ("Active Animals", str(len(self.database_handler.get_animals(user_info['trainer_id']))))
             ]
+            
+            # Only add active animals stat if database_handler exists
+            if self.database_handler:
+                active_animals = len(self.database_handler.get_animals(user_info['trainer_id']))
+                stats.append(("Active Animals", str(active_animals)))
             
             for i, (label, value) in enumerate(stats):
                 stat_label = QLabel(label + ":")
