@@ -12,7 +12,7 @@ class ScheduleController(QObject):
     schedule_status = pyqtSignal(str)
     schedule_complete = pyqtSignal(dict)
     
-    def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller, settings):
+    def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller):
         super().__init__()
         self.pump_controller = pump_controller
         self.database_handler = database_handler
@@ -22,7 +22,7 @@ class ScheduleController(QObject):
         self.active_schedules = {}
         self.workers = {}  # Store active RelayWorkers
         self.worker_threads = {}  # Store worker threads
-        self.volume_calculator = VolumeCalculator(settings)
+        self.volume_calculator = VolumeCalculator(database_handler)
         
     async def start_schedule(self, schedule, mode, window_start, window_end):
         """Start executing a schedule in specified mode"""
@@ -76,7 +76,12 @@ class ScheduleController(QObject):
                         worker_settings['num_triggers'][str(relay_unit_id)] = 1
             
             # Create and start RelayWorker
-            worker = RelayWorker(worker_settings, self.relay_handler, self.notification_handler)
+            worker = RelayWorker(
+                worker_settings, 
+                self.relay_handler, 
+                self.notification_handler,
+                self.database_handler
+            )
             worker_thread = QThread()
             self.workers[schedule_id] = worker
             self.worker_threads[schedule_id] = worker_thread
@@ -136,3 +141,19 @@ class ScheduleController(QObject):
         """Stop all running schedules"""
         for schedule_id in list(self.workers.keys()):
             asyncio.create_task(self.pause_schedule(schedule_id))
+    
+    def update_worker_triggers(self):
+        """Update trigger calculations for active workers"""
+        for schedule_id, worker in self.workers.items():
+            schedule = self.active_schedules[schedule_id]['schedule']
+            
+            # Recalculate base triggers
+            base_triggers = self.volume_calculator.calculate_triggers(schedule.water_volume)
+            worker.settings['base_triggers'] = base_triggers
+            
+            # Update instant delivery triggers if applicable
+            if worker.settings['mode'] == "Instant":
+                for instant in worker.settings['delivery_instants']:
+                    instant['num_triggers'] = self.volume_calculator.calculate_triggers(
+                        instant['water_volume']
+                    )

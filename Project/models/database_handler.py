@@ -144,6 +144,34 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Create pump configurations table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS pump_configurations (
+                        config_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        pump_volume_ul INTEGER NOT NULL,
+                        calibration_factor REAL NOT NULL,
+                        active BOOLEAN DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT,
+                        updated_by INTEGER,
+                        FOREIGN KEY(updated_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+
+                # Create pump configuration history table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS pump_configuration_history (
+                        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        config_id INTEGER NOT NULL,
+                        pump_volume_ul INTEGER NOT NULL,
+                        calibration_factor REAL NOT NULL,
+                        changed_at TEXT NOT NULL,
+                        changed_by INTEGER,
+                        FOREIGN KEY(config_id) REFERENCES pump_configurations(config_id),
+                        FOREIGN KEY(changed_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+
                 conn.commit()
                 print("Database schema created/updated successfully.")
                 
@@ -835,3 +863,94 @@ class DatabaseHandler:
             print(f"Database error: {e}")
             traceback.print_exc()
             return []
+
+    def get_active_pump_config(self):
+        """Get the currently active pump configuration."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT config_id, pump_volume_ul, calibration_factor 
+                    FROM pump_configurations 
+                    WHERE active = 1 
+                    ORDER BY config_id DESC 
+                    LIMIT 1
+                ''')
+                result = cursor.fetchone()
+                
+                if result is None:
+                    # Create default configuration
+                    cursor.execute('''
+                        INSERT INTO pump_configurations 
+                        (pump_volume_ul, calibration_factor, created_at)
+                        VALUES (50, 1.0, datetime('now'))
+                    ''')
+                    conn.commit()
+                    return {
+                        'config_id': cursor.lastrowid,
+                        'pump_volume_ul': 50,
+                        'calibration_factor': 1.0
+                    }
+                
+                return {
+                    'config_id': result[0],
+                    'pump_volume_ul': result[1],
+                    'calibration_factor': result[2]
+                }
+                
+        except sqlite3.Error as e:
+            print(f"Database error getting pump configuration: {e}")
+            traceback.print_exc()
+            # Return defaults if database fails
+            return {
+                'config_id': None,
+                'pump_volume_ul': 50,
+                'calibration_factor': 1.0
+            }
+
+    def update_pump_config(self, pump_volume_ul, calibration_factor, trainer_id):
+        """Update pump configuration with validation."""
+        try:
+            # Validate inputs
+            if not isinstance(pump_volume_ul, (int, float)) or pump_volume_ul <= 0:
+                raise ValueError("Pump volume must be a positive number")
+            if not isinstance(calibration_factor, (int, float)) or calibration_factor <= 0:
+                raise ValueError("Calibration factor must be a positive number")
+            
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                
+                # Deactivate current configuration
+                cursor.execute('''
+                    UPDATE pump_configurations 
+                    SET active = 0, 
+                        updated_at = datetime('now')
+                    WHERE active = 1
+                ''')
+                
+                # Insert new configuration
+                cursor.execute('''
+                    INSERT INTO pump_configurations 
+                    (pump_volume_ul, calibration_factor, created_at, updated_by, active)
+                    VALUES (?, ?, datetime('now'), ?, 1)
+                ''', (pump_volume_ul, calibration_factor, trainer_id))
+                
+                new_config_id = cursor.lastrowid
+                
+                # Add to history
+                cursor.execute('''
+                    INSERT INTO pump_configuration_history 
+                    (config_id, pump_volume_ul, calibration_factor, changed_at, changed_by)
+                    VALUES (?, ?, ?, datetime('now'), ?)
+                ''', (new_config_id, pump_volume_ul, calibration_factor, trainer_id))
+                
+                conn.commit()
+                return new_config_id
+                
+        except sqlite3.Error as e:
+            print(f"Database error updating pump configuration: {e}")
+            traceback.print_exc()
+            raise
+        except ValueError as e:
+            print(f"Validation error: {e}")
+            raise
