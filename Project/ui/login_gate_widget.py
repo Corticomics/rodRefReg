@@ -74,8 +74,15 @@ class LoginGateWidget(QStackedWidget):
         return container
 
     def _show_login_dialog(self):
-        """Show the login dialog."""
-        self.login_system.show_login_dialog()
+        """Show the login tab in the suggest settings section."""
+        # Get the suggest settings section from the main window
+        main_window = self.window()  # Get the top-level window
+        if hasattr(main_window, 'suggest_settings_section'):
+            # Switch to the user tab
+            user_tab_index = main_window.suggest_settings_section.tab_widget.indexOf(
+                main_window.suggest_settings_section.user_tab
+            )
+            main_window.suggest_settings_section.tab_widget.setCurrentIndex(user_tab_index)
 
     def _handle_login_status(self):
         """Update the visible widget based on login status."""
