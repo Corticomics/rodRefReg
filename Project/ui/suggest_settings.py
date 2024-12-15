@@ -93,7 +93,7 @@ class SuggestSettingsSection(QWidget):
                     json.dump(current_settings, f, indent=4)
                 self.load_saved_settings()
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            print(f" settings: {e}")
             QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
 
     def load_saved_settings(self):

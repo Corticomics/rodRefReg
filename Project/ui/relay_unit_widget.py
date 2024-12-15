@@ -5,12 +5,15 @@ from PyQt5.QtWidgets import (
     QMessageBox, QLineEdit, QHBoxLayout, QPushButton, QDateTimeEdit,
     QScrollArea, QComboBox
 )
-from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime
+from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
 from models.animal import Animal
 from .available_animals_list import AvailableAnimalsList
 from datetime import datetime
 
 class WaterDeliverySlot(QWidget):
+    # Signal emitted when the slot is about to be deleted
+    slot_deleted = pyqtSignal(QWidget)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout()
@@ -30,12 +33,18 @@ class WaterDeliverySlot(QWidget):
         # Delete button
         self.delete_button = QPushButton("×")
         self.delete_button.setMaximumWidth(30)
-        self.delete_button.clicked.connect(self.deleteLater)
+        self.delete_button.clicked.connect(self.handle_delete)
         
         layout.addWidget(self.datetime_picker)
         layout.addWidget(self.volume_input)
         layout.addWidget(self.delete_button)
         self.setLayout(layout)
+
+    def handle_delete(self):
+        """Handle the deletion of the slot."""
+        # Emit the signal before deletion
+        self.slot_deleted.emit(self)
+        self.deleteLater()
 
 class RelayUnitWidget(QWidget):
     def __init__(self, relay_unit, database_handler, available_animals_list, pump_controller):
@@ -402,3 +411,10 @@ class RelayUnitWidget(QWidget):
                 slot = self.delivery_slots.pop()
                 slot.setParent(None)  # Remove parent reference
                 slot.deleteLater()  # Schedule for deletion
+
+    def on_slot_deleted(self, slot):
+        """Handle the deletion of a WaterDeliverySlot."""
+        if slot in self.delivery_slots:
+            self.delivery_slots.remove(slot)
+        else:
+            print("Attempted to remove a slot that was not in the delivery_slots list.")
