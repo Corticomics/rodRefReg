@@ -342,3 +342,24 @@ class UserTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
             print(f"Unexpected error in set_guest_view: {e}")
+
+    def _setup_buttons(self):
+        # Create buttons
+        self.login_button = self._create_button("Log In", "#1a73e8")
+        self.login_button.clicked.connect(self.handle_login)
+        
+        self.create_profile_button = self._create_button("Create New Profile", "#34a853")
+        self.create_profile_button.clicked.connect(self.handle_create_profile)
+        
+        self.logout_button = self._create_button("Log Out", "#ea4335")
+        self.logout_button.clicked.connect(self.logout)
+        self.logout_button.setVisible(False)
+        
+        # Add buttons to layout
+        buttons_layout = QGridLayout()
+        buttons_layout.setSpacing(12)
+        buttons_layout.addWidget(self.login_button, 0, 0)
+        buttons_layout.addWidget(self.create_profile_button, 0, 1)
+        buttons_layout.addWidget(self.logout_button, 1, 0, 1, 2)  # Span two columns
+        
+        self.layout.addLayout(buttons_layout)
