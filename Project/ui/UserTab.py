@@ -1,52 +1,142 @@
 # ui/user_tab.py
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSpacerItem, QSizePolicy, QInputDialog
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, 
+    QMessageBox, QFrame, QGridLayout, QSizePolicy
+)
+from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtGui import QFont
 import traceback
 
 class UserTab(QWidget):
     login_signal = pyqtSignal(dict)
     logout_signal = pyqtSignal()
-    size_changed_signal = pyqtSignal()  
+    size_changed_signal = pyqtSignal()
 
     def __init__(self, login_system):
         super().__init__()
         self.login_system = login_system
         self.current_user = None
+        self.init_ui()
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+    def init_ui(self):
+        # Main layout
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(30, 30, 30, 30)
+        self.setLayout(main_layout)
 
-        self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        # Info label with custom styling
         self.info_label = QLabel("You are running the application in Guest mode.")
-        self.layout.addWidget(self.info_label)
+        self.info_label.setAlignment(Qt.AlignCenter)
+        self.info_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.info_label.setStyleSheet("color: #2c3e50; padding: 10px;")
+        main_layout.addWidget(self.info_label)
 
+        # Login form container
+        login_container = QFrame()
+        login_container.setFrameStyle(QFrame.StyledPanel)
+        login_container.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                padding: 20px;
+            }
+        """)
+        
+        # Grid layout for form elements
+        form_layout = QGridLayout(login_container)
+        form_layout.setSpacing(10)
+
+        # Username field
+        username_label = QLabel("Username:")
+        username_label.setFont(QFont("Arial", 10))
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Enter username")
-        self.layout.addWidget(QLabel("Username:"))
-        self.layout.addWidget(self.username_input)
-
+        self.username_input.setStyleSheet(self._get_input_style())
+        
+        # Password field
+        password_label = QLabel("Password:")
+        password_label.setFont(QFont("Arial", 10))
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter password")
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.layout.addWidget(QLabel("Password:"))
-        self.layout.addWidget(self.password_input)
+        self.password_input.setStyleSheet(self._get_input_style())
 
-        self.login_button = QPushButton("Log In")
+        # Add form elements to grid
+        form_layout.addWidget(username_label, 0, 0)
+        form_layout.addWidget(self.username_input, 0, 1)
+        form_layout.addWidget(password_label, 1, 0)
+        form_layout.addWidget(self.password_input, 1, 1)
+
+        main_layout.addWidget(login_container)
+
+        # Buttons container
+        buttons_layout = QVBoxLayout()
+        buttons_layout.setSpacing(10)
+
+        # Style and create buttons
+        self.login_button = self._create_button("Log In", "#007bff")
+        self.create_profile_button = self._create_button("Create New Profile", "#28a745")
+        self.logout_button = self._create_button("Log Out", "#dc3545")
+        
         self.login_button.clicked.connect(self.handle_login)
-        self.layout.addWidget(self.login_button)
-
-        self.create_profile_button = QPushButton("Create New Profile")
         self.create_profile_button.clicked.connect(self.handle_create_profile)
-        self.layout.addWidget(self.create_profile_button)
-
-        self.logout_button = QPushButton("Log Out")
         self.logout_button.clicked.connect(self.logout)
         self.logout_button.setVisible(False)
-        self.layout.addWidget(self.logout_button)
 
-        self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        buttons_layout.addWidget(self.login_button)
+        buttons_layout.addWidget(self.create_profile_button)
+        buttons_layout.addWidget(self.logout_button)
+
+        main_layout.addLayout(buttons_layout)
+        main_layout.addStretch()
+
+    def _get_input_style(self):
+        return """
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                background-color: white;
+                font-size: 10pt;
+            }
+            QLineEdit:focus {
+                border-color: #80bdff;
+                outline: 0;
+                box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+            }
+        """
+
+    def _create_button(self, text, color):
+        button = QPushButton(text)
+        button.setFont(QFont("Arial", 10))
+        button.setCursor(Qt.PointingHandCursor)
+        button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {color};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                min-width: 100px;
+            }}
+            QPushButton:hover {{
+                background-color: {self._darken_color(color)};
+            }}
+            QPushButton:pressed {{
+                background-color: {self._darken_color(color, 20)};
+            }}
+        """)
+        return button
+
+    def _darken_color(self, hex_color, amount=10):
+        # Simple color darkening function
+        hex_color = hex_color.lstrip('#')
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        rgb = tuple(max(0, c - amount) for c in rgb)
+        return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
     def handle_login(self):
         try:
@@ -161,24 +251,8 @@ class UserTab(QWidget):
             self.login_button.show()
             self.create_profile_button.show()
             self.logout_button.hide()
-            
-            # Adjust the size and emit the signal
             self.adjustSize()
             self.size_changed_signal.emit()
-        
-        except Exception as e:
-            QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
-            print(f"Unexpected error in set_guest_view: {e}")
-    def set_guest_view(self):
-        """Resets the view for guest mode with error handling."""
-        try:
-            self.info_label.setText("You are running the application in Guest mode.")
-            self.username_input.show()
-            self.password_input.show()
-            self.login_button.show()
-            self.create_profile_button.show()
-            self.logout_button.hide()
-            self.adjustSize()
         
         except Exception as e:
             QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
