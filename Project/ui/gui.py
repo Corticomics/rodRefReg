@@ -43,44 +43,61 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
+        # Apply modern styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa;
+                color: #212529;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                background-color: white;
+            }
+            QTabBar::tab {
+                background-color: #e9ecef;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: white;
+                border-bottom: none;
+            }
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+            QPushButton:disabled {
+                background-color: #6c757d;
+            }
+            QLineEdit, QTextEdit, QPlainTextEdit {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 6px;
+                background-color: white;
+            }
+            QLabel {
+                color: #495057;
+            }
+        """)
+
         # Initialize main layout first
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.main_layout.setSpacing(10)
-
-        # Apply styles
-        if style == 'bitlearns':
-            self.setStyleSheet("""
-                QWidget {
-                    background-color: #f8f9fa;
-                    font-size: 14px;
-                }
-                QGroupBox {
-                    border: none;
-                    padding: 0px;
-                }
-                QPushButton {
-                    background-color: #007bff;
-                    border: 1px solid #007bff;
-                    border-radius: 5px;
-                    color: #ffffff;
-                    padding: 10px;
-                }
-                QPushButton:disabled {
-                    background-color: #cccccc;
-                    color: #666666;
-                }
-                QPushButton:hover {
-                    background-color: #0056b3;
-                }
-                QLabel {
-                    color: #343a40;
-                }
-                QLineEdit, QTextEdit {
-                    border: 1px solid #ced4da;
-                    padding: 5px;
-                }
-            """)
 
         # Welcome section
         self.welcome_section = WelcomeSection()

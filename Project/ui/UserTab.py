@@ -2,10 +2,10 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, 
-    QMessageBox, QFrame, QGridLayout, QSizePolicy
+    QMessageBox, QFrame, QGridLayout, QSizePolicy, QInputDialog
 )
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import pyqtSignal, Qt, QDateTime
+from PyQt5.QtGui import QFont, QIcon
 import traceback
 
 class UserTab(QWidget):
@@ -34,9 +34,9 @@ class UserTab(QWidget):
         main_layout.addWidget(self.info_label)
 
         # Login form container
-        login_container = QFrame()
-        login_container.setFrameStyle(QFrame.StyledPanel)
-        login_container.setStyleSheet("""
+        self.login_container = QFrame()
+        self.login_container.setFrameStyle(QFrame.StyledPanel)
+        self.login_container.setStyleSheet("""
             QFrame {
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
@@ -46,7 +46,7 @@ class UserTab(QWidget):
         """)
         
         # Grid layout for form elements
-        form_layout = QGridLayout(login_container)
+        form_layout = QGridLayout(self.login_container)
         form_layout.setSpacing(10)
 
         # Username field
@@ -70,7 +70,7 @@ class UserTab(QWidget):
         form_layout.addWidget(password_label, 1, 0)
         form_layout.addWidget(self.password_input, 1, 1)
 
-        main_layout.addWidget(login_container)
+        main_layout.addWidget(self.login_container)
 
         # Buttons container
         buttons_layout = QVBoxLayout()
@@ -167,18 +167,89 @@ class UserTab(QWidget):
         """Sets the user information after a successful login."""
         try:
             self.current_user = user_info
-            self.info_label.setText(f"Logged in as: {user_info.get('username', 'Unknown')}")
-            self.username_input.clear()
-            self.password_input.clear()
-            self.username_input.setVisible(False)
-            self.password_input.setVisible(False)
-            self.login_button.setVisible(False)
-            self.create_profile_button.setVisible(False)
-            self.logout_button.setVisible(True)
+            
+            # Clear and hide login form container
+            self.login_container.hide()
+            
+            # Create and show user profile container
+            self.profile_container = QFrame()
+            self.profile_container.setFrameStyle(QFrame.StyledPanel)
+            self.profile_container.setStyleSheet("""
+                QFrame {
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 8px;
+                    padding: 20px;
+                }
+            """)
+            
+            profile_layout = QVBoxLayout(self.profile_container)
+            
+            # User avatar/icon (placeholder)
+            user_icon = QLabel()
+            user_icon.setPixmap(QIcon(":/icons/user.png").pixmap(64, 64))
+            user_icon.setAlignment(Qt.AlignCenter)
+            profile_layout.addWidget(user_icon)
+            
+            # Username display
+            username_label = QLabel(f"Welcome, {user_info.get('username', 'Unknown')}")
+            username_label.setAlignment(Qt.AlignCenter)
+            username_label.setFont(QFont("Arial", 14, QFont.Bold))
+            username_label.setStyleSheet("color: #2c3e50; margin: 10px 0;")
+            profile_layout.addWidget(username_label)
+            
+            # Role display
+            role_label = QLabel(f"Role: {user_info.get('role', 'User').capitalize()}")
+            role_label.setAlignment(Qt.AlignCenter)
+            role_label.setStyleSheet("color: #6c757d; margin-bottom: 20px;")
+            profile_layout.addWidget(role_label)
+            
+            # Stats container
+            stats_container = QFrame()
+            stats_layout = QGridLayout(stats_container)
+            stats_container.setStyleSheet("""
+                QFrame {
+                    background-color: white;
+                    border-radius: 4px;
+                    padding: 10px;
+                }
+            """)
+            
+            # Add some user stats (customize based on your needs)
+            stats = [
+                ("Trainer ID", str(user_info.get('trainer_id', 'N/A'))),
+                ("Last Login", QDateTime.currentDateTime().toString("yyyy-MM-dd hh:mm")),
+                ("Active Animals", str(len(self.database_handler.get_animals(user_info['trainer_id']))))
+            ]
+            
+            for i, (label, value) in enumerate(stats):
+                stat_label = QLabel(label + ":")
+                stat_label.setStyleSheet("color: #6c757d;")
+                stat_value = QLabel(value)
+                stat_value.setStyleSheet("color: #2c3e50; font-weight: bold;")
+                stats_layout.addWidget(stat_label, i, 0)
+                stats_layout.addWidget(stat_value, i, 1)
+            
+            profile_layout.addWidget(stats_container)
+            
+            # Logout button with refined styling
+            self.logout_button = self._create_button("Log Out", "#dc3545")
+            self.logout_button.clicked.connect(self.logout)
+            profile_layout.addWidget(self.logout_button)
+            
+            self.layout.addWidget(self.profile_container)
+            
+            # Adjust the size and emit the signal
+            self.adjustSize()
+            self.size_changed_signal.emit()
+            
+        except ValueError as ve:
+            QMessageBox.critical(self, "Profile View Error", str(ve))
+            print(f"Profile View Error: {ve}")
+        
         except Exception as e:
-            print(f"Error in set_user: {e}")
-            traceback.print_exc()
-            QMessageBox.critical(self, "Profile Error", f"An unexpected error occurred:\n{str(e)}")
+            QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
+            print(f"Unexpected error in set_user: {e}")
 
     def logout(self):
         try:
