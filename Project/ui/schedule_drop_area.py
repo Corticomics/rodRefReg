@@ -65,7 +65,7 @@ class ScheduleDropArea(QWidget):
         if data.hasFormat('application/x-schedule'):
             try:
                 schedule_data = data.data('application/x-schedule')
-                schedule_dict = json.loads(bytes(schedule_data).decode())
+                schedule_dict = eval(bytes(schedule_data).decode())
                 print(schedule_dict)
                 
                 # Create a new Schedule instance
