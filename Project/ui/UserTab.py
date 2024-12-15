@@ -39,10 +39,16 @@ class UserTab(QWidget):
         self.login_container.setFrameStyle(QFrame.StyledPanel)
         self.login_container.setStyleSheet("""
             QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 8px;
-                padding: 20px;
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 12px;
+                padding: 24px;
+                margin: 10px;
+            }
+            QLabel {
+                color: #495057;
+                font-weight: bold;
+                margin-bottom: 4px;
             }
         """)
         
@@ -97,37 +103,43 @@ class UserTab(QWidget):
     def _get_input_style(self):
         return """
             QLineEdit {
-                padding: 8px;
-                border: 1px solid #ced4da;
-                border-radius: 4px;
-                background-color: white;
-                font-size: 10pt;
+                padding: 10px;
+                border: 2px solid #e0e0e0;
+                border-radius: 6px;
+                background-color: #ffffff;
+                font-size: 11pt;
+                margin: 2px;
             }
             QLineEdit:focus {
-                border-color: #80bdff;
-                outline: 0;
-                box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+                border-color: #007bff;
+                background-color: #f8f9fa;
+            }
+            QLineEdit:hover:!focus {
+                background-color: #f8f9fa;
             }
         """
 
     def _create_button(self, text, color):
         button = QPushButton(text)
-        button.setFont(QFont("Arial", 10))
+        button.setFont(QFont("Arial", 11))
         button.setCursor(Qt.PointingHandCursor)
         button.setStyleSheet(f"""
             QPushButton {{
-                background-color: {color};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                min-width: 100px;
+                background-color: #ffffff;
+                color: {color};
+                border: 2px solid {color};
+                border-radius: 6px;
+                padding: 10px 20px;
+                min-width: 120px;
+                font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {self._darken_color(color)};
+                background-color: {color};
+                color: white;
             }}
             QPushButton:pressed {{
                 background-color: {self._darken_color(color, 20)};
+                border-color: {self._darken_color(color, 20)};
             }}
         """)
         return button
