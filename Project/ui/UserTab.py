@@ -22,17 +22,17 @@ class UserTab(QWidget):
 
     def init_ui(self):
         # Main layout
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(20)
-        main_layout.setContentsMargins(30, 30, 30, 30)
-        self.setLayout(main_layout)
+        self.layout = QVBoxLayout()
+        self.layout.setSpacing(20)
+        self.layout.setContentsMargins(30, 30, 30, 30)
+        self.setLayout(self.layout)
 
         # Info label with custom styling
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setFont(QFont("Arial", 12, QFont.Bold))
         self.info_label.setStyleSheet("color: #2c3e50; padding: 10px;")
-        main_layout.addWidget(self.info_label)
+        self.layout.addWidget(self.info_label)
 
         # Login form container
         self.login_container = QFrame()
@@ -71,7 +71,7 @@ class UserTab(QWidget):
         form_layout.addWidget(password_label, 1, 0)
         form_layout.addWidget(self.password_input, 1, 1)
 
-        main_layout.addWidget(self.login_container)
+        self.layout.addWidget(self.login_container)
 
         # Buttons container
         buttons_layout = QVBoxLayout()
@@ -91,8 +91,8 @@ class UserTab(QWidget):
         buttons_layout.addWidget(self.create_profile_button)
         buttons_layout.addWidget(self.logout_button)
 
-        main_layout.addLayout(buttons_layout)
-        main_layout.addStretch()
+        self.layout.addLayout(buttons_layout)
+        self.layout.addStretch()
 
     def _get_input_style(self):
         return """
