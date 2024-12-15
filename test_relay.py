@@ -1,70 +1,127 @@
+#!/usr/bin/python3
 import RPi.GPIO as GPIO
 import time
 
-# Relay GPIO pins for Sequent Multi I/O HAT
-RELAY1_PIN = 26  # RL1
-RELAY2_PIN = 20  # RL2
+class RelayDiscovery:
+    def __init__(self):
+        # List of all possible GPIO pins on Raspberry Pi
+        # Excluding special pins like I2C, SPI, etc.
+        self.possible_pins = [
+            2, 3, 4, 17, 27, 22, 10, 9, 11, 5, 6, 13, 19, 26, 
+            14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21
+        ]
+        self.discovered_relays = []
+        self.setup_gpio()
 
-def setup():
-    # Use GPIO numbers rather than pin numbers
-    GPIO.setmode(GPIO.BCM)
-    
-    # Setup relay pins as outputs
-    GPIO.setup(RELAY1_PIN, GPIO.OUT)
-    GPIO.setup(RELAY2_PIN, GPIO.OUT)
-    
-    # Initialize relays to OFF
-    GPIO.output(RELAY1_PIN, GPIO.HIGH)  # Relays are typically active LOW
-    GPIO.output(RELAY2_PIN, GPIO.HIGH)
+    def setup_gpio(self):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
 
-def test_relay(relay_pin, relay_name, cycles=3):
-    """Test a single relay by turning it on and off multiple times"""
-    print(f"\nTesting {relay_name}...")
-    
-    for i in range(cycles):
-        print(f"Cycle {i + 1}/{cycles}")
+    def test_pin(self, pin):
+        """Test if a pin controls a relay"""
+        try:
+            print(f"\nTesting GPIO {pin}")
+            GPIO.setup(pin, GPIO.OUT)
+            
+            # Turn the pin ON (relay might be active LOW or HIGH)
+            print("Testing active LOW...")
+            GPIO.output(pin, GPIO.LOW)
+            response = input(f"Did you hear/see relay click? (y/n): ").lower()
+            if response == 'y':
+                return True, "LOW"
+            
+            print("Testing active HIGH...")
+            GPIO.output(pin, GPIO.HIGH)
+            response = input(f"Did you hear/see relay click? (y/n): ").lower()
+            if response == 'y':
+                return True, "HIGH"
+            
+            # Reset pin to input to avoid leaving it active
+            GPIO.setup(pin, GPIO.IN)
+            return False, None
+            
+        except Exception as e:
+            print(f"Error testing pin {pin}: {e}")
+            return False, None
+
+    def discover_relays(self):
+        """Run discovery process for all possible pins"""
+        print("Starting relay discovery process...")
+        print("Listen for relay clicks and watch for relay LED indicators.")
+        print("Press Ctrl+C at any time to stop the discovery process.")
         
-        # Turn relay ON (active LOW)
-        print(f"{relay_name} ON")
-        GPIO.output(relay_pin, GPIO.LOW)
-        time.sleep(1)
+        try:
+            for pin in self.possible_pins:
+                is_relay, active_state = self.test_pin(pin)
+                if is_relay:
+                    self.discovered_relays.append((pin, active_state))
+                    print(f"\nRelay found! GPIO {pin} (Active {active_state})")
+                    
+                    # Ask if user wants to continue
+                    if input("\nContinue searching? (y/n): ").lower() != 'y':
+                        break
+
+        except KeyboardInterrupt:
+            print("\nDiscovery process interrupted by user")
+
+        finally:
+            self.cleanup()
+            self.print_results()
+
+    def verify_discovered_relays(self):
+        """Verify all discovered relays by testing them in sequence"""
+        if not self.discovered_relays:
+            print("No relays to verify!")
+            return
+
+        print("\nVerifying discovered relays...")
+        try:
+            for pin, active_state in self.discovered_relays:
+                GPIO.setup(pin, GPIO.OUT)
+                
+                # Activate relay
+                state = GPIO.LOW if active_state == "LOW" else GPIO.HIGH
+                print(f"\nTesting GPIO {pin} (Active {active_state})")
+                GPIO.output(pin, state)
+                time.sleep(1)
+                GPIO.output(pin, not state)
+                time.sleep(0.5)
+                
+                if input("Did the relay work correctly? (y/n): ").lower() != 'y':
+                    print(f"Marking GPIO {pin} as potentially incorrect")
         
-        # Turn relay OFF
-        print(f"{relay_name} OFF")
-        GPIO.output(relay_pin, GPIO.HIGH)
-        time.sleep(1)
+        finally:
+            self.cleanup()
+
+    def cleanup(self):
+        """Clean up GPIO settings"""
+        GPIO.cleanup()
+
+    def print_results(self):
+        """Print the discovery results"""
+        print("\n=== Relay Discovery Results ===")
+        if self.discovered_relays:
+            print("Discovered relays:")
+            for pin, active_state in self.discovered_relays:
+                print(f"GPIO {pin} (Active {active_state})")
+            
+            print("\nTo use these in the relay test script, set relay_pins to:")
+            pins = [pin for pin, _ in self.discovered_relays]
+            print(f"relay_pins = {pins}")
+        else:
+            print("No relays were discovered")
 
 def main():
-    try:
-        setup()
+    discoverer = RelayDiscovery()
+    print("This script will help discover which GPIO pins control your relays.")
+    print("You'll need to confirm when you hear or see a relay activate.")
+    
+    if input("\nReady to begin? (y/n): ").lower() == 'y':
+        discoverer.discover_relays()
         
-        # Test each relay
-        test_relay(RELAY1_PIN, "Relay 1")
-        test_relay(RELAY2_PIN, "Relay 2")
-        
-        # Test both relays together
-        print("\nTesting both relays together...")
-        for i in range(3):
-            print(f"Cycle {i + 1}/3")
-            
-            # Both ON
-            print("Both relays ON")
-            GPIO.output(RELAY1_PIN, GPIO.LOW)
-            GPIO.output(RELAY2_PIN, GPIO.LOW)
-            time.sleep(1)
-            
-            # Both OFF
-            print("Both relays OFF")
-            GPIO.output(RELAY1_PIN, GPIO.HIGH)
-            GPIO.output(RELAY2_PIN, GPIO.HIGH)
-            time.sleep(1)
-            
-    except KeyboardInterrupt:
-        print("\nTest interrupted by user")
-    finally:
-        # Clean up GPIO settings
-        GPIO.cleanup()
-        print("\nTest completed, GPIO cleaned up")
+        if discoverer.discovered_relays:
+            if input("\nWould you like to verify all discovered relays? (y/n): ").lower() == 'y':
+                discoverer.verify_discovered_relays()
 
 if __name__ == "__main__":
     main()
