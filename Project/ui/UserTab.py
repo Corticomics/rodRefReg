@@ -21,30 +21,22 @@ class UserTab(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # Main layout with modern spacing
+        # Main layout with reduced spacing
         self.layout = QVBoxLayout()
-        self.layout.setSpacing(24)
-        self.layout.setContentsMargins(40, 40, 40, 40)
+        self.layout.setSpacing(16)
+        self.layout.setContentsMargins(20, 20, 20, 20)
         self.setLayout(self.layout)
 
-        # Create input fields first
-        self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter username")
-        
-        self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter password")
-        self.password_input.setEchoMode(QLineEdit.Password)
-
-        # Info label with modern typography
+        # Info label with smaller font
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.info_label.setAlignment(Qt.AlignCenter)
-        self.info_label.setFont(QFont("Segoe UI", 14, QFont.Medium))
+        self.info_label.setFont(QFont("Segoe UI", 12))
         self.info_label.setStyleSheet("""
             QLabel {
                 color: #1a73e8;
-                padding: 16px;
+                padding: 12px;
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f8f9fa, stop:1 #ffffff);
-                border-radius: 12px;
+                border-radius: 6px;
             }
         """)
         self.layout.addWidget(self.info_label)
@@ -96,22 +88,20 @@ class UserTab(QWidget):
     def _get_input_style(self):
         return """
             QLineEdit {
-                border: 2px solid #e0e4e8;
-                border-radius: 8px;
-                padding: 8px 16px;
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
+                padding: 6px 12px;
                 background: white;
-                font-size: 11pt;
-                font-family: 'Segoe UI';
-                transition: all 0.3s;
+                font-size: 11px;
+                min-height: 24px;
             }
             QLineEdit:hover {
                 border-color: #1a73e8;
-                background: #f8f9fa;
             }
             QLineEdit:focus {
                 border-color: #1a73e8;
                 background: white;
-                box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
+                box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
             }
         """
 

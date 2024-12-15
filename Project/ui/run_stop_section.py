@@ -29,7 +29,7 @@ class RunStopSection(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
-        self.layout.setSpacing(20)
+        self.layout.setSpacing(12)
 
         # Tab widget for Calendar and Offline modes
         self.tab_widget = QTabWidget()
@@ -38,8 +38,8 @@ class RunStopSection(QWidget):
 
         # Calendar-Based Time Window Selection
         calendar_layout = QFormLayout()
-        calendar_layout.setSpacing(20)
-        calendar_layout.setContentsMargins(20, 20, 20, 20)
+        calendar_layout.setSpacing(12)
+        calendar_layout.setContentsMargins(12, 12, 12, 12)
         
         self.start_time_label = QLabel("Start Time:")
         self.start_time_input = QDateTimeEdit(self.calendar_widget)
@@ -47,7 +47,8 @@ class RunStopSection(QWidget):
         self.start_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.start_time_input.setDateTime(QDateTime.currentDateTime())  # Default to now
         self.start_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-        self.start_time_input.setMinimumWidth(200)  # Set minimum width for the datetime input
+        self.start_time_input.setMinimumWidth(160)  # Set minimum width for the datetime input
+        self.start_time_input.setFixedHeight(28)
         
         self.end_time_label = QLabel("End Time:")
         self.end_time_input = QDateTimeEdit(self.calendar_widget)
@@ -55,7 +56,8 @@ class RunStopSection(QWidget):
         self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
         self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default to 1 hour later
         self.end_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-        self.end_time_input.setMinimumWidth(200)  # Set minimum width for the datetime input
+        self.end_time_input.setMinimumWidth(160)  # Set minimum width for the datetime input
+        self.end_time_input.setFixedHeight(28)
 
         # Style the labels to be more visible
         label_style = "QLabel { font-size: 11pt; padding: 3px; }"
