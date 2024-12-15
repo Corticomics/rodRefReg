@@ -14,6 +14,7 @@ from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
+from .login_gate import LoginGateWidget
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
@@ -109,13 +110,17 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.terminal_output.setMinimumHeight(200)
         
-        # Projects section
+        # Projects section with login gate
         self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler, self.login_system)
         self.projects_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        
+
+        # Wrap projects section in login gate
+        self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
+        self.login_gate.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         # Add widgets to left layout with stretch
         self.left_layout.addWidget(self.terminal_output, 1)
-        self.left_layout.addWidget(self.projects_section, 3)
+        self.left_layout.addWidget(self.login_gate, 3)  # Replace projects_section with login_gate
         
         # Create left scroll area
         self.left_scroll = QScrollArea()
@@ -229,13 +234,15 @@ class RodentRefreshmentGUI(QWidget):
             self.current_user = user
             self.print_to_terminal(f"Logged in as: {user['username']}")
 
-            trainer_id = int(user['trainer_id'])  # Ensure trainer_id is an integer
+            trainer_id = int(user['trainer_id'])
             self.projects_section.animals_tab.trainer_id = trainer_id
             self.load_animals_tab(trainer_id=trainer_id)
+            
+            # Login gate will automatically update due to login_system signal
+            
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
             QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
-
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during login: {e}")
             traceback.print_exc()
@@ -268,10 +275,12 @@ class RodentRefreshmentGUI(QWidget):
         """Callback for handling user logout, reverting to guest mode, with error handling."""
         try:
             self.current_user = None
-            self.projects_section.login_system.logout()  # Ensure login_system is updated
+            self.projects_section.login_system.logout()
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
-
+            
+            # Login gate will automatically update due to login_system signal
+            
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")

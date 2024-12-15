@@ -5,7 +5,6 @@ from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
 import datetime
 from models.database_handler import DatabaseHandler
-import json
 
 class ScheduleDropArea(QWidget):
 
@@ -101,9 +100,6 @@ class ScheduleDropArea(QWidget):
                 self.schedule_table.show()
                 self.update_table(self.current_schedule)
                 
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error: {e}")
-                self.placeholder.setText("Error loading schedule")
             except Exception as e:
                 print(f"Error processing schedule data: {e}")
                 self.placeholder.setText("Error loading schedule")

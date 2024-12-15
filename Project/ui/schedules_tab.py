@@ -241,6 +241,7 @@ class SchedulesTab(QWidget):
                 delivery_mode=delivery_mode
             )
 
+
             # Add delivery data
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
