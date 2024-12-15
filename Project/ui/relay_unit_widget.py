@@ -39,10 +39,11 @@ class WaterDeliverySlot(QWidget):
         layout.addWidget(self.volume_input)
         layout.addWidget(self.delete_button)
         self.setLayout(layout)
+        self.is_deleted = False
 
     def handle_delete(self):
         """Handle the deletion of the slot."""
-        # Emit the signal before deletion
+        self.is_deleted = True
         self.slot_deleted.emit(self)
         self.deleteLater()
 
@@ -391,6 +392,7 @@ class RelayUnitWidget(QWidget):
     def add_delivery_slot(self):
         """Add a new instant delivery time slot"""
         slot = WaterDeliverySlot()
+        slot.slot_deleted.connect(self.on_slot_deleted)  # Connect the deletion signal
         self.delivery_slots.append(slot)
         self.instant_delivery_layout.addWidget(slot)
 
