@@ -43,10 +43,10 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        # Apply modern styling
+        # Apply modern styling with depth and subtle gradients
         self.setStyleSheet("""
             QWidget {
-                background-color: #ffffff;
+                background-color: #f8f9fa;
                 color: #2c3e50;
             }
             QScrollArea {
@@ -54,73 +54,121 @@ class RodentRefreshmentGUI(QWidget):
                 background-color: transparent;
             }
             QTabWidget::pane {
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                background-color: #ffffff;
+                border: 1px solid #e0e4e8;
+                border-radius: 12px;
+                background-color: white;
                 margin-top: -1px;
             }
             QTabBar::tab {
-                background-color: #f5f6f7;
-                padding: 10px 20px;
+                background-color: #f8f9fa;
+                padding: 12px 24px;
                 margin-right: 4px;
-                border: 1px solid #e0e0e0;
+                border: 1px solid #e0e4e8;
                 border-bottom: none;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-weight: 500;
             }
             QTabBar::tab:selected {
-                background-color: #ffffff;
-                border-bottom: 2px solid #007bff;
+                background-color: white;
+                border-bottom: 3px solid #1a73e8;
+                color: #1a73e8;
             }
             QTabBar::tab:hover:!selected {
                 background-color: #e9ecef;
+                color: #1a73e8;
             }
             QPushButton {
-                background-color: #f8f9fa;
-                color: #007bff;
-                border: 1px solid #007bff;
-                border-radius: 4px;
-                padding: 8px 16px;
-                min-width: 100px;
+                background-color: white;
+                color: #1a73e8;
+                border: 2px solid #1a73e8;
+                border-radius: 8px;
+                padding: 10px 20px;
+                min-width: 120px;
+                font-weight: 500;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
             }
             QPushButton:hover {
-                background-color: #007bff;
+                background-color: #1a73e8;
                 color: white;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             }
-            QPushButton:disabled {
-                background-color: #e9ecef;
-                border-color: #6c757d;
-                color: #6c757d;
+            QPushButton:pressed {
+                background-color: #1557b0;
+                border-color: #1557b0;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
             }
             QLineEdit, QTextEdit, QPlainTextEdit {
-                border: 2px solid #e0e0e0;
-                border-radius: 4px;
-                padding: 8px;
-                background-color: #ffffff;
-                selection-background-color: #007bff;
+                border: 2px solid #e0e4e8;
+                border-radius: 8px;
+                padding: 12px;
+                background-color: white;
+                selection-background-color: #1a73e8;
+                font-size: 11pt;
             }
             QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
-                border-color: #007bff;
+                border-color: #1a73e8;
+                background-color: white;
+                box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
             }
             QLabel {
-                color: #495057;
+                color: #202124;
+                font-size: 11pt;
             }
             QGroupBox {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                margin-top: 1em;
-                padding-top: 1em;
+                background-color: white;
+                border: 1px solid #e0e4e8;
+                border-radius: 12px;
+                margin-top: 1.5em;
+                padding: 24px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 3px;
+                left: 12px;
+                padding: 0 8px;
+                color: #1a73e8;
+                font-weight: bold;
             }
             QFrame {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
+                background-color: white;
+                border: 1px solid #e0e4e8;
+                border-radius: 12px;
+                padding: 16px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            }
+            QComboBox {
+                border: 2px solid #e0e4e8;
                 border-radius: 8px;
+                padding: 8px 16px;
+                background-color: white;
+                min-height: 24px;
+            }
+            QComboBox:hover {
+                border-color: #1a73e8;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 24px;
+            }
+            QComboBox::down-arrow {
+                image: url(resources/down-arrow.png);
+                width: 12px;
+                height: 12px;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #f8f9fa;
+                width: 10px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #c1c9d2;
+                border-radius: 5px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #a0a9b2;
             }
         """)
 

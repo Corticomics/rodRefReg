@@ -21,120 +21,111 @@ class UserTab(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # Main layout
+        # Main layout with modern spacing
         self.layout = QVBoxLayout()
-        self.layout.setSpacing(20)
-        self.layout.setContentsMargins(30, 30, 30, 30)
+        self.layout.setSpacing(24)
+        self.layout.setContentsMargins(40, 40, 40, 40)
         self.setLayout(self.layout)
 
-        # Info label with custom styling
+        # Info label with modern typography and subtle animation
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.info_label.setAlignment(Qt.AlignCenter)
-        self.info_label.setFont(QFont("Arial", 12, QFont.Bold))
-        self.info_label.setStyleSheet("color: #2c3e50; padding: 10px;")
-        self.layout.addWidget(self.info_label)
-
-        # Login form container
-        self.login_container = QFrame()
-        self.login_container.setFrameStyle(QFrame.StyledPanel)
-        self.login_container.setStyleSheet("""
-            QFrame {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
-                border-radius: 12px;
-                padding: 24px;
-                margin: 10px;
-            }
+        self.info_label.setFont(QFont("Segoe UI", 14, QFont.Medium))
+        self.info_label.setStyleSheet("""
             QLabel {
-                color: #495057;
-                font-weight: bold;
-                margin-bottom: 4px;
+                color: #1a73e8;
+                padding: 16px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f8f9fa, stop:1 #ffffff);
+                border-radius: 12px;
             }
         """)
-        
+        self.layout.addWidget(self.info_label)
+
+        # Login form container with card-like appearance
+        self.login_container = QFrame()
+        self.login_container.setFrameStyle(QFrame.NoFrame)
+        self.login_container.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border-radius: 16px;
+                padding: 24px;
+                margin: 8px;
+            }
+            QFrame {
+                border: 1px solid #e0e4e8;
+                box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            }
+        """)
+
         # Grid layout for form elements
         form_layout = QGridLayout(self.login_container)
-        form_layout.setSpacing(10)
+        form_layout.setSpacing(16)
+        form_layout.setContentsMargins(24, 24, 24, 24)
 
-        # Username field
-        username_label = QLabel("Username:")
-        username_label.setFont(QFont("Arial", 10))
-        self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter username")
-        self.username_input.setStyleSheet(self._get_input_style())
+        # Style input fields and labels
+        self._setup_form_fields(form_layout)
         
-        # Password field
-        password_label = QLabel("Password:")
-        password_label.setFont(QFont("Arial", 10))
-        self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter password")
-        self.password_input.setEchoMode(QLineEdit.Password)
-        self.password_input.setStyleSheet(self._get_input_style())
-
-        # Add form elements to grid
-        form_layout.addWidget(username_label, 0, 0)
-        form_layout.addWidget(self.username_input, 0, 1)
-        form_layout.addWidget(password_label, 1, 0)
-        form_layout.addWidget(self.password_input, 1, 1)
-
         self.layout.addWidget(self.login_container)
-
-        # Buttons container
-        buttons_layout = QVBoxLayout()
-        buttons_layout.setSpacing(10)
-
-        # Style and create buttons
-        self.login_button = self._create_button("Log In", "#007bff")
-        self.create_profile_button = self._create_button("Create New Profile", "#28a745")
-        self.logout_button = self._create_button("Log Out", "#dc3545")
         
-        self.login_button.clicked.connect(self.handle_login)
-        self.create_profile_button.clicked.connect(self.handle_create_profile)
-        self.logout_button.clicked.connect(self.logout)
-        self.logout_button.setVisible(False)
-
-        buttons_layout.addWidget(self.login_button)
-        buttons_layout.addWidget(self.create_profile_button)
-        buttons_layout.addWidget(self.logout_button)
-
-        self.layout.addLayout(buttons_layout)
+        # Buttons with modern styling
+        self._setup_buttons()
         self.layout.addStretch()
+
+    def _setup_form_fields(self, form_layout):
+        labels = ["Username:", "Password:"]
+        inputs = [self.username_input, self.password_input]
+        
+        for i, (label_text, input_widget) in enumerate(zip(labels, inputs)):
+            label = QLabel(label_text)
+            label.setFont(QFont("Segoe UI", 11))
+            label.setStyleSheet("color: #202124; margin-bottom: 4px;")
+            
+            input_widget.setPlaceholderText(f"Enter {label_text.lower().rstrip(':')}")
+            input_widget.setStyleSheet(self._get_input_style())
+            input_widget.setMinimumHeight(40)
+            
+            form_layout.addWidget(label, i, 0)
+            form_layout.addWidget(input_widget, i, 1)
 
     def _get_input_style(self):
         return """
             QLineEdit {
-                padding: 10px;
-                border: 2px solid #e0e0e0;
-                border-radius: 6px;
-                background-color: #ffffff;
+                border: 2px solid #e0e4e8;
+                border-radius: 8px;
+                padding: 8px 16px;
+                background: white;
                 font-size: 11pt;
-                margin: 2px;
+                font-family: 'Segoe UI';
+                transition: all 0.3s;
+            }
+            QLineEdit:hover {
+                border-color: #1a73e8;
+                background: #f8f9fa;
             }
             QLineEdit:focus {
-                border-color: #007bff;
-                background-color: #f8f9fa;
-            }
-            QLineEdit:hover:!focus {
-                background-color: #f8f9fa;
+                border-color: #1a73e8;
+                background: white;
+                box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
             }
         """
 
     def _create_button(self, text, color):
         button = QPushButton(text)
-        button.setFont(QFont("Arial", 11))
         button.setCursor(Qt.PointingHandCursor)
+        button.setFont(QFont("Segoe UI", 11, QFont.Medium))
+        button.setMinimumHeight(44)
         button.setStyleSheet(f"""
             QPushButton {{
-                background-color: #ffffff;
-                color: {color};
-                border: 2px solid {color};
-                border-radius: 6px;
-                padding: 10px 20px;
-                min-width: 120px;
-                font-weight: bold;
+                background-color: {color};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px 24px;
+                font-weight: 500;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             }}
             QPushButton:hover {{
-                background-color: {color};
+                background-color: {self._darken_color(color, 20)};
                 color: white;
             }}
             QPushButton:pressed {{
