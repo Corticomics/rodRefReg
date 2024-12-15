@@ -294,8 +294,9 @@ class RelayUnitWidget(QWidget):
         
         if data['delivery_mode'] == 'instant':
             schedule = []
-            # Create a list to store references to slots while iterating
-            active_slots = [slot for slot in self.delivery_slots if slot.isVisible()]
+            # Check both visibility and deletion status
+            active_slots = [slot for slot in self.delivery_slots 
+                           if slot.isVisible() and not slot.is_deleted]
             for slot in active_slots:
                 try:
                     volume = float(slot.volume_input.text())
