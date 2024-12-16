@@ -114,69 +114,85 @@ class RodentRefreshmentGUI(QWidget):
         """)
 
         # Add this after the existing stylesheet
+        # Add this to the gui.py stylesheet section
+
         additional_style = """
+            /* Modern Table Styling */
             QTableWidget {
                 background-color: white;
-                alternate-background-color: #f8f9fa;
                 border: 1px solid #e0e4e8;
-                border-radius: 6px;
-                padding: 2px;
+                border-radius: 8px;
+                padding: 4px;
+                gridline-color: #f0f0f0;
             }
             
             QTableWidget::item {
-                padding: 8px;
+                padding: 12px;
+                border-bottom: 1px solid #f0f0f0;
+                color: #2c3e50;
+            }
+            
+            QTableWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #1a73e8;
             }
             
             QHeaderView::section {
-                background-color: #1a73e8;
-                color: white;
-                padding: 8px;
+                background-color: #ffffff;
+                color: #5f6368;
+                padding: 12px;
                 border: none;
-                font-weight: bold;
+                border-bottom: 2px solid #e0e4e8;
+                font-weight: 600;
+                font-size: 13px;
             }
             
+            QHeaderView::section:hover {
+                background-color: #f8f9fa;
+            }
+            
+            /* Modern Scrollbar */
             QScrollBar:vertical {
                 border: none;
-                background: #f0f0f0;
-                width: 10px;
-                border-radius: 5px;
+                background: #f8f9fa;
+                width: 6px;
+                margin: 0px;
             }
-            
+
             QScrollBar::handle:vertical {
+                background: #dadce0;
+                border-radius: 3px;
+                min-height: 30px;
+            }
+
+            QScrollBar::handle:vertical:hover {
                 background: #1a73e8;
-                border-radius: 5px;
             }
             
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            
-            QComboBox {
-                border: 1px solid #1a73e8;
-                border-radius: 4px;
-                padding: 6px 12px;
+            /* Filter Input Styling */
+            QLineEdit {
+                border: 1px solid #dadce0;
+                border-radius: 24px;
+                padding: 8px 16px;
                 background: white;
-                min-width: 100px;
+                font-size: 13px;
+                color: #202124;
             }
             
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
+            QLineEdit:focus {
+                border-color: #1a73e8;
+                background: white;
             }
             
-            QComboBox::down-arrow {
-                image: url(:/icons/down-arrow.png);
-                width: 12px;
-                height: 12px;
-            }
-            
+            /* Button Styling */
             QPushButton {
                 background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 padding: 8px 16px;
-                font-weight: bold;
+                font-weight: 500;
+                font-size: 13px;
             }
             
             QPushButton:hover {
@@ -187,20 +203,11 @@ class RodentRefreshmentGUI(QWidget):
                 background-color: #104d92;
             }
             
+            /* Labels */
             QLabel {
                 color: #202124;
+                font-size: 13px;
                 font-weight: 500;
-            }
-            
-            QLineEdit {
-                border: 2px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 8px;
-                background: white;
-            }
-            
-            QLineEdit:focus {
-                border-color: #1a73e8;
             }
         """
         self.setStyleSheet(self.styleSheet() + additional_style)

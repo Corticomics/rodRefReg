@@ -20,73 +20,103 @@ class AnimalsTab(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
-        # Instruction label
-        instruction_label = QLabel("Manage animal bodyweight data:")
+        # Modern styling for the instruction label
+        instruction_label = QLabel("Manage Animal Data")
         instruction_label.setStyleSheet("""
             QLabel {
-                color: #1a73e8;
-                font-size: 14px;
-                font-weight: bold;
-                padding: 10px;
-                background: #e8f0fe;
-                border-radius: 4px;
-                margin-bottom: 10px;
+                color: #202124;
+                font-size: 18px;
+                font-weight: 600;
+                padding: 16px 0;
             }
         """)
         self.layout.addWidget(instruction_label)
 
-        # Optional: Add a filter input
-        filter_layout = QHBoxLayout()
-        filter_label = QLabel("Filter:")
-        self.filter_input = QLineEdit()
-        self.filter_input.setPlaceholderText("Enter filter text...")
-        self.filter_input.textChanged.connect(self.apply_filter)
-        self.filter_input.setStyleSheet("""
-            QLineEdit {
-                border: 2px solid #e0e4e8;
-                border-radius: 20px;
-                padding: 8px 16px;
-                background: white;
-                font-size: 13px;
-            }
-            QLineEdit:focus {
-                border-color: #1a73e8;
-                background: #f8f9fa;
+        # Setup filter section with modern styling
+        filter_container = QWidget()
+        filter_container.setStyleSheet("""
+            QWidget {
+                background-color: white;
+                border-radius: 8px;
+                padding: 16px;
             }
         """)
+        filter_layout = QHBoxLayout(filter_container)
+        
+        filter_label = QLabel("Filter:")
+        self.filter_input = QLineEdit()
+        self.filter_input.setPlaceholderText("Search animals...")
         filter_layout.addWidget(filter_label)
         filter_layout.addWidget(self.filter_input)
-        self.layout.addLayout(filter_layout)
+        self.layout.addWidget(filter_container)
 
-        # Table widget for displaying animals
+        # Setup the table with modern styling
         self.animals_table = QTableWidget()
-        self.animals_table.setColumnCount(6)  # Updated column count
-        self.animals_table.setHorizontalHeaderLabels(["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"])
+        self.animals_table.setColumnCount(6)
+        
+        # Set headers with proper styling
+        headers = ["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
+        self.animals_table.setHorizontalHeaderLabels(headers)
+        
+        # Configure table properties
         self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.animals_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.animals_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.animals_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.animals_table.verticalHeader().setVisible(False)
-        self.animals_table.setSortingEnabled(True)  # Enable sorting
-        self.layout.addWidget(QLabel("Animals:"))
-        self.layout.addWidget(self.animals_table)
+        self.animals_table.setAlternatingRowColors(True)
+        self.animals_table.setShowGrid(False)
+        self.animals_table.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #e0e4e8;
+                border-radius: 8px;
+                padding: 8px;
+            }
+            QTableWidget::item {
+                padding: 12px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #1a73e8;
+            }
+        """)
 
-        # Button layout
-        buttons_layout = QHBoxLayout()
-        add_animal_button = QPushButton("Add Animal")
-        remove_animal_button = QPushButton("Remove Selected Animal")
-        edit_animal_button = QPushButton("Edit Selected Animal")
-        buttons_layout.addWidget(add_animal_button)
-        buttons_layout.addWidget(remove_animal_button)
-        buttons_layout.addWidget(edit_animal_button)
-        self.layout.addLayout(buttons_layout)
+        # Add table to layout with a title
+        table_container = QWidget()
+        table_layout = QVBoxLayout(table_container)
+        table_label = QLabel("Animals")
+        table_label.setStyleSheet("""
+            QLabel {
+                color: #5f6368;
+                font-size: 14px;
+                font-weight: 500;
+                margin-bottom: 8px;
+            }
+        """)
+        table_layout.addWidget(table_label)
+        table_layout.addWidget(self.animals_table)
+        self.layout.addWidget(table_container)
 
-        # Connect button actions
-        add_animal_button.clicked.connect(self.add_animal)
-        remove_animal_button.clicked.connect(self.remove_animal)
-        edit_animal_button.clicked.connect(self.edit_animal)
+        # Action buttons with modern styling
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        
+        add_button = QPushButton("Add Animal")
+        edit_button = QPushButton("Edit")
+        remove_button = QPushButton("Remove")
+        
+        for button in [add_button, edit_button, remove_button]:
+            button.setMinimumWidth(100)
+            button_layout.addWidget(button)
+        
+        button_layout.addStretch()
+        self.layout.addWidget(button_container)
 
-        # Load existing animals into the table
+        # Connect signals
+        add_button.clicked.connect(self.add_animal)
+        edit_button.clicked.connect(self.edit_animal)
+        remove_button.clicked.connect(self.remove_animal)
+        self.filter_input.textChanged.connect(self.apply_filter)
+
+        # Initial load
         self.load_animals()
 
     def populate_animal_table(self, animals):
