@@ -190,13 +190,15 @@ class SchedulesTab(QWidget):
                 return
             
             trainer_id = current_trainer['trainer_id']
-            is_super = current_trainer.get('role') == 'super'
+            role = current_trainer['role']
+            is_super = role == 'super'
             
             # Get all animals if super user, otherwise get trainer's animals
             if is_super:
                 animals = self.database_handler.get_all_animals()
             else:
-                animals = self.database_handler.get_animals(trainer_id)
+                animals = self.database_handler.get_animals(trainer_id, role)
+                self.print_to_terminal(f"Loaded {len(animals)} animals for trainer {trainer_id}")
             
             self.animal_list.clear()
             for animal in animals:

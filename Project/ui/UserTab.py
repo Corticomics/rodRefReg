@@ -185,6 +185,8 @@ class UserTab(QWidget):
             # Clear and hide login form elements
             self.login_container.hide()
             self.info_label.hide()  # Hide the info label
+            self.login_button.hide()
+            self.create_profile_button.hide()
             
             # Create profile container
             self.profile_container = QWidget()
