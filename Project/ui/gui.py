@@ -43,93 +43,43 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        # Apply modern styling with more compact dimensions
-        self.setStyleSheet("""
+        # First, set the base styles
+        base_style = """
             QWidget {
                 background-color: #f8f9fa;
                 color: #2c3e50;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-            QTabWidget::pane {
-                border: 1px solid #e0e4e8;
-                border-radius: 6px;
-                background-color: white;
-                margin-top: -1px;
-            }
-            QTabBar::tab {
-                background-color: #f8f9fa;
-                padding: 8px 16px;
-                margin-right: 2px;
-                border: 1px solid #e0e4e8;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                font-size: 11px;
-            }
-            QTabBar::tab:selected {
-                background-color: white;
-                border-bottom: 2px solid #1a73e8;
-            }
-            QPushButton {
-                background-color: white;
-                color: #1a73e8;
-                border: 1px solid #1a73e8;
-                border-radius: 4px;
-                padding: 6px 12px;
-                min-width: 80px;
-                font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #1a73e8;
-                color: white;
-            }
-            QLineEdit, QTextEdit, QPlainTextEdit {
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 6px 8px;
-                background-color: white;
-                font-size: 11px;
-                min-height: 20px;
-            }
-            QLabel {
-                color: #202124;
-                font-size: 11px;
-            }
-            QGroupBox {
-                background-color: white;
-                border: 1px solid #e0e4e8;
-                border-radius: 6px;
-                margin-top: 1em;
-                padding: 12px;
-            }
-            QFrame {
-                background-color: white;
-                border: 1px solid #e0e4e8;
-                border-radius: 6px;
-                padding: 12px;
-            }
-        """)
-
-        # Add this after the existing stylesheet
-        # Add this to the gui.py stylesheet section
-
-        additional_style = """
+        """
+        
+        # Then add the modern component styles
+        modern_style = """
             /* Modern Table Styling */
             QTableWidget {
                 background-color: white;
                 border: 1px solid #e0e4e8;
                 border-radius: 8px;
                 padding: 4px;
-                gridline-color: #f0f0f0;
+                gridline-color: transparent;
+                selection-background-color: #e8f0fe;
+            }
+            
+            QTableWidget QHeaderView::section {
+                background-color: #f8f9fa;
+                color: #5f6368;
+                padding: 16px;
+                border: none;
+                border-bottom: 2px solid #e0e4e8;
+                font-weight: bold;
+                font-size: 13px;
+                text-align: left;
             }
             
             QTableWidget::item {
-                padding: 12px;
+                padding: 16px;
                 border-bottom: 1px solid #f0f0f0;
-                color: #2c3e50;
+                color: #202124;
+                font-size: 13px;
             }
             
             QTableWidget::item:selected {
@@ -137,51 +87,25 @@ class RodentRefreshmentGUI(QWidget):
                 color: #1a73e8;
             }
             
-            QHeaderView::section {
-                background-color: #ffffff;
-                color: #5f6368;
-                padding: 12px;
-                border: none;
-                border-bottom: 2px solid #e0e4e8;
-                font-weight: 600;
-                font-size: 13px;
-            }
-            
-            QHeaderView::section:hover {
-                background-color: #f8f9fa;
-            }
-            
-            /* Modern Scrollbar */
+            /* Scrollbar Styling */
             QScrollBar:vertical {
-                border: none;
-                background: #f8f9fa;
-                width: 6px;
-                margin: 0px;
+                background-color: transparent;
+                width: 8px;
+                margin: 0;
             }
-
+            
             QScrollBar::handle:vertical {
-                background: #dadce0;
-                border-radius: 3px;
+                background-color: #dadce0;
                 min-height: 30px;
+                border-radius: 4px;
             }
-
+            
             QScrollBar::handle:vertical:hover {
-                background: #1a73e8;
+                background-color: #1a73e8;
             }
             
-            /* Filter Input Styling */
-            QLineEdit {
-                border: 1px solid #dadce0;
-                border-radius: 24px;
-                padding: 8px 16px;
-                background: white;
-                font-size: 13px;
-                color: #202124;
-            }
-            
-            QLineEdit:focus {
-                border-color: #1a73e8;
-                background: white;
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
             }
             
             /* Button Styling */
@@ -193,6 +117,7 @@ class RodentRefreshmentGUI(QWidget):
                 padding: 8px 16px;
                 font-weight: 500;
                 font-size: 13px;
+                min-width: 100px;
             }
             
             QPushButton:hover {
@@ -203,14 +128,70 @@ class RodentRefreshmentGUI(QWidget):
                 background-color: #104d92;
             }
             
-            /* Labels */
-            QLabel {
-                color: #202124;
+            /* Input Styling */
+            QLineEdit {
+                border: 1px solid #dadce0;
+                border-radius: 4px;
+                padding: 8px 12px;
+                background: white;
                 font-size: 13px;
-                font-weight: 500;
+                color: #202124;
+            }
+            
+            QLineEdit:focus {
+                border-color: #1a73e8;
+                background: white;
+            }
+            
+            /* Tab Styling */
+            QTabWidget::pane {
+                border: 1px solid #e0e4e8;
+                border-radius: 8px;
+                background-color: white;
+                top: -1px;
+            }
+            
+            QTabBar::tab {
+                background-color: #f8f9fa;
+                color: #5f6368;
+                padding: 8px 16px;
+                margin-right: 4px;
+                border: 1px solid #e0e4e8;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-size: 13px;
+                min-width: 100px;
+            }
+            
+            QTabBar::tab:selected {
+                background-color: white;
+                color: #1a73e8;
+                border-bottom: 2px solid #1a73e8;
+            }
+            
+            /* ComboBox Styling */
+            QComboBox {
+                background-color: white;
+                border: 1px solid #dadce0;
+                border-radius: 4px;
+                padding: 8px 12px;
+                min-width: 150px;
+                font-size: 13px;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            
+            QComboBox::down-arrow {
+                image: url(:/icons/down-arrow.png);
             }
         """
-        self.setStyleSheet(self.styleSheet() + additional_style)
+        
+        # Apply the styles in order
+        self.setStyleSheet(base_style + modern_style)
 
         # Initialize main layout first
         self.main_layout = QVBoxLayout(self)
