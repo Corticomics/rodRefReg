@@ -66,16 +66,15 @@ class ScheduleDropArea(QWidget):
             try:
                 schedule_data = data.data('application/x-schedule')
                 schedule_dict = eval(bytes(schedule_data).decode())
-                print(f"Dropped schedule in ScheduleDropArea: {schedule_dict}")
                 
                 # Get schedule details from database
                 schedule_details = self.database_handler.get_schedule_details(schedule_dict['schedule_id'])
                 if not schedule_details:
                     raise Exception("Schedule details not found in database")
                 
-                schedule_detail = schedule_details[0]  # Get first result
+                schedule_detail = schedule_details[0]
                 
-                # Create Schedule instance with database data
+                # Create Schedule instance
                 self.current_schedule = Schedule(
                     schedule_id=schedule_dict['schedule_id'],
                     name=schedule_dict['name'],
@@ -87,6 +86,14 @@ class ScheduleDropArea(QWidget):
                     is_super_user=schedule_dict['is_super_user'],
                     delivery_mode=schedule_detail['delivery_mode']
                 )
+                
+                # Load instant deliveries if in instant mode
+                if self.current_schedule.delivery_mode.lower() == 'instant':
+                    deliveries = self.database_handler.get_schedule_instant_deliveries(self.current_schedule.schedule_id)
+                    for delivery in deliveries:
+                        animal_id, _, _, datetime_str, volume, _ = delivery
+                        delivery_time = datetime.datetime.fromisoformat(datetime_str)
+                        self.current_schedule.add_instant_delivery(animal_id, delivery_time, volume)
                 
                 # Update UI
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
