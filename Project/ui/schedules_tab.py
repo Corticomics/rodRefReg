@@ -126,6 +126,47 @@ class SchedulesTab(QWidget):
             }
         """)
 
+        # Refine table headers styling
+        self.setStyleSheet("""
+            QHeaderView::section {
+                background-color: #f8f9fa;
+                color: #5f6368;
+                padding: 8px;
+                border: none;
+                border-bottom: 1px solid #e0e4e8;
+                font-weight: 500;
+                font-size: 12px;
+            }
+            
+            QTableWidget {
+                gridline-color: #f0f0f0;
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
+            }
+            
+            QTableWidget::item {
+                padding: 4px 8px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+        """)
+
+        # Refine delete button styling
+        self.delete_time_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px;
+                max-width: 24px;
+                max-height: 24px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+        """)
+
     def load_relay_units(self):
         """Load relay units and create RelayUnitWidgets."""
         self.relay_units_container_layout.addStretch()
@@ -158,33 +199,24 @@ class SchedulesTab(QWidget):
             unit_id += 1
 
     def load_animals(self):
-        """Load animals into the available animals list."""
         try:
             current_trainer = self.login_system.get_current_trainer()
-            if current_trainer:
-                trainer_id = current_trainer['trainer_id']
-                role = current_trainer['role']
-                animals = self.database_handler.get_animals(trainer_id, role)
-                self.print_to_terminal(f"Loading {len(animals)} animals for trainer ID {trainer_id} in SchedulesTab")
-            else:
-                animals = self.database_handler.get_all_animals()
-                self.print_to_terminal(f"Loading {len(animals)} animals in guest mode for SchedulesTab")
-
-            # Clear existing items
-            self.animal_list.clear()
+            trainer_id = current_trainer['trainer_id'] if current_trainer else None
             
-            # Add new items
+            if trainer_id:
+                animals = self.database_handler.get_animals(trainer_id)
+            else:
+                animals = []
+            
+            self.animal_list.clear()
             for animal in animals:
-                item = self.animal_list.create_available_animal_item(animal)
+                item_text = f"{animal.lab_animal_id} - {animal.name}"
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, animal)
                 self.animal_list.addItem(item)
                 
-            # Force update
-            self.animal_list.update()
-
         except Exception as e:
-            print(f"Exception in SchedulesTab.load_animals: {e}")
-            traceback.print_exc()
-            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
+            self.print_to_terminal(f"Error loading animals: {e}")
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""

@@ -182,66 +182,53 @@ class UserTab(QWidget):
             # Clear and hide login form container
             self.login_container.hide()
             
-            # Create and show user profile container
-            self.profile_container = QFrame()
-            self.profile_container.setFrameStyle(QFrame.StyledPanel)
-            self.profile_container.setStyleSheet("""
-                QFrame {
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 8px;
-                    padding: 20px;
-                }
-            """)
-            
+            # Create profile container
+            self.profile_container = QWidget()
             profile_layout = QVBoxLayout(self.profile_container)
             
-            # User avatar/icon (placeholder)
-            user_icon = QLabel()
-            user_icon.setPixmap(QIcon(":/icons/user.png").pixmap(64, 64))
-            user_icon.setAlignment(Qt.AlignCenter)
-            profile_layout.addWidget(user_icon)
+            # Welcome message
+            welcome_label = QLabel(f"Welcome, {user_info['username']}")
+            welcome_label.setStyleSheet("""
+                QLabel {
+                    color: #202124;
+                    font-size: 18px;
+                    font-weight: 600;
+                    margin-bottom: 16px;
+                }
+            """)
+            welcome_label.setAlignment(Qt.AlignCenter)
+            profile_layout.addWidget(welcome_label)
             
-            # Username display
-            username_label = QLabel(f"Welcome, {user_info.get('username', 'Unknown')}")
-            username_label.setAlignment(Qt.AlignCenter)
-            username_label.setFont(QFont("Arial", 14, QFont.Bold))
-            username_label.setStyleSheet("color: #2c3e50; margin: 10px 0;")
-            profile_layout.addWidget(username_label)
-            
-            # Role display
-            role_label = QLabel(f"Role: {user_info.get('role', 'User').capitalize()}")
-            role_label.setAlignment(Qt.AlignCenter)
-            role_label.setStyleSheet("color: #6c757d; margin-bottom: 20px;")
-            profile_layout.addWidget(role_label)
-            
-            # Stats container
+            # Stats container with refined styling
             stats_container = QFrame()
             stats_layout = QGridLayout(stats_container)
             stats_container.setStyleSheet("""
                 QFrame {
                     background-color: white;
-                    border-radius: 4px;
-                    padding: 10px;
+                    border: 1px solid #e0e4e8;
+                    border-radius: 8px;
+                    padding: 16px;
                 }
             """)
             
-            # Add some user stats (customize based on your needs)
+            # Simplified stats
             stats = [
                 ("Trainer ID", str(user_info.get('trainer_id', 'N/A'))),
-                ("Last Login", QDateTime.currentDateTime().toString("yyyy-MM-dd hh:mm")),
+                ("Last Login", QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm"))
             ]
-            
-            # Only add active animals stat if database_handler exists
-            if self.database_handler:
-                active_animals = len(self.database_handler.get_animals(user_info['trainer_id']))
-                stats.append(("Active Animals", str(active_animals)))
             
             for i, (label, value) in enumerate(stats):
                 stat_label = QLabel(label + ":")
-                stat_label.setStyleSheet("color: #6c757d;")
+                stat_label.setStyleSheet("""
+                    color: #5f6368;
+                    font-size: 13px;
+                """)
                 stat_value = QLabel(value)
-                stat_value.setStyleSheet("color: #2c3e50; font-weight: bold;")
+                stat_value.setStyleSheet("""
+                    color: #202124;
+                    font-weight: 500;
+                    font-size: 13px;
+                """)
                 stats_layout.addWidget(stat_label, i, 0)
                 stats_layout.addWidget(stat_value, i, 1)
             
