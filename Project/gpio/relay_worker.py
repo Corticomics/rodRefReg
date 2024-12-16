@@ -168,13 +168,13 @@ class RelayWorker(QObject):
                 
             num_triggers = self.settings.get('num_triggers', {}).get(
                 str(relay_unit_id), 
-                self.settings['base_triggers']
+                1  # Default to 1 trigger instead of looking for 'base_triggers'
             )
             
             relay_info = self.relay_handler.trigger_relays(
                 [relay_unit_id],
                 {str(relay_unit_id): num_triggers},
-                self.settings.get('stagger', 5)
+                self.settings.get('stagger', 0.5)  # Default to 500ms stagger
             )
             return relay_info
 
