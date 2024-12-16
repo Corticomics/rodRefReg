@@ -127,3 +127,25 @@ CREATE TABLE logs (
                         details TEXT,
                         FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
                     );
+
+
+
+
+conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/Project/16relind-rpi $ 16relind -h
+	-h           Display the list of command options or one command option details
+	-warranty    Display the warranty
+	-v           Display the version number
+	-list:       List all 16relind boards connected, returnsb oards no and stack level for every board
+	write:       Set relays On/Off
+	read:        Read relays status
+	test:        Turn ON and OFF the relays until press a key
+	pled:        Set the power led mode (blink | on | off) 
+	wdtiprd:	Get the watchdog initial period in seconds. This period is loaded after power cycle, giving Raspberry time to boot
+	wdtoprd:	Get the watchdog off period in seconds (max 48 days), This is the time that watchdog mantain Raspberry turned off 
+	wdtprd:		Get the watchdog period in seconds, reload command must be issue in this interval to prevent Raspberry Pi power off
+	wdtr:		Reload the watchdog timer and enable the watchdog if is disabled
+	wdtipwr:	Set the watchdog initial period in seconds, This period is loaded after power cycle, giving Raspberry time to boot
+	wdtopwr:	Set the watchdog off period in seconds (max 48 days), This is the time that watchdog mantain Raspberry turned off 
+	wdtpwr:		Set the watchdog period in seconds, reload command must be issue in this interval to prevent Raspberry Pi power off
+	cfg485rd:    Read the RS485 communication settings
+	cfg485wr:    Write the RS485 communication settings
