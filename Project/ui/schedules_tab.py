@@ -375,27 +375,33 @@ class SchedulesTab(QWidget):
         item = self.schedule_list.currentItem()
         if item:
             schedule = item.data(Qt.UserRole)
-            mime_data = QMimeData()
-            # Properly serialize the schedule data
-            schedule_data = str({
-                'schedule_id': schedule.schedule_id,
-                'name': schedule.name,
-                'relay_unit_id': schedule.relay_unit_id,
-                'water_volume': schedule.water_volume,
-                'start_time': schedule.start_time,
-                'end_time': schedule.end_time,
-                'created_by': schedule.created_by,
-                'is_super_user': schedule.is_super_user,
-                'delivery_mode': schedule.delivery_mode,
-                'animals': schedule.animals,
-                'desired_water_outputs': schedule.desired_water_outputs,
-                'instant_deliveries': schedule.instant_deliveries
-            }).encode()
-            mime_data.setData('application/x-schedule', schedule_data)
-            
-            drag = QDrag(self)
-            drag.setMimeData(mime_data)
-            drag.exec_(Qt.CopyAction)
+            # Get fresh schedule details from database
+            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)
+            if schedule_details:
+                schedule_detail = schedule_details[0]
+                
+                mime_data = QMimeData()
+                # Create serializable schedule data
+                schedule_data = {
+                    'schedule_id': schedule.schedule_id,
+                    'name': schedule.name,
+                    'relay_unit_id': schedule.relay_unit_id,
+                    'water_volume': schedule.water_volume,
+                    'start_time': schedule.start_time,
+                    'end_time': schedule.end_time,
+                    'created_by': schedule.created_by,
+                    'is_super_user': schedule.is_super_user,
+                    'delivery_mode': schedule_detail['delivery_mode'],
+                    'animals': schedule_detail['animal_ids'],
+                    'desired_water_outputs': schedule_detail.get('desired_water_outputs', {}),
+                    'instant_deliveries': schedule_detail.get('delivery_schedule', [])
+                }
+                
+                mime_data.setData('application/x-schedule', str(schedule_data).encode())
+                
+                drag = QDrag(self)
+                drag.setMimeData(mime_data)
+                drag.exec_(Qt.CopyAction)
 
     def handle_login_status_change(self):
         """Handle changes in login status"""
