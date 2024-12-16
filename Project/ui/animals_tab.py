@@ -22,6 +22,17 @@ class AnimalsTab(QWidget):
 
         # Instruction label
         instruction_label = QLabel("Manage animal bodyweight data:")
+        instruction_label.setStyleSheet("""
+            QLabel {
+                color: #1a73e8;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+                background: #e8f0fe;
+                border-radius: 4px;
+                margin-bottom: 10px;
+            }
+        """)
         self.layout.addWidget(instruction_label)
 
         # Optional: Add a filter input
@@ -30,6 +41,19 @@ class AnimalsTab(QWidget):
         self.filter_input = QLineEdit()
         self.filter_input.setPlaceholderText("Enter filter text...")
         self.filter_input.textChanged.connect(self.apply_filter)
+        self.filter_input.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #e0e4e8;
+                border-radius: 20px;
+                padding: 8px 16px;
+                background: white;
+                font-size: 13px;
+            }
+            QLineEdit:focus {
+                border-color: #1a73e8;
+                background: #f8f9fa;
+            }
+        """)
         filter_layout.addWidget(filter_label)
         filter_layout.addWidget(self.filter_input)
         self.layout.addLayout(filter_layout)

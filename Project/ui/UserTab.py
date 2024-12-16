@@ -270,17 +270,41 @@ class UserTab(QWidget):
         try:
             self.current_user = None
             self.login_system.logout()
+            
+            # Remove the profile container if it exists
+            if hasattr(self, 'profile_container'):
+                self.profile_container.deleteLater()
+                delattr(self, 'profile_container')
+            
+            # Show login container
+            self.login_container.show()
+            
+            # Reset the info label
             self.info_label.setText("You are running the application in Guest mode.")
+            
+            # Reset input fields
+            self.username_input.clear()
+            self.password_input.clear()
             self.username_input.setVisible(True)
             self.password_input.setVisible(True)
+            
+            # Reset buttons
             self.login_button.setVisible(True)
             self.create_profile_button.setVisible(True)
             self.logout_button.setVisible(False)
+            
+            # Emit logout signal
             self.logout_signal.emit()
+            
+            # Adjust size
+            self.adjustSize()
+            self.size_changed_signal.emit()
+            
         except Exception as e:
             print(f"Error during logout: {e}")
             traceback.print_exc()
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout:\n{str(e)}")
+
     def handle_create_profile(self):
         """Handle the profile creation process with error handling."""
         try:

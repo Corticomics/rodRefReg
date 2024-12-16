@@ -113,6 +113,98 @@ class RodentRefreshmentGUI(QWidget):
             }
         """)
 
+        # Add this after the existing stylesheet
+        additional_style = """
+            QTableWidget {
+                background-color: white;
+                alternate-background-color: #f8f9fa;
+                border: 1px solid #e0e4e8;
+                border-radius: 6px;
+                padding: 2px;
+            }
+            
+            QTableWidget::item {
+                padding: 8px;
+            }
+            
+            QHeaderView::section {
+                background-color: #1a73e8;
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+            
+            QScrollBar:vertical {
+                border: none;
+                background: #f0f0f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            
+            QScrollBar::handle:vertical {
+                background: #1a73e8;
+                border-radius: 5px;
+            }
+            
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            
+            QComboBox {
+                border: 1px solid #1a73e8;
+                border-radius: 4px;
+                padding: 6px 12px;
+                background: white;
+                min-width: 100px;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            
+            QComboBox::down-arrow {
+                image: url(:/icons/down-arrow.png);
+                width: 12px;
+                height: 12px;
+            }
+            
+            QPushButton {
+                background-color: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            
+            QPushButton:hover {
+                background-color: #1557b0;
+            }
+            
+            QPushButton:pressed {
+                background-color: #104d92;
+            }
+            
+            QLabel {
+                color: #202124;
+                font-weight: 500;
+            }
+            
+            QLineEdit {
+                border: 2px solid #e0e4e8;
+                border-radius: 4px;
+                padding: 8px;
+                background: white;
+            }
+            
+            QLineEdit:focus {
+                border-color: #1a73e8;
+            }
+        """
+        self.setStyleSheet(self.styleSheet() + additional_style)
+
         # Initialize main layout first
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)

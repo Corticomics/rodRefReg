@@ -100,6 +100,32 @@ class SchedulesTab(QWidget):
         # Connect refresh to login system changes
         self.login_system.login_status_changed.connect(self.refresh)
 
+        # After creating mode_selector
+        self.mode_selector.setStyleSheet("""
+            QComboBox {
+                background-color: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                min-width: 150px;
+                font-weight: bold;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: url(:/icons/down-arrow.png);
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                color: #202124;
+                selection-background-color: #1a73e8;
+                selection-color: white;
+            }
+        """)
+
     def load_relay_units(self):
         """Load relay units and create RelayUnitWidgets."""
         self.relay_units_container_layout.addStretch()
