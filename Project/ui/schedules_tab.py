@@ -119,9 +119,9 @@ class SchedulesTab(QWidget):
                 image: url(:/icons/down-arrow.png);
             }
             QComboBox QAbstractItemView {
-                background-color: white;
+                background-color: 1a73e8;
                 color: #202124;
-                selection-background-color: #1a73e8;
+                selection-background-color: #f8f9fa;
                 selection-color: white;
             }
         """)

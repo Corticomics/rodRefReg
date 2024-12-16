@@ -239,12 +239,12 @@ class DatabaseHandler:
             traceback.print_exc()
             return None
 
-    def get_schedule_details(self, schedule_id):
-        """Retrieve detailed information about a schedule."""
+    def get_complete_schedule_details(self, schedule_id):
+        """Get complete schedule details including all related data."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # First get basic schedule info including delivery_mode
+                # Get basic schedule info
                 cursor.execute('''
                     SELECT s.*, ru.relay_ids 
                     FROM schedules s 
@@ -252,32 +252,42 @@ class DatabaseHandler:
                     WHERE s.schedule_id = ?
                 ''', (schedule_id,))
                 schedule_row = cursor.fetchone()
+                
                 if not schedule_row:
-                    return []
+                    return None
 
-                result = {
-                    'relay_unit_id': schedule_row[2],  # relay_unit_id
-                    'delivery_mode': schedule_row[8],  # delivery_mode
-                    'water_volume': schedule_row[3],   # water_volume
-                    'start_time': schedule_row[4],     # start_time
-                    'end_time': schedule_row[5],       # end_time
+                # Build complete schedule object
+                schedule_data = {
+                    'schedule_id': schedule_row[0],
+                    'name': schedule_row[1],
+                    'relay_unit_id': schedule_row[2],
+                    'water_volume': schedule_row[3],
+                    'start_time': schedule_row[4],
+                    'end_time': schedule_row[5],
+                    'created_by': schedule_row[6],
+                    'is_super_user': bool(schedule_row[7]),
+                    'delivery_mode': schedule_row[8],
+                    'animals': [],
+                    'desired_water_outputs': {},
+                    'instant_deliveries': []
                 }
 
-                # Get assigned animals
+                # Get animals
                 cursor.execute('''
                     SELECT animal_id FROM schedule_animals 
                     WHERE schedule_id = ?
                 ''', (schedule_id,))
-                result['animal_ids'] = [row[0] for row in cursor.fetchall()]
-                
-                if result['delivery_mode'] == 'instant':
+                schedule_data['animals'] = [row[0] for row in cursor.fetchall()]
+
+                # Get mode-specific data
+                if schedule_data['delivery_mode'] == 'instant':
                     cursor.execute('''
                         SELECT animal_id, delivery_datetime, water_volume
                         FROM schedule_instant_deliveries
                         WHERE schedule_id = ?
                         ORDER BY delivery_datetime
                     ''', (schedule_id,))
-                    result['delivery_schedule'] = [
+                    schedule_data['instant_deliveries'] = [
                         {
                             'animal_id': row[0],
                             'datetime': row[1],
@@ -290,15 +300,16 @@ class DatabaseHandler:
                         FROM schedule_desired_outputs 
                         WHERE schedule_id = ?
                     ''', (schedule_id,))
-                    result['desired_water_outputs'] = {
+                    schedule_data['desired_water_outputs'] = {
                         str(row[0]): row[1] for row in cursor.fetchall()
                     }
 
-                return [result]
+                return schedule_data
+
         except sqlite3.Error as e:
             print(f"Database error: {e}")
             traceback.print_exc()
-            return []
+            return None
 
     def get_animal_by_id(self, animal_id):
         """Retrieve an animal by its ID."""
