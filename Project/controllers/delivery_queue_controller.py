@@ -18,6 +18,8 @@ class DeliveryQueueController(QObject):
         self.check_timer = QTimer()
         self.check_timer.timeout.connect(self.check_schedule)
         self.check_timer.start(1000)  # Check every second
+        self.current_delivery = None
+        self.delivery_attempts = {}  # Track attempts and delivered volume
         
     def sort_queue_entry(self, instant):
         """Create a sortable queue entry tuple"""
@@ -70,34 +72,85 @@ class DeliveryQueueController(QObject):
             else:
                 break
                 
+    async def get_delivered_volume(self, schedule_id, animal_id):
+        """Get total volume delivered for a specific schedule and animal"""
+        try:
+            with self.database_handler.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT COALESCE(SUM(volume_dispensed), 0)
+                    FROM dispensing_history
+                    WHERE schedule_id = ? AND animal_id = ? AND status = 'completed'
+                ''', (schedule_id, animal_id))
+                return cursor.fetchone()[0]
+        except Exception as e:
+            self.delivery_status.emit(f"Error getting delivered volume: {str(e)}")
+            return 0
+
     async def process_delivery(self, instant):
         """Process a single water delivery"""
         try:
+            if self.current_delivery:
+                await self.requeue_instant(instant, delay_minutes=0.5)
+                return
+
+            self.current_delivery = instant
+            delivered_volume = await self.get_delivered_volume(
+                instant['schedule_id'], 
+                instant['animal_id']
+            )
+            
+            remaining_volume = instant['water_volume'] - delivered_volume
+            if remaining_volume <= 0:
+                await self.database_handler.mark_instant_completed(instant['instant_id'])
+                self.current_delivery = None
+                return
+
             relay_unit = await self.database_handler.get_relay_unit_for_animal(
                 instant['animal_id']
             )
             
-            # Get number of triggers from the instant or calculate if not present
-            num_triggers = instant.get('num_triggers', 
-                self.volume_calculator.calculate_triggers(instant['water_volume']))
-            
+            num_triggers = self.volume_calculator.calculate_triggers(remaining_volume)
             success = await self.pump_controller.dispense_water(
                 relay_unit,
-                instant['water_volume'],
+                remaining_volume,
                 num_triggers
             )
             
+            # Log delivery attempt in dispensing_history regardless of success
+            with self.database_handler.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO dispensing_history 
+                    (schedule_id, animal_id, relay_unit_id, timestamp, 
+                     volume_dispensed, status)
+                    VALUES (?, ?, ?, datetime('now'), ?, ?)
+                ''', (
+                    instant['schedule_id'], 
+                    instant['animal_id'], 
+                    relay_unit.unit_id, 
+                    remaining_volume if success else 0,
+                    'completed' if success else 'failed'
+                ))
+                conn.commit()
+
             if success:
-                await self.database_handler.mark_instant_completed(
-                    instant['instant_id'],
-                    instant['water_volume']  # Pass actual volume dispensed
-                )
-                self.delivery_status.emit(
-                    f"Delivered {instant['water_volume']}mL using {num_triggers} triggers"
-                )
+                new_total = delivered_volume + remaining_volume
+                if new_total >= instant['water_volume']:
+                    await self.database_handler.mark_instant_completed(
+                        instant['instant_id']
+                    )
+                    self.delivery_status.emit(
+                        f"Completed delivery of {instant['water_volume']}mL"
+                    )
+                else:
+                    await self.requeue_instant(instant, delay_minutes=0.5)
             else:
-                await self.requeue_instant(instant)
+                await self.requeue_instant(instant, delay_minutes=1)
+                
+            self.current_delivery = None
                 
         except Exception as e:
             self.delivery_status.emit(f"Delivery error: {str(e)}")
+            self.current_delivery = None
         

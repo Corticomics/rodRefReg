@@ -38,7 +38,7 @@ Dropped schedule in ScheduleDropArea:
 
 
 
-onelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/Project $ sqlite3 rrr_database.db
+conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/Project $ sqlite3 rrr_database.db
 SQLite version 3.40.1 2022-12-28 14:03:47
 Enter ".help" for usage hints.
 sqlite> .schema
