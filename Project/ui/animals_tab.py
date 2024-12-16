@@ -16,6 +16,7 @@ class AnimalsTab(QWidget):
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
         self.login_system = login_system  # Store login_system for permission checks
+        self.trainer_id = None  # Add this line back
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
