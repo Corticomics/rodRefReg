@@ -150,22 +150,7 @@ class SchedulesTab(QWidget):
             }
         """)
 
-        # Refine delete button styling
-        self.delete_time_button.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px;
-                max-width: 24px;
-                max-height: 24px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-        """)
+
 
     def load_relay_units(self):
         """Load relay units and create RelayUnitWidgets."""

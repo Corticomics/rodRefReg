@@ -30,9 +30,28 @@ class WaterDeliverySlot(QWidget):
         self.volume_input.setPlaceholderText("Water volume (mL)")
         self.volume_input.setFixedWidth(100)
         
-        # Delete button
+        # Delete button with refined styling
         self.delete_button = QPushButton("×")
-        self.delete_button.setMaximumWidth(30)
+        self.delete_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 2px;
+                max-width: 20px;
+                max-height: 20px;
+                font-size: 16px;
+                font-weight: bold;
+                margin: 0px;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
         self.delete_button.clicked.connect(self.handle_delete)
         
         layout.addWidget(self.datetime_picker)
