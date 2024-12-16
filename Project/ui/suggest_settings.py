@@ -59,7 +59,6 @@ class SuggestSettingsSection(QWidget):
     def on_login(self, user_info):
         """Updates the Profile tab after login."""
         self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), user_info['username'])
-        self.user_tab.set_minimal_profile_view(user_info['username'])
         #self.adjust_window_size()
 
     def on_logout(self):

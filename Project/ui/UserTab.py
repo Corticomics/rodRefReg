@@ -151,7 +151,6 @@ class UserTab(QWidget):
 
     def handle_login(self):
         try:
-            print('1')
             username = self.username_input.text().strip()
             password = self.password_input.text().strip()
 
@@ -163,6 +162,10 @@ class UserTab(QWidget):
             user_info = self.login_system.authenticate(username, password)
             if not user_info:
                 QMessageBox.warning(self, "Login Failed", "Incorrect username or password.")
+                return
+
+            if 'trainer_id' not in user_info:
+                QMessageBox.warning(self, "Login Failed", "Invalid user data: missing trainer ID.")
                 return
 
             print(f"Login successful: {user_info}")
