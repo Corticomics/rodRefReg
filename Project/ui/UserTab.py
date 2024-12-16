@@ -179,12 +179,15 @@ class UserTab(QWidget):
         try:
             self.current_user = user_info
             
-            # Clear and hide login form container
+            # Clear and hide login form elements
             self.login_container.hide()
+            self.info_label.hide()  # Hide the info label
             
             # Create profile container
             self.profile_container = QWidget()
             profile_layout = QVBoxLayout(self.profile_container)
+            profile_layout.setSpacing(16)
+            profile_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
             
             # Welcome message
             welcome_label = QLabel(f"Welcome, {user_info['username']}")
@@ -193,15 +196,15 @@ class UserTab(QWidget):
                     color: #202124;
                     font-size: 18px;
                     font-weight: 600;
-                    margin-bottom: 16px;
                 }
             """)
             welcome_label.setAlignment(Qt.AlignCenter)
             profile_layout.addWidget(welcome_label)
             
-            # Stats container with refined styling
+            # Stats container
             stats_container = QFrame()
             stats_layout = QGridLayout(stats_container)
+            stats_layout.setSpacing(8)
             stats_container.setStyleSheet("""
                 QFrame {
                     background-color: white;
@@ -219,36 +222,20 @@ class UserTab(QWidget):
             
             for i, (label, value) in enumerate(stats):
                 stat_label = QLabel(label + ":")
-                stat_label.setStyleSheet("""
-                    color: #5f6368;
-                    font-size: 13px;
-                """)
                 stat_value = QLabel(value)
-                stat_value.setStyleSheet("""
-                    color: #202124;
-                    font-weight: 500;
-                    font-size: 13px;
-                """)
                 stats_layout.addWidget(stat_label, i, 0)
                 stats_layout.addWidget(stat_value, i, 1)
             
             profile_layout.addWidget(stats_container)
             
-            # Logout button with refined styling
+            # Logout button
             self.logout_button = self._create_button("Log Out", "#dc3545")
             self.logout_button.clicked.connect(self.logout)
             profile_layout.addWidget(self.logout_button)
             
             self.layout.addWidget(self.profile_container)
-            
-            # Adjust the size and emit the signal
             self.adjustSize()
-            self.size_changed_signal.emit()
             
-        except ValueError as ve:
-            QMessageBox.critical(self, "Profile View Error", str(ve))
-            print(f"Profile View Error: {ve}")
-        
         except Exception as e:
             QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
             print(f"Unexpected error in set_user: {e}")
@@ -313,31 +300,6 @@ class UserTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Profile Creation Error", f"An unexpected error occurred during profile creation: {str(e)}")
 
-    
-    def set_minimal_profile_view(self, username):
-        """Sets a minimal view for logged-in users with error handling."""
-        try:
-            if not username:
-                raise ValueError("Username is required to set the minimal profile view.")
-            
-            self.info_label.setText(f"Logged in as: {username}")
-            self.username_input.hide()
-            self.password_input.hide()
-            self.login_button.hide()
-            self.create_profile_button.hide()
-            self.logout_button.show()
-            
-            # Adjust the size and emit the signal
-            
-
-        
-        except ValueError as ve:
-            QMessageBox.critical(self, "Profile View Error", str(ve))
-            print(f"Profile View Error: {ve}")
-        
-        except Exception as e:
-            QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
-            print(f"Unexpected error in set_minimal_profile_view: {e}")
 
     def set_guest_view(self):
         """Resets the view for guest mode with error handling."""
