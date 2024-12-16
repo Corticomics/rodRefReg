@@ -149,3 +149,17 @@ conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/Project/16relind-rpi $ 16r
 	wdtpwr:		Set the watchdog period in seconds, reload command must be issue in this interval to prevent Raspberry Pi power off
 	cfg485rd:    Read the RS485 communication settings
 	cfg485wr:    Write the RS485 communication settings
+
+
+
+
+conelab-rrr2@raspberrypi:~/Documents/GitHub/rodRefReg/Project $ sudo i2cdetect -y 1
+     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f
+00:                         -- -- -- -- -- -- -- -- 
+10: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+20: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+30: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+40: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+50: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+60: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+70: -- -- -- -- -- -- -- --                         
