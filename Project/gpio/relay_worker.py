@@ -63,37 +63,50 @@ class RelayWorker(QObject):
         
         self.progress.emit(f"Processing {len(self.delivery_instants)} deliveries")
         
+        # Group deliveries by relay unit to ensure proper timing
+        deliveries_by_unit = {}
         for instant in self.delivery_instants:
-            try:
-                delivery_time = datetime.fromisoformat(instant['delivery_time'])
-                self.progress.emit(f"Processing delivery time: {delivery_time}")
-                
-                if delivery_time > current_time:
-                    delay = (delivery_time - current_time).total_seconds() * 1000
-                    self.progress.emit(f"Scheduling delivery in {delay/1000:.2f} seconds")
+            unit_id = instant['relay_unit_id']
+            if unit_id not in deliveries_by_unit:
+                deliveries_by_unit[unit_id] = []
+            deliveries_by_unit[unit_id].append(instant)
+        
+        # Process each relay unit's deliveries with proper timing
+        for unit_id, unit_deliveries in deliveries_by_unit.items():
+            for idx, instant in enumerate(unit_deliveries):
+                try:
+                    delivery_time = datetime.fromisoformat(instant['delivery_time'])
+                    self.progress.emit(f"Processing delivery time: {delivery_time}")
                     
-                    timer = QTimer(self)
-                    timer.setSingleShot(True)
-                    timer.timeout.connect(
-                        lambda i=instant: self.trigger_relay(
-                            i['relay_unit_id'],
-                            i['water_volume']
+                    if delivery_time > current_time:
+                        # Calculate delay including stagger between triggers
+                        base_delay = (delivery_time - current_time).total_seconds() * 1000
+                        trigger_delay = idx * self.settings.get('min_trigger_interval_ms', 500)
+                        total_delay = base_delay + trigger_delay
+                        
+                        self.progress.emit(f"Scheduling delivery in {total_delay/1000:.2f} seconds")
+                        
+                        timer = QTimer(self)
+                        timer.setSingleShot(True)
+                        timer.timeout.connect(
+                            lambda i=instant: self.trigger_relay(
+                                i['relay_unit_id'],
+                                i['water_volume']
+                            )
                         )
-                    )
-                    timer.start(int(delay))
-                    self.timers.append(timer)
-                    scheduled_count += 1
-                else:
-                    self.progress.emit(f"Skipping past delivery time: {delivery_time}")
-            except Exception as e:
-                self.progress.emit(f"Error scheduling delivery: {str(e)}")
+                        timer.start(int(total_delay))
+                        self.timers.append(timer)
+                        scheduled_count += 1
+                    else:
+                        self.progress.emit(f"Skipping past delivery time: {delivery_time}")
+                except Exception as e:
+                    self.progress.emit(f"Error scheduling delivery: {str(e)}")
 
         if scheduled_count == 0:
             self.progress.emit("No future deliveries to schedule")
             self.finished.emit()
         else:
             self.progress.emit(f"Scheduled {scheduled_count} deliveries")
-            # Start the completion checker
             self.check_completion()
 
     def run_staggered_cycle(self):
@@ -113,24 +126,28 @@ class RelayWorker(QObject):
             return
 
         if window_start <= current_time <= window_end:
-            stagger = self.settings.get('stagger', 5)
+            cycle_interval = self.settings.get('cycle_interval')
+            stagger_interval = self.settings.get('stagger_interval')
+            
             water_volumes = self.settings.get('water_volumes', {})
             
-            for relay_unit_id, triggers in self.settings['num_triggers'].items():
+            for relay_unit_id, triggers_per_cycle in self.settings['num_triggers'].items():
                 water_volume = water_volumes.get(str(relay_unit_id), self.settings.get('water_volume', 0))
-                for i in range(triggers):
-                    delay = i * stagger * 1000
+                volume_per_trigger = water_volume / triggers_per_cycle
+                
+                for i in range(triggers_per_cycle):
+                    delay = i * stagger_interval * 1000  # Convert to milliseconds
                     timer = QTimer(self)
                     timer.setSingleShot(True)
                     timer.timeout.connect(
-                        lambda r=relay_unit_id, v=water_volume: self.trigger_relay(r, v)
+                        lambda r=relay_unit_id, v=volume_per_trigger: self.trigger_relay(r, v)
                     )
-                    timer.start(delay)
+                    timer.start(int(delay))
                     self.timers.append(timer)
 
-            interval = self.settings.get('interval', 3600)
-            self.main_timer.singleShot(interval * 1000, self.run_staggered_cycle)
-            self.progress.emit(f"Staggered cycle scheduled, next in {interval} seconds")
+            # Schedule next cycle
+            self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
+            self.progress.emit(f"Staggered cycle scheduled, next in {cycle_interval} seconds")
         else:
             self._is_running = False
             self.finished.emit()

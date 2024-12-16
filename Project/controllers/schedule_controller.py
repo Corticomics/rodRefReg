@@ -3,6 +3,7 @@ from datetime import datetime
 import asyncio
 from gpio.relay_worker import RelayWorker
 from utils.volume_calculator import VolumeCalculator
+from utils.timing_calculator import TimingCalculator
 
 class ScheduleController(QObject):
     """
@@ -23,6 +24,7 @@ class ScheduleController(QObject):
         self.workers = {}  # Store active RelayWorkers
         self.worker_threads = {}  # Store worker threads
         self.volume_calculator = VolumeCalculator(settings)
+        self.timing_calculator = TimingCalculator(settings)
         
     async def start_schedule(self, schedule, mode, window_start, window_end):
         """Start executing a schedule in specified mode"""
@@ -33,47 +35,49 @@ class ScheduleController(QObject):
             base_volume = schedule.water_volume
             base_triggers = self.volume_calculator.calculate_triggers(base_volume)
             
-            worker_settings = {
-                'mode': mode,
-                'window_start': window_start,
-                'window_end': window_end,
-                'base_triggers': base_triggers,
-                'num_triggers': {}
-            }
-            
             if mode == "Instant":
-                worker_settings['delivery_instants'] = [
-                    {
-                        'relay_unit_id': schedule.relay_unit_id,
-                        'delivery_time': delivery['datetime'],
-                        'water_volume': delivery['volume'],
-                        'num_triggers': self.volume_calculator.calculate_triggers(delivery['volume'])
-                    }
-                    for delivery in schedule.instant_deliveries
+                # Use timing calculator for instant deliveries
+                animals_data = [
+                    {'animal_id': d['animal_id'], 'volume_ml': d['volume']}
+                    for d in schedule.instant_deliveries
                 ]
+                timing_plan = self.timing_calculator.calculate_instant_timing(
+                    window_start, 
+                    animals_data
+                )
+                
+                worker_settings = {
+                    'mode': mode,
+                    'delivery_instants': [
+                        {
+                            'relay_unit_id': schedule.relay_unit_id,
+                            'delivery_time': timing['start_time'].isoformat(),
+                            'water_volume': animals_data[idx]['volume_ml'],
+                            'num_triggers': len(timing['trigger_times'])
+                        }
+                        for idx, (animal_id, timing) in enumerate(timing_plan.items())
+                    ]
+                }
             else:  # Staggered mode
-                # Calculate delivery times based on window
-                window_duration = window_end - window_start
-                total_units = len(schedule.animals)
+                animals_data = [
+                    {'animal_id': animal_id, 'volume_ml': schedule.desired_water_outputs.get(str(animal_id), base_volume)}
+                    for animal_id in schedule.animals
+                ]
                 
-                if total_units == 0:
-                    raise ValueError("No animals assigned to schedule")
-                    
-                # Calculate interval and stagger
-                interval = window_duration / schedule.cycles_per_day
-                stagger = interval / total_units
+                timing_plan = self.timing_calculator.calculate_staggered_timing(
+                    window_start,
+                    window_end,
+                    animals_data
+                )
                 
-                worker_settings.update({
-                    'interval': interval,
-                    'stagger': stagger,
-                    'water_volumes': schedule.desired_water_outputs
-                })
-                
-                # Set trigger counts for each relay unit
-                for animal_id in schedule.animals:
-                    relay_unit_id = await self.database_handler.get_relay_unit_for_animal(animal_id)
-                    if str(relay_unit_id) not in worker_settings['num_triggers']:
-                        worker_settings['num_triggers'][str(relay_unit_id)] = 1
+                worker_settings = {
+                    'mode': mode,
+                    'window_start': window_start,
+                    'window_end': window_end,
+                    'cycle_interval': timing_plan['cycle_interval'],
+                    'stagger_interval': timing_plan['stagger_interval'],
+                    'num_triggers': timing_plan['triggers_per_cycle']
+                }
             
             # Create and start RelayWorker
             worker = RelayWorker(worker_settings, self.relay_handler, self.notification_handler)
