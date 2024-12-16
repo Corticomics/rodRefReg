@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 import RPi.GPIO as GPIO
-import sm_16relind
+import SM16relind
 import time
 
 def test_relay_hat():
     try:
         # Initialize the relay hat (using index 0 for the first hat)
         print("Initializing relay hat...")
-        relay_hat = sm_16relind.SM16relind(0)
+        relay_hat = SM16relind.SM16relind(0)
         
         # Test 1: Individual relay test
         print("\nTest 1: Testing each relay individually...")

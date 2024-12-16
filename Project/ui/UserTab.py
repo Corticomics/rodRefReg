@@ -235,6 +235,7 @@ class UserTab(QWidget):
             
             self.layout.addWidget(self.profile_container)
             self.adjustSize()
+            self.size_changed_signal.emit()
             
         except Exception as e:
             QMessageBox.critical(self, "Unexpected Error", f"An unexpected error occurred: {str(e)}")
