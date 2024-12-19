@@ -17,7 +17,7 @@ from models.relay_unit import RelayUnit
 import time
 import sys
 import traceback
-import SM16relind  # Changed from sm_16relind
+from models.relay_unit_manager import RelayUnitManager
 
 def exception_hook(exctype, value, tb):
     print("".join(traceback.format_exception(exctype, value, tb)))
@@ -52,20 +52,33 @@ def setup():
     # Initialize the login system with database handler and assume "Guest" mode if not logged in
     login_system = LoginSystem(database_handler)
     if not login_system.is_logged_in():
-        login_system.set_guest_mode()  # Default to guest mode if no login
+        login_system.set_guest_mode()
 
     # Load settings (if any) and initialize relays
     settings = load_settings()
-
-    # Initialize relay handler and close all relays
-    relay_handler = RelayHandler(settings.get('relay_units', []), settings.get('num_hats', 1))
+    
+    # Initialize relay unit manager
+    relay_unit_manager = RelayUnitManager(settings)
+    
+    # Initialize relay handler with relay unit manager
+    relay_handler = RelayHandler(relay_unit_manager, settings.get('num_hats', 1))
     relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
 
     # Initialize Slack notification handler
-    notification_handler = NotificationHandler(settings.get('slack_token', 'SLACKTOKEN'), settings.get('channel_id', 'ChannelId'))
+    notification_handler = NotificationHandler(
+        settings.get('slack_token', 'SLACKTOKEN'), 
+        settings.get('channel_id', 'ChannelId')
+    )
 
-    # Initialize GUI components, including login system and database handler
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, settings, database_handler=database_handler, login_system=login_system)
+    # Initialize GUI components
+    gui = RodentRefreshmentGUI(
+        run_program, 
+        stop_program, 
+        change_relay_hats, 
+        settings, 
+        database_handler=database_handler, 
+        login_system=login_system
+    )
 
 def run_program(schedule, mode, window_start, window_end):
     global thread, worker, notification_handler, controller
@@ -177,29 +190,56 @@ def change_relay_hats():
     global relay_handler, settings
 
     # Prompt user for the number of relay hats
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8)
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
+                                     "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
 
-    # Update the settings with the new number of relay hats
+    # Update settings
     settings['num_hats'] = num_hats
-    settings['relay_units'] = create_relay_pairs(num_hats)
-
-    # Update relay handler with the new relay units
-    relay_units = []
-    for unit_id, relay_ids in enumerate(settings['relay_units'], start=1):
-        relay_unit = RelayUnit(unit_id=unit_id, relay_ids=relay_ids)
-        relay_units.append(relay_unit)
+    settings['relay_pairs'] = create_relay_pairs(num_hats)
     
-    relay_handler.update_relay_units(relay_units, num_hats)
+    # Create new relay unit manager with updated settings
+    relay_unit_manager = RelayUnitManager(settings)
+    
+    # Update relay handler
+    relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
 
-    # Reinitialize the Projects Section's relay units
+    # Update GUI components
+    relay_units = relay_unit_manager.get_all_relay_units()
+    _update_gui_relay_units(relay_units)
+
+    # Save settings
+    save_settings(settings)
+    
+    # Reset UI
+    cleanup()
+    
+    # Confirm update
+    gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
+
+def create_relay_pairs(num_hats):
+    relay_units = []
+    for hat in range(num_hats):
+        start_relay = hat * 16 + 1
+        for i in range(0, 16, 2):
+            relay_pair = (start_relay + i, start_relay + i + 1)
+            relay_units.append(relay_pair)
+    return relay_units
+
+def _update_gui_relay_units(relay_units):
+    """Update GUI components with new relay units"""
     gui.projects_section.relay_units = relay_units
     gui.projects_section.schedules_tab.relay_units = relay_units
     gui.projects_section.schedules_tab.relay_containers = {}
-    gui.projects_section.schedules_tab.layout.removeItem(gui.projects_section.schedules_tab.relay_layout)
+    
+    # Remove old layout
+    gui.projects_section.schedules_tab.layout.removeItem(
+        gui.projects_section.schedules_tab.relay_layout
+    )
     gui.projects_section.schedules_tab.relay_layout = QHBoxLayout()
 
+    # Create new containers
     for relay_unit in relay_units:
         container = QListWidget()
         container.setAcceptDrops(True)
@@ -213,22 +253,9 @@ def change_relay_hats():
         relay_layout.addWidget(container)
         gui.projects_section.schedules_tab.relay_layout.addLayout(relay_layout)
 
-    gui.projects_section.schedules_tab.layout.addLayout(gui.projects_section.schedules_tab.relay_layout)
-
-    # Reset the UI to ensure no lingering data or state
-    cleanup()
-
-    # Print confirmation
-    gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
-
-def create_relay_pairs(num_hats):
-    relay_units = []
-    for hat in range(num_hats):
-        start_relay = hat * 16 + 1
-        for i in range(0, 16, 2):
-            relay_pair = (start_relay + i, start_relay + i + 1)
-            relay_units.append(relay_pair)
-    return relay_units
+    gui.projects_section.schedules_tab.layout.addLayout(
+        gui.projects_section.schedules_tab.relay_layout
+    )
 
 def main():
     app = QApplication(sys.argv)

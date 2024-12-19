@@ -1,37 +1,24 @@
-#!/usr/bin/env python3
-
-import sys
+import SM16relind
 import time
-try:
-    import SM16relind
-except ImportError:
-    print("Error: SM16relind module not found. Please install using:")
-    print("cd 16relind-rpi/ && sudo make install")
-    sys.exit(1)
-
 def test_connection():
-    try:
-        # Initialize the relay hat
-        print("Initializing relay hat...")
-        relay_hat = SM16relind.SM16relind(0)
-        
-        # Test single relay
-        print("Testing relay 1...")
-        relay_hat.set(1, 1)  # Turn on relay 1
-        time.sleep(1)
-        relay_hat.set(1, 0)  # Turn off relay 1
-        
-        # Test all relays
-        print("Testing all relays...")
-        relay_hat.set_all(1)  # Turn all on
-        time.sleep(1)
-        relay_hat.set_all(0)  # Turn all off
-        
-        print("Test completed successfully!")
-        return True
-    except Exception as e:
-        print(f"Error during test: {str(e)}")
-        return False
-
-if __name__ == "__main__":
-    test_connection() 
+rel = SM16relind.SM16relind(0)
+print("================Turn on one by one  =====================")
+for i in range(16):
+    rel.set(i+1, 1)
+    print("Relay " + str(i + 1) + " set to " + str(rel.get(i + 1)))
+    print("All relays value: " + str( rel.get_all()))
+    time.sleep(0.15)
+print("================Turn off one by one  =====================")
+for i in range(16):
+    rel.set(i+1, 0)
+    print("Relay " + str(i + 1) + " set to " + str(rel.get(i + 1)))
+    print("All relays value: " + str(rel.get_all()))
+    time.sleep(0.15)
+print("================Turn all on  =====================")
+time.sleep(1)
+rel.set_all(65535)
+print("All relays: " + str(rel.get_all()))
+time.sleep(1)
+print("================Turn all off  =====================")
+rel.set_all(0)
+print("All relays: " + str(rel.get_all()))
