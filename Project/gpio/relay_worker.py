@@ -119,35 +119,53 @@ class RelayWorker(QObject):
         window_start = self.settings['window_start']
         window_end = self.settings['window_end']
         
-        if current_time < window_start:
-            delay = window_start - current_time
-            self.progress.emit(f"Waiting {delay} seconds until window start")
-            self.main_timer.singleShot(delay * 1000, self.run_staggered_cycle)
-            return
-
         if window_start <= current_time <= window_end:
             cycle_interval = self.settings.get('cycle_interval')
             stagger_interval = self.settings.get('stagger_interval')
             
-            water_volumes = self.settings.get('water_volumes', {})
+            # Track delivered volumes per animal
+            delivered_volumes = self.settings.get('delivered_volumes', {})
+            target_volumes = self.settings.get('target_volumes', {})
             
             for relay_unit_id, triggers_per_cycle in self.settings['num_triggers'].items():
-                water_volume = water_volumes.get(str(relay_unit_id), self.settings.get('water_volume', 0))
-                volume_per_trigger = water_volume / triggers_per_cycle
+                animal_id = str(relay_unit_id)  # Assuming 1:1 mapping
+                delivered = delivered_volumes.get(animal_id, 0)
+                target = target_volumes.get(animal_id, 0)
                 
-                for i in range(triggers_per_cycle):
-                    delay = i * stagger_interval * 1000  # Convert to milliseconds
-                    timer = QTimer(self)
-                    timer.setSingleShot(True)
-                    timer.timeout.connect(
-                        lambda r=relay_unit_id, v=volume_per_trigger: self.trigger_relay(r, v)
-                    )
-                    timer.start(int(delay))
-                    self.timers.append(timer)
-
-            # Schedule next cycle
-            self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
-            self.progress.emit(f"Staggered cycle scheduled, next in {cycle_interval} seconds")
+                if delivered < target:
+                    # Calculate remaining volume and triggers
+                    remaining_volume = target - delivered
+                    remaining_triggers = self.volume_calculator.calculate_triggers(remaining_volume)
+                    triggers_this_cycle = min(triggers_per_cycle, remaining_triggers)
+                    
+                    for i in range(triggers_this_cycle):
+                        delay = i * stagger_interval * 1000
+                        timer = QTimer(self)
+                        timer.setSingleShot(True)
+                        timer.timeout.connect(
+                            lambda r=relay_unit_id: self.trigger_relay(r)
+                        )
+                        timer.start(int(delay))
+                        self.timers.append(timer)
+                    
+                    # Update delivered volume
+                    volume_this_cycle = (triggers_this_cycle * self.pump_volume_ul) / 1000
+                    delivered_volumes[animal_id] = delivered + volume_this_cycle
+            
+            # Update settings with new volumes
+            self.settings['delivered_volumes'] = delivered_volumes
+            
+            # Check if all volumes are complete
+            all_complete = all(
+                delivered_volumes.get(aid, 0) >= target_volumes.get(aid, 0)
+                for aid in target_volumes
+            )
+            
+            if not all_complete:
+                self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
+            else:
+                self._is_running = False
+                self.finished.emit()
         else:
             self._is_running = False
             self.finished.emit()

@@ -88,10 +88,11 @@ class DeliveryQueueController(QObject):
             return 0
 
     async def process_delivery(self, instant):
-        """Process a single water delivery"""
         try:
+            # If there's a current delivery, only allow requeue if it's the same animal
             if self.current_delivery:
-                await self.requeue_instant(instant, delay_minutes=0.5)
+                if instant['animal_id'] == self.current_delivery['animal_id']:
+                    await self.requeue_instant(instant, delay_minutes=0.5)
                 return
 
             self.current_delivery = instant
@@ -104,20 +105,26 @@ class DeliveryQueueController(QObject):
             if remaining_volume <= 0:
                 await self.database_handler.mark_instant_completed(instant['instant_id'])
                 self.current_delivery = None
+                # Signal completion for this animal before moving to next
+                self.delivery_complete.emit({
+                    'animal_id': instant['animal_id'],
+                    'total_volume': instant['water_volume']
+                })
                 return
 
-            relay_unit = await self.database_handler.get_relay_unit_for_animal(
-                instant['animal_id']
-            )
-            
+            # Use existing trigger calculation
             num_triggers = self.volume_calculator.calculate_triggers(remaining_volume)
+            max_triggers_per_attempt = 5
+            triggers_this_attempt = min(num_triggers, max_triggers_per_attempt)
+            volume_this_attempt = (triggers_this_attempt * self.volume_calculator.pump_volume_ul) / 1000
+
             success = await self.pump_controller.dispense_water(
-                relay_unit,
-                remaining_volume,
-                num_triggers
+                instant['relay_unit_id'],
+                volume_this_attempt,
+                triggers_this_attempt
             )
-            
-            # Log delivery attempt in dispensing_history regardless of success
+
+            # Log attempt (using existing code)
             with self.database_handler.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
@@ -128,24 +135,28 @@ class DeliveryQueueController(QObject):
                 ''', (
                     instant['schedule_id'], 
                     instant['animal_id'], 
-                    relay_unit.unit_id, 
-                    remaining_volume if success else 0,
+                    instant['relay_unit_id'], 
+                    volume_this_attempt,
                     'completed' if success else 'failed'
                 ))
                 conn.commit()
 
             if success:
-                new_total = delivered_volume + remaining_volume
+                new_total = delivered_volume + volume_this_attempt
                 if new_total >= instant['water_volume']:
-                    await self.database_handler.mark_instant_completed(
-                        instant['instant_id']
-                    )
-                    self.delivery_status.emit(
-                        f"Completed delivery of {instant['water_volume']}mL"
-                    )
+                    await self.database_handler.mark_instant_completed(instant['instant_id'])
+                    self.delivery_status.emit(f"Completed delivery of {instant['water_volume']}mL")
+                    # Block other animals until this one is complete
+                    self.delivery_complete.emit({
+                        'animal_id': instant['animal_id'],
+                        'total_volume': instant['water_volume']
+                    })
                 else:
-                    await self.requeue_instant(instant, delay_minutes=0.5)
+                    # Immediately requeue same animal with high priority
+                    instant['priority'] = 0  # Highest priority
+                    await self.requeue_instant(instant, delay_minutes=0.1)
             else:
+                # Retry same volume on failure
                 await self.requeue_instant(instant, delay_minutes=1)
                 
             self.current_delivery = None
