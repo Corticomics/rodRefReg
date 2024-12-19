@@ -7,19 +7,25 @@ import logging
 from models.relay_unit import RelayUnit
 
 class RelayHandler:
-    def __init__(self, relay_units, num_hats=1):
-        """Initialize RelayHandler with relay units and hats"""
-        self.relay_units = {}  # Changed to dictionary for O(1) lookup
+    def __init__(self, relay_unit_manager, num_hats=1):
+        """Initialize RelayHandler with relay unit manager and hats"""
         self.num_hats = num_hats
         self.relay_hats = []
         
-        # Initialize relay units dictionary
-        for unit in relay_units:
-            if isinstance(unit, RelayUnit):
+        # Initialize relay units dictionary from manager
+        self.relay_units = {}
+        if hasattr(relay_unit_manager, 'get_all_relay_units'):
+            units = relay_unit_manager.get_all_relay_units()
+            for unit in units:
                 self.relay_units[unit.unit_id] = unit
-            elif isinstance(unit, tuple):  # Handle legacy tuple format
-                unit_id = len(self.relay_units) + 1
-                self.relay_units[unit_id] = RelayUnit(unit_id=unit_id, relay_ids=unit)
+        else:
+            # Handle legacy input where relay_unit_manager is a list of units
+            for unit in relay_unit_manager:
+                if isinstance(unit, RelayUnit):
+                    self.relay_units[unit.unit_id] = unit
+                elif isinstance(unit, tuple):
+                    unit_id = len(self.relay_units) + 1
+                    self.relay_units[unit_id] = RelayUnit(unit_id=unit_id, relay_ids=unit)
         
         # Initialize relay hats
         self._initialize_hats()

@@ -9,16 +9,19 @@ class RelayUnitManager:
     def initialize_relay_units(self):
         """Initialize relay units from settings"""
         relay_pairs = self.settings.get('relay_pairs', [
-            (1, 2), (3, 4), (5, 6), (7, 8),
-            (9, 10), (11, 12), (13, 14), (15, 16)
+            [1, 2], [3, 4], [5, 6], [7, 8],
+            [9, 10], [11, 12], [13, 14], [15, 16]
         ])
         
         for unit_id, relay_pair in enumerate(relay_pairs, start=1):
+            # Convert list to tuple for relay_ids
+            relay_ids = tuple(relay_pair)
             relay_unit = RelayUnit(
                 unit_id=unit_id,
-                relay_ids=relay_pair
+                relay_ids=relay_ids
             )
             self.relay_units[unit_id] = relay_unit
+            print(f"Initialized relay unit {unit_id} with relays {relay_ids}")
             
     def get_relay_unit(self, unit_id):
         """Get relay unit by ID"""
