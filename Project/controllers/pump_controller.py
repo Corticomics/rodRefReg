@@ -18,10 +18,13 @@ class PumpController:
                 print(f"Invalid relay unit ID: {relay_unit_id}")
                 return False
             
+            # Create proper triggers dictionary with string keys
+            triggers_dict = {str(relay_unit_id): num_triggers}
+            
             # Use existing relay handler's trigger_relays method
             relay_info = self.relay_handler.trigger_relays(
                 [relay_unit_id],
-                {str(relay_unit_id): num_triggers},
+                triggers_dict,
                 stagger=0.5  # 500ms stagger between triggers
             )
             

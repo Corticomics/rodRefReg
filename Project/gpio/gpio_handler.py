@@ -63,14 +63,18 @@ class RelayHandler:
                 print(f"Relay unit {unit_id} not found in available units: {list(self.relay_units.keys())}")
                 continue
 
-            triggers = num_triggers.get(str(unit_id), 1)
-            success = self._execute_triggers(relay_unit, triggers, stagger)
+            # Get number of triggers for this specific unit
+            unit_triggers = num_triggers.get(str(unit_id))
+            if unit_triggers is None:
+                print(f"No trigger count specified for relay unit {unit_id}")
+                continue
+
+            success = self._execute_triggers(relay_unit, unit_triggers, stagger)
             
             if success:
-                relay_info.append(f"Relay Unit {unit_id} triggered {triggers} times")
-            
+                relay_info.append(f"Relay Unit {unit_id} triggered {unit_triggers} times")
+        
         return relay_info
-
     def _execute_triggers(self, relay_unit, num_triggers, stagger):
         """Execute the specified number of triggers for a relay unit"""
         try:
