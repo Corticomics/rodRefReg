@@ -206,18 +206,22 @@ class RelayWorker(QObject):
                 )
                 
                 # Log the trigger attempt
-                self.progress.emit(f"Triggered relay unit {relay_unit_id} for {water_volume}ml")
+                message = f"Triggered relay unit {relay_unit_id} for {water_volume}ml"
+                self.progress.emit(message)
                 
                 if relay_info:
                     # Notify if configured
                     if self.notification_handler:
-                        self.notification_handler.send_notification(
-                            f"Water delivered: {water_volume}ml via relay unit {relay_unit_id}"
-                        )
+                        self.notification_handler.send_slack_notification(message)
+                        # Also log to file
+                        self.notification_handler.log_pump_trigger(message)
                 return relay_info
                 
             except Exception as e:
-                self.progress.emit(f"Error triggering relay {relay_unit_id}: {str(e)}")
+                error_msg = f"Error triggering relay {relay_unit_id}: {str(e)}"
+                self.progress.emit(error_msg)
+                if self.notification_handler:
+                    self.notification_handler.log_pump_trigger(error_msg)
                 return None
 
     def stop(self):
