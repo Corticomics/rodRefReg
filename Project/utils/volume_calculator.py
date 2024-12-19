@@ -13,4 +13,4 @@ class VolumeCalculator:
         
         # Calculate minimum triggers needed
         min_triggers = math.ceil(adjusted_volume / self.pump_volume_ul)
-        return max(min_triggers, 1)  # Ensure at least 1 trigger
+        return min_triggers  # Remove the max(min_triggers, 1) as it's redundant
