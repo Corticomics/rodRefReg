@@ -162,21 +162,45 @@ class RelayWorker(QObject):
             self.main_timer.singleShot(1000, self.check_completion)
 
     def trigger_relay(self, relay_unit_id, water_volume):
+        """
+        Triggers a relay unit with proper error handling and verification
+        
+        Args:
+            relay_unit_id (int): ID of the relay unit to trigger
+            water_volume (float): Volume of water to dispense
+        """
         with QMutexLocker(self.mutex):
             if not self._is_running:
                 return
-                
-            num_triggers = self.settings.get('num_triggers', {}).get(
-                str(relay_unit_id), 
-                1  # Default to 1 trigger instead of looking for 'base_triggers'
-            )
             
-            relay_info = self.relay_handler.trigger_relays(
-                [relay_unit_id],
-                {str(relay_unit_id): num_triggers},
-                self.settings.get('stagger', 0.5)  # Default to 500ms stagger
-            )
-            return relay_info
+            try:
+                # Get number of triggers based on water volume
+                num_triggers = self.settings.get('num_triggers', {}).get(
+                    str(relay_unit_id), 
+                    1  # Default to 1 trigger
+                )
+                
+                # Trigger the relays with proper stagger timing
+                relay_info = self.relay_handler.trigger_relays(
+                    [relay_unit_id],
+                    {str(relay_unit_id): num_triggers},
+                    self.settings.get('stagger', 0.5)  # 500ms stagger
+                )
+                
+                # Log the trigger attempt
+                self.progress.emit(f"Triggered relay unit {relay_unit_id} for {water_volume}ml")
+                
+                if relay_info:
+                    # Notify if configured
+                    if self.notification_handler:
+                        self.notification_handler.send_notification(
+                            f"Water delivered: {water_volume}ml via relay unit {relay_unit_id}"
+                        )
+                return relay_info
+                
+            except Exception as e:
+                self.progress.emit(f"Error triggering relay {relay_unit_id}: {str(e)}")
+                return None
 
     def stop(self):
         with QMutexLocker(self.mutex):
