@@ -278,14 +278,10 @@ class SchedulesTab(QWidget):
             if max_time is None:
                 max_time = datetime.now()
 
-            # Get relay assignments before creating schedule
-            relay_assignments = self.get_relay_assignments()
-            
-            # Create schedule object
+            # Create schedule object without relay_unit_id
             schedule = Schedule(
                 schedule_id=None,
                 name=schedule_name,
-                relay_unit_id=None,  # Remove default relay unit
                 water_volume=total_volume,
                 start_time=min_time.isoformat(),
                 end_time=max_time.isoformat(),
