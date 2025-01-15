@@ -278,11 +278,14 @@ class SchedulesTab(QWidget):
             if max_time is None:
                 max_time = datetime.now()
 
+            # Get relay assignments before creating schedule
+            relay_assignments = self.get_relay_assignments()
+            
             # Create schedule object
             schedule = Schedule(
                 schedule_id=None,
                 name=schedule_name,
-                relay_unit_id=list(self.relay_unit_widgets.keys())[0],  # Primary relay unit
+                relay_unit_id=None,  # Remove default relay unit
                 water_volume=total_volume,
                 start_time=min_time.isoformat(),
                 end_time=max_time.isoformat(),
@@ -291,8 +294,7 @@ class SchedulesTab(QWidget):
                 delivery_mode=delivery_mode
             )
 
-
-            # Add delivery data
+            # Add delivery data with correct relay unit assignments
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
                 if not relay_data['animals']:
@@ -301,11 +303,14 @@ class SchedulesTab(QWidget):
                 if delivery_mode == 'instant':
                     print(f"save_current_schedule: adding instant deliveries for unit {unit_id}")
                     for delivery in relay_data['delivery_schedule']:
-                        print(f"save_current_schedule: adding instant delivery for animal {relay_data['animals'][0].animal_id} at {delivery['datetime']} with volume {delivery['volume']}")
+                        animal_id = relay_data['animals'][0].animal_id
+                        print(f"save_current_schedule: adding instant delivery for animal {animal_id} "
+                              f"at {delivery['datetime']} with volume {delivery['volume']}")
                         schedule.add_instant_delivery(
-                            relay_data['animals'][0].animal_id,
+                            animal_id,
                             delivery['datetime'],
-                            delivery['volume']
+                            delivery['volume'],
+                            unit_id  # Add relay unit ID to instant delivery
                         )
                 else:
                     schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
@@ -425,3 +430,11 @@ class SchedulesTab(QWidget):
             item = self.schedule_list.itemAt(event.pos())
             if item:
                 self.startDrag(event)
+
+    def get_relay_assignments(self):
+        """Get current relay unit assignments for all animals"""
+        assignments = {}
+        for unit_id, relay_widget in self.relay_unit_widgets.items():
+            if relay_widget.assigned_animal:
+                assignments[str(relay_widget.assigned_animal.animal_id)] = unit_id
+        return assignments

@@ -100,14 +100,15 @@ def run_program(schedule, mode, window_start, window_end):
         }
         
         if mode == "Instant":
-            worker_settings['delivery_instants'] = [
-                {
-                    'relay_unit_id': schedule.relay_unit_id,
+            # Create delivery instants with correct relay unit assignments
+            worker_settings['delivery_instants'] = []
+            for delivery in schedule.instant_deliveries:
+                worker_settings['delivery_instants'].append({
+                    'relay_unit_id': delivery['relay_unit_id'],  # Use stored relay unit ID
+                    'animal_id': delivery['animal_id'],
                     'delivery_time': delivery['datetime'].isoformat() if hasattr(delivery['datetime'], 'isoformat') else delivery['datetime'],
                     'water_volume': delivery['volume']
-                }
-                for delivery in schedule.instant_deliveries
-            ]
+                })
         
         # Initialize worker with correct settings
         worker = RelayWorker(worker_settings, relay_handler, notification_handler)

@@ -21,12 +21,13 @@ class Schedule:
         # For instant mode
         self.instant_deliveries = []  # List of {animal_id, datetime, volume} dicts
 
-    def add_instant_delivery(self, animal_id, delivery_datetime, volume):
+    def add_instant_delivery(self, animal_id, delivery_datetime, volume, relay_unit_id):
         """Add an instant delivery time for an animal"""
         self.instant_deliveries.append({
             'animal_id': animal_id,
             'datetime': delivery_datetime,
-            'volume': volume
+            'volume': volume,
+            'relay_unit_id': relay_unit_id
         })
 
     def to_dict(self):
