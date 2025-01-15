@@ -343,7 +343,7 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT schedule_id, name, relay_unit_id, water_volume, 
+                    SELECT schedule_id, name, water_volume, 
                            start_time, end_time, created_by, is_super_user, 
                            delivery_mode
                     FROM schedules
@@ -353,19 +353,18 @@ class DatabaseHandler:
                     schedule = Schedule(
                         schedule_id=row[0],
                         name=row[1],
-                        relay_unit_id=row[2],
-                        water_volume=row[3],
-                        start_time=row[4],
-                        end_time=row[5],
-                        created_by=row[6],
-                        is_super_user=row[7],
-                        delivery_mode=row[8]  # Add delivery_mode
+                        water_volume=row[2],
+                        start_time=row[3],
+                        end_time=row[4],
+                        created_by=row[5],
+                        is_super_user=row[6],
+                        delivery_mode=row[7]
                     )
                     
                     # Get associated data based on delivery mode
                     if schedule.delivery_mode == 'instant':
                         cursor.execute('''
-                            SELECT animal_id, delivery_datetime, water_volume
+                            SELECT animal_id, delivery_datetime, water_volume, relay_unit_id
                             FROM schedule_instant_deliveries 
                             WHERE schedule_id = ?
                         ''', (schedule.schedule_id,))
@@ -373,16 +372,19 @@ class DatabaseHandler:
                             {
                                 'animal_id': row[0],
                                 'datetime': row[1],
-                                'volume': row[2]
+                                'volume': row[2],
+                                'relay_unit_id': row[3]
                             } for row in cursor.fetchall()
                         ]
                     else:
                         # Get animals and desired outputs for staggered mode
                         cursor.execute('''
-                            SELECT animal_id FROM schedule_animals 
+                            SELECT animal_id, relay_unit_id FROM schedule_animals 
                             WHERE schedule_id = ?
                         ''', (schedule.schedule_id,))
-                        schedule.animals = [animal_id for (animal_id,) in cursor.fetchall()]
+                        for animal_id, relay_unit_id in cursor.fetchall():
+                            schedule.animals.append(animal_id)
+                            schedule.relay_unit_assignments[str(animal_id)] = relay_unit_id
                         
                         cursor.execute('''
                             SELECT animal_id, desired_output 
