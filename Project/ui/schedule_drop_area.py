@@ -74,11 +74,10 @@ class ScheduleDropArea(QWidget):
                 
                 schedule_detail = schedule_details[0]
                 
-                # Create Schedule instance
+                # Create Schedule instance without relay_unit_id
                 self.current_schedule = Schedule(
                     schedule_id=schedule_dict['schedule_id'],
                     name=schedule_dict['name'],
-                    relay_unit_id=schedule_detail['relay_unit_id'],
                     water_volume=schedule_detail['water_volume'],
                     start_time=schedule_detail['start_time'],
                     end_time=schedule_detail['end_time'],
@@ -91,9 +90,14 @@ class ScheduleDropArea(QWidget):
                 if self.current_schedule.delivery_mode.lower() == 'instant':
                     deliveries = self.database_handler.get_schedule_instant_deliveries(self.current_schedule.schedule_id)
                     for delivery in deliveries:
-                        animal_id, _, _, datetime_str, volume, _ = delivery
+                        animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
                         delivery_time = datetime.datetime.fromisoformat(datetime_str)
-                        self.current_schedule.add_instant_delivery(animal_id, delivery_time, volume)
+                        self.current_schedule.add_instant_delivery(
+                            animal_id, 
+                            delivery_time, 
+                            volume,
+                            relay_unit_id
+                        )
                 
                 # Update UI
                 self.placeholder.setText(f"Schedule: {self.current_schedule.name}")
