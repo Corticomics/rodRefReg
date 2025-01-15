@@ -36,13 +36,13 @@ class Schedule:
         data = {
             'schedule_id': self.schedule_id,
             'name': self.name,
-            'relay_unit_id': self.relay_unit_id,
             'water_volume': self.water_volume,
             'start_time': self.start_time,
             'end_time': self.end_time,
             'created_by': self.created_by,
             'is_super_user': self.is_super_user,
-            'delivery_mode': self.delivery_mode
+            'delivery_mode': self.delivery_mode,
+            'relay_unit_assignments': self.relay_unit_assignments
         }
 
         if self.delivery_mode == 'staggered':
