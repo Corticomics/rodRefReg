@@ -386,7 +386,6 @@ class SchedulesTab(QWidget):
                 schedule_data = {
                     'schedule_id': schedule.schedule_id,
                     'name': schedule.name,
-                    'relay_unit_id': schedule.relay_unit_id,
                     'water_volume': schedule.water_volume,
                     'start_time': schedule.start_time,
                     'end_time': schedule.end_time,
