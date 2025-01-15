@@ -1,6 +1,7 @@
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 from datetime import datetime
 import time
+from utils.volume_calculator import VolumeCalculator
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
 
@@ -38,6 +39,9 @@ class RelayWorker(QObject):
         self.timers = []  # Keep track of active timers
         self.delivery_instants = settings.get('delivery_instants', [])
         self.mode = settings.get('mode', 'instant').lower()
+        
+        # Initialize VolumeCalculator
+        self.volume_calculator = VolumeCalculator(settings)
         
     @pyqtSlot()
     def run_cycle(self):
