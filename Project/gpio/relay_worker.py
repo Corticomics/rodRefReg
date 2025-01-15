@@ -43,6 +43,9 @@ class RelayWorker(QObject):
         # Initialize VolumeCalculator
         self.volume_calculator = VolumeCalculator(settings)
         
+        # Add debug logging
+        self.progress.emit(f"Initialized RelayWorker with settings: {settings}")
+        
     @pyqtSlot()
     def run_cycle(self):
         """Main entry point for starting the worker"""
@@ -147,7 +150,7 @@ class RelayWorker(QObject):
                         timer = QTimer(self)
                         timer.setSingleShot(True)
                         timer.timeout.connect(
-                            lambda r=relay_unit_id: self.trigger_relay(r)
+                            lambda r=relay_unit_id, v=remaining_volume: self.trigger_relay(r, v)
                         )
                         timer.start(int(delay))
                         self.timers.append(timer)
@@ -192,6 +195,9 @@ class RelayWorker(QObject):
                 return
             
             try:
+                # Ensure relay_unit_id is properly typed
+                relay_unit_id = int(relay_unit_id)
+                
                 # Calculate required triggers based on water volume
                 required_triggers = self.volume_calculator.calculate_triggers(water_volume)
                 
@@ -200,20 +206,20 @@ class RelayWorker(QObject):
                 
                 # Log attempt
                 self.progress.emit(
-                    f"Triggering relay {relay_unit_id} for {water_volume}ml "
+                    f"Triggering relay unit {relay_unit_id} for {water_volume}ml "
                     f"({required_triggers} triggers)"
                 )
                 
                 # Execute triggers with verification
                 relay_info = self.relay_handler.trigger_relays(
-                    [relay_unit_id],
+                    [relay_unit_id],  # Pass as list of integers
                     triggers_dict,
                     self.settings.get('stagger', 0.5)
                 )
                 
                 if relay_info:
                     success_msg = (
-                        f"Successfully triggered relay {relay_unit_id} "
+                        f"Successfully triggered relay unit {relay_unit_id} "
                         f"{required_triggers} times"
                     )
                     self.progress.emit(success_msg)
