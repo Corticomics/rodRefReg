@@ -78,18 +78,29 @@ class RelayHandler:
     def _execute_triggers(self, relay_unit, num_triggers, stagger):
         """Execute the specified number of triggers for a relay unit"""
         try:
-            for _ in range(num_triggers):
+            for trigger in range(num_triggers):
+                # Log trigger attempt
+                print(f"Executing trigger {trigger + 1}/{num_triggers} "
+                      f"for relay unit {relay_unit.unit_id}")
+                
                 # Activate relays
-                self._set_relay_states(relay_unit.relay_ids, 1)
-                print(f"\n{datetime.datetime.now()} - Activated Relay Unit {relay_unit.unit_id}")
+                for relay_id in relay_unit.relay_ids:
+                    self._set_relay_states([relay_id], 1)
+                
+                # Wait for activation duration
                 time.sleep(stagger)
                 
                 # Deactivate relays
-                self._set_relay_states(relay_unit.relay_ids, 0)
-                time.sleep(stagger)
+                for relay_id in relay_unit.relay_ids:
+                    self._set_relay_states([relay_id], 0)
+                
+                # Wait between triggers
+                if trigger < num_triggers - 1:  # Don't wait after last trigger
+                    time.sleep(stagger)
+                
             return True
+            
         except Exception as e:
-            print(f"Error executing triggers for unit {relay_unit.unit_id}: {e}")
             logging.error(f"Trigger execution error: {str(e)}")
             return False
 

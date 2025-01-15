@@ -182,39 +182,40 @@ class RelayWorker(QObject):
     def trigger_relay(self, relay_unit_id, water_volume):
         """
         Triggers a relay unit with proper error handling and verification
-        
-        Args:
-            relay_unit_id (int): ID of the relay unit to trigger
-            water_volume (float): Volume of water to dispense
         """
         with QMutexLocker(self.mutex):
             if not self._is_running:
                 return
             
             try:
-                # Get number of triggers based on water volume
-                num_triggers = self.settings.get('num_triggers', {}).get(
-                    str(relay_unit_id), 
-                    1  # Default to 1 trigger
+                # Calculate required triggers based on water volume
+                required_triggers = self.volume_calculator.calculate_triggers(water_volume)
+                
+                # Create triggers dictionary with proper string keys
+                triggers_dict = {str(relay_unit_id): required_triggers}
+                
+                # Log attempt
+                self.progress.emit(
+                    f"Triggering relay {relay_unit_id} for {water_volume}ml "
+                    f"({required_triggers} triggers)"
                 )
                 
-                # Trigger the relays with proper stagger timing
+                # Execute triggers with verification
                 relay_info = self.relay_handler.trigger_relays(
                     [relay_unit_id],
-                    {str(relay_unit_id): num_triggers},
-                    self.settings.get('stagger', 0.5)  # 500ms stagger
+                    triggers_dict,
+                    self.settings.get('stagger', 0.5)
                 )
                 
-                # Log the trigger attempt
-                message = f"Triggered relay unit {relay_unit_id} for {water_volume}ml"
-                self.progress.emit(message)
-                
                 if relay_info:
-                    # Notify if configured
+                    success_msg = (
+                        f"Successfully triggered relay {relay_unit_id} "
+                        f"{required_triggers} times"
+                    )
+                    self.progress.emit(success_msg)
                     if self.notification_handler:
-                        self.notification_handler.send_slack_notification(message)
-                        # Also log to file
-                        self.notification_handler.log_pump_trigger(message)
+                        self.notification_handler.send_slack_notification(success_msg)
+                        self.notification_handler.log_pump_trigger(success_msg)
                 return relay_info
                 
             except Exception as e:
