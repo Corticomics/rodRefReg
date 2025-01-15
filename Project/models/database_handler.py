@@ -64,7 +64,6 @@ class DatabaseHandler:
                     CREATE TABLE IF NOT EXISTS schedules (
                         schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,
-                        relay_unit_id INTEGER NOT NULL,
                         water_volume REAL NOT NULL,
                         start_time TEXT NOT NULL,
                         end_time TEXT NOT NULL,
@@ -72,7 +71,6 @@ class DatabaseHandler:
                         is_super_user BOOLEAN DEFAULT 0,
                         delivery_mode TEXT DEFAULT 'staggered',
                         dispensing_status TEXT DEFAULT 'pending',
-                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id),
                         FOREIGN KEY(created_by) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -82,9 +80,11 @@ class DatabaseHandler:
                     CREATE TABLE IF NOT EXISTS schedule_animals (
                         schedule_id INTEGER NOT NULL,
                         animal_id INTEGER NOT NULL,
+                        relay_unit_id INTEGER,
                         PRIMARY KEY (schedule_id, animal_id),
                         FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
-                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
                     )
                 ''')
 
@@ -110,9 +110,11 @@ class DatabaseHandler:
                         animal_id INTEGER NOT NULL,
                         delivery_datetime TEXT NOT NULL,
                         water_volume REAL NOT NULL,
+                        relay_unit_id INTEGER,
                         completed BOOLEAN DEFAULT 0,
                         FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
-                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
                     )
                 ''')
 
@@ -239,35 +241,33 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # First get basic schedule info including delivery_mode
                 cursor.execute('''
-                    SELECT s.*, ru.relay_ids 
-                    FROM schedules s 
-                    JOIN relay_units ru ON s.relay_unit_id = ru.relay_unit_id 
-                    WHERE s.schedule_id = ?
+                    SELECT * FROM schedules WHERE schedule_id = ?
                 ''', (schedule_id,))
                 schedule_row = cursor.fetchone()
                 if not schedule_row:
                     return []
 
                 result = {
-                    'relay_unit_id': schedule_row[2],  # relay_unit_id
-                    'delivery_mode': schedule_row[8],  # delivery_mode
-                    'water_volume': schedule_row[3],   # water_volume
-                    'start_time': schedule_row[4],     # start_time
-                    'end_time': schedule_row[5],       # end_time
+                    'delivery_mode': schedule_row[7],  # delivery_mode
+                    'water_volume': schedule_row[2],   # water_volume
+                    'start_time': schedule_row[3],     # start_time
+                    'end_time': schedule_row[4],       # end_time
                 }
 
-                # Get assigned animals
+                # Get assigned animals with their relay units
                 cursor.execute('''
-                    SELECT animal_id FROM schedule_animals 
-                    WHERE schedule_id = ?
+                    SELECT sa.animal_id, sa.relay_unit_id 
+                    FROM schedule_animals sa
+                    WHERE sa.schedule_id = ?
                 ''', (schedule_id,))
-                result['animal_ids'] = [row[0] for row in cursor.fetchall()]
+                animal_rows = cursor.fetchall()
+                result['animal_ids'] = [row[0] for row in animal_rows]
+                result['relay_unit_assignments'] = {str(row[0]): row[1] for row in animal_rows}
                 
                 if result['delivery_mode'] == 'instant':
                     cursor.execute('''
-                        SELECT animal_id, delivery_datetime, water_volume
+                        SELECT animal_id, delivery_datetime, water_volume, relay_unit_id
                         FROM schedule_instant_deliveries
                         WHERE schedule_id = ?
                         ORDER BY delivery_datetime
@@ -276,7 +276,8 @@ class DatabaseHandler:
                         {
                             'animal_id': row[0],
                             'datetime': row[1],
-                            'volume': row[2]
+                            'volume': row[2],
+                            'relay_unit_id': row[3]
                         } for row in cursor.fetchall()
                     ]
                 else:
@@ -782,28 +783,29 @@ class DatabaseHandler:
             traceback.print_exc()
             return False
 
-    def add_instant_schedule(self, schedule_name, relay_unit_id, created_by, is_super_user, deliveries):
+    def add_instant_schedule(self, schedule_name, created_by, is_super_user, deliveries):
         """Add a new instant delivery schedule"""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # Insert main schedule
+                # Insert main schedule without relay_unit_id
                 cursor.execute('''
                     INSERT INTO schedules 
-                    (name, relay_unit_id, delivery_mode, created_by, is_super_user)
-                    VALUES (?, ?, 'instant', ?, ?)
-                ''', (schedule_name, relay_unit_id, created_by, is_super_user))
+                    (name, delivery_mode, created_by, is_super_user)
+                    VALUES (?, 'instant', ?, ?)
+                ''', (schedule_name, created_by, is_super_user))
                 schedule_id = cursor.lastrowid
                 
-                # Insert delivery times
+                # Insert delivery times with relay_unit_id
                 for delivery in deliveries:
                     cursor.execute('''
                         INSERT INTO schedule_instant_deliveries 
-                        (schedule_id, animal_id, delivery_datetime, water_volume)
-                        VALUES (?, ?, ?, ?)
+                        (schedule_id, animal_id, delivery_datetime, water_volume, relay_unit_id)
+                        VALUES (?, ?, ?, ?, ?)
                     ''', (schedule_id, delivery['animal_id'], 
                          delivery['datetime'].isoformat(), 
-                         delivery['volume']))
+                         delivery['volume'],
+                         delivery['relay_unit_id']))
                 
                 conn.commit()
                 return schedule_id
@@ -819,7 +821,8 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT sid.animal_id, a.lab_animal_id, a.name, 
-                           sid.delivery_datetime, sid.water_volume, sid.completed
+                           sid.delivery_datetime, sid.water_volume, sid.completed,
+                           sid.relay_unit_id
                     FROM schedule_instant_deliveries sid
                     JOIN animals a ON sid.animal_id = a.animal_id
                     WHERE sid.schedule_id = ?
