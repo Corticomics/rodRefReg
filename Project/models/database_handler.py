@@ -192,50 +192,45 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
+                # Insert main schedule without relay_unit_id
                 cursor.execute('''
                     INSERT INTO schedules (
-                        name, relay_unit_id, water_volume, start_time, end_time, 
+                        name, water_volume, start_time, end_time, 
                         created_by, is_super_user, delivery_mode
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (
-                    schedule.name, schedule.relay_unit_id, schedule.water_volume, 
+                    schedule.name, schedule.water_volume, 
                     schedule.start_time, schedule.end_time, schedule.created_by, 
                     schedule.is_super_user, schedule.delivery_mode
                 ))
                 schedule.schedule_id = cursor.lastrowid
 
-                # Insert into schedule_animals
+                # Insert animal assignments with relay units
                 for animal_id in schedule.animals:
+                    relay_unit_id = schedule.relay_unit_assignments.get(str(animal_id))
                     cursor.execute('''
-                        INSERT INTO schedule_animals (schedule_id, animal_id)
-                        VALUES (?, ?)
-                    ''', (schedule.schedule_id, animal_id))
+                        INSERT INTO schedule_animals 
+                        (schedule_id, animal_id, relay_unit_id)
+                        VALUES (?, ?, ?)
+                    ''', (schedule.schedule_id, animal_id, relay_unit_id))
 
                 if schedule.delivery_mode == 'instant':
-                    # Insert instant deliveries
                     for delivery in schedule.instant_deliveries:
                         cursor.execute('''
                             INSERT INTO schedule_instant_deliveries 
-                            (schedule_id, animal_id, delivery_datetime, water_volume)
-                            VALUES (?, ?, ?, ?)
+                            (schedule_id, animal_id, delivery_datetime, water_volume, relay_unit_id)
+                            VALUES (?, ?, ?, ?, ?)
                         ''', (
                             schedule.schedule_id, delivery['animal_id'],
-                            delivery['datetime'], delivery['volume']
+                            delivery['datetime'], delivery['volume'],
+                            delivery['relay_unit_id']
                         ))
-                else:
-                    # Insert desired water outputs for staggered mode
-                    for animal_id, desired_output in schedule.desired_water_outputs.items():
-                        cursor.execute('''
-                            INSERT INTO schedule_desired_outputs (schedule_id, animal_id, desired_output)
-                            VALUES (?, ?, ?)
-                        ''', (schedule.schedule_id, animal_id, desired_output))
 
                 conn.commit()
-                print(f"Schedule '{schedule.name}' added with ID: {schedule.schedule_id}")
                 return schedule.schedule_id
         except sqlite3.Error as e:
-            print(f"Database error when adding schedule: {e}")
+            print(f"Database error when adding schedule: {str(e)}")
             traceback.print_exc()
             return None
 
