@@ -151,7 +151,8 @@ class ScheduleDropArea(QWidget):
                 # Group deliveries by animal
                 animal_deliveries = {}
                 for delivery in deliveries:
-                    animal_id, lab_id, name, datetime_str, volume, completed = delivery
+                    # Unpack the delivery tuple correctly
+                    animal_id, lab_id, name, datetime_str, volume, relay_unit_id = delivery
                     if animal_id not in animal_deliveries:
                         animal_deliveries[animal_id] = {
                             'lab_id': lab_id,
