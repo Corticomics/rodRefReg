@@ -403,29 +403,66 @@ class DatabaseHandler:
             return []
 
     def get_schedules_by_trainer(self, trainer_id):
+        """Get all schedules created by a specific trainer."""
         schedules = []
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT schedule_id, name, relay_unit_id, water_volume, start_time, end_time, created_by, is_super_user FROM schedules WHERE created_by = ?', (trainer_id,))
+                cursor.execute('''
+                    SELECT schedule_id, name, water_volume, start_time, end_time, 
+                           created_by, is_super_user, delivery_mode
+                    FROM schedules 
+                    WHERE created_by = ?
+                ''', (trainer_id,))
                 rows = cursor.fetchall()
                 for row in rows:
                     schedule = Schedule(
                         schedule_id=row[0],
                         name=row[1],
-                        relay_unit_id=row[2],
-                        water_volume=row[3],
-                        start_time=row[4],
-                        end_time=row[5],
-                        created_by=row[6],
-                        is_super_user=row[7]
+                        water_volume=row[2],
+                        start_time=row[3],
+                        end_time=row[4],
+                        created_by=row[5],
+                        is_super_user=row[6],
+                        delivery_mode=row[7]
                     )
-                    # Retrieve associated animals
-                    cursor.execute('SELECT animal_id FROM schedule_animals WHERE schedule_id = ?', (schedule.schedule_id,))
-                    animal_rows = cursor.fetchall()
-                    schedule.animals = [animal_id for (animal_id,) in animal_rows]
+                    
+                    # Get associated data based on delivery mode
+                    if schedule.delivery_mode == 'instant':
+                        cursor.execute('''
+                            SELECT animal_id, delivery_datetime, water_volume, relay_unit_id
+                            FROM schedule_instant_deliveries 
+                            WHERE schedule_id = ?
+                        ''', (schedule.schedule_id,))
+                        schedule.instant_deliveries = [
+                            {
+                                'animal_id': row[0],
+                                'datetime': row[1],
+                                'volume': row[2],
+                                'relay_unit_id': row[3]
+                            } for row in cursor.fetchall()
+                        ]
+                    else:
+                        # Get animals and relay unit assignments for staggered mode
+                        cursor.execute('''
+                            SELECT animal_id, relay_unit_id FROM schedule_animals 
+                            WHERE schedule_id = ?
+                        ''', (schedule.schedule_id,))
+                        for animal_id, relay_unit_id in cursor.fetchall():
+                            schedule.animals.append(animal_id)
+                            schedule.relay_unit_assignments[str(animal_id)] = relay_unit_id
+                        
+                        cursor.execute('''
+                            SELECT animal_id, desired_output 
+                            FROM schedule_desired_outputs 
+                            WHERE schedule_id = ?
+                        ''', (schedule.schedule_id,))
+                        schedule.desired_water_outputs = {
+                            str(row[0]): row[1] for row in cursor.fetchall()
+                        }
+                    
                     schedules.append(schedule)
-            return schedules
+                return schedules
         except sqlite3.Error as e:
             print(f"Error retrieving schedules for trainer_id {trainer_id}: {e}")
             traceback.print_exc()
