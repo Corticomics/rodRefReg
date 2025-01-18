@@ -7,13 +7,12 @@ from PyQt5.QtCore import pyqtSignal
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
 
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, database_handler=None, parent=None):
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, database_handler=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
         self.settings = settings
-        self.advanced_settings = advanced_settings
         self.database_handler = database_handler
         self.current_schedule = None
 
@@ -69,7 +68,7 @@ class RunStopSection(QWidget):
         # Connect button signals
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
-        self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
+        self.relay_hats_button.clicked.connect(self.change_relay_hats)
 
         # Create and populate button layout
         self.button_layout = QHBoxLayout()
@@ -302,24 +301,19 @@ class RunStopSection(QWidget):
 
 
     def change_relay_hats(self):
-        # Clear any old references in the advanced settings
-        self.advanced_settings.clear_layout(self.advanced_settings.layout)
-        self.advanced_settings.trigger_entries.clear()
-
-        # Execute the callback to change the relay hats
-        self.change_relay_hats_callback()
-
-        # After changing the relay hats, reinitialize the advanced settings UI
-        self.advanced_settings.create_settings_ui()
-
-        # Update the internal settings with new relay pairs (optional but recommended)
-        self.settings['relay_pairs'] = self.advanced_settings.settings['relay_pairs']
-
-        # Reset the UI to ensure no lingering data or state
-        self.reset_ui()
-
-        # Update the button states to reflect the new configuration
-        self.update_button_states()
+        """Change relay hats configuration"""
+        try:
+            # Execute the callback to change the relay hats
+            self.change_relay_hats_callback()
+            
+            # Reset the UI
+            self.reset_ui()
+            
+            # Update the button states
+            self.update_button_states()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to change relay hats: {str(e)}")
 
     def _on_mode_changed(self, mode):
         """Handle mode changes from schedule drop area"""
