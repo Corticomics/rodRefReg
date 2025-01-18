@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QComboBox, 
-                           QTableWidgetItem, QTableWidget, QHBoxLayout)
+                           QTableWidgetItem, QTableWidget, QHBoxLayout, QPushButton)
 from PyQt5.QtCore import Qt, pyqtSignal
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
@@ -132,9 +132,11 @@ class ScheduleDropArea(QWidget):
             self.current_schedule = schedule
             self.placeholder.setText(f"Schedule: {schedule.name}")
             
-            # Enable edit button if it exists
-            if hasattr(self, 'edit_button'):
-                self.edit_button.setEnabled(True)
+            # Enable edit button in parent RunStopSection
+            if isinstance(self.parent(), QWidget):
+                edit_button = self.parent().findChild(QPushButton, "edit_button")
+                if edit_button:
+                    edit_button.setEnabled(True)
             
             # Update mode if needed
             if hasattr(self, 'mode_changed'):

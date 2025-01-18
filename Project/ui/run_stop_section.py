@@ -126,6 +126,7 @@ class RunStopSection(QWidget):
         # Button layout
         self.button_layout = QHBoxLayout()
         self.button_layout.setSpacing(5)
+        self.button_layout.addWidget(self.edit_button)
         self.button_layout.addWidget(self.run_button)
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
@@ -133,7 +134,7 @@ class RunStopSection(QWidget):
         # Create button container
         button_container = QHBoxLayout()
         
-        # Add Edit Schedule button
+        # Create Edit Schedule button
         self.edit_button = QPushButton("Edit Schedule")
         self.edit_button.setEnabled(False)
         self.edit_button.clicked.connect(self.edit_current_schedule)
