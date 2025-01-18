@@ -322,16 +322,15 @@ class RunStopSection(QWidget):
         self.tab_widget.setVisible(is_staggered)
 
     def edit_current_schedule(self):
+        """Open the edit dialog for the current schedule"""
         if not self.current_schedule:
             return
         
         dialog = EditScheduleDialog(self.current_schedule, self.database_handler, self)
+        dialog.schedule_updated.connect(self.on_schedule_updated)
+        
         if dialog.exec_() == QDialog.Accepted:
-            # Refresh the schedule display
-            self.update_schedule_display()
-            # Notify parent of changes
-            if hasattr(self, 'schedule_updated'):
-                self.schedule_updated.emit(self.current_schedule.schedule_id)
+            self.update_table(self.current_schedule)
 
     def on_schedule_dropped(self, schedule):
         """Handle when a schedule is dropped"""
@@ -355,5 +354,13 @@ class RunStopSection(QWidget):
                 background-color: #17a2b8;
             }
         """)
+        self.schedule_table.show()
+        self.update_table(schedule)
+
+    def on_schedule_updated(self, updated_schedule):
+        """Handle when a schedule is updated"""
+        self.current_schedule = updated_schedule
+        self.update_table(updated_schedule)
+        self.schedule_updated.emit(updated_schedule.schedule_id)
 
 
