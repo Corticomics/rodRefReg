@@ -10,6 +10,7 @@ import traceback
 class ScheduleDropArea(QWidget):
 
     mode_changed = pyqtSignal(str)
+    schedule_dropped = pyqtSignal(object)  # Signal for when schedule is dropped
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -132,16 +133,13 @@ class ScheduleDropArea(QWidget):
             self.current_schedule = schedule
             self.placeholder.setText(f"Schedule: {schedule.name}")
             
-            # Enable edit button in parent RunStopSection
-            if isinstance(self.parent(), QWidget):
-                edit_button = self.parent().findChild(QPushButton, "edit_button")
-                if edit_button:
-                    edit_button.setEnabled(True)
+            # Emit signal that schedule was dropped
+            self.schedule_dropped.emit(schedule)
             
             # Update mode if needed
             if hasattr(self, 'mode_changed'):
                 self.mode_changed.emit(schedule.delivery_mode.capitalize())
-            
+                
         except Exception as e:
             print(f"Error handling schedule drop: {e}")
             self.placeholder.setText("Error loading schedule")

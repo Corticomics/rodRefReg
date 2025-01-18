@@ -155,6 +155,7 @@ class RunStopSection(QWidget):
 
         # Schedule drop area
         self.schedule_drop_area = ScheduleDropArea()
+        self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         
         # Add button container to main layout
         self.layout.addLayout(self.button_layout)
@@ -331,5 +332,28 @@ class RunStopSection(QWidget):
             # Notify parent of changes
             if hasattr(self, 'schedule_updated'):
                 self.schedule_updated.emit(self.current_schedule.schedule_id)
+
+    def on_schedule_dropped(self, schedule):
+        """Handle when a schedule is dropped"""
+        self.current_schedule = schedule
+        self.edit_button.setEnabled(True)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:enabled {
+                background-color: #17a2b8;
+            }
+        """)
 
 
