@@ -250,11 +250,13 @@ class RodentRefreshmentGUI(QWidget):
         
         # Create sections
         self.run_stop_section = RunStopSection(
-            self.run_program, 
-            self.stop_program, 
-            self.change_relay_hats, 
+            self.run_program,
+            self.stop_program,
+            self.change_relay_hats,
             self.settings,
-            advanced_settings=None
+            self.advanced_settings,
+            self.database_handler,
+            self
         )
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,

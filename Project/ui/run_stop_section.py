@@ -2,15 +2,20 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdi
 from PyQt5.QtCore import QDateTime, QTimer, Qt
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
+from PyQt5.QtCore import pyqtSignal
 
 class RunStopSection(QWidget):
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, parent=None):
+    schedule_updated = pyqtSignal(int)
+
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, database_handler=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
         self.settings = settings
-        self.advanced_settings = advanced_settings  # Pass advanced settings here
+        self.advanced_settings = advanced_settings
+        self.database_handler = database_handler
+        self.current_schedule = None
 
         # Track the state of the job
         self.job_in_progress = False
@@ -326,11 +331,15 @@ class RunStopSection(QWidget):
         if not self.current_schedule:
             return
         
-        dialog = EditScheduleDialog(self.current_schedule, self.database_handler, self)
-        dialog.schedule_updated.connect(self.on_schedule_updated)
-        
-        if dialog.exec_() == QDialog.Accepted:
-            self.update_table(self.current_schedule)
+        try:
+            dialog = EditScheduleDialog(self.current_schedule, self.database_handler, self)
+            if dialog.exec_() == QDialog.Accepted:
+                # Refresh the schedule display
+                self.schedule_drop_area.update_table(self.current_schedule)
+                # Notify any listeners that the schedule was updated
+                self.schedule_updated.emit(self.current_schedule.schedule_id)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to edit schedule: {str(e)}")
 
     def on_schedule_dropped(self, schedule):
         """Handle when a schedule is dropped"""
@@ -350,12 +359,9 @@ class RunStopSection(QWidget):
             QPushButton:hover {
                 background-color: #138496;
             }
-            QPushButton:enabled {
-                background-color: #17a2b8;
-            }
         """)
-        self.schedule_table.show()
-        self.update_table(schedule)
+        # Connect the schedule drop area's signal
+        self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
 
     def on_schedule_updated(self, updated_schedule):
         """Handle when a schedule is updated"""
