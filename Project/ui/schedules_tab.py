@@ -420,7 +420,7 @@ class SchedulesTab(QWidget):
                 
                 mime_data.setData('application/x-schedule', str(schedule_data).encode())
                 
-                drag = QDrag(self)
+                drag = QDrag(self.schedule_list)
                 drag.setMimeData(mime_data)
                 
                 # Clear selection after drag completes
