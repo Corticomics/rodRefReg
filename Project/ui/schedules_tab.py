@@ -391,9 +391,12 @@ class SchedulesTab(QWidget):
             relay_widget.clear_assignments()
 
     def startDrag(self, event):
-        """Start the drag operation."""
+        """Start the drag operation with proper selection handling"""
         item = self.schedule_list.currentItem()
-        if item:
+        if not item:
+            return
+        
+        try:
             schedule = item.data(Qt.UserRole)
             # Get fresh schedule details from database
             schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)
@@ -401,7 +404,6 @@ class SchedulesTab(QWidget):
                 schedule_detail = schedule_details[0]
                 
                 mime_data = QMimeData()
-                # Create serializable schedule data
                 schedule_data = {
                     'schedule_id': schedule.schedule_id,
                     'name': schedule.name,
@@ -420,7 +422,14 @@ class SchedulesTab(QWidget):
                 
                 drag = QDrag(self)
                 drag.setMimeData(mime_data)
+                
+                # Clear selection after drag completes
+                drag.finished.connect(lambda: self.schedule_list.clearSelection())
+                
                 drag.exec_(Qt.CopyAction)
+                
+        except Exception as e:
+            self.print_to_terminal(f"Error starting drag: {e}")
 
     def handle_login_status_change(self):
         """Handle changes in login status"""
@@ -433,17 +442,17 @@ class SchedulesTab(QWidget):
             widget.set_mode(mode)
 
     def schedule_list_mouse_press(self, event):
+        """Handle mouse press events on the schedule list"""
         if event.button() == Qt.LeftButton:
             item = self.schedule_list.itemAt(event.pos())
             if item:
+                # Clear previous selection
+                self.schedule_list.clearSelection()
+                # Select the new item
+                item.setSelected(True)
                 self.startDrag(event)
-
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        if event.button() == Qt.LeftButton:
-            item = self.schedule_list.itemAt(event.pos())
-            if item:
-                self.startDrag(event)
+        # Make sure to call the parent's mouse press event
+        self.schedule_list.mousePressEvent(event)
 
     def get_relay_assignments(self):
         """Get current relay unit assignments for all animals"""
