@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, QMessageBox, QSizePolicy
 import json
 import os
 
@@ -10,6 +10,7 @@ class SlackCredentialsTab(QWidget):
         self.save_callback = save_callback  # Callback to be invoked after saving
 
         layout = QVBoxLayout()
+        
 
         # Create fields for Slack token and channel
         self.slack_token_input = QLineEdit(self)

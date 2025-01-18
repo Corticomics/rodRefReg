@@ -1,21 +1,22 @@
-from .SuggestSettingsTab import SuggestSettingsTab
-from .SlackCredentialsTab import SlackCredentialsTab
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, 
-    QPushButton, QLabel, QMessageBox
-)
+# ui/suggest_settings_section.py
 import json
 import os
+
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, QPushButton, QLabel, QMessageBox
+from .SuggestSettingsTab import SuggestSettingsTab
+from .SlackCredentialsTab import SlackCredentialsTab
+from .UserTab import UserTab
+from .SettingsTab import SettingsTab
 
 SAVED_SETTINGS_DIR = "saved_settings"
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, load_callback=None):
+    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, login_system, load_callback=None):
         super().__init__()
 
         self.settings = settings
-        self.advanced_settings = advanced_settings  # Store the passed advanced_settings
-        self.run_stop_section = run_stop_section  # Store the passed run_stop_section
+        self.advanced_settings = advanced_settings
+        self.run_stop_section = run_stop_section
         self.save_callback = save_slack_credentials_callback
         self.load_callback = load_callback
 
@@ -25,24 +26,46 @@ class SuggestSettingsSection(QWidget):
         # Create the tab widget
         self.tab_widget = QTabWidget(self)
 
-        # Create the Suggest Settings Tab
+        # Suggest Settings Tab
         self.suggest_tab = SuggestSettingsTab(suggest_settings_callback, push_settings_callback)
+        self.tab_widget.addTab(self.suggest_tab, "Suggest Settings")
 
-        # Create the Dashboard Tab
+        # Dashboard Tab
         self.dashboard_tab = QWidget()
         self.dashboard_layout = QVBoxLayout()
         self.dashboard_tab.setLayout(self.dashboard_layout)
         self.create_dashboard_ui()
-
-        # Create the Slack Credentials Tab
-        self.slack_tab = SlackCredentialsTab(self.settings, self.save_callback)
-
-        # Add tabs to the tab widget
-        self.tab_widget.addTab(self.suggest_tab, "Suggest Settings")
         self.tab_widget.addTab(self.dashboard_tab, "Dashboard")
-        self.tab_widget.addTab(self.slack_tab, "Slack Bot")
+
+        # Settings Tab
+        self.settings_tab = SettingsTab(self.settings, self.save_callback)
+        self.tab_widget.addTab(self.settings_tab, "Settings")
+
+        # User/Profile Tab
+        self.user_tab = UserTab(login_system)
+        self.user_tab.login_signal.connect(self.on_login)  # Handle login
+        self.user_tab.logout_signal.connect(self.on_logout)  # Handle logout
+        self.tab_widget.addTab(self.user_tab, "Profile")  # Initially "Profile" for guests
 
         self.layout.addWidget(self.tab_widget)
+
+    def create_dashboard_ui(self):
+        """Sets up the dashboard tab UI."""
+        self.saved_settings_list = QListWidget()
+        self.dashboard_layout.addWidget(QLabel("Saved Settings"))
+        self.dashboard_layout.addWidget(self.saved_settings_list)
+        # Additional dashboard components as needed
+
+    def on_login(self, user_info):
+        """Updates the Profile tab after login."""
+        self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), user_info['username'])
+        #self.adjust_window_size()
+
+    def on_logout(self):
+        """Reverts the Profile tab to guest mode after logout."""
+        self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), "Profile")
+        self.user_tab.set_guest_view()
+       #self.adjust_window_size()
 
     def save_settings(self):
         try:
@@ -69,7 +92,7 @@ class SuggestSettingsSection(QWidget):
                     json.dump(current_settings, f, indent=4)
                 self.load_saved_settings()
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            print(f" settings: {e}")
             QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
 
     def load_saved_settings(self):
@@ -78,24 +101,6 @@ class SuggestSettingsSection(QWidget):
             for file_name in os.listdir(SAVED_SETTINGS_DIR):
                 if file_name.endswith(".json"):
                     self.saved_settings_list.addItem(file_name[:-5])
-
-    def create_dashboard_ui(self):
-        # Save/Load Settings
-        self.saved_settings_list = QListWidget()
-        self.saved_settings_list.itemSelectionChanged.connect(self.validate_selection)  # Add validation for selection change
-        self.dashboard_layout.addWidget(QLabel("Saved Settings"))
-        self.dashboard_layout.addWidget(self.saved_settings_list)
-
-        save_button = QPushButton("Save Current Settings")
-        save_button.clicked.connect(self.save_settings)
-        self.dashboard_layout.addWidget(save_button)
-
-        self.load_button = QPushButton("Load Selected Settings")
-        self.load_button.setEnabled(False)  # Disable initially
-        self.load_button.clicked.connect(self.load_settings)
-        self.dashboard_layout.addWidget(self.load_button)
-
-        self.load_saved_settings()
 
     def validate_selection(self):
         """Enable or disable the load button based on whether a setting is selected."""
@@ -109,7 +114,6 @@ class SuggestSettingsSection(QWidget):
             self.load_button.setEnabled(False)
             self.load_button.setStyleSheet("")
             self.load_button.setToolTip("")
-
 
     def load_settings(self):
         selected_item = self.saved_settings_list.currentItem()
@@ -145,8 +149,6 @@ class SuggestSettingsSection(QWidget):
                     QMessageBox.critical(self, "Load Error", f"Error loading settings: {str(e)}")
             else:
                 QMessageBox.critical(self, "Load Error", f"Settings file '{full_path}' does not exist.")
-
-
 
     def save_slack_credentials(self):
         try:

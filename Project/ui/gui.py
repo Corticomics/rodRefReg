@@ -1,296 +1,469 @@
-import sys
-import os
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QPushButton, QSplitter, QSizePolicy
-from PyQt5.QtCore import Qt, pyqtSignal
+# ui/gui.py
 
-from .terminal_output import TerminalOutput
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
+    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy
+)
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+import traceback
 from .welcome_section import WelcomeSection
-from .advanced_settings import AdvancedSettingsSection
-from .suggest_settings import SuggestSettingsSection
 from .run_stop_section import RunStopSection
-from .SlackCredentialsTab import SlackCredentialsTab
+from .suggest_settings import SuggestSettingsSection
+from .projects_section import ProjectsSection
+from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'settings'))
-from settings.config import load_settings, save_settings
-
+from settings.config import save_settings
+from utils.volume_calculator import VolumeCalculator
+from .login_gate_widget import LoginGateWidget
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
-    def __init__(self, run_program, stop_program, change_relay_hats, settings, style='bitlearns'):
+
+    def __init__(self, run_program, stop_program, change_relay_hats,
+                 settings, database_handler, login_system, style='bitlearns'):
         super().__init__()
 
         self.run_program = run_program
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
-
         self.settings = settings
-        self.selected_relays = self.settings['selected_relays']
-        self.num_triggers = self.settings['num_triggers']
+        self.database_handler = database_handler
+        self.login_system = login_system
 
-        # Connect the system message signal to the print_to_terminal method
+        # Default to guest mode
+        self.current_user = None
+
+        # Connect system message signal
         self.system_message_signal.connect(self.print_to_terminal)
 
+        # Initialize the UI with the selected style
         self.init_ui(style)
 
     def init_ui(self, style):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        if style == 'bitlearns':
-            self.setStyleSheet("""
-                QWidget {
-                    background-color: #f8f9fa;
-                    font-size: 14px;
-                }
-                QGroupBox {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    border-radius: 5px;
-                    padding: 15px;
-                }
-                QPushButton {
-                    background-color: #007bff;
-                    border: 1px solid #007bff;
-                    border-radius: 5px;
-                    color: #ffffff;
-                    padding: 10px;
-                }
-                QPushButton:disabled               
-                    PushButton:disabled {
-                    background-color: #cccccc;
-                    color: #666666;
-                }
-                QPushButton:hover {
-                    background-color: #0056b3;
-                }
-                QLabel {
-                    color: #343a40;
-                    background-color: #ffffff;
-                }
-                QLineEdit, QTextEdit {
-                    background-color: #ffffff;
-                    border: 1px solid #ced4da;
-                    padding: 5px;
-                }
-            """)
+        # First, set the base styles
+        base_style = """
+            QWidget {
+                background-color: #f8f9fa;
+                color: #2c3e50;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+        """
+        
+        # Then add the modern component styles
+        modern_style = """
+            /* Modern Table Styling */
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #e0e4e8;
+                border-radius: 8px;
+                padding: 4px;
+                gridline-color: transparent;
+                selection-background-color: #e8f0fe;
+            }
+            
+            QTableWidget QHeaderView::section {
+                background-color: #f8f9fa;
+                color: #5f6368;
+                padding: 16px;
+                border: none;
+                border-bottom: 2px solid #e0e4e8;
+                font-weight: bold;
+                font-size: 13px;
+                text-align: left;
+            }
+            
+            QTableWidget::item {
+                padding: 16px;
+                border-bottom: 1px solid #f0f0f0;
+                color: #202124;
+                font-size: 13px;
+            }
+            
+            QTableWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #1a73e8;
+            }
+            
+            /* Scrollbar Styling */
+            QScrollBar:vertical {
+                background-color: transparent;
+                width: 8px;
+                margin: 0;
+            }
+            
+            QScrollBar::handle:vertical {
+                background-color: #dadce0;
+                min-height: 30px;
+                border-radius: 4px;
+            }
+            
+            QScrollBar::handle:vertical:hover {
+                background-color: #1a73e8;
+            }
+            
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            
+            /* Button Styling */
+            QPushButton {
+                background-color: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: 500;
+                font-size: 13px;
+                min-width: 100px;
+            }
+            
+            QPushButton:hover {
+                background-color: #1557b0;
+            }
+            
+            QPushButton:pressed {
+                background-color: #104d92;
+            }
+            
+            /* Input Styling */
+            QLineEdit {
+                border: 1px solid #dadce0;
+                border-radius: 4px;
+                padding: 8px 12px;
+                background: white;
+                font-size: 13px;
+                color: #202124;
+            }
+            
+            QLineEdit:focus {
+                border-color: #1a73e8;
+                background: white;
+            }
+            
+            /* Tab Styling */
+            QTabWidget::pane {
+                border: 1px solid #e0e4e8;
+                border-radius: 8px;
+                background-color: white;
+                top: -1px;
+            }
+            
+            QTabBar::tab {
+                background-color: #f8f9fa;
+                color: #5f6368;
+                padding: 8px 16px;
+                margin-right: 4px;
+                border: 1px solid #e0e4e8;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-size: 13px;
+                min-width: 100px;
+            }
+            
+            QTabBar::tab:selected {
+                background-color: white;
+                color: #1a73e8;
+                border-bottom: 2px solid #1a73e8;
+            }
+            
+            /* ComboBox Styling */
+            QComboBox {
+                background-color: white;
+                border: 1px solid #dadce0;
+                border-radius: 4px;
+                padding: 8px 12px;
+                min-width: 150px;
+                font-size: 13px;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            
+            QComboBox::down-arrow {
+                image: url(:/icons/down-arrow.png);
+            }
+        """
+        
+        # Apply the styles in order
+        self.setStyleSheet(base_style + modern_style)
 
-        self.main_layout = QVBoxLayout()
+        # Initialize main layout first
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(10)
 
+        # Welcome section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
         self.welcome_scroll_area.setWidget(self.welcome_section)
-        self.welcome_scroll_area.setMinimumHeight(self.height() // 2)
-        self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
         self.main_layout.addWidget(self.welcome_scroll_area)
 
+        # Toggle welcome button
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
         self.main_layout.addWidget(self.toggle_welcome_button)
 
+        # Main content area (upper layout)
         self.upper_layout = QHBoxLayout()
+        self.upper_layout.setContentsMargins(0, 0, 0, 0)
+        self.upper_layout.setSpacing(10)
 
-        self.left_layout = QVBoxLayout()
+        # Left side setup
+        left_widget = QWidget()
+        self.left_layout = QVBoxLayout(left_widget)
+        
+        # Terminal output
+        self.terminal_output = QPlainTextEdit()
+        self.terminal_output.setReadOnly(True)
+        self.terminal_output.setPlainText("System Messages")
+        self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.terminal_output.setMinimumHeight(200)
+        
+        # Projects section with login gate
+        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler, self.login_system)
+        self.projects_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Use QSplitter to make the system messages section resizable
-        self.splitter = QSplitter(Qt.Vertical)
-        self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Wrap projects section in login gate
+        self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
+        self.login_gate.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.terminal_output = TerminalOutput()
-        self.splitter.addWidget(self.terminal_output)
-
-        # Create a scroll area for the Advanced Settings section
-        self.advanced_settings_scroll_area = QScrollArea()
-        self.advanced_settings_scroll_area.setWidgetResizable(True)
-
-        self.advanced_settings = AdvancedSettingsSection(self.settings, self.print_to_terminal)
-        self.advanced_settings_scroll_area.setWidget(self.advanced_settings)
-        self.splitter.addWidget(self.advanced_settings_scroll_area)
-
-        self.left_layout.addWidget(self.splitter)
-
-        self.left_content = QWidget()
-        self.left_content.setLayout(self.left_layout)
-
+        # Add widgets to left layout with stretch
+        self.left_layout.addWidget(self.terminal_output, 1)
+        self.left_layout.addWidget(self.login_gate, 3)  # Replace projects_section with login_gate
+        
+        # Create left scroll area
         self.left_scroll = QScrollArea()
+        self.left_scroll.setWidget(left_widget)
         self.left_scroll.setWidgetResizable(True)
-        self.left_scroll.setWidget(self.left_content)
-        self.upper_layout.addWidget(self.left_scroll)
+        self.left_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        self.right_layout = QVBoxLayout()
-
-        # Initialize run_stop_section before SuggestSettingsSection
-        self.run_stop_section = RunStopSection(self.run_program, self.stop_program, self.change_relay_hats, self.settings, self.advanced_settings)
-
-        # Add the Suggest Settings Section (with the tab widget) directly to the layout
+        # Right side setup
+        right_widget = QWidget()
+        self.right_layout = QVBoxLayout(right_widget)
+        
+        # Create sections
+        self.run_stop_section = RunStopSection(
+            self.run_program, 
+            self.stop_program, 
+            self.change_relay_hats, 
+            self.settings,
+            advanced_settings=None
+        )
         self.suggest_settings_section = SuggestSettingsSection(
-            self.settings, 
-            self.suggest_settings_callback, 
+            self.settings,
+            self.suggest_settings_callback,
             self.push_settings_callback,
             self.save_slack_credentials_callback,
-            self.advanced_settings,
-            self.run_stop_section  # Pass run_stop_section here
+            advanced_settings=None,
+            run_stop_section=self.run_stop_section,
+            login_system=self.login_system
+        )
+        
+        # Add widgets to right layout with stretch
+        self.right_layout.addWidget(self.suggest_settings_section, 2)
+        self.right_layout.addWidget(self.run_stop_section, 1)
+        
+        # Create right scroll area
+        self.right_scroll = QScrollArea()
+        self.right_scroll.setWidget(right_widget)
+        self.right_scroll.setWidgetResizable(True)
+        self.right_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # Add scroll areas to upper layout with proportion
+        self.upper_layout.addWidget(self.left_scroll, 3)
+        self.upper_layout.addWidget(self.right_scroll, 2)
+
+        # Add upper layout to main layout
+        self.main_layout.addLayout(self.upper_layout)
+
+        # Connect user tab related signals
+        self.user_tab = self.suggest_settings_section.user_tab
+        self.user_tab.login_signal.connect(self.on_login)
+        self.user_tab.logout_signal.connect(self.on_logout)
+        self.user_tab.size_changed_signal.connect(self.adjust_window_size)
+
+        # Add mode toggle button
+        self.mode_toggle_button = QPushButton("Switch to Super Mode")
+        self.mode_toggle_button.clicked.connect(self.toggle_mode)
+        self.main_layout.addWidget(self.mode_toggle_button)
+
+        # Connect the mode_changed signal from SchedulesTab to RunStopSection
+        self.projects_section.schedules_tab.mode_changed.connect(self.run_stop_section._on_mode_changed)
+
+        # Connect the schedules tab with run_stop_section's schedule drop area
+        self.projects_section.schedules_tab.schedule_list.itemDoubleClicked.connect(
+            lambda item: self.run_stop_section.schedule_drop_area.handle_schedule_drop(
+                item.data(Qt.UserRole)
+            )
         )
 
-        self.right_layout.addWidget(self.suggest_settings_section)
+        # Load initial data
+        self.load_animals_tab()
 
-        self.right_layout.addWidget(self.run_stop_section)
+        # Maximize window on startup
+        self.showMaximized()
+    
+    def toggle_mode(self):
+        try:
+            self.login_system.switch_mode()
+            new_role = self.login_system.get_current_trainer()['role']
+            self.mode_toggle_button.setText("Switch to Normal Mode" if new_role == 'super' else "Switch to Super Mode")
+            self.print_to_terminal(f"Switched to {new_role.capitalize()} Mode.")
+            # Refresh animals and schedules tabs
+            self.projects_section.schedules_tab.load_animals()
+            self.projects_section.animals_tab.load_animals()
+        except Exception as e:
+            self.print_to_terminal(f"Error toggling mode: {e}")
+            QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
 
-        self.right_content = QWidget()
-        self.right_content.setLayout(self.right_layout)
-
-        self.right_scroll = QScrollArea()
-        self.right_scroll.setWidgetResizable(True)
-        self.right_scroll.setWidget(self.right_content)
-        self.upper_layout.addWidget(self.right_scroll)
-
-        self.main_layout.addLayout(self.upper_layout)
-        self.setLayout(self.main_layout)
-
-
-    # In gui.py
     def print_to_terminal(self, message):
-        """Safely print messages to the terminal."""
-        self.terminal_output.print_to_terminal(message)
-
+        self.terminal_output.appendPlainText(message)
 
     def toggle_welcome_message(self):
-        if self.welcome_scroll_area.isVisible():
-            self.welcome_scroll_area.setVisible(False)
-            self.toggle_welcome_button.setText("Show Welcome Message and Instructions")
-        else:
-            self.welcome_scroll_area.setVisible(True)
-            self.toggle_welcome_button.setText("Hide Welcome Message")
-        self.adjust_ui()
+        visible = self.welcome_scroll_area.isVisible()
+        self.welcome_scroll_area.setVisible(not visible)
+        self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
 
-    def adjust_ui(self):
-        if self.welcome_scroll_area.isVisible():
-            self.welcome_scroll_area.setMaximumHeight(self.height() // 2)
-            self.welcome_scroll_area.setMinimumHeight(self.height() // 2)
-        else:
-            self.welcome_scroll_area.setMaximumHeight(0)
-            self.welcome_scroll_area.setMinimumHeight(0)
+    
+    def adjust_window_size(self):
+        """Adjust the main window size to fit its content."""
+        try:
+            # Resize the main window to fit its content
+            self.adjustSize()
+        except Exception as e:
+            self.print_to_terminal(f"Error adjusting window size: {e}")
+            QMessageBox.critical(self, "Window Size Error",
+                                 f"An unexpected error occurred while adjusting window size: {e}")
+    @pyqtSlot(dict)
+    def on_login(self, user):
+        try:
+            if not isinstance(user, dict) or 'username' not in user or 'trainer_id' not in user:
+                raise ValueError(f"Invalid user information received during login: {user}")
 
-        self.left_scroll.setMaximumHeight(self.height() - self.welcome_scroll_area.maximumHeight() - self.toggle_welcome_button.height())
-        self.right_scroll.setMaximumHeight(self.height() - self.welcome_scroll_area.maximumHeight() - self.toggle_welcome_button.height())
+            self.current_user = user
+            self.print_to_terminal(f"Logged in as: {user['username']}")
 
-        self.left_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
-        self.right_scroll.setMinimumHeight(self.height() - self.welcome_scroll_area.minimumHeight() - self.toggle_welcome_button.height())
+            trainer_id = int(user['trainer_id'])
+            self.projects_section.animals_tab.trainer_id = trainer_id
+            self.load_animals_tab(trainer_id=trainer_id)
+            
+            # Login gate will automatically update due to login_system signal
+            
+        except ValueError as ve:
+            self.print_to_terminal(f"Data error during login: {ve}")
+            QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
+        except Exception as e:
+            self.print_to_terminal(f"Unexpected error during login: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login:\n{e}")
+
+    def load_animals_tab(self, trainer_id=None):
+        """Load the AnimalsTab for the specific trainer. Display all animals in guest mode."""
+        try:
+            if not hasattr(self.projects_section, 'animals_tab') or self.projects_section.animals_tab is None:
+                raise AttributeError("animals_tab is not initialized in projects_section.")
+
+            if trainer_id:
+                self.projects_section.animals_tab.trainer_id = trainer_id
+                self.print_to_terminal(f"Displaying animals for trainer ID {trainer_id}")
+            else:
+                self.projects_section.animals_tab.trainer_id = None
+                self.print_to_terminal("Displaying all animals (guest mode)")
+
+            # Add logging before loading animals
+            print(f"About to load animals for trainer_id: {trainer_id} (type: {type(trainer_id)})")
+
+            self.projects_section.animals_tab.load_animals()
+
+        except Exception as e:
+            self.print_to_terminal(f"Error loading animals tab: {e}")
+            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
+            print(f"Exception in load_animals_tab: {e}")
+
+    def on_logout(self):
+        """Callback for handling user logout, reverting to guest mode, with error handling."""
+        try:
+            self.current_user = None
+            self.projects_section.login_system.logout()
+            self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
+            self.load_animals_tab()
+            
+            # Login gate will automatically update due to login_system signal
+            
+        except Exception as e:
+            self.print_to_terminal(f"Unexpected error during logout: {e}")
+            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
 
     def suggest_settings_callback(self):
         """Callback for suggesting settings based on user input."""
         values = self.suggest_settings_section.suggest_tab.entries
         try:
-            # Loop over each relay pair and fetch the corresponding water volume
-            relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
-            relay_volumes = {}
-
-            for relay_pair in relay_pairs:
-                volume_input = values[f"relay_{relay_pair[0]}_{relay_pair[1]}"].text().strip()
-                water_volume = float(volume_input) if volume_input else 0.0  # Default to 0 if empty
-                relay_volumes[relay_pair] = water_volume
-
-            # Parse frequency and duration
-            frequency_input = values["frequency"].text().strip()
-            frequency = int(frequency_input) if frequency_input else 0  # Default to 0 if empty
-            duration_input = values["duration"].text().strip()
-            duration = int(duration_input) if duration_input else 0  # Default to 0 if empty
-
-            # Start datetime
+            # Parse relay pairs and volumes, frequency, duration
+            relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]
+            relay_volumes = {pair: float(values[f"relay_{pair[0]}_{pair[1]}"].text()) for pair in relay_pairs}
+            frequency = int(values["frequency"].text())
+            duration = int(values["duration"].text())
             start_datetime = values["start_datetime"].dateTime()
-
-            # Calculate total sessions and interval between sessions
-            total_sessions = frequency * duration
-            interval_seconds = 86400 / frequency if frequency > 0 else 0  # Avoid division by zero
 
             # Store the suggested settings
             self.suggested_settings = {
                 "start_datetime": start_datetime,
                 "duration": duration,
-                "relay_volumes": relay_volumes,  # Store water volume per relay pair
-                "frequency": frequency,
-                "interval_seconds": interval_seconds,
-                "total_sessions": total_sessions
+                "relay_volumes": relay_volumes,
+                "frequency": frequency
             }
 
-            # Prepare suggestion text to print
-            suggestion_text = f"--- Suggested Settings ---\n"
-            suggestion_text += f"Start Date & Time: {start_datetime.toString('yyyy-MM-dd HH:mm:ss')}\n"
-            suggestion_text += f"Duration: {duration} day(s)\n"
-            suggestion_text += f"Dispensing Frequency: {frequency} times per day\n"
-            suggestion_text += f"Total Sessions: {total_sessions}\n"
-            suggestion_text += f"Interval Between Sessions: {interval_seconds / 60:.2f} minutes\n"
-
-            for relay_pair, volume in relay_volumes.items():
-                suggestion_text += f"Water Volume for Relays {relay_pair[0]} & {relay_pair[1]}: {volume} mL\n"
-
+            # Print suggestions to terminal
+            suggestion_text = f"Suggested Settings:\nStart: {start_datetime.toString()}\nFrequency: {frequency}\nDuration: {duration}\n"
+            for pair, volume in relay_volumes.items():
+                suggestion_text += f"Volume for Relays {pair}: {volume} mL\n"
             self.print_to_terminal(suggestion_text)
 
-        except ValueError as ve:
-            self.print_to_terminal(f"Input Error: {ve}")
         except Exception as e:
-            self.print_to_terminal(f"An unexpected error occurred: {e}")
-
+            self.print_to_terminal(f"Error generating suggestions: {e}")
 
     def push_settings_callback(self):
-        """Callback for pushing the suggested settings to the control panel."""
+        """Apply the suggested settings to the Run/Stop and Advanced sections."""
+        if not hasattr(self, 'suggested_settings'):
+            self.print_to_terminal("No suggested settings available.")
+            return
+
         try:
-            if not hasattr(self, 'suggested_settings'):
-                self.print_to_terminal("No suggested settings available. Please generate suggestions first.")
-                return
-
             settings = self.suggested_settings
-
-            # Update RunStopSection
             self.run_stop_section.start_time_input.setDateTime(settings["start_datetime"])
             end_datetime = settings["start_datetime"].addDays(settings["duration"])
             self.run_stop_section.end_time_input.setDateTime(end_datetime)
-            self.run_stop_section.interval_input.setText(str(int(settings["interval_seconds"])))
-            self.run_stop_section.stagger_input.setText("5")  # Assuming a default stagger value
+            self.run_stop_section.interval_input.setText("86400")  # Assume daily for example
+            self.run_stop_section.stagger_input.setText("5")
 
-            # Create num_triggers dictionary for AdvancedSettingsSection
-            num_triggers = {}
-            for relay_pair, water_volume in settings["relay_volumes"].items():
-                if water_volume > 0:
-                    trigger_count = int((water_volume * 1000) / 500)  # Example conversion to triggers
-                else:
-                    trigger_count = 0  # Set trigger count to 0 if volume is 0
-                num_triggers[relay_pair] = trigger_count
-
-            # Update AdvancedSettingsSection with the trigger values
-            self.advanced_settings.update_triggers(num_triggers)
-
-            self.print_to_terminal("Suggested settings have been applied successfully.")
+            # Calculate triggers based on volumes
+            volume_calculator = VolumeCalculator(self.settings)
+            calculated_triggers = {
+                pair: volume_calculator.calculate_triggers(vol) 
+                for pair, vol in settings["relay_volumes"].items()
+            }
+            
+            if hasattr(self, 'advanced_settings') and self.advanced_settings:
+                self.advanced_settings.update_triggers(calculated_triggers)
+            self.print_to_terminal("Settings applied successfully.")
 
         except Exception as e:
-            self.print_to_terminal(f"Error applying suggested settings: {e}")
+            self.print_to_terminal(f"Error applying settings: {e}")
 
-
-
-
-    
     def save_slack_credentials_callback(self):
-        # Update settings with the new Slack credentials
+        """Save Slack credentials and reinitialize NotificationHandler."""
         self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
         self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
-
-
-        # Save settings to the settings.json file
         save_settings(self.settings)
-        self.print_to_terminal("Slack credentials saved.")
 
-        # Reinitialize the NotificationHandler with the new credentials
+        # Update NotificationHandler
         global notification_handler
         notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
-        self.print_to_terminal("NotificationHandler reinitialized with updated Slack credentials.")
-
-
-def main(run_program, stop_program, change_relay_hats):
-    app = QApplication(sys.argv)
-    gui = RodentRefreshmentGUI(run_program, stop_program, change_relay_hats, load_settings(), style='bitlearns')
-    gui.show()
-    sys.exit(app.exec_())
-
-if __name__ == "__main__":
-    main()
+        self.print_to_terminal("Slack credentials saved and NotificationHandler updated.")
