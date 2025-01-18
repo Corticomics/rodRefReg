@@ -132,6 +132,10 @@ class ScheduleDropArea(QWidget):
             self.current_schedule = schedule
             self.placeholder.setText(f"Schedule: {schedule.name}")
             
+            # Enable edit button if it exists
+            if hasattr(self, 'edit_button'):
+                self.edit_button.setEnabled(True)
+            
             # Update mode if needed
             if hasattr(self, 'mode_changed'):
                 self.mode_changed.emit(schedule.delivery_mode.capitalize())

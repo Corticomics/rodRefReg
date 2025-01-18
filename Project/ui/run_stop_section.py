@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox)
 from PyQt5.QtCore import QDateTime, QTimer, Qt
 from .schedule_drop_area import ScheduleDropArea
+from .edit_schedule_dialog import EditScheduleDialog
 
 class RunStopSection(QWidget):
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, parent=None):
@@ -129,7 +130,34 @@ class RunStopSection(QWidget):
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
         
-        # Main layout assembly
+        # Create button container
+        button_container = QHBoxLayout()
+        
+        # Add Edit Schedule button
+        self.edit_button = QPushButton("Edit Schedule")
+        self.edit_button.setEnabled(False)
+        self.edit_button.clicked.connect(self.edit_current_schedule)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:disabled {
+                background-color: #87c4cb;
+            }
+        """)
+        
+        button_container.addWidget(self.edit_button)
+        
         self.layout.addWidget(self.tab_widget)
         
         # Add schedule drop area directly (without label)
@@ -291,5 +319,17 @@ class RunStopSection(QWidget):
         """Handle mode changes from schedule drop area"""
         is_staggered = mode == "Staggered"
         self.tab_widget.setVisible(is_staggered)
+
+    def edit_current_schedule(self):
+        if not self.current_schedule:
+            return
+        
+        dialog = EditScheduleDialog(self.current_schedule, self.database_handler, self)
+        if dialog.exec_() == QDialog.Accepted:
+            # Refresh the schedule display
+            self.update_schedule_display()
+            # Notify parent of changes
+            if hasattr(self, 'schedule_updated'):
+                self.schedule_updated.emit(self.current_schedule.schedule_id)
 
 
