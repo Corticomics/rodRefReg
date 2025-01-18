@@ -2,7 +2,11 @@
 import json
 import os
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QListWidget, QInputDialog, QPushButton, QLabel, QMessageBox
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, 
+    QPushButton, QLineEdit, QTabWidget, QDateTimeEdit
+)
+from PyQt5.QtCore import QDateTime
 from .SuggestSettingsTab import SuggestSettingsTab
 from .SlackCredentialsTab import SlackCredentialsTab
 from .UserTab import UserTab
@@ -11,159 +15,115 @@ from .SettingsTab import SettingsTab
 SAVED_SETTINGS_DIR = "saved_settings"
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, login_system, load_callback=None):
+    def __init__(self, settings, suggest_callback, push_callback, save_slack_callback, run_stop_section=None, login_system=None):
         super().__init__()
-
         self.settings = settings
-        self.advanced_settings = advanced_settings
+        self.suggest_callback = suggest_callback
+        self.push_callback = push_callback
+        self.save_slack_callback = save_slack_callback
         self.run_stop_section = run_stop_section
-        self.save_callback = save_slack_credentials_callback
-        self.load_callback = load_callback
+        self.login_system = login_system
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
-        # Create the tab widget
-        self.tab_widget = QTabWidget(self)
-
-        # Suggest Settings Tab
-        self.suggest_tab = SuggestSettingsTab(suggest_settings_callback, push_settings_callback)
+        # Create tab widget
+        self.tab_widget = QTabWidget()
+        
+        # Create the suggest tab
+        self.suggest_tab = SuggestTab(settings, suggest_callback, push_callback)
         self.tab_widget.addTab(self.suggest_tab, "Suggest Settings")
+        
+        # Create the slack tab
+        self.slack_tab = SlackTab(settings, save_slack_callback)
+        self.tab_widget.addTab(self.slack_tab, "Slack Settings")
+        
+        # Set up the layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.tab_widget)
+        self.setLayout(layout)
 
-        # Dashboard Tab
-        self.dashboard_tab = QWidget()
-        self.dashboard_layout = QVBoxLayout()
-        self.dashboard_tab.setLayout(self.dashboard_layout)
-        self.create_dashboard_ui()
-        self.tab_widget.addTab(self.dashboard_tab, "Dashboard")
+class SuggestTab(QWidget):
+    def __init__(self, settings, suggest_callback, push_callback):
+        super().__init__()
+        self.settings = settings
+        self.suggest_callback = suggest_callback
+        self.push_callback = push_callback
+        self.entries = {}
+        
+        self.init_ui()
+    
+    def init_ui(self):
+        layout = QVBoxLayout()
+        
+        # Create form layout for inputs
+        form_layout = QFormLayout()
+        
+        # Add datetime picker
+        self.entries["start_datetime"] = QDateTimeEdit()
+        self.entries["start_datetime"].setDateTime(QDateTime.currentDateTime())
+        self.entries["start_datetime"].setCalendarPopup(True)
+        form_layout.addRow("Start Date/Time:", self.entries["start_datetime"])
+        
+        # Add duration input
+        self.entries["duration"] = QLineEdit()
+        self.entries["duration"].setPlaceholderText("Enter duration in days")
+        form_layout.addRow("Duration (days):", self.entries["duration"])
+        
+        # Add frequency input
+        self.entries["frequency"] = QLineEdit()
+        self.entries["frequency"].setPlaceholderText("Enter frequency in hours")
+        form_layout.addRow("Frequency (hours):", self.entries["frequency"])
+        
+        # Add volume inputs for each relay pair
+        relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]  # Example relay pairs
+        for pair in relay_pairs:
+            volume_input = QLineEdit()
+            volume_input.setPlaceholderText("Enter volume in mL")
+            self.entries[f"relay_{pair[0]}_{pair[1]}"] = volume_input
+            form_layout.addRow(f"Volume for Relay {pair[0]}-{pair[1]} (mL):", volume_input)
+        
+        layout.addLayout(form_layout)
+        
+        # Add buttons
+        button_layout = QHBoxLayout()
+        suggest_button = QPushButton("Suggest Settings")
+        suggest_button.clicked.connect(self.suggest_callback)
+        push_button = QPushButton("Push Settings")
+        push_button.clicked.connect(self.push_callback)
+        
+        button_layout.addWidget(suggest_button)
+        button_layout.addWidget(push_button)
+        layout.addLayout(button_layout)
+        
+        self.setLayout(layout)
 
-        # Settings Tab
-        self.settings_tab = SettingsTab(self.settings, self.save_callback)
-        self.tab_widget.addTab(self.settings_tab, "Settings")
-
-        # User/Profile Tab
-        self.user_tab = UserTab(login_system)
-        self.user_tab.login_signal.connect(self.on_login)  # Handle login
-        self.user_tab.logout_signal.connect(self.on_logout)  # Handle logout
-        self.tab_widget.addTab(self.user_tab, "Profile")  # Initially "Profile" for guests
-
-        self.layout.addWidget(self.tab_widget)
-
-    def create_dashboard_ui(self):
-        """Sets up the dashboard tab UI."""
-        self.saved_settings_list = QListWidget()
-        self.dashboard_layout.addWidget(QLabel("Saved Settings"))
-        self.dashboard_layout.addWidget(self.saved_settings_list)
-        # Additional dashboard components as needed
-
-    def on_login(self, user_info):
-        """Updates the Profile tab after login."""
-        self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), user_info['username'])
-        #self.adjust_window_size()
-
-    def on_logout(self):
-        """Reverts the Profile tab to guest mode after logout."""
-        self.tab_widget.setTabText(self.tab_widget.indexOf(self.user_tab), "Profile")
-        self.user_tab.set_guest_view()
-       #self.adjust_window_size()
-
-    def save_settings(self):
-        try:
-            # Ensure the saved_settings directory exists
-            if not os.path.exists(SAVED_SETTINGS_DIR):
-                os.makedirs(SAVED_SETTINGS_DIR)
-
-            # Get the current values from the input fields
-            interval = int(self.run_stop_section.interval_input.text())
-            stagger = int(self.run_stop_section.stagger_input.text())
-
-            num_triggers = self.advanced_settings.get_settings()['num_triggers']
-
-            current_settings = {
-                "interval": interval,
-                "stagger": stagger,
-                "num_triggers": {str(k): v for k, v in num_triggers.items()},  # Convert tuple keys to strings
-            }
-
-            name, ok = QInputDialog.getText(self, "Save Settings", "Enter a name for these settings:")
-            if ok and name:
-                file_name = os.path.join(SAVED_SETTINGS_DIR, f"{name}.json")
-                with open(file_name, 'w') as f:
-                    json.dump(current_settings, f, indent=4)
-                self.load_saved_settings()
-        except Exception as e:
-            print(f" settings: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
-
-    def load_saved_settings(self):
-        self.saved_settings_list.clear()
-        if os.path.exists(SAVED_SETTINGS_DIR):
-            for file_name in os.listdir(SAVED_SETTINGS_DIR):
-                if file_name.endswith(".json"):
-                    self.saved_settings_list.addItem(file_name[:-5])
-
-    def validate_selection(self):
-        """Enable or disable the load button based on whether a setting is selected."""
-        selected_item = self.saved_settings_list.currentItem()
-        if selected_item:  # If an item is selected, enable the button
-            self.load_button.setEnabled(True)
-            self.load_button.setStyleSheet("")
-            self.load_button.setToolTip("")
-                
-        else:  # If no item is selected, disable the button and change the color
-            self.load_button.setEnabled(False)
-            self.load_button.setStyleSheet("")
-            self.load_button.setToolTip("")
-
-    def load_settings(self):
-        selected_item = self.saved_settings_list.currentItem()
-        if selected_item:
-            file_name = f"{selected_item.text()}.json"
-            full_path = os.path.join(SAVED_SETTINGS_DIR, file_name)
-            if os.path.exists(full_path):
-                try:
-                    with open(full_path, 'r') as f:
-                        loaded_settings = json.load(f)
-
-                    # Convert string keys back to tuples for num_triggers
-                    num_triggers = {eval(k): v for k, v in loaded_settings.get("num_triggers", {}).items()}
-
-                    # Update the settings with loaded values
-                    self.settings.update(loaded_settings)
-                    self.settings['num_triggers'] = num_triggers  # Update num_triggers with tuple keys
-
-                    # Update UI fields with the loaded settings
-                    self.run_stop_section.interval_input.setText(str(self.settings.get('interval', '')))
-                    self.run_stop_section.stagger_input.setText(str(self.settings.get('stagger', '')))
-
-                    # Update advanced settings triggers
-                    if hasattr(self, 'advanced_settings'):
-                        self.advanced_settings.update_triggers(self.settings['num_triggers'])
-
-                    if self.load_callback:
-                        self.load_callback()
-
-                    QMessageBox.information(self, "Load Success", f"Settings '{selected_item.text()}' successfully loaded.")
-
-                except Exception as e:
-                    QMessageBox.critical(self, "Load Error", f"Error loading settings: {str(e)}")
-            else:
-                QMessageBox.critical(self, "Load Error", f"Settings file '{full_path}' does not exist.")
-
-    def save_slack_credentials(self):
-        try:
-            slack_token = self.slack_tab.slack_token_input.text()
-            slack_channel = self.slack_tab.slack_channel_input.text()
-
-            # Save Slack credentials to the existing settings file
-            self.settings['slack_token'] = slack_token
-            self.settings['channel_id'] = slack_channel
-
-            # Save all settings including Slack credentials
-            with open("settings.json", 'w') as f:
-                json.dump(self.settings, f, indent=4)
-
-            QMessageBox.information(self, "Success", "Slack credentials saved successfully.")
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save Slack credentials: {e}")
+class SlackTab(QWidget):
+    def __init__(self, settings, save_callback):
+        super().__init__()
+        self.settings = settings
+        self.save_callback = save_callback
+        
+        self.init_ui()
+    
+    def init_ui(self):
+        layout = QVBoxLayout()
+        
+        # Create form layout for Slack settings
+        form_layout = QFormLayout()
+        
+        # Add Slack token input
+        self.slack_token_input = QLineEdit()
+        self.slack_token_input.setText(self.settings.get('slack_token', ''))
+        form_layout.addRow("Slack Token:", self.slack_token_input)
+        
+        # Add channel ID input
+        self.slack_channel_input = QLineEdit()
+        self.slack_channel_input.setText(self.settings.get('channel_id', ''))
+        form_layout.addRow("Channel ID:", self.slack_channel_input)
+        
+        layout.addLayout(form_layout)
+        
+        # Add save button
+        save_button = QPushButton("Save Credentials")
+        save_button.clicked.connect(self.save_callback)
+        layout.addWidget(save_button)
+        
+        self.setLayout(layout)
