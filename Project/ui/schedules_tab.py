@@ -450,9 +450,35 @@ class SchedulesTab(QWidget):
                 self.schedule_list.clearSelection()
                 # Select the new item
                 item.setSelected(True)
-                self.startDrag(event)
-        # Make sure to call the parent's mouse press event
-        self.schedule_list.mousePressEvent(event)
+                # Only start drag if left button is pressed
+                drag = QDrag(self.schedule_list)
+                mime_data = QMimeData()
+                
+                schedule = item.data(Qt.UserRole)
+                schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)
+                
+                if schedule_details:
+                    schedule_detail = schedule_details[0]
+                    schedule_data = {
+                        'schedule_id': schedule.schedule_id,
+                        'name': schedule.name,
+                        'water_volume': schedule.water_volume,
+                        'start_time': schedule.start_time,
+                        'end_time': schedule.end_time,
+                        'created_by': schedule.created_by,
+                        'is_super_user': schedule.is_super_user,
+                        'delivery_mode': schedule_detail['delivery_mode'],
+                        'animals': schedule_detail['animal_ids'],
+                        'desired_water_outputs': schedule_detail.get('desired_water_outputs', {}),
+                        'instant_deliveries': schedule_detail.get('delivery_schedule', [])
+                    }
+                    
+                    mime_data.setData('application/x-schedule', str(schedule_data).encode())
+                    drag.setMimeData(mime_data)
+                    drag.exec_(Qt.CopyAction)
+        
+        # Call the parent's mouse press event
+        super(QListWidget, self.schedule_list).mousePressEvent(event)
 
     def get_relay_assignments(self):
         """Get current relay unit assignments for all animals"""
