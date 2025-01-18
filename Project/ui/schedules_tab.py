@@ -45,6 +45,23 @@ class SchedulesTab(QWidget):
         mode_layout.addStretch()
         self.available_animals_layout.insertLayout(0, mode_layout)
 
+        reset_button = QPushButton("Reset All")
+        reset_button.clicked.connect(self.reset_all)
+        reset_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+        """)
+        mode_layout.addWidget(reset_button)
+
         self.animal_list = AvailableAnimalsList()
         self.animal_list.setMinimumWidth(200)
 
@@ -433,3 +450,39 @@ class SchedulesTab(QWidget):
             if relay_widget.assigned_animal:
                 assignments[str(relay_widget.assigned_animal.animal_id)] = unit_id
         return assignments
+
+    def reset_all(self):
+        """Reset all components to their default state"""
+        try:
+            # Reset mode selector to default
+            self.mode_selector.setCurrentText("Staggered")
+            
+            # Clear animal list and reload
+            self.animal_list.clear()
+            self.load_animals()
+            
+            # Reset all relay units
+            for relay_widget in self.relay_unit_widgets.values():
+                relay_widget.clear_assignments()
+            
+            # Deselect any selected schedule
+            self.schedule_list.clearSelection()
+            
+            # Reset the mode for all relay units
+            self.set_delivery_mode("Staggered")
+            
+            # Notify user
+            QMessageBox.information(
+                self,
+                "Reset Complete",
+                "All settings have been reset to their default state."
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Reset Error",
+                f"An error occurred while resetting: {str(e)}"
+            )
+            self.print_to_terminal(f"Error during reset: {e}")
+            traceback.print_exc()
