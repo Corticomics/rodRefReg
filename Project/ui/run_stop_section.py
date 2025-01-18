@@ -32,6 +32,48 @@ class RunStopSection(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(12)
 
+        # Initialize all buttons first
+        self.run_button = QPushButton("Run", self)
+        self.stop_button = QPushButton("Stop", self)
+        self.relay_hats_button = QPushButton("Change Relay Hats", self)
+        self.edit_button = QPushButton("Edit Schedule")
+        
+        # Set up edit button properties
+        self.edit_button.setObjectName("edit_button")
+        self.edit_button.setEnabled(False)
+        self.edit_button.clicked.connect(self.edit_current_schedule)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:disabled {
+                background-color: #87c4cb;
+            }
+        """)
+
+        # Connect button signals
+        self.run_button.clicked.connect(self.run_program)
+        self.stop_button.clicked.connect(self.stop_program)
+        self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
+
+        # Create and populate button layout
+        self.button_layout = QHBoxLayout()
+        self.button_layout.setSpacing(5)
+        self.button_layout.addWidget(self.edit_button)
+        self.button_layout.addWidget(self.run_button)
+        self.button_layout.addWidget(self.stop_button)
+        self.button_layout.addWidget(self.relay_hats_button)
+
         # Tab widget for Calendar and Offline modes
         self.tab_widget = QTabWidget()
         self.calendar_widget = QWidget()
@@ -114,65 +156,14 @@ class RunStopSection(QWidget):
         # Schedule drop area
         self.schedule_drop_area = ScheduleDropArea()
         
-        # Buttons
-        self.run_button = QPushButton("Run", self)
-        self.stop_button = QPushButton("Stop", self)
-        self.relay_hats_button = QPushButton("Change Relay Hats", self)
-        
-        self.run_button.clicked.connect(self.run_program)
-        self.stop_button.clicked.connect(self.stop_program)
-        self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
-        
-        # Button layout
-        self.button_layout = QHBoxLayout()
-        self.button_layout.setSpacing(5)
-        self.button_layout.addWidget(self.edit_button)
-        self.button_layout.addWidget(self.run_button)
-        self.button_layout.addWidget(self.stop_button)
-        self.button_layout.addWidget(self.relay_hats_button)
-        
-        # Create button container
-        button_container = QHBoxLayout()
-        
-        # Initialize edit button
-        self.edit_button = QPushButton("Edit Schedule")
-        self.edit_button.setObjectName("edit_button")  # Important for findChild
-        self.edit_button.setEnabled(False)
-        self.edit_button.clicked.connect(self.edit_current_schedule)
-        self.edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-                min-width: 80px;
-                max-height: 24px;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-            QPushButton:disabled {
-                background-color: #87c4cb;
-            }
-        """)
-        
-        button_container.addWidget(self.edit_button)
-        
-        button_container.addWidget(self.run_button)
-        button_container.addWidget(self.stop_button)
-        button_container.addWidget(self.relay_hats_button)
-        
         # Add button container to main layout
-        self.layout.addLayout(button_container)
+        self.layout.addLayout(self.button_layout)
         
         self.layout.addWidget(self.tab_widget)
         
         # Add schedule drop area directly (without label)
         self.layout.addWidget(self.schedule_drop_area)
         
-        self.layout.addLayout(self.button_layout)
         self.layout.addStretch()
         
         # Set size policies
