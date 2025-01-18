@@ -53,8 +53,10 @@ class SchedulesTab(QWidget):
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
             }
             QPushButton:hover {
                 background-color: #c82333;
@@ -124,19 +126,19 @@ class SchedulesTab(QWidget):
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 8px 16px;
-                min-width: 150px;
-                font-weight: bold;
+                padding: 4px 8px;
+                min-width: 120px;
+                font-size: 12px;
             }
             QComboBox::drop-down {
                 border: none;
-                width: 30px;
+                width: 20px;
             }
             QComboBox::down-arrow {
                 image: url(:/icons/down-arrow.png);
             }
             QComboBox QAbstractItemView {
-                background-color: 1a73e8;
+                background-color: #1a73e8;
                 color: #202124;
                 selection-background-color: #f8f9fa;
                 selection-color: white;
