@@ -74,9 +74,14 @@ class ScheduleController(QObject):
                     'mode': mode,
                     'window_start': window_start,
                     'window_end': window_end,
+                    'delivery_instants': [],
+                    'target_volumes': {
+                        str(animal['animal_id']): animal['volume_ml'] 
+                        for animal in animals_data
+                    },
                     'cycle_interval': timing_plan['cycle_interval'],
                     'stagger_interval': timing_plan['stagger_interval'],
-                    'num_triggers': timing_plan['triggers_per_cycle']
+                    'pump_volume_ul': self.volume_calculator.pump_volume_ul
                 }
             
             # Create and start RelayWorker
