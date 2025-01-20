@@ -1,5 +1,6 @@
 import SM16relind
 import time
+
 rel = SM16relind.SM16relind(0)
 print("================Turn on one by one  =====================")
 for i in range(16):
