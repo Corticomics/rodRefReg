@@ -246,9 +246,11 @@ class RunStopSection(QWidget):
                     window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
                     window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
                     
-                    # Update schedule object times
-                    schedule.start_time = self.start_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
-                    schedule.end_time = self.end_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
+                    # Update schedule object with selected times
+                    schedule.update_time_window(
+                        self.start_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss"),
+                        self.end_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
+                    )
                 else:  # Offline Mode
                     duration = int(self.offline_input.text()) * 60
                     window_start = int(QDateTime.currentSecsSinceEpoch())

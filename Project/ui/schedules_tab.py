@@ -292,10 +292,16 @@ class SchedulesTab(QWidget):
                     for volume in relay_data['desired_water_output'].values():
                         total_volume += volume
 
-            if min_time is None:
-                min_time = datetime.now()
-            if max_time is None:
-                max_time = datetime.now()
+            if delivery_mode == 'instant':
+                if min_time is None:
+                    min_time = datetime.now()
+                if max_time is None:
+                    max_time = datetime.now()
+            else:  # staggered mode
+                # For staggered mode, we don't set default times
+                # These will be set when the schedule is actually run
+                min_time = datetime.now()  # Placeholder time
+                max_time = min_time       # Placeholder time
 
             # Create schedule object without relay_unit_id
             schedule = Schedule(
@@ -523,3 +529,8 @@ class SchedulesTab(QWidget):
             )
             self.print_to_terminal(f"Error during reset: {e}")
             traceback.print_exc()
+
+    def update_time_window(self, start_time, end_time):
+        """Update schedule time window"""
+        self.start_time = start_time
+        self.end_time = end_time
