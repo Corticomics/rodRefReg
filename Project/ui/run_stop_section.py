@@ -245,10 +245,21 @@ class RunStopSection(QWidget):
                 if self.tab_widget.currentIndex() == 0:  # Calendar Mode
                     window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
                     window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
+                    
+                    # Update schedule object times
+                    schedule.start_time = self.start_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
+                    schedule.end_time = self.end_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
                 else:  # Offline Mode
                     duration = int(self.offline_input.text()) * 60
                     window_start = int(QDateTime.currentSecsSinceEpoch())
                     window_end = window_start + duration
+                    
+                    current_dt = QDateTime.currentDateTime()
+                    end_dt = current_dt.addSecs(duration)
+                    
+                    # Update schedule object times
+                    schedule.start_time = current_dt.toString("yyyy-MM-ddTHH:mm:ss")
+                    schedule.end_time = end_dt.toString("yyyy-MM-ddTHH:mm:ss")
             else:  # Instant mode
                 # Use the schedule's instant delivery times
                 if not schedule.instant_deliveries:

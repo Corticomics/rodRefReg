@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QComboBox, 
                            QTableWidgetItem, QTableWidget, QHBoxLayout, QPushButton)
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QDateTime
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
 import datetime
@@ -203,8 +203,14 @@ class ScheduleDropArea(QWidget):
                         self.schedule_table.setItem(row, 2, QTableWidgetItem(f"{desired_output:.1f}"))
                         
                         # Use schedule start/end times for staggered mode
-                        self.schedule_table.setItem(row, 3, QTableWidgetItem(schedule.start_time))
-                        self.schedule_table.setItem(row, 4, QTableWidgetItem(schedule.end_time))
+                        self.schedule_table.setItem(row, 3, QTableWidgetItem(
+                            QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss")
+                            .toString("yyyy-MM-dd HH:mm:ss")
+                        ))
+                        self.schedule_table.setItem(row, 4, QTableWidgetItem(
+                            QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss")
+                            .toString("yyyy-MM-dd HH:mm:ss")
+                        ))
         
         except Exception as e:
             print(f"Error updating table: {e}")
