@@ -6,6 +6,7 @@ from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 
 class RunStopSection(QWidget):
+    
     schedule_updated = pyqtSignal(int)
 
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, database_handler=None, parent=None):
