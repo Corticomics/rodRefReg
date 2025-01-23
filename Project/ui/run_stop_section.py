@@ -1,8 +1,9 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox)
-from PyQt5.QtCore import QDateTime, QTimer, Qt
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, 
+                            QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, 
+                            QMessageBox, QComboBox)
+from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
-from PyQt5.QtCore import pyqtSignal
 
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
