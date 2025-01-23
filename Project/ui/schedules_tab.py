@@ -11,7 +11,7 @@ from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
-from .save_schedule_dialog import SaveScheduleDialog
+
 import traceback
 
 class SchedulesTab(QWidget):
