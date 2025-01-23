@@ -2,6 +2,7 @@
 
 import sys
 import os
+from Project.utils.volume_calculator import VolumeCalculator
 from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
@@ -92,7 +93,7 @@ def run_program(schedule, mode, window_start, window_end):
             thread.wait()
         thread = QThread()
 
-        # Create worker settings
+        # Base settings
         worker_settings = {
             'mode': mode,
             'window_start': window_start,
@@ -100,33 +101,54 @@ def run_program(schedule, mode, window_start, window_end):
         }
         
         if mode == "Instant":
-            # Create delivery instants with correct relay unit assignments
+            # Keep existing instant mode code unchanged
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
                 worker_settings['delivery_instants'].append({
-                    'relay_unit_id': delivery['relay_unit_id'],  # Use stored relay unit ID
+                    'relay_unit_id': delivery['relay_unit_id'],
                     'animal_id': delivery['animal_id'],
                     'delivery_time': delivery['datetime'].isoformat() if hasattr(delivery['datetime'], 'isoformat') else delivery['datetime'],
                     'water_volume': delivery['volume']
                 })
-        
+        else:  # Staggered mode
+            # Initialize VolumeCalculator with settings
+            volume_calculator = VolumeCalculator(worker_settings)
+            
+            # Calculate target volumes and required triggers
+            target_volumes = {}
+            for animal_id in schedule.animals:
+                volume_ml = schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume)
+                target_volumes[str(animal_id)] = volume_ml
+            
+            worker_settings.update({
+                'target_volumes': target_volumes,
+                'cycle_interval': 3600,  # Default 1 hour
+                'stagger_interval': 0.5,  # Default 500ms
+                'delivered_volumes': {},  # Initialize empty delivered volumes tracking
+            })
+
         # Initialize worker with correct settings
         worker = RelayWorker(worker_settings, relay_handler, notification_handler)
+        
+        # Move worker to thread
         worker.moveToThread(thread)
-
+        
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
-
+        
         thread.started.connect(worker.run_cycle)
         thread.start()
-
+        
         print("Program Started")
+
     except Exception as e:
-        print(f"Error running program: {e}")
+        print(f"Failed to run program: {e}")
+        if notification_handler:
+            notification_handler.send_slack_notification(f"Program error: {e}")
 
 def cleanup():
     global thread, worker
