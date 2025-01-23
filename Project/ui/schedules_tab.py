@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
@@ -11,6 +11,7 @@ from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
+from .save_schedule_dialog import SaveScheduleDialog
 import traceback
 
 class SchedulesTab(QWidget):
@@ -252,99 +253,57 @@ class SchedulesTab(QWidget):
 
     def save_current_schedule(self):
         """Save the current assignments and settings as a new schedule."""
-        schedule_name, ok = QInputDialog.getText(self, "Save Schedule", "Enter a name for the schedule:")
-        if not ok or not schedule_name.strip():
-            QMessageBox.warning(self, "Invalid Name", "Schedule name cannot be empty.")
-            return
-
         current_trainer = self.login_system.get_current_trainer()
         if not current_trainer:
             QMessageBox.warning(self, "Not Logged In", "Please log in to save schedules.")
             return
-
-        try:
-            # Get delivery mode from mode selector
-            delivery_mode = self.mode_selector.currentText().lower()
-            
-            # Collect data from all relay units
-            total_volume = 0
-            min_time = None
-            max_time = None
-            
-            for unit_id, relay_widget in self.relay_unit_widgets.items():
-                relay_data = relay_widget.get_data()
-                print(f"Relay data for unit {unit_id}: {relay_data}")
+        
+        # Collect schedule data
+        schedule_data = {
+            'delivery_mode': self.mode_selector.currentText().lower(),
+            'created_by': current_trainer['trainer_id'],
+            'is_super_user': (current_trainer['role'] == 'super'),
+            'water_volume': 0,  # Will be calculated from relay units
+            'relay_units': {}
+        }
+        
+        # Collect data from relay units
+        for unit_id, relay_widget in self.relay_unit_widgets.items():
+            relay_data = relay_widget.get_data()
+            if relay_data['animals']:
+                schedule_data['relay_units'][unit_id] = relay_data
                 
-                if not relay_data['animals']:
-                    continue
+        if not schedule_data['relay_units']:
+            QMessageBox.warning(self, "Empty Schedule", "No animals assigned to relay units.")
+            return
+        
+        # Show save dialog
+        dialog = SaveScheduleDialog(schedule_data, self)
+        if dialog.exec_() == QDialog.Accepted:
+            try:
+                # Create and save schedule
+                schedule = Schedule(
+                    schedule_id=None,
+                    name=schedule_data['name'],
+                    water_volume=sum(sum(unit['desired_water_output'].values()) 
+                                   for unit in schedule_data['relay_units'].values()),
+                    start_time=schedule_data['start_time'],
+                    end_time=schedule_data['end_time'],
+                    created_by=schedule_data['created_by'],
+                    is_super_user=schedule_data['is_super_user'],
+                    delivery_mode=schedule_data['delivery_mode']
+                )
+                
+                # Save to database
+                success = self.database_handler.add_schedule(schedule)
+                if success:
+                    QMessageBox.information(self, "Success", "Schedule saved successfully!")
+                    self.load_schedules()  # Refresh schedule list
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to save schedule")
                     
-                if delivery_mode == 'instant':
-                    for delivery in relay_data['delivery_schedule']:
-                        total_volume += delivery['volume']
-                        delivery_time = delivery['datetime']
-                        
-                        if min_time is None or delivery_time < min_time:
-                            min_time = delivery_time
-                        if max_time is None or delivery_time > max_time:
-                            max_time = delivery_time
-                else:
-                    # For staggered mode, sum up desired outputs
-                    for volume in relay_data['desired_water_output'].values():
-                        total_volume += volume
-
-            if delivery_mode == 'instant':
-                if min_time is None:
-                    min_time = datetime.now()
-                if max_time is None:
-                    max_time = datetime.now()
-            else:  # staggered mode
-                # For staggered mode, we don't set default times
-                # These will be set when the schedule is actually run
-                min_time = datetime.now()  # Placeholder time
-                max_time = min_time       # Placeholder time
-
-            # Create schedule object without relay_unit_id
-            schedule = Schedule(
-                schedule_id=None,
-                name=schedule_name,
-                water_volume=total_volume,
-                start_time=min_time.isoformat(),
-                end_time=max_time.isoformat(),
-                created_by=current_trainer['trainer_id'],
-                is_super_user=(current_trainer['role'] == 'super'),
-                delivery_mode=delivery_mode
-            )
-
-            # Add delivery data with correct relay unit assignments
-            for unit_id, relay_widget in self.relay_unit_widgets.items():
-                relay_data = relay_widget.get_data()
-                if not relay_data['animals']:
-                    continue
-
-                if delivery_mode == 'instant':
-                    print(f"save_current_schedule: adding instant deliveries for unit {unit_id}")
-                    for delivery in relay_data['delivery_schedule']:
-                        animal_id = relay_data['animals'][0].animal_id
-                        print(f"save_current_schedule: adding instant delivery for animal {animal_id} "
-                              f"at {delivery['datetime']} with volume {delivery['volume']}")
-                        schedule.add_instant_delivery(
-                            animal_id,
-                            delivery['datetime'],
-                            delivery['volume'],
-                            unit_id  # Add relay unit ID to instant delivery
-                        )
-                else:
-                    schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
-                    schedule.desired_water_outputs.update(relay_data['desired_water_output'])
-
-            # Save schedule to database
-            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
-            self.database_handler.add_schedule(schedule)
-            QMessageBox.information(self, "Success", "Schedule saved successfully!")
-            self.load_schedules()
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error saving schedule: {str(e)}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"An error occurred: {str(e)}")
 
     def load_selected_schedule(self, item):
         """Load the selected schedule and populate the relay units."""
