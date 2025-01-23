@@ -33,15 +33,13 @@ class RelayWorker(QObject):
         self.settings = settings
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
-        self._is_running = False
+        self.main_timer = QTimer()  # Create persistent timer
+        self.timers = []
         self.mutex = QMutex()
-        self.main_timer = QTimer(self)
-        self.timers = []  # Keep track of active timers
+        self._is_running = True
+        self.volume_calculator = VolumeCalculator(settings)  # Create volume calculator instance
         self.delivery_instants = settings.get('delivery_instants', [])
         self.mode = settings.get('mode', 'instant').lower()
-        
-        # Initialize VolumeCalculator
-        self.volume_calculator = VolumeCalculator(settings)
         
         # Add debug logging
         self.progress.emit(f"Initialized RelayWorker with settings: {settings}")
@@ -118,82 +116,89 @@ class RelayWorker(QObject):
 
     def run_staggered_cycle(self):
         """Handle staggered deliveries within time window"""
-        with QMutexLocker(self.mutex):
-            if not self._is_running:
-                return
+        try:
+            with QMutexLocker(self.mutex):
+                if not self._is_running:
+                    print("[DEBUG] Worker stopped, exiting staggered cycle")
+                    return
 
-        current_time = int(time.time())
-        window_start = self.settings['window_start']
-        window_end = self.settings['window_end']
-        
-        # If start time is in the future, schedule the first cycle
-        if window_start > current_time:
-            wait_time = window_start - current_time
-            self.progress.emit(f"Scheduling first cycle to start in {wait_time} seconds")
-            self.main_timer.singleShot(wait_time * 1000, self.run_staggered_cycle)
-            return
-        
-        # If we're within the time window
-        if window_start <= current_time <= window_end:
-            cycle_interval = self.settings.get('cycle_interval', 3600)  # Default 1 hour
-            stagger_interval = self.settings.get('stagger_interval', 0.5)  # Default 500ms
+            current_time = int(time.time())
+            window_start = self.settings['window_start']
+            window_end = self.settings['window_end']
             
-            # Track delivered volumes per animal
-            delivered_volumes = self.settings.get('delivered_volumes', {})
-            target_volumes = self.settings.get('target_volumes', {})
+            print(f"[DEBUG] Current time: {current_time}, Window: {window_start} - {window_end}")
             
-            for animal_id, target_volume in target_volumes.items():
-                delivered = delivered_volumes.get(animal_id, 0)
+            # If start time is in the future, schedule the first cycle
+            if window_start > current_time:
+                wait_time = window_start - current_time
+                print(f"[DEBUG] Scheduling first cycle in {wait_time} seconds")
+                self.main_timer.singleShot(wait_time * 1000, self.run_staggered_cycle)
+                return
+            
+            # If we're within the time window
+            if window_start <= current_time <= window_end:
+                cycle_interval = self.settings.get('cycle_interval', 3600)  # Default 1 hour
+                stagger_interval = self.settings.get('stagger_interval', 0.5)  # Default 500ms
                 
-                if delivered < target_volume:
-                    # Calculate remaining volume and triggers
-                    remaining_volume = target_volume - delivered
-                    triggers_needed = self.volume_calculator.calculate_triggers(remaining_volume)
+                # Track delivered volumes per animal
+                delivered_volumes = self.settings.get('delivered_volumes', {})
+                target_volumes = self.settings.get('target_volumes', {})
+                
+                for animal_id, target_volume in target_volumes.items():
+                    delivered = delivered_volumes.get(animal_id, 0)
                     
-                    # Create delivery instant for this cycle
-                    instant = {
-                        'relay_unit_id': int(animal_id),  # Convert string ID back to int
-                        'water_volume': remaining_volume,
-                        'animal_id': animal_id
-                    }
-                    
-                    # Schedule the delivery with proper stagger
-                    delay = len(self.timers) * stagger_interval * 1000  # Convert to milliseconds
-                    timer = QTimer(self)
-                    timer.setSingleShot(True)
-                    timer.timeout.connect(
-                        lambda i=instant: self.trigger_relay(
-                            i['relay_unit_id'],
-                            i['water_volume']
+                    if delivered < target_volume:
+                        # Calculate remaining volume and triggers
+                        remaining_volume = target_volume - delivered
+                        triggers_needed = self.volume_calculator.calculate_triggers(remaining_volume)
+                        
+                        # Create delivery instant for this cycle
+                        instant = {
+                            'relay_unit_id': int(animal_id),  # Convert string ID back to int
+                            'water_volume': remaining_volume,
+                            'animal_id': animal_id
+                        }
+                        
+                        # Schedule the delivery with proper stagger
+                        delay = len(self.timers) * stagger_interval * 1000  # Convert to milliseconds
+                        timer = QTimer(self)
+                        timer.setSingleShot(True)
+                        timer.timeout.connect(
+                            lambda i=instant: self.trigger_relay(
+                                i['relay_unit_id'],
+                                i['water_volume']
+                            )
                         )
-                    )
-                    timer.start(int(delay))
-                    self.timers.append(timer)
-                    
-                    # Update delivered volume tracking
-                    pump_volume_ml = self.settings.get('pump_volume_ul', 50) / 1000  # Convert µL to mL
-                    delivered_volumes[animal_id] = delivered + (triggers_needed * pump_volume_ml)
-                    
-                    self.progress.emit(f"Scheduled delivery of {remaining_volume}mL for animal {animal_id}")
-            
-            # Update settings with new volumes
-            self.settings['delivered_volumes'] = delivered_volumes
-            
-            # Schedule next cycle if needed
-            all_complete = all(
-                delivered_volumes.get(aid, 0) >= target_volumes.get(aid, 0)
-                for aid in target_volumes
-            )
-            
-            if not all_complete and current_time + cycle_interval <= window_end:
-                self.progress.emit(f"Scheduling next cycle in {cycle_interval} seconds")
-                self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
+                        timer.start(int(delay))
+                        self.timers.append(timer)
+                        
+                        # Update delivered volume tracking
+                        pump_volume_ml = self.settings.get('pump_volume_ul', 50) / 1000  # Convert µL to mL
+                        delivered_volumes[animal_id] = delivered + (triggers_needed * pump_volume_ml)
+                        
+                        self.progress.emit(f"Scheduled delivery of {remaining_volume}mL for animal {animal_id}")
+                
+                # Update settings with new volumes
+                self.settings['delivered_volumes'] = delivered_volumes
+                
+                # Schedule next cycle if needed
+                all_complete = all(
+                    delivered_volumes.get(aid, 0) >= target_volumes.get(aid, 0)
+                    for aid in target_volumes
+                )
+                
+                if not all_complete and current_time + cycle_interval <= window_end:
+                    self.progress.emit(f"Scheduling next cycle in {cycle_interval} seconds")
+                    self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
+                else:
+                    self._is_running = False
+                    self.finished.emit()
             else:
                 self._is_running = False
                 self.finished.emit()
-        else:
-            self._is_running = False
-            self.finished.emit()
+        except Exception as e:
+            print(f"[ERROR] Exception in staggered cycle: {e}")
+            self.notification_handler.send_notification(f"Error in staggered cycle: {e}")
 
     def check_completion(self):
         """Check if all deliveries are complete"""

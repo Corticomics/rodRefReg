@@ -20,4 +20,4 @@ Scheduling first cycle to start in 49 seconds
 [DEBUG] Starting cleanup process
 [DEBUG] All relays deactivated
 [DEBUG] Worker was already deleted or disconnected: wrapped C/C++ object of type RelayWorker has been deleted
-[DEBUG] Cleanup completed. Program ready for the next job.
+[DEBUG] Cleanup completed. Program ready for the next job. 

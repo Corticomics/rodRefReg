@@ -97,7 +97,9 @@ def run_program(schedule, mode, window_start, window_end):
         worker_settings = {
             'mode': mode,
             'window_start': window_start,
-            'window_end': window_end
+            'window_end': window_end,
+            'pump_volume_ul': volume_calculator.pump_volume_ul,
+            'calibration_factor': volume_calculator.calibration_factor
         }
         
         if mode == "Instant":
@@ -152,17 +154,25 @@ def run_program(schedule, mode, window_start, window_end):
 
 def cleanup():
     global thread, worker
-
+    
+    print("[DEBUG] Starting cleanup process")
+    
+    if worker and worker._is_running:
+        print("[DEBUG] Worker still running, waiting for completion")
+        return
+        
     try:
-        print("[DEBUG] Starting cleanup process")
-
-        # Ensure all relays are deactivated
-        try:
+        if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        except Exception as e:
-            print(f"[ERROR] Error deactivating relays: {e}")
-
+            
+        if worker:
+            worker._is_running = False
+            for timer in worker.timers:
+                timer.stop()
+            worker.main_timer.stop()
+            print("[DEBUG] All timers stopped")
+            
         # Check if the worker still exists before trying to disconnect signals
         if worker is not None:
             try:
