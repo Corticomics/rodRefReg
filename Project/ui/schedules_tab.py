@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
@@ -11,6 +11,7 @@ from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
+from .time_window_dialog import TimeWindowDialog  # Import the custom dialog
 import traceback
 
 class SchedulesTab(QWidget):
@@ -266,19 +267,34 @@ class SchedulesTab(QWidget):
             # Get delivery mode from mode selector
             delivery_mode = self.mode_selector.currentText().lower()
             
-            # Collect data from all relay units
-            total_volume = 0
+            # Initialize time variables
             min_time = None
             max_time = None
+            total_volume = 0
             
-            for unit_id, relay_widget in self.relay_unit_widgets.items():
-                relay_data = relay_widget.get_data()
-                print(f"Relay data for unit {unit_id}: {relay_data}")
-                
-                if not relay_data['animals']:
-                    continue
+            if delivery_mode == 'staggered':
+                # Show time window dialog for staggered mode
+                time_dialog = TimeWindowDialog(self)
+                if time_dialog.exec_() != QDialog.Accepted:
+                    return
                     
-                if delivery_mode == 'instant':
+                min_time, max_time = time_dialog.get_times()
+                
+                # Collect volumes from relay units
+                for unit_id, relay_widget in self.relay_unit_widgets.items():
+                    relay_data = relay_widget.get_data()
+                    if not relay_data['animals']:
+                        continue
+                        
+                    for volume in relay_data['desired_water_output'].values():
+                        total_volume += volume
+                        
+            else:  # instant mode
+                for unit_id, relay_widget in self.relay_unit_widgets.items():
+                    relay_data = relay_widget.get_data()
+                    if not relay_data['animals']:
+                        continue
+                        
                     for delivery in relay_data['delivery_schedule']:
                         total_volume += delivery['volume']
                         delivery_time = delivery['datetime']
@@ -287,29 +303,19 @@ class SchedulesTab(QWidget):
                             min_time = delivery_time
                         if max_time is None or delivery_time > max_time:
                             max_time = delivery_time
-                else:
-                    # For staggered mode, sum up desired outputs
-                    for volume in relay_data['desired_water_output'].values():
-                        total_volume += volume
-
-            if delivery_mode == 'instant':
+                
                 if min_time is None:
                     min_time = datetime.now()
                 if max_time is None:
                     max_time = datetime.now()
-            else:  # staggered mode
-                # For staggered mode, we don't set default times
-                # These will be set when the schedule is actually run
-                min_time = datetime.now()  # Placeholder time
-                max_time = min_time       # Placeholder time
 
-            # Create schedule object without relay_unit_id
+            # Create schedule object
             schedule = Schedule(
                 schedule_id=None,
                 name=schedule_name,
                 water_volume=total_volume,
-                start_time=min_time.isoformat(),
-                end_time=max_time.isoformat(),
+                start_time=min_time if isinstance(min_time, str) else min_time.isoformat(),
+                end_time=max_time if isinstance(max_time, str) else max_time.isoformat(),
                 created_by=current_trainer['trainer_id'],
                 is_super_user=(current_trainer['role'] == 'super'),
                 delivery_mode=delivery_mode
