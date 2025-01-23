@@ -15,21 +15,13 @@ class RunStopSection(QWidget):
         self.settings = settings
         self.database_handler = database_handler
         self.current_schedule = None
-
-        # Track the state of the job
         self.job_in_progress = False
-
         self.init_ui()
-
-        # Create a QTimer to keep updating the minimum date/time
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_minimum_datetime)
-        self.timer.start(1000)  # Update every second
 
         if settings:
             self.load_settings(settings)
 
-        self.setAcceptDrops(True)  # Enable dropping
+        self.setAcceptDrops(True)
 
     def init_ui(self):
         self.layout = QVBoxLayout()
@@ -82,11 +74,6 @@ class RunStopSection(QWidget):
     def load_settings(self, settings):
         self.offline_input.setText(str(settings.get('offline_duration', 60)))
 
-    def update_minimum_datetime(self):
-        """Update the minimum selectable datetime to 'right now'."""
-        current_datetime = QDateTime.currentDateTime()
-        self.offline_input.setMinimumDateTime(current_datetime)
-
     def update_button_states(self):
         """Enable or disable the Run, Stop, and Change Relay Hats buttons based on the job's state."""
         self.run_button.setEnabled(not self.job_in_progress)
@@ -130,17 +117,11 @@ class RunStopSection(QWidget):
             mode = self.schedule_drop_area.get_mode()
             
             if mode == "Staggered":
-                # For staggered mode, use the time window from UI
-                duration = int(self.offline_input.text()) * 60
-                window_start = int(QDateTime.currentSecsSinceEpoch())
-                window_end = window_start + duration
-                
-                current_dt = QDateTime.currentDateTime()
-                end_dt = current_dt.addSecs(duration)
-                
-                # Update schedule object times
-                schedule.start_time = current_dt.toString("yyyy-MM-ddTHH:mm:ss")
-                schedule.end_time = end_dt.toString("yyyy-MM-ddTHH:mm:ss")
+                # For staggered mode, use the schedule's saved time window
+                window_start = int(QDateTime.fromString(schedule.start_time, 
+                                                      "yyyy-MM-ddTHH:mm:ss").toSecsSinceEpoch())
+                window_end = int(QDateTime.fromString(schedule.end_time, 
+                                                    "yyyy-MM-ddTHH:mm:ss").toSecsSinceEpoch())
             else:  # Instant mode
                 # Use the schedule's instant delivery times
                 if not schedule.instant_deliveries:
@@ -148,7 +129,6 @@ class RunStopSection(QWidget):
                         "This schedule has no instant delivery times configured")
                     return
                 
-                # Get earliest and latest delivery times from schedule
                 delivery_times = [QDateTime.fromString(d['datetime'].strftime("%Y-%m-%d %H:%M:%S"), 
                                                      "yyyy-MM-dd HH:mm:ss") 
                                 for d in schedule.instant_deliveries]
