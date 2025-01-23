@@ -1,5 +1,7 @@
 # models/schedule.py
 
+from datetime import datetime
+
 class Schedule:
     def __init__(self, schedule_id, name, water_volume, start_time, end_time, 
                  created_by, is_super_user, delivery_mode='staggered', cycles_per_day=1):
@@ -62,6 +64,13 @@ class Schedule:
         return self.water_volume
 
     def update_time_window(self, start_time, end_time):
-        """Update schedule time window"""
+        """Update the schedule's time window"""
+        if isinstance(start_time, (int, float)):
+            # Convert from timestamp if needed
+            start_time = datetime.fromtimestamp(start_time).isoformat()
+        if isinstance(end_time, (int, float)):
+            # Convert from timestamp if needed
+            end_time = datetime.fromtimestamp(end_time).isoformat()
+            
         self.start_time = start_time
         self.end_time = end_time
