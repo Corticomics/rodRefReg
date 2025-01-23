@@ -3,6 +3,7 @@ from PyQt5.QtCore import QDateTime, QTimer, Qt
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 from PyQt5.QtCore import pyqtSignal
+from .time_window_dialog import TimeWindowDialog
 
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
@@ -36,7 +37,7 @@ class RunStopSection(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(12)
 
-        # Initialize all buttons first
+        # Initialize all buttons
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
@@ -78,97 +79,13 @@ class RunStopSection(QWidget):
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
 
-        # Tab widget for Calendar and Offline modes
-        self.tab_widget = QTabWidget()
-        self.calendar_widget = QWidget()
-        self.offline_widget = QWidget()
-
-        # Calendar-Based Time Window Selection
-        calendar_layout = QFormLayout()
-        calendar_layout.setSpacing(12)
-        calendar_layout.setContentsMargins(12, 12, 12, 12)
-        
-        self.start_time_label = QLabel("Start Time:")
-        self.start_time_input = QDateTimeEdit(self.calendar_widget)
-        self.start_time_input.setCalendarPopup(True)
-        self.start_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.start_time_input.setDateTime(QDateTime.currentDateTime())  # Default to now
-        self.start_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-        self.start_time_input.setMinimumWidth(160)  # Set minimum width for the datetime input
-        self.start_time_input.setFixedHeight(28)
-        
-        self.end_time_label = QLabel("End Time:")
-        self.end_time_input = QDateTimeEdit(self.calendar_widget)
-        self.end_time_input.setCalendarPopup(True)
-        self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default to 1 hour later
-        self.end_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-        self.end_time_input.setMinimumWidth(160)  # Set minimum width for the datetime input
-        self.end_time_input.setFixedHeight(28)
-
-        # Style the labels to be more visible
-        label_style = "QLabel { font-size: 11pt; padding: 3px; }"
-        self.start_time_label.setStyleSheet(label_style)
-        self.end_time_label.setStyleSheet(label_style)
-
-        # Style the datetime inputs to be more visible
-        date_time_style = """
-            QDateTimeEdit {
-                padding: 5px;
-                min-height: 25px;
-                background-color: white;
-                border: 1px solid #BDBDBD;
-                border-radius: 4px;
-            }
-            QCalendarWidget QAbstractItemView {
-                background-color: #525251;
-                selection-background-color: #607cff;
-            }
-
-            QCalendarWidget QWidget {
-                alternate-background-color: #404040;
-            }
-
-            QCalendarWidget QToolButton {
-                color: white;
-                background-color: #525251;
-            }
-
-            QCalendarWidget QMenu {
-                background-color: #525251;
-            }
-        """
-        self.start_time_input.setStyleSheet(date_time_style)
-        self.end_time_input.setStyleSheet(date_time_style)
-
-        calendar_layout.addRow(self.start_time_label, self.start_time_input)
-        calendar_layout.addRow(self.end_time_label, self.end_time_input)
-        self.calendar_widget.setLayout(calendar_layout)
-
-        # Offline Mode
-        self.offline_label = QLabel("Offline Duration (minutes):")
-        self.offline_input = QLineEdit(self.offline_widget)
-        self.offline_input.setPlaceholderText("Enter minutes")
-
-        offline_layout = QFormLayout()
-        offline_layout.addRow(self.offline_label, self.offline_input)
-        self.offline_widget.setLayout(offline_layout)
-
-        self.tab_widget.addTab(self.calendar_widget, "Calendar Mode")
-        self.tab_widget.addTab(self.offline_widget, "Offline Mode")
-
         # Schedule drop area
         self.schedule_drop_area = ScheduleDropArea()
         self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         
-        # Add button container to main layout
+        # Add widgets to main layout
         self.layout.addLayout(self.button_layout)
-        
-        self.layout.addWidget(self.tab_widget)
-        
-        # Add schedule drop area directly (without label)
         self.layout.addWidget(self.schedule_drop_area)
-        
         self.layout.addStretch()
         
         # Set size policies
@@ -179,8 +96,8 @@ class RunStopSection(QWidget):
         
         self.setLayout(self.layout)
         self.update_button_states()
-
-        # Add after line 112
+        
+        # Connect mode changed signal
         self.schedule_drop_area.mode_changed.connect(self._on_mode_changed)
 
     def load_settings(self, settings):
@@ -241,27 +158,25 @@ class RunStopSection(QWidget):
             mode = self.schedule_drop_area.get_mode()
             
             if mode == "Staggered":
-                # For staggered mode, use the time window from UI
-                if self.tab_widget.currentIndex() == 0:  # Calendar Mode
-                    window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
-                    window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
+                # Show time window dialog for staggered mode
+                time_dialog = TimeWindowDialog(self)
+                if time_dialog.exec_() != QDialog.Accepted:
+                    return
                     
-                    # Update schedule object with selected times
-                    schedule.update_time_window(
-                        self.start_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss"),
-                        self.end_time_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
-                    )
-                else:  # Offline Mode
-                    duration = int(self.offline_input.text()) * 60
-                    window_start = int(QDateTime.currentSecsSinceEpoch())
-                    window_end = window_start + duration
-                    
-                    current_dt = QDateTime.currentDateTime()
-                    end_dt = current_dt.addSecs(duration)
-                    
-                    # Update schedule object times
-                    schedule.start_time = current_dt.toString("yyyy-MM-ddTHH:mm:ss")
-                    schedule.end_time = end_dt.toString("yyyy-MM-ddTHH:mm:ss")
+                # Get times from dialog
+                start_time_str, end_time_str = time_dialog.get_times()
+                
+                # Convert to QDateTime for seconds calculation
+                start_dt = QDateTime.fromString(start_time_str, "yyyy-MM-ddTHH:mm:ss")
+                end_dt = QDateTime.fromString(end_time_str, "yyyy-MM-ddTHH:mm:ss")
+                
+                window_start = start_dt.toSecsSinceEpoch()
+                window_end = end_dt.toSecsSinceEpoch()
+                
+                # Update schedule times
+                schedule.start_time = start_time_str
+                schedule.end_time = end_time_str
+                
             else:  # Instant mode
                 # Use the schedule's instant delivery times
                 if not schedule.instant_deliveries:

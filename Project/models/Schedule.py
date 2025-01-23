@@ -60,3 +60,8 @@ class Schedule:
         if self.delivery_mode == 'staggered':
             return self.desired_water_outputs.get(str(relay_unit_id), self.water_volume)
         return self.water_volume
+
+    def update_time_window(self, start_time, end_time):
+        """Update the schedule's time window"""
+        self.start_time = start_time
+        self.end_time = end_time
