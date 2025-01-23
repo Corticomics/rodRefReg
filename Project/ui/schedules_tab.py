@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QLineEdit, QDateTimeEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
@@ -260,23 +260,80 @@ class SchedulesTab(QWidget):
         
         delivery_mode = self.mode_selector.currentText().lower()
         
-        # Get time window from the parent window's run/stop section
+        # Create save dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Save Schedule")
+        layout = QVBoxLayout()
+        
+        # Name input
+        name_layout = QHBoxLayout()
+        name_label = QLabel("Schedule Name:")
+        name_input = QLineEdit()
+        name_layout.addWidget(name_label)
+        name_layout.addWidget(name_input)
+        layout.addLayout(name_layout)
+        
+        # Time window selection for staggered mode
+        time_layout = QVBoxLayout()
+        start_time = QDateTimeEdit()
+        end_time = QDateTimeEdit()
+        
         if delivery_mode == 'staggered':
-            # Get the time window from the parent's run/stop section
-            try:
-                window_start = self.parent().runstop_section.start_time.dateTime().toPyDateTime()
-                window_end = self.parent().runstop_section.end_time.dateTime().toPyDateTime()
-                
-                if window_end <= window_start:
-                    QMessageBox.warning(self, "Invalid Time Window", 
-                                      "End time must be after start time")
-                    return
-            except AttributeError:
-                QMessageBox.warning(self, "Time Window Error", 
-                                  "Please set a valid time window in the Run/Stop section")
+            time_label = QLabel("Time Window:")
+            time_layout.addWidget(time_label)
+            
+            # Start time
+            start_layout = QHBoxLayout()
+            start_label = QLabel("Start:")
+            start_time.setDateTime(QDateTime.currentDateTime())
+            start_time.setCalendarPopup(True)
+            start_layout.addWidget(start_label)
+            start_layout.addWidget(start_time)
+            time_layout.addLayout(start_layout)
+            
+            # End time
+            end_layout = QHBoxLayout()
+            end_label = QLabel("End:")
+            end_time.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # +1 hour default
+            end_time.setCalendarPopup(True)
+            end_layout.addWidget(end_label)
+            end_layout.addWidget(end_time)
+            time_layout.addLayout(end_layout)
+            
+            layout.addLayout(time_layout)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        save_button = QPushButton("Save")
+        cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(save_button)
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+        
+        dialog.setLayout(layout)
+        
+        # Connect buttons
+        save_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+        
+        if dialog.exec_() != QDialog.Accepted:
+            return
+        
+        name = name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Input Error", "Please enter a schedule name.")
+            return
+        
+        # Set time window based on mode
+        if delivery_mode == 'staggered':
+            window_start = start_time.dateTime().toPyDateTime()
+            window_end = end_time.dateTime().toPyDateTime()
+            
+            if window_end <= window_start:
+                QMessageBox.warning(self, "Invalid Time Window", 
+                                  "End time must be after start time")
                 return
         else:
-            # For instant mode, use current time
             window_start = datetime.now()
             window_end = datetime.now()
         
@@ -299,11 +356,6 @@ class SchedulesTab(QWidget):
                 
         if not schedule_data['relay_units']:
             QMessageBox.warning(self, "Empty Schedule", "No animals assigned to relay units.")
-            return
-        
-        # Get schedule name
-        name, ok = QInputDialog.getText(self, "Save Schedule", "Enter schedule name:")
-        if not ok or not name.strip():
             return
         
         try:
