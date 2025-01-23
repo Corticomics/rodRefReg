@@ -2,9 +2,9 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QLineEdit, QDateTimeEdit, QDateTime
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QLineEdit, QDateTimeEdit
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QDateTime
 from PyQt5.QtGui import QDrag
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
