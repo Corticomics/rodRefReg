@@ -1,15 +1,16 @@
-mouseuser@raspberrypi:~/Documents/GitHub/rodRefReg/Project $ python3 test_relay_connection.py 
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/dist-packages/SM16relind-1.0.2-py3.11.egg/SM16relind/__init__.py", line 24, in __init__
-  File "/usr/lib/python3/dist-packages/smbus2/smbus2.py", line 474, in read_word_data
-    ioctl(self.fd, I2C_SMBUS, msg)
-OSError: [Errno 5] Input/output error
+Logged in as: admin
+Displaying animals for trainer ID 1
+About to load animals for trainer_id: 1 (type: <class 'int'>)
+Retrieved 9 animals from the database for trainer_id 1
+Loaded 9 animals for trainer ID 1
+Relay data for unit 1: {'animals': [<models.animal.Animal object at 0x7f8691d650>], 'desired_water_output': {'1': 1.0}, 'delivery_mode': 'staggered'}
+Relay data for unit 2: {'animals': [<models.animal.Animal object at 0x7f8691d6d0>], 'desired_water_output': {'2': 2.0}, 'delivery_mode': 'staggered'}
+Relay data for unit 3: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Relay data for unit 4: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Relay data for unit 5: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Relay data for unit 6: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Relay data for unit 7: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Relay data for unit 8: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Schedule object: staggered, t5, 3.0, 2025-01-23T13:16:19.495808, 2025-01-23T13:16:19.495808, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
 
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/test_relay_connection.py", line 3, in <module>
-    rel = SM16relind.SM16relind(0)
-          ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/dist-packages/SM16relind-1.0.2-py3.11.egg/SM16relind/__init__.py", line 31, in __init__
-Exception: Fail to init the card with exception [Errno 5] Input/output error
+Failed to run program: 'Schedule' object has no attribute 'update_time_window'
