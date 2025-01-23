@@ -2,7 +2,7 @@
 
 import sys
 import os
-from Project.utils.volume_calculator import VolumeCalculator
+from utils.volume_calculator import VolumeCalculator
 from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
 from gpio.relay_worker import RelayWorker
