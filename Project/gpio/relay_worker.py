@@ -126,6 +126,14 @@ class RelayWorker(QObject):
         window_start = self.settings['window_start']
         window_end = self.settings['window_end']
         
+        # If start time is in the future, schedule the first cycle
+        if window_start > current_time:
+            wait_time = window_start - current_time
+            self.progress.emit(f"Scheduling first cycle to start in {wait_time} seconds")
+            self.main_timer.singleShot(wait_time * 1000, self.run_staggered_cycle)
+            return
+        
+        # If we're within the time window
         if window_start <= current_time <= window_end:
             cycle_interval = self.settings.get('cycle_interval', 3600)  # Default 1 hour
             stagger_interval = self.settings.get('stagger_interval', 0.5)  # Default 500ms
@@ -165,6 +173,8 @@ class RelayWorker(QObject):
                     # Update delivered volume tracking
                     pump_volume_ml = self.settings.get('pump_volume_ul', 50) / 1000  # Convert µL to mL
                     delivered_volumes[animal_id] = delivered + (triggers_needed * pump_volume_ml)
+                    
+                    self.progress.emit(f"Scheduled delivery of {remaining_volume}mL for animal {animal_id}")
             
             # Update settings with new volumes
             self.settings['delivered_volumes'] = delivered_volumes
@@ -175,7 +185,8 @@ class RelayWorker(QObject):
                 for aid in target_volumes
             )
             
-            if not all_complete:
+            if not all_complete and current_time + cycle_interval <= window_end:
+                self.progress.emit(f"Scheduling next cycle in {cycle_interval} seconds")
                 self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
             else:
                 self._is_running = False

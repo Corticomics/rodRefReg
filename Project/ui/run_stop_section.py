@@ -147,33 +147,19 @@ class RunStopSection(QWidget):
             mode = self.schedule_drop_area.get_mode()
             
             if mode == "Staggered":
-                # Show time window dialog for staggered mode
-                time_dialog = TimeWindowDialog(self)
-                if time_dialog.exec_() != QDialog.Accepted:
-                    return
-                    
-                # Get times from dialog
-                start_time_str, end_time_str = time_dialog.get_times()
-                
-                # Convert to QDateTime for seconds calculation
-                start_dt = QDateTime.fromString(start_time_str, "yyyy-MM-ddTHH:mm:ss")
-                end_dt = QDateTime.fromString(end_time_str, "yyyy-MM-ddTHH:mm:ss")
+                # Use the schedule's existing times
+                start_dt = QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss")
+                end_dt = QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss")
                 
                 window_start = start_dt.toSecsSinceEpoch()
                 window_end = end_dt.toSecsSinceEpoch()
                 
-                # Update schedule times
-                schedule.start_time = start_time_str
-                schedule.end_time = end_time_str
-                
             else:  # Instant mode
-                # Use the schedule's instant delivery times
                 if not schedule.instant_deliveries:
                     QMessageBox.warning(self, "Invalid Schedule", 
                         "This schedule has no instant delivery times configured")
                     return
                 
-                # Get earliest and latest delivery times from schedule
                 delivery_times = [QDateTime.fromString(d['datetime'].strftime("%Y-%m-%d %H:%M:%S"), 
                                                      "yyyy-MM-dd HH:mm:ss") 
                                 for d in schedule.instant_deliveries]
