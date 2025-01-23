@@ -22,11 +22,6 @@ class RunStopSection(QWidget):
 
         self.init_ui()
 
-        # Create a QTimer to keep updating the minimum date/time
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_minimum_datetime)
-        self.timer.start(1000)  # Update every second
-
         if settings:
             self.load_settings(settings)
 
@@ -101,18 +96,12 @@ class RunStopSection(QWidget):
         self.schedule_drop_area.mode_changed.connect(self._on_mode_changed)
 
     def load_settings(self, settings):
-        self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
-        self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
-        self.offline_input.setText(str(settings.get('offline_duration', 60)))
+        """Load settings without calendar-related inputs"""
+        pass  # We no longer need to load calendar settings
 
     def update_minimum_datetime(self):
-        """Update the minimum selectable datetime to 'right now'."""
-        current_datetime = QDateTime.currentDateTime()
-        self.start_time_input.setMinimumDateTime(current_datetime)
-        self.end_time_input.setMinimumDateTime(current_datetime)
-
-    # The rest of your methods remain unchanged...
-
+        """Update minimum datetime is no longer needed"""
+        pass
 
     def update_button_states(self):
         """Enable or disable the Run, Stop, and Change Relay Hats buttons based on the job's state."""
@@ -223,10 +212,6 @@ class RunStopSection(QWidget):
         """Reset the UI to the initial state after a job is completed."""
         self.job_in_progress = False
         self.update_button_states()
-        self.start_time_input.setDateTime(QDateTime.currentDateTime())
-        self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))
-        self.offline_input.clear()
-
 
     def change_relay_hats(self):
         """Change relay hats configuration"""
@@ -245,8 +230,7 @@ class RunStopSection(QWidget):
 
     def _on_mode_changed(self, mode):
         """Handle mode changes from schedule drop area"""
-        is_staggered = mode == "Staggered"
-        self.tab_widget.setVisible(is_staggered)
+        pass  # No need to handle visibility of removed tab widget
 
     def edit_current_schedule(self):
         """Open the edit dialog for the current schedule"""
