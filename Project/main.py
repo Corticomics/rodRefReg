@@ -93,6 +93,13 @@ def run_program(schedule, mode, window_start, window_end):
             thread.wait()
         thread = QThread()
 
+        # Initialize VolumeCalculator first
+        volume_calculator = VolumeCalculator({
+            'pump_volume_ul': settings.get('pump_volume_ul', 50),
+            'calibration_factor': settings.get('calibration_factor', 1.0),
+            'min_triggers': settings.get('min_triggers', 1)
+        })
+
         # Base settings
         worker_settings = {
             'mode': mode,
@@ -103,7 +110,6 @@ def run_program(schedule, mode, window_start, window_end):
         }
         
         if mode == "Instant":
-            # Keep existing instant mode code unchanged
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
                 worker_settings['delivery_instants'].append({
@@ -113,9 +119,6 @@ def run_program(schedule, mode, window_start, window_end):
                     'water_volume': delivery['volume']
                 })
         else:  # Staggered mode
-            # Initialize VolumeCalculator with settings
-            volume_calculator = VolumeCalculator(worker_settings)
-            
             # Calculate target volumes and required triggers
             target_volumes = {}
             for animal_id in schedule.animals:
@@ -126,7 +129,7 @@ def run_program(schedule, mode, window_start, window_end):
                 'target_volumes': target_volumes,
                 'cycle_interval': 3600,  # Default 1 hour
                 'stagger_interval': 0.5,  # Default 500ms
-                'delivered_volumes': {},  # Initialize empty delivered volumes tracking
+                'delivered_volumes': {}
             })
 
         # Initialize worker with correct settings

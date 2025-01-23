@@ -33,11 +33,20 @@ class RelayWorker(QObject):
         self.settings = settings
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
-        self.main_timer = QTimer()  # Create persistent timer
-        self.timers = []
         self.mutex = QMutex()
         self._is_running = True
-        self.volume_calculator = VolumeCalculator(settings)  # Create volume calculator instance
+        self.timers = []
+        
+        # Initialize main timer
+        self.main_timer = QTimer()
+        self.main_timer.setSingleShot(True)
+        
+        # Create volume calculator instance
+        self.volume_calculator = VolumeCalculator(settings)
+        
+        # Initialize delivered volumes tracking
+        self.settings['delivered_volumes'] = self.settings.get('delivered_volumes', {})
+        
         self.delivery_instants = settings.get('delivery_instants', [])
         self.mode = settings.get('mode', 'instant').lower()
         
