@@ -221,34 +221,31 @@ class RelayWorker(QObject):
             return False
         
     def execute_staggered_delivery(self, instant):
-        """Execute a staggered delivery with proper timing"""
+        """Execute a staggered delivery with proper tracking"""
         try:
-            # Calculate required triggers
-            volume_ml = instant['water_volume']
-            triggers = self.volume_calculator.calculate_triggers(volume_ml)
+            # Calculate required triggers like in instant mode
+            triggers_needed = self.volume_calculator.calculate_triggers(instant['water_volume'])
             
-            # Create timer for staggered delivery
-            timer = QTimer(self)
-            timer.setSingleShot(True)
-            timer.timeout.connect(
-                lambda: self.trigger_relay(
-                    instant['relay_unit_id'],
+            success = self.trigger_relay(
+                instant['relay_unit_id'],
+                instant['water_volume'],
+                triggers_needed
+            )
+            
+            if success:
+                # Update delivered volumes
+                animal_id = str(instant['animal_id'])
+                self.settings['delivered_volumes'][animal_id] = (
+                    self.settings['delivered_volumes'].get(animal_id, 0) + 
                     instant['water_volume']
                 )
-            )
+                
+                self.progress.emit(
+                    f"Delivered {instant['water_volume']}mL to animal {instant['animal_id']}"
+                )
+                return True
             
-            # Start timer with stagger interval
-            timer.start(int(self.settings['stagger_interval'] * 1000))
-            self.timers.append(timer)
-            
-            # Update tracking
-            animal_id = str(instant['animal_id'])
-            self.settings['delivered_volumes'][animal_id] = (
-                self.settings['delivered_volumes'].get(animal_id, 0) + 
-                instant['water_volume']
-            )
-            
-            return True
+            return False
             
         except Exception as e:
             self.progress.emit(f"Staggered delivery error: {str(e)}")
