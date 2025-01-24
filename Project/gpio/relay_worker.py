@@ -173,7 +173,7 @@ class RelayWorker(QObject):
                     continue
                     
                 if delivered < target_volume:
-                    self.execute_delivery({
+                    self.execute_staggered_delivery({
                         'relay_unit_id': relay_unit_id,
                         'water_volume': target_volume - delivered,
                         'animal_id': animal_id
@@ -198,6 +198,11 @@ class RelayWorker(QObject):
             )
             
             if success:
+                # Update delivered volumes
+                animal_id = str(instant['animal_id'])
+                self.settings['delivered_volumes'][animal_id] = self.settings['delivered_volumes'].get(animal_id, 0) + instant['water_volume']
+                
+                # Track delivery
                 self.delivery_queue.track_delivery.emit({
                     'schedule_id': self.settings['schedule_id'],
                     'animal_id': instant['animal_id'],
@@ -205,9 +210,48 @@ class RelayWorker(QObject):
                     'volume_ml': instant['water_volume'],
                     'status': 'completed'
                 })
+                
+                self.progress.emit(
+                    f"Delivered {instant['water_volume']}mL to animal {instant['animal_id']}"
+                )
                 return True
+            
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
+            return False
+        
+    def execute_staggered_delivery(self, instant):
+        """Execute a staggered delivery with proper timing"""
+        try:
+            # Calculate required triggers
+            volume_ml = instant['water_volume']
+            triggers = self.volume_calculator.calculate_triggers(volume_ml)
+            
+            # Create timer for staggered delivery
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(
+                lambda: self.trigger_relay(
+                    instant['relay_unit_id'],
+                    instant['water_volume']
+                )
+            )
+            
+            # Start timer with stagger interval
+            timer.start(int(self.settings['stagger_interval'] * 1000))
+            self.timers.append(timer)
+            
+            # Update tracking
+            animal_id = str(instant['animal_id'])
+            self.settings['delivered_volumes'][animal_id] = (
+                self.settings['delivered_volumes'].get(animal_id, 0) + 
+                instant['water_volume']
+            )
+            
+            return True
+            
+        except Exception as e:
+            self.progress.emit(f"Staggered delivery error: {str(e)}")
             return False
 
     def check_completion(self):
