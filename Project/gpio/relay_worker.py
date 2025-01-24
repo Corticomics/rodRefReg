@@ -132,11 +132,15 @@ class RelayWorker(QObject):
         try:
             with QMutexLocker(self.mutex):
                 if not self._is_running:
+                    self.progress.emit("Worker not running, exiting cycle")
                     return
 
             current_time = datetime.now()
             window_start = datetime.fromtimestamp(self.settings['window_start'])
             window_end = datetime.fromtimestamp(self.settings['window_end'])
+            
+            self.progress.emit(f"Current time: {current_time}")
+            self.progress.emit(f"Window: {window_start} to {window_end}")
             
             if current_time > window_end:
                 self.progress.emit("Schedule window ended")
@@ -148,6 +152,10 @@ class RelayWorker(QObject):
             stagger_interval = self.settings.get('stagger_interval', 0.5)
             target_volumes = self.settings.get('target_volumes', {})
             
+            self.progress.emit(f"Settings - Cycle interval: {cycle_interval}s, Stagger: {stagger_interval}s")
+            self.progress.emit(f"Target volumes: {target_volumes}")
+            self.progress.emit(f"Current delivered volumes: {self.delivered_volumes}")
+            
             # Process each animal's delivery
             all_complete = True
             for animal_id, target_volume in target_volumes.items():
@@ -156,14 +164,16 @@ class RelayWorker(QObject):
                     
                 delivered = self.delivered_volumes.get(str(animal_id), 0)
                 if delivered >= target_volume:
+                    self.progress.emit(f"Animal {animal_id} complete: {delivered}/{target_volume}mL")
                     continue
                     
                 all_complete = False
-                # Calculate volume for this cycle
                 remaining_volume = target_volume - delivered
                 partial_volume = min(remaining_volume, target_volume / 4)  # Deliver max 1/4 of total at once
                 
-                # Trigger relay for this animal
+                self.progress.emit(f"Processing animal {animal_id}: {delivered}/{target_volume}mL")
+                self.progress.emit(f"Delivering partial volume: {partial_volume}mL")
+                
                 relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
                 if relay_unit_id:
                     success = self.trigger_relay(relay_unit_id, partial_volume)
@@ -171,6 +181,10 @@ class RelayWorker(QObject):
                         self.delivered_volumes[str(animal_id)] = delivered + partial_volume
                         self.progress.emit(f"Delivered {partial_volume:.2f}mL to animal {animal_id}")
                         time.sleep(stagger_interval)
+                    else:
+                        self.progress.emit(f"Failed to deliver to animal {animal_id}")
+                else:
+                    self.progress.emit(f"No relay unit assigned for animal {animal_id}")
             
             if all_complete:
                 self.progress.emit("All deliveries complete")
