@@ -133,8 +133,8 @@ def run_program(schedule, mode, window_start, window_end):
                 'max_triggers_per_cycle': 5
             })
             timing_plan = timing_calculator.calculate_staggered_timing(
-                datetime.fromtimestamp(window_start),
-                datetime.fromtimestamp(window_end),
+                datetime.datetime.fromtimestamp(window_start),
+                datetime.datetime.fromtimestamp(window_end),
                 [{'animal_id': aid, 'volume_ml': vol} for aid, vol in target_volumes.items()]
             )
 
@@ -143,7 +143,8 @@ def run_program(schedule, mode, window_start, window_end):
                 'cycle_interval': timing_plan['cycle_interval'],
                 'stagger_interval': timing_plan['stagger_interval'],
                 'total_cycles': timing_plan['total_cycles'],
-                'delivered_volumes': {}
+                'delivered_volumes': {},
+                'relay_unit_assignments': schedule.relay_unit_assignments
             })
 
         # Initialize worker with correct settings
