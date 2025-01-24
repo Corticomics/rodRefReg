@@ -127,8 +127,6 @@ def run_program(schedule, mode, window_start, window_end):
             
             worker_settings.update({
                 'target_volumes': target_volumes,
-                'cycle_interval': 3600,  # Default 1 hour
-                'stagger_interval': 0.5,  # Default 500ms
                 'delivered_volumes': {}
             })
 
