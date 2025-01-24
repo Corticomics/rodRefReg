@@ -2,6 +2,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QT
 from datetime import datetime, timedelta
 import time
 from utils.volume_calculator import VolumeCalculator
+import math
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
 
@@ -135,13 +136,15 @@ class RelayWorker(QObject):
             window_end = datetime.fromtimestamp(self.settings['window_end'])
             
             if window_start <= current_time <= window_end:
-                cycle_interval = self.settings.get('cycle_interval', 3600)
-                stagger_interval = self.settings.get('stagger_interval', 0.5)
+                # Get timing settings from calculator
+                cycle_interval = self.settings.get('cycle_interval', 1.0)  # 1 second default
+                stagger_interval = self.settings.get('stagger_interval', 0.5)  # 500ms between animals
                 
                 delivered_volumes = self.settings.get('delivered_volumes', {})
                 target_volumes = self.settings.get('target_volumes', {})
                 relay_assignments = self.settings.get('relay_unit_assignments', {})
                 
+                # Process each animal's delivery for this cycle
                 for animal_id, target_volume in target_volumes.items():
                     delivered = delivered_volumes.get(animal_id, 0)
                     relay_unit_id = relay_assignments.get(str(animal_id))
@@ -151,20 +154,24 @@ class RelayWorker(QObject):
                         continue
                         
                     if delivered < target_volume:
+                        # Calculate volume for this cycle based on remaining window time
                         remaining_volume = target_volume - delivered
-                        triggers_needed = self.volume_calculator.calculate_triggers(remaining_volume)
+                        remaining_cycles = max(1, math.ceil((window_end - current_time).total_seconds() / cycle_interval))
+                        volume_this_cycle = remaining_volume / remaining_cycles
+                        
+                        # Calculate triggers for this cycle's volume
+                        triggers_needed = self.volume_calculator.calculate_triggers(volume_this_cycle)
                         
                         instant = {
                             'relay_unit_id': relay_unit_id,
-                            'water_volume': remaining_volume,
+                            'water_volume': volume_this_cycle,
                             'animal_id': animal_id,
                             'triggers': triggers_needed
                         }
                         
-                        # Calculate proper delay for this delivery
+                        # Schedule delivery with proper stagger
                         delay = len(self.timers) * stagger_interval * 1000
                         
-                        # Create and configure timer
                         timer = QTimer(self)
                         timer.setSingleShot(True)
                         timer.timeout.connect(
@@ -173,19 +180,17 @@ class RelayWorker(QObject):
                         timer.start(int(delay))
                         self.timers.append(timer)
                         
-                        # Update tracking
+                        # Update delivered volume tracking
                         pump_volume_ml = (triggers_needed * self.settings.get('pump_volume_ul', 50)) / 1000
                         delivered_volumes[animal_id] = delivered + pump_volume_ml
-                        
-                        self.progress.emit(f"Scheduled {remaining_volume}mL for animal {animal_id} on relay {relay_unit_id}")
                 
-                # Update delivered volumes
+                # Update delivered volumes in settings
                 self.settings['delivered_volumes'] = delivered_volumes
                 
                 # Schedule next cycle if needed
                 if not all(delivered_volumes.get(aid, 0) >= target_volumes[aid] for aid in target_volumes):
                     if current_time + timedelta(seconds=cycle_interval) <= window_end:
-                        self.main_timer.singleShot(cycle_interval * 1000, self.run_staggered_cycle)
+                        self.main_timer.singleShot(int(cycle_interval * 1000), self.run_staggered_cycle)
                         return
                 
                 self.finished.emit()
