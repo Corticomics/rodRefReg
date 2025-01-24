@@ -142,12 +142,17 @@ class RelayWorker(QObject):
                 self.finished.emit()
                 return
             
+            # Track cycles
+            self.current_cycle = getattr(self, 'current_cycle', 0) + 1
+            total_cycles = self.settings.get('total_cycles', 4)
+            
             # Get timing parameters
             cycle_interval = self.settings['cycle_interval']
             stagger_interval = self.settings['stagger_interval']
             target_volumes = self.settings['target_volumes']
             delivered_volumes = self.settings.get('delivered_volumes', {})
             
+            all_complete = True
             # Process each animal's delivery
             for animal_id, target_volume in target_volumes.items():
                 if not self._is_running:
@@ -157,9 +162,10 @@ class RelayWorker(QObject):
                 if delivered >= target_volume:
                     continue
                     
+                all_complete = False
                 # Calculate volume for this cycle
                 remaining_volume = target_volume - delivered
-                volume_per_cycle = target_volume / self.settings['total_cycles']
+                volume_per_cycle = target_volume / total_cycles
                 delivery_volume = min(remaining_volume, volume_per_cycle)
                 
                 # Trigger relay for this animal
@@ -170,6 +176,11 @@ class RelayWorker(QObject):
                         delivered_volumes[str(animal_id)] = delivered + delivery_volume
                         self.progress.emit(f"Delivered {delivery_volume:.2f}mL to animal {animal_id}")
                         time.sleep(stagger_interval)
+            
+            if all_complete or self.current_cycle >= total_cycles:
+                self.progress.emit("Schedule complete")
+                self.finished.emit()
+                return
             
             # Schedule next cycle
             remaining_time = (window_end - current_time).total_seconds()

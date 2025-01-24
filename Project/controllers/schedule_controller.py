@@ -86,6 +86,7 @@ class ScheduleController(QObject):
                     'relay_unit_assignments': schedule.relay_unit_assignments,
                     'cycle_interval': timing_plan['cycle_interval'],
                     'stagger_interval': timing_plan['stagger_interval'],
+                    'total_cycles': timing_plan['total_cycles'],
                     'pump_volume_ul': self.volume_calculator.pump_volume_ul
                 }
             
