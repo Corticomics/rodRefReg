@@ -20,6 +20,7 @@ import time
 import sys
 import traceback
 from models.relay_unit_manager import RelayUnitManager
+from utils.timing_calculator import TimingCalculator
 
 def exception_hook(exctype, value, tb):
     print("".join(traceback.format_exception(exctype, value, tb)))
@@ -126,10 +127,22 @@ def run_program(schedule, mode, window_start, window_end):
                 volume_ml = schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume)
                 target_volumes[str(animal_id)] = volume_ml
             
+            # Get timing plan from calculator
+            timing_calculator = TimingCalculator({
+                'min_trigger_interval_ms': 500,
+                'max_triggers_per_cycle': 5
+            })
+            timing_plan = timing_calculator.calculate_staggered_timing(
+                datetime.fromtimestamp(window_start),
+                datetime.fromtimestamp(window_end),
+                [{'animal_id': aid, 'volume_ml': vol} for aid, vol in target_volumes.items()]
+            )
+
             worker_settings.update({
                 'target_volumes': target_volumes,
-                'cycle_interval': 3600,  # Default 1 hour
-                'stagger_interval': 0.5,  # Default 500ms
+                'cycle_interval': timing_plan['cycle_interval'],
+                'stagger_interval': timing_plan['stagger_interval'],
+                'total_cycles': timing_plan['total_cycles'],
                 'delivered_volumes': {}
             })
 

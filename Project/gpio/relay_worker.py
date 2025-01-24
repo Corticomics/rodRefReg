@@ -42,8 +42,9 @@ class RelayWorker(QObject):
         # Create volume calculator instance
         self.volume_calculator = VolumeCalculator(settings)
         
-        # Initialize delivered volumes tracking
-        self.settings['delivered_volumes'] = self.settings.get('delivered_volumes', {})
+        # Initialize tracking variables
+        self.current_cycle = 0
+        self.delivered_volumes = settings.get('delivered_volumes', {})
         
         self.delivery_instants = settings.get('delivery_instants', [])
         self.mode = settings.get('mode', 'instant').lower()
@@ -142,46 +143,40 @@ class RelayWorker(QObject):
                 self.finished.emit()
                 return
             
-            # Track cycles
-            self.current_cycle = getattr(self, 'current_cycle', 0) + 1
-            total_cycles = self.settings.get('total_cycles', 4)
-            
             # Get timing parameters
-            cycle_interval = self.settings['cycle_interval']
-            stagger_interval = self.settings['stagger_interval']
-            target_volumes = self.settings['target_volumes']
-            delivered_volumes = self.settings.get('delivered_volumes', {})
+            cycle_interval = self.settings.get('cycle_interval', 15)  # Default to 15 seconds
+            stagger_interval = self.settings.get('stagger_interval', 0.5)
+            target_volumes = self.settings.get('target_volumes', {})
             
-            all_complete = True
             # Process each animal's delivery
+            all_complete = True
             for animal_id, target_volume in target_volumes.items():
                 if not self._is_running:
                     return
                     
-                delivered = delivered_volumes.get(str(animal_id), 0)
+                delivered = self.delivered_volumes.get(str(animal_id), 0)
                 if delivered >= target_volume:
                     continue
                     
                 all_complete = False
                 # Calculate volume for this cycle
                 remaining_volume = target_volume - delivered
-                volume_per_cycle = target_volume / total_cycles
-                delivery_volume = min(remaining_volume, volume_per_cycle)
+                partial_volume = min(remaining_volume, target_volume / 4)  # Deliver max 1/4 of total at once
                 
                 # Trigger relay for this animal
                 relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
                 if relay_unit_id:
-                    success = self.trigger_relay(relay_unit_id, delivery_volume)
+                    success = self.trigger_relay(relay_unit_id, partial_volume)
                     if success:
-                        delivered_volumes[str(animal_id)] = delivered + delivery_volume
-                        self.progress.emit(f"Delivered {delivery_volume:.2f}mL to animal {animal_id}")
+                        self.delivered_volumes[str(animal_id)] = delivered + partial_volume
+                        self.progress.emit(f"Delivered {partial_volume:.2f}mL to animal {animal_id}")
                         time.sleep(stagger_interval)
             
-            if all_complete or self.current_cycle >= total_cycles:
-                self.progress.emit("Schedule complete")
+            if all_complete:
+                self.progress.emit("All deliveries complete")
                 self.finished.emit()
                 return
-            
+                
             # Schedule next cycle
             remaining_time = (window_end - current_time).total_seconds()
             next_cycle = min(cycle_interval, remaining_time)
