@@ -144,15 +144,19 @@ class RelayWorker(QObject):
                 self.finished.emit()
                 return
             
-            # Execute delivery cycle
-            cycle_interval = self.settings.get('cycle_interval', 3600)
+            # Calculate window duration and adjust cycle interval
+            window_duration = (window_end - window_start).total_seconds()
+            cycle_interval = min(
+                self.settings.get('cycle_interval', 3600),
+                window_duration / 4  # Ensure at least 4 cycles within window
+            )
             stagger_interval = self.settings.get('stagger_interval', 0.5)
             
             delivered_volumes = self.settings.get('delivered_volumes', {})
             target_volumes = self.settings.get('target_volumes', {})
             relay_assignments = self.settings.get('relay_unit_assignments', {})
             
-            # Only proceed if we're within the window and at an interval point
+            # Only proceed if we're within the window
             current_timestamp = current_time.timestamp()
             if current_timestamp >= window_start.timestamp():
                 for animal_id, target_volume in target_volumes.items():
@@ -175,12 +179,13 @@ class RelayWorker(QObject):
                             self.progress.emit(f"Delivered {volume_to_deliver}mL to animal {animal_id}")
                             time.sleep(stagger_interval)  # Stagger between animals
             
-            # Schedule next cycle
-            next_check = min(current_timestamp + cycle_interval, window_end.timestamp())
-            wait_seconds = next_check - current_timestamp
-            if wait_seconds > 0:
-                self.main_timer.singleShot(int(wait_seconds * 1000), self.run_staggered_cycle)
-                self.progress.emit(f"Next delivery cycle in {wait_seconds:.1f} seconds")
+            # Schedule next cycle based on remaining window time
+            remaining_window = window_end.timestamp() - current_timestamp
+            next_interval = min(cycle_interval, remaining_window)
+            
+            if next_interval > 0:
+                self.main_timer.singleShot(int(next_interval * 1000), self.run_staggered_cycle)
+                self.progress.emit(f"Next delivery cycle in {next_interval:.1f} seconds")
             
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
