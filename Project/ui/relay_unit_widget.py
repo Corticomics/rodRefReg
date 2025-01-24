@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
 from models.animal import Animal
 from .available_animals_list import AvailableAnimalsList
 from datetime import datetime
+from .staggered_delivery_slot import StaggeredDeliverySlot
 
 class WaterDeliverySlot(QWidget):
     # Signal emitted when the slot is about to be deleted
@@ -294,6 +295,7 @@ class RelayUnitWidget(QWidget):
         """
         Retrieve the current data from the widget.
         """
+        # Get base desired output
         desired_output_text = self.desired_output_input.text().strip()
         try:
             desired_output = float(desired_output_text) if desired_output_text else 0.0
@@ -301,19 +303,21 @@ class RelayUnitWidget(QWidget):
             desired_output = 0.0
             QMessageBox.warning(self, "Input Error", "Invalid desired water output. Resetting to 0.0 mL.")
 
+        # Build desired water output dictionary
         desired_water_output = {}
         if self.assigned_animal:
             desired_water_output[str(self.assigned_animal.animal_id)] = desired_output
 
+        # Prepare base data structure
         data = {
             'animals': [self.assigned_animal] if self.assigned_animal else [],
             'desired_water_output': desired_water_output,
             'delivery_mode': self.current_mode.lower()
         }
         
+        # Handle delivery schedule based on mode
         if data['delivery_mode'] == 'instant':
             schedule = []
-            # Check both visibility and deletion status
             active_slots = [slot for slot in self.delivery_slots 
                            if slot.isVisible() and not slot.is_deleted]
             for slot in active_slots:
@@ -326,6 +330,30 @@ class RelayUnitWidget(QWidget):
                 except (ValueError, AttributeError):
                     continue
             data['delivery_schedule'] = schedule
+        else:  # staggered mode
+            schedule = []
+            active_slots = [slot for slot in self.delivery_slots 
+                           if slot.isVisible() and not slot.is_deleted]
+            for slot in active_slots:
+                try:
+                    volume = float(slot.volume_input.text())
+                    schedule.append({
+                        'start_time': slot.start_datetime.dateTime().toPyDateTime(),
+                        'end_time': slot.end_datetime.dateTime().toPyDateTime(),
+                        'volume': volume
+                    })
+                except (ValueError, AttributeError):
+                    continue
+            data['delivery_schedule'] = schedule
+            
+            # Add staggered-specific data
+            if self.assigned_animal:
+                data['staggered_settings'] = {
+                    str(self.assigned_animal.animal_id): {
+                        'total_volume': desired_output,
+                        'windows': schedule
+                    }
+                }
         
         return data
 
@@ -410,29 +438,45 @@ class RelayUnitWidget(QWidget):
                 "Please enter a valid number")
 
     def add_delivery_slot(self):
-        """Add a new instant delivery time slot"""
-        slot = WaterDeliverySlot()
-        slot.slot_deleted.connect(self.on_slot_deleted)  # Connect the deletion signal
+        """Add a new delivery time slot based on current mode"""
+        if self.current_mode == "Instant":
+            slot = WaterDeliverySlot()
+        else:  # Staggered mode
+            slot = StaggeredDeliverySlot()
+        
+        slot.slot_deleted.connect(self.on_slot_deleted)
         self.delivery_slots.append(slot)
         self.instant_delivery_layout.addWidget(slot)
+        
+        # Update button text based on mode
+        self.add_slot_button.setText(
+            "+ Add Delivery Time" if self.current_mode == "Instant" 
+            else "+ Add Delivery Window"
+        )
 
     def set_mode(self, mode):
         """Set the delivery mode from parent widget"""
         self.current_mode = mode
         is_instant = mode == "Instant"
         
-        # Update visibility
-        self.instant_delivery_container.setVisible(is_instant)
-        self.add_slot_button.setVisible(is_instant)
+        # Update visibility of containers
+        self.instant_delivery_container.setVisible(True)  # Always visible now
+        self.add_slot_button.setVisible(True)  # Always visible
+        
+        # Update input visibility based on mode
         self.desired_output_label.setVisible(not is_instant)
         self.desired_output_input.setVisible(not is_instant)
         
+        # Update button text
+        self.add_slot_button.setText(
+            "+ Add Delivery Time" if is_instant else "+ Add Delivery Window"
+        )
+        
         # Clear existing slots when switching modes
-        if not is_instant:
-            while self.delivery_slots:
-                slot = self.delivery_slots.pop()
-                slot.setParent(None)  # Remove parent reference
-                slot.deleteLater()  # Schedule for deletion
+        while self.delivery_slots:
+            slot = self.delivery_slots.pop()
+            slot.setParent(None)
+            slot.deleteLater()
 
     def on_slot_deleted(self, slot):
         """Handle the deletion of a WaterDeliverySlot."""
