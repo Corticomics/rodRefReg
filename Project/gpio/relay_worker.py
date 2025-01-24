@@ -144,48 +144,50 @@ class RelayWorker(QObject):
                 self.finished.emit()
                 return
             
-            # Calculate window duration and adjust cycle interval
-            window_duration = (window_end - window_start).total_seconds()
-            cycle_interval = min(
-                self.settings.get('cycle_interval', 3600),
-                window_duration / 4  # Ensure at least 4 cycles within window
-            )
+            # Get delivery settings
+            delivered_volumes = self.settings.get('delivered_volumes', {})
+            target_volumes = self.settings.get('target_volumes', {})
+            relay_assignments = self.settings.get('relay_unit_assignments', {})
             stagger_interval = self.settings.get('stagger_interval', 0.5)
             
-            current_timestamp = current_time.timestamp()
-            elapsed_time = current_timestamp - window_start.timestamp()
+            # Check if all volumes delivered
+            all_volumes_delivered = all(
+                delivered_volumes.get(str(animal_id), 0) >= target_volumes[str(animal_id)]
+                for animal_id in target_volumes
+            )
             
-            # Only trigger if we're at a cycle interval point (similar to modulo check in old version)
-            if elapsed_time >= 0 and (elapsed_time % cycle_interval) < 1:
-                delivered_volumes = self.settings.get('delivered_volumes', {})
-                target_volumes = self.settings.get('target_volumes', {})
-                relay_assignments = self.settings.get('relay_unit_assignments', {})
+            if all_volumes_delivered:
+                self.progress.emit("All volumes delivered")
+                self.finished.emit()
+                return
+            
+            # Process each animal
+            for animal_id, target_volume in target_volumes.items():
+                if not self._is_running:
+                    return
                 
-                for animal_id, target_volume in target_volumes.items():
-                    if not self._is_running:
-                        return
-                        
-                    delivered = delivered_volumes.get(animal_id, 0)
-                    relay_unit_id = relay_assignments.get(str(animal_id))
+                delivered = delivered_volumes.get(str(animal_id), 0)
+                relay_unit_id = relay_assignments.get(str(animal_id))
+                
+                if not relay_unit_id:
+                    self.progress.emit(f"No relay unit assigned for animal {animal_id}")
+                    continue
+                
+                if delivered < target_volume:
+                    # Calculate partial volume for this cycle
+                    remaining_volume = target_volume - delivered
+                    partial_volume = min(remaining_volume, target_volume / 4)  # Deliver max 1/4 of total at once
                     
-                    if not relay_unit_id:
-                        self.progress.emit(f"No relay unit assigned for animal {animal_id}")
-                        continue
-                        
-                    if delivered < target_volume:
-                        volume_to_deliver = target_volume - delivered
-                        success = self.trigger_relay(relay_unit_id, volume_to_deliver)
-                        
-                        if success:
-                            self.settings['delivered_volumes'][str(animal_id)] = delivered + volume_to_deliver
-                            self.progress.emit(f"Delivered {volume_to_deliver}mL to animal {animal_id}")
-                            time.sleep(stagger_interval)
+                    success = self.trigger_relay(relay_unit_id, partial_volume)
+                    
+                    if success:
+                        self.settings['delivered_volumes'][str(animal_id)] = delivered + partial_volume
+                        self.progress.emit(f"Delivered {partial_volume:.2f}mL to animal {animal_id}")
+                        time.sleep(stagger_interval)
             
-            # Schedule next check
-            next_check = min(cycle_interval, window_end.timestamp() - current_timestamp)
-            if next_check > 0:
-                self.main_timer.singleShot(int(next_check * 1000), self.run_staggered_cycle)
-                self.progress.emit(f"Next check in {next_check:.1f} seconds")
+            # Schedule next delivery cycle
+            next_check = stagger_interval * len(target_volumes) + 1  # Add 1 second buffer
+            self.main_timer.singleShot(int(next_check * 1000), self.run_staggered_cycle)
             
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
