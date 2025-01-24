@@ -72,6 +72,16 @@ class ScheduleController(QObject):
                     animals_data
                 )
                 
+                self.print_to_terminal("[DEBUG] Schedule data:")
+                self.print_to_terminal(f"Animals: {schedule.animals}")
+                self.print_to_terminal(f"Desired outputs: {schedule.desired_water_outputs}")
+                self.print_to_terminal(f"Relay assignments: {schedule.relay_unit_assignments}")
+                self.print_to_terminal(f"Animals data: {animals_data}")
+                
+                self.print_to_terminal(f"[DEBUG] Creating worker settings...")
+                self.print_to_terminal(f"[DEBUG] Animals data: {animals_data}")
+                self.print_to_terminal(f"[DEBUG] Schedule relay assignments: {schedule.relay_unit_assignments}")
+                
                 worker_settings = {
                     'mode': mode,
                     'window_start': window_start.timestamp(),

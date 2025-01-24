@@ -149,6 +149,15 @@ class RelayWorker(QObject):
             self.progress.emit(f"[DEBUG] Relay assignments: {self.settings.get('relay_unit_assignments')}")
             self.progress.emit(f"[DEBUG] Animals in target volumes: {list(self.settings.get('target_volumes', {}).keys())}")
             
+            self.progress.emit("[DEBUG] Full settings:")
+            for key, value in self.settings.items():
+                self.progress.emit(f"[DEBUG] {key}: {value}")
+            
+            self.progress.emit("[DEBUG] Processing animals:")
+            for animal_id, target_volume in self.settings['target_volumes'].items():
+                relay_unit = self.settings['relay_unit_assignments'].get(str(animal_id))
+                self.progress.emit(f"[DEBUG] Animal {animal_id}: volume={target_volume}, relay={relay_unit}")
+            
             deliveries_by_unit = {}
             for animal_id, target_volume in self.settings['target_volumes'].items():
                 relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))

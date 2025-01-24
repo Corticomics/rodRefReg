@@ -342,7 +342,7 @@ class SchedulesTab(QWidget):
                 else:
                     schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
                     schedule.desired_water_outputs.update(relay_data['desired_water_output'])
-                    # Add this line to set relay assignments
+                    # Add this section to set relay assignments
                     for animal in relay_data['animals']:
                         schedule.relay_unit_assignments[str(animal.animal_id)] = unit_id
 
@@ -351,6 +351,9 @@ class SchedulesTab(QWidget):
             self.database_handler.add_schedule(schedule)
             QMessageBox.information(self, "Success", "Schedule saved successfully!")
             self.load_schedules()
+            
+            print(f"[DEBUG] Processing relay unit {unit_id}")
+            print(f"[DEBUG] Relay data: {relay_data}")
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error saving schedule: {str(e)}")
