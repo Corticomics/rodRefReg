@@ -176,13 +176,31 @@ Displaying animals for trainer ID 1
 About to load animals for trainer_id: 1 (type: <class 'int'>)
 Retrieved 2 animals from the database for trainer_id 1
 Loaded 2 animals for trainer ID 1
-Schedule object: staggered, test5, 3.0, 2025-01-24T14:03:02, 2025-01-24T14:04:02, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
-Running program with schedule: test5, mode: Staggered, window_start: 1737752582, window_end: 1737752642
+Schedule object: staggered, test6, 3.0, 2025-01-24T14:10:14, 2025-01-24T14:11:14, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
+[DEBUG] Processing relay unit 8
+[DEBUG] Relay data: {'animals': [], 'desired_water_output': {}, 'delivery_mode': 'staggered'}
+Running program with schedule: test6, mode: Staggered, window_start: 1737753014, window_end: 1737753074
+[DEBUG] Schedule animals: []
+[DEBUG] Desired outputs: {}
+[DEBUG] Relay assignments: {}
+[DEBUG] Final worker settings: {'mode': 'Staggered', 'window_start': 1737753014, 'window_end': 1737753074, 'pump_volume_ul': 50, 'calibration_factor': 1.0, 'target_volumes': {}, 'delivered_volumes': {}, 'relay_unit_assignments': {}, 'volume_calculator': <utils.volume_calculator.VolumeCalculator object at 0x7f825df450>, 'min_trigger_interval_ms': 500}
 Program Started
 Starting staggered cycle
-[DEBUG] Processing window: 2025-01-24 14:03:02 - 2025-01-24 14:04:02
+[DEBUG] Processing window: 2025-01-24 14:10:14 - 2025-01-24 14:11:14
 [DEBUG] Checking settings...
 [DEBUG] Target volumes: {}
 [DEBUG] Relay assignments: {}
 [DEBUG] Animals in target volumes: []
+[DEBUG] Full settings:
+[DEBUG] mode: Staggered
+[DEBUG] window_start: 1737753014
+[DEBUG] window_end: 1737753074
+[DEBUG] pump_volume_ul: 50
+[DEBUG] calibration_factor: 1.0
+[DEBUG] target_volumes: {}
+[DEBUG] delivered_volumes: {}
+[DEBUG] relay_unit_assignments: {}
+[DEBUG] volume_calculator: <utils.volume_calculator.VolumeCalculator object at 0x7f825df450>
+[DEBUG] min_trigger_interval_ms: 500
+[DEBUG] Processing animals:
 [DEBUG] Prepared deliveries: {}
