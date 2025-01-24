@@ -173,21 +173,15 @@ class RelayWorker(QObject):
                     continue
                     
                 if delivered < target_volume:
-                    # Calculate volume for this cycle
                     volume_to_deliver = target_volume - delivered
                     
-                    # Calculate triggers needed
-                    triggers_needed = self.volume_calculator.calculate_triggers(volume_to_deliver)
-                    
-                    # Directly trigger relay like instant mode
+                    # Call trigger_relay with correct parameters
                     success = self.trigger_relay(
                         relay_unit_id,
-                        volume_to_deliver,
-                        triggers_needed
+                        volume_to_deliver
                     )
                     
                     if success:
-                        # Update delivered volumes
                         self.settings['delivered_volumes'][str(animal_id)] = delivered + volume_to_deliver
                         self.progress.emit(f"Delivered {volume_to_deliver}mL to animal {animal_id}")
             
