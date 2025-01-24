@@ -172,9 +172,11 @@ class DeliveryQueueController(QObject):
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO dispensing_history 
-                    (animal_id, relay_unit_id, timestamp, volume_dispensed, status)
-                    VALUES (?, ?, datetime('now'), ?, ?)
+                    (schedule_id, animal_id, relay_unit_id, timestamp, 
+                     volume_dispensed, status)
+                    VALUES (?, ?, ?, datetime('now'), ?, ?)
                 ''', (
+                    delivery_data['schedule_id'],
                     delivery_data['animal_id'],
                     delivery_data['relay_unit_id'],
                     delivery_data['volume_ml'],
@@ -187,18 +189,3 @@ class DeliveryQueueController(QObject):
         except Exception as e:
             self.delivery_status.emit(f"Error tracking delivery: {str(e)}")
         
-    async def start_schedule(self, schedule, mode, window_start, window_end):
-        # ... existing code ...
-        
-        if mode == "Staggered":
-            worker_settings.update({
-                'relay_unit_assignments': schedule.relay_unit_assignments,
-                'schedule_id': schedule.schedule_id
-            })
-        
-        worker = RelayWorker(
-            worker_settings,
-            self.relay_handler,
-            self.notification_handler,
-            self.delivery_queue
-        )

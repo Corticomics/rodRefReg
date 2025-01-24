@@ -12,6 +12,7 @@ class ScheduleController(QObject):
     """
     schedule_status = pyqtSignal(str)
     schedule_complete = pyqtSignal(dict)
+    delivery_status = pyqtSignal(str)
     
     def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller, settings):
         super().__init__()
@@ -74,6 +75,7 @@ class ScheduleController(QObject):
                 
                 worker_settings = {
                     'mode': mode,
+                    'schedule_id': schedule.schedule_id,
                     'window_start': window_start.timestamp(),
                     'window_end': window_end.timestamp(),
                     'delivery_instants': [],
@@ -148,3 +150,17 @@ class ScheduleController(QObject):
         """Stop all running schedules"""
         for schedule_id in list(self.workers.keys()):
             asyncio.create_task(self.pause_schedule(schedule_id))
+
+    async def update_schedule_status(self, schedule_id, status):
+        """Update schedule dispensing status"""
+        try:
+            with self.database_handler.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE schedules 
+                    SET dispensing_status = ?
+                    WHERE schedule_id = ?
+                ''', (status, schedule_id))
+                conn.commit()
+        except Exception as e:
+            self.delivery_status.emit(f"Error updating schedule status: {str(e)}")
