@@ -162,12 +162,9 @@ sqlite> SELECT * FROM schedules;
 15|st3|3.0|2025-01-24T11:16:30|2025-01-24T11:17:30|2|0|staggered|pending
 16|test|3.0|2025-01-24T11:18:22.456000|2025-01-24T11:19:23.688000|2|0|instant|pending
 
-
-Schedule object: staggered, test3, 3.0, 2025-01-24T13:51:54, 2025-01-24T13:52:54, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
-Running program with schedule: test3, mode: Staggered, window_start: 1737751914, window_end: 1737751974
+Schedule object: staggered, test4, 3.0, 2025-01-24T13:57:25, 2025-01-24T13:58:25, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
+Running program with schedule: test4, mode: Staggered, window_start: 1737752245, window_end: 1737752305
 Program Started
 Starting staggered cycle
-Processing staggered deliveries for window: 2025-01-24 13:51:54 - 2025-01-24 13:52:54
-No deliveries to schedule
-[DEBUG] Starting cleanup process
-[DEBUG] Worker still running, waiting for completion
+[DEBUG] Processing window: 2025-01-24 13:57:25 - 2025-01-24 13:58:25
+[DEBUG] Prepared deliveries: {}
