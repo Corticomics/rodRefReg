@@ -138,15 +138,6 @@ class RelayWorker(QObject):
             window_start = datetime.fromtimestamp(self.settings['window_start'])
             window_end = datetime.fromtimestamp(self.settings['window_end'])
             
-            self.progress.emit(f"Current time: {current_time}, Window: {window_start} - {window_end}")
-            
-            # If before start time, schedule next check
-            if current_time < window_start:
-                wait_seconds = (window_start - current_time).total_seconds()
-                self.progress.emit(f"Scheduling next check in {wait_seconds:.1f} seconds")
-                self.main_timer.singleShot(int(wait_seconds * 1000), self.run_staggered_cycle)
-                return
-            
             # If past end time, clean up
             if current_time > window_end:
                 self.progress.emit("Schedule window ended")
@@ -161,34 +152,35 @@ class RelayWorker(QObject):
             target_volumes = self.settings.get('target_volumes', {})
             relay_assignments = self.settings.get('relay_unit_assignments', {})
             
-            for animal_id, target_volume in target_volumes.items():
-                if not self._is_running:
-                    return
+            # Only proceed if we're within the window and at an interval point
+            current_timestamp = current_time.timestamp()
+            if current_timestamp >= window_start.timestamp():
+                for animal_id, target_volume in target_volumes.items():
+                    if not self._is_running:
+                        return
+                        
+                    delivered = delivered_volumes.get(animal_id, 0)
+                    relay_unit_id = relay_assignments.get(str(animal_id))
                     
-                delivered = delivered_volumes.get(animal_id, 0)
-                relay_unit_id = relay_assignments.get(str(animal_id))
-                
-                if not relay_unit_id:
-                    self.progress.emit(f"No relay unit assigned for animal {animal_id}")
-                    continue
-                    
-                if delivered < target_volume:
-                    volume_to_deliver = target_volume - delivered
-                    
-                    # Call trigger_relay with correct parameters
-                    success = self.trigger_relay(
-                        relay_unit_id,
-                        volume_to_deliver
-                    )
-                    
-                    if success:
-                        self.settings['delivered_volumes'][str(animal_id)] = delivered + volume_to_deliver
-                        self.progress.emit(f"Delivered {volume_to_deliver}mL to animal {animal_id}")
+                    if not relay_unit_id:
+                        self.progress.emit(f"No relay unit assigned for animal {animal_id}")
+                        continue
+                        
+                    if delivered < target_volume:
+                        volume_to_deliver = target_volume - delivered
+                        success = self.trigger_relay(relay_unit_id, volume_to_deliver)
+                        
+                        if success:
+                            self.settings['delivered_volumes'][str(animal_id)] = delivered + volume_to_deliver
+                            self.progress.emit(f"Delivered {volume_to_deliver}mL to animal {animal_id}")
+                            time.sleep(stagger_interval)  # Stagger between animals
             
-            # Schedule next cycle if needed
-            if current_time + timedelta(seconds=cycle_interval) <= window_end:
-                self.main_timer.singleShot(cycle_interval * 1000, self.run_staggered_cycle)
-                self.progress.emit(f"Scheduled next cycle in {cycle_interval} seconds")
+            # Schedule next cycle
+            next_check = min(current_timestamp + cycle_interval, window_end.timestamp())
+            wait_seconds = next_check - current_timestamp
+            if wait_seconds > 0:
+                self.main_timer.singleShot(int(wait_seconds * 1000), self.run_staggered_cycle)
+                self.progress.emit(f"Next delivery cycle in {wait_seconds:.1f} seconds")
             
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
