@@ -161,3 +161,8 @@ sqlite> SELECT * FROM schedules;
 14|i2|5.0|2025-01-24T10:47:08.813000|2025-01-24T10:47:09.485000|2|0|instant|pending
 15|st3|3.0|2025-01-24T11:16:30|2025-01-24T11:17:30|2|0|staggered|pending
 16|test|3.0|2025-01-24T11:18:22.456000|2025-01-24T11:19:23.688000|2|0|instant|pending
+
+Schedule object: staggered, s2, 3.0, 2025-01-24T16:04:48, 2025-01-24T16:05:48, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
+Running program with schedule: s2, mode: Staggered, window_start: 1737759888, window_end: 1737759948
+Program Started
+Starting staggered cycle
