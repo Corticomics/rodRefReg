@@ -18,6 +18,14 @@ class TimingCalculator:
         window_duration = (window_end - window_start).total_seconds()
         total_animals = len(animals_data)
         
+        if not animals_data:
+            return {
+                'schedule': {},
+                'cycle_interval': window_duration / 4,  # Default to 4 cycles
+                'stagger_interval': 0.5,  # Default 500ms
+                'total_cycles': 4
+            }
+        
         # Calculate total volume and triggers needed for each animal
         animal_volumes = {}
         animal_triggers = {}
