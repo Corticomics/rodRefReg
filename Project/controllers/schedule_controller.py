@@ -60,7 +60,9 @@ class ScheduleController(QObject):
                 }
             else:  # Staggered mode
                 animals_data = [
-                    {'animal_id': animal_id, 'volume_ml': schedule.desired_water_outputs.get(str(animal_id), base_volume)}
+                    {'animal_id': animal_id, 
+                     'volume_ml': schedule.desired_water_outputs.get(str(animal_id), base_volume),
+                     'relay_unit_id': schedule.relay_unit_assignments.get(str(animal_id))}
                     for animal_id in schedule.animals
                 ]
                 
@@ -72,13 +74,14 @@ class ScheduleController(QObject):
                 
                 worker_settings = {
                     'mode': mode,
-                    'window_start': window_start,
-                    'window_end': window_end,
+                    'window_start': window_start.timestamp(),
+                    'window_end': window_end.timestamp(),
                     'delivery_instants': [],
                     'target_volumes': {
                         str(animal['animal_id']): animal['volume_ml'] 
                         for animal in animals_data
                     },
+                    'relay_unit_assignments': schedule.relay_unit_assignments,
                     'cycle_interval': timing_plan['cycle_interval'],
                     'stagger_interval': timing_plan['stagger_interval'],
                     'pump_volume_ul': self.volume_calculator.pump_volume_ul

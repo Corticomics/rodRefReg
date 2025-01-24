@@ -22,3 +22,15 @@ class VolumeCalculator:
         )
         
         return required_triggers
+
+    def calculate_staggered_volumes(self, target_volumes):
+        calculated_volumes = {}
+        for animal_id, target_volume in target_volumes.items():
+            volume_ul = target_volume * 1000  # Convert to microliters
+            adjusted_volume = volume_ul * self.calibration_factor
+            triggers = math.ceil(adjusted_volume / self.pump_volume_ul)
+            calculated_volumes[animal_id] = {
+                'triggers': triggers,
+                'volume_ml': (triggers * self.pump_volume_ul) / 1000
+            }
+        return calculated_volumes
