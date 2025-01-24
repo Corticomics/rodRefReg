@@ -127,107 +127,83 @@ class RelayWorker(QObject):
 
     def run_staggered_cycle(self):
         """Handle staggered deliveries within time window"""
-        try:
-            with QMutexLocker(self.mutex):
-                if not self._is_running:
-                    self.progress.emit("[DEBUG] Worker not running, exiting cycle")
-                    return
-
-            current_time = datetime.now()
-            window_start = datetime.fromtimestamp(self.settings['window_start'])
-            window_end = datetime.fromtimestamp(self.settings['window_end'])
-            
-            self.progress.emit(f"[DEBUG] Current time: {current_time.timestamp()}")
-            self.progress.emit(f"[DEBUG] Window: {window_start.timestamp()} - {window_end.timestamp()}")
-            
-            if window_start <= current_time <= window_end:
-                self.progress.emit("[DEBUG] Within delivery window")
-                
-                # Get timing settings from calculator
-                cycle_interval = self.settings.get('cycle_interval')
-                stagger_interval = self.settings.get('stagger_interval')
-                
-                self.progress.emit(f"[DEBUG] Using cycle_interval: {cycle_interval}, stagger_interval: {stagger_interval}")
-                
-                delivered_volumes = self.settings.get('delivered_volumes', {})
-                target_volumes = self.settings.get('target_volumes', {})
-                relay_assignments = self.settings.get('relay_unit_assignments', {})
-                
-                self.progress.emit(f"[DEBUG] Processing animals: {target_volumes}")
-                
-                for animal_id, target_volume in target_volumes.items():
-                    delivered = delivered_volumes.get(animal_id, 0)
-                    relay_unit_id = relay_assignments.get(str(animal_id))
-                    
-                    self.progress.emit(f"[DEBUG] Animal {animal_id}: target={target_volume}ml, delivered={delivered}ml")
-                    
-                    if not relay_unit_id:
-                        self.progress.emit(f"No relay unit assigned for animal {animal_id}")
-                        continue
-                        
-                    if delivered < target_volume:
-                        remaining_volume = target_volume - delivered
-                        remaining_cycles = max(1, math.ceil((window_end - current_time).total_seconds() / cycle_interval))
-                        volume_this_cycle = remaining_volume / remaining_cycles
-                        
-                        self.progress.emit(f"[DEBUG] Animal {animal_id} cycle volume: {volume_this_cycle}ml")
-                        
-                        triggers_needed = self.volume_calculator.calculate_triggers(volume_this_cycle)
-                        
-                        instant = {
-                            'relay_unit_id': relay_unit_id,
-                            'water_volume': volume_this_cycle,
-                            'animal_id': animal_id,
-                            'triggers': triggers_needed
-                        }
-                        
-                        delay = len(self.timers) * stagger_interval * 1000
-                        self.progress.emit(f"[DEBUG] Scheduling delivery with {delay}ms delay")
-                        
-                        timer = QTimer(self)  # Create new timer
-                        timer.setSingleShot(True)
-                        timer.timeout.connect(lambda i=instant: self.execute_delivery(i))
-                        timer.start(int(delay))
-                        self.timers.append(timer)
-                        
-                        pump_volume_ml = (triggers_needed * self.settings.get('pump_volume_ul', 50)) / 1000
-                        delivered_volumes[animal_id] = delivered + pump_volume_ml
-                
-                self.settings['delivered_volumes'] = delivered_volumes
-                
-                # Schedule next cycle if needed
-                if not all(delivered_volumes.get(aid, 0) >= target_volumes[aid] for aid in target_volumes):
-                    next_cycle = int(cycle_interval * 1000)
-                    self.progress.emit(f"[DEBUG] Scheduling next cycle in {next_cycle}ms")
-                    self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
-                    return
-                
-                self.progress.emit("[DEBUG] All volumes delivered, finishing")
+        with QMutexLocker(self.mutex):
+            if not self._is_running:
+                self.progress.emit("Worker not running")
                 self.finished.emit()
-                
-        except Exception as e:
-            self.progress.emit(f"[DEBUG] Error in staggered cycle: {str(e)}")
-            self.progress.emit(f"[DEBUG] Traceback: {traceback.format_exc()}")
-            self.finished.emit()
+                return
 
-    def execute_delivery(self, instant):
-        """Execute a single delivery with proper tracking"""
-        try:
-            success = self.trigger_relay(
-                instant['relay_unit_id'],
-                instant['water_volume'],
-                instant['triggers']
-            )
+        current_time = datetime.now()
+        window_start = datetime.fromtimestamp(self.settings['window_start'])
+        window_end = datetime.fromtimestamp(self.settings['window_end'])
+        
+        self.progress.emit(f"Processing staggered deliveries for window: {window_start} - {window_end}")
+        
+        # Group deliveries by relay unit (like instant mode)
+        deliveries_by_unit = {}
+        for animal_id, target_volume in self.settings['target_volumes'].items():
+            relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
+            if not relay_unit_id:
+                self.progress.emit(f"No relay unit assigned for animal {animal_id}")
+                continue
             
-            if success:
-                self.delivery_queue.track_delivery.emit({
-                    'animal_id': instant['animal_id'],
-                    'relay_unit_id': instant['relay_unit_id'],
-                    'volume_ml': instant['water_volume'],
-                    'status': 'completed'
-                })
-        except Exception as e:
-            self.progress.emit(f"Delivery error: {str(e)}")
+            if relay_unit_id not in deliveries_by_unit:
+                deliveries_by_unit[relay_unit_id] = []
+            
+            # Create delivery instant for this cycle
+            delivered = self.settings.get('delivered_volumes', {}).get(animal_id, 0)
+            if delivered < target_volume:
+                remaining_volume = target_volume - delivered
+                cycles_remaining = max(1, math.ceil((window_end - current_time).total_seconds() / 
+                                                  self.settings['cycle_interval']))
+                volume_this_cycle = remaining_volume / cycles_remaining
+                
+                instant = {
+                    'relay_unit_id': relay_unit_id,
+                    'animal_id': animal_id,
+                    'water_volume': volume_this_cycle,
+                    'triggers': self.volume_calculator.calculate_triggers(volume_this_cycle)
+                }
+                deliveries_by_unit[relay_unit_id].append(instant)
+        
+        # Schedule deliveries with proper timing (similar to instant mode)
+        scheduled_count = 0
+        for unit_id, unit_deliveries in deliveries_by_unit.items():
+            for idx, instant in enumerate(unit_deliveries):
+                try:
+                    # Calculate staggered delay
+                    base_delay = 0  # Start immediately within window
+                    trigger_delay = idx * self.settings.get('stagger_interval', 0.5) * 1000
+                    total_delay = base_delay + trigger_delay
+                    
+                    self.progress.emit(f"Scheduling delivery for animal {instant['animal_id']} "
+                                     f"in {total_delay/1000:.2f} seconds")
+                    
+                    timer = QTimer(self)
+                    timer.setSingleShot(True)
+                    timer.timeout.connect(
+                        lambda i=instant: self.trigger_relay(
+                            i['relay_unit_id'],
+                            i['water_volume'],
+                            i['triggers']
+                        )
+                    )
+                    timer.start(int(total_delay))
+                    self.timers.append(timer)
+                    scheduled_count += 1
+                    
+                except Exception as e:
+                    self.progress.emit(f"Error scheduling delivery: {str(e)}")
+        
+        if scheduled_count == 0:
+            self.progress.emit("No deliveries to schedule")
+            self.finished.emit()
+        else:
+            self.progress.emit(f"Scheduled {scheduled_count} deliveries")
+            # Schedule next cycle
+            next_cycle = int(self.settings['cycle_interval'] * 1000)
+            self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
+            self.check_completion()
 
     def check_completion(self):
         """Check if all deliveries are complete"""
