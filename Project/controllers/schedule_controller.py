@@ -102,7 +102,12 @@ class ScheduleController(QObject):
             # Add schedule to delivery queue before starting worker
             await self.delivery_queue.load_schedule(schedule_id)
             
-            worker_thread.started.connect(worker.run_cycle)
+            # Connect to the correct cycle method based on mode
+            if mode == "Instant":
+                worker_thread.started.connect(worker.run_instant_cycle)
+            else:
+                worker_thread.started.connect(worker.run_staggered_cycle)
+            
             worker_thread.start()
             
             self.active_schedules[schedule_id] = {

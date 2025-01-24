@@ -1,5 +1,6 @@
 # main.py
 
+import datetime
 import sys
 import os
 from utils.volume_calculator import VolumeCalculator
@@ -161,9 +162,16 @@ def cleanup():
     print("[DEBUG] Starting cleanup process")
     
     if worker and worker._is_running:
+        current_time = datetime.now()
+        window_start = datetime.fromtimestamp(worker.settings['window_start'])
+        
+        # Don't cleanup if waiting for scheduled start
+        if current_time < window_start:
+            print("[DEBUG] Waiting for scheduled start, skipping cleanup")
+            return
+            
         print("[DEBUG] Worker still running, waiting for completion")
         return
-        
     try:
         if relay_handler:
             relay_handler.set_all_relays(0)

@@ -33,11 +33,9 @@ class RelayWorker(QObject):
         self.settings = settings
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
-        self.mutex = QMutex()
         self._is_running = True
+        self.mutex = QMutex()
         self.timers = []
-        
-        # Initialize main timer
         self.main_timer = QTimer()
         self.main_timer.setSingleShot(True)
         
