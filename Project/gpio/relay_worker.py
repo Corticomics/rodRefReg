@@ -128,7 +128,6 @@ class RelayWorker(QObject):
             self.check_completion()
 
     def run_staggered_cycle(self):
-        """Handle staggered deliveries within time window"""
         try:
             with QMutexLocker(self.mutex):
                 if not self._is_running:
@@ -138,56 +137,46 @@ class RelayWorker(QObject):
             window_start = datetime.fromtimestamp(self.settings['window_start'])
             window_end = datetime.fromtimestamp(self.settings['window_end'])
             
-            # If past end time, clean up
             if current_time > window_end:
                 self.progress.emit("Schedule window ended")
                 self.finished.emit()
                 return
             
-            # Calculate window duration and adjust cycle interval
-            window_duration = (window_end - window_start).total_seconds()
-            cycle_interval = min(
-                self.settings.get('cycle_interval', 3600),
-                window_duration / 4  # Ensure at least 4 cycles within window
-            )
-            stagger_interval = self.settings.get('stagger_interval', 0.5)
+            # Get timing parameters
+            cycle_interval = self.settings['cycle_interval']
+            stagger_interval = self.settings['stagger_interval']
+            target_volumes = self.settings['target_volumes']
+            delivered_volumes = self.settings.get('delivered_volumes', {})
             
-            current_timestamp = current_time.timestamp()
-            elapsed_time = current_timestamp - window_start.timestamp()
-            
-            # Only trigger if we're at a cycle interval point (similar to modulo check in old version)
-            if elapsed_time >= 0 and (elapsed_time % cycle_interval) < 1:
-                delivered_volumes = self.settings.get('delivered_volumes', {})
-                target_volumes = self.settings.get('target_volumes', {})
-                relay_assignments = self.settings.get('relay_unit_assignments', {})
-                
-                for animal_id, target_volume in target_volumes.items():
-                    if not self._is_running:
-                        return
-                        
-                    delivered = delivered_volumes.get(str(animal_id), 0)
-                    relay_unit_id = relay_assignments.get(str(animal_id))
+            # Process each animal's delivery
+            for animal_id, target_volume in target_volumes.items():
+                if not self._is_running:
+                    return
                     
-                    if not relay_unit_id:
-                        self.progress.emit(f"No relay unit assigned for animal {animal_id}")
-                        continue
-                        
-                    if delivered < target_volume:
-                        # Calculate partial volume for this cycle
-                        remaining_volume = target_volume - delivered
-                        partial_volume = min(remaining_volume, target_volume / 4)  # Deliver max 1/4 of total at once
-                        
-                        success = self.trigger_relay(relay_unit_id, partial_volume)
-                        
-                        if success:
-                            delivered_volumes[str(animal_id)] = delivered + partial_volume
-                            self.progress.emit(f"Delivered {partial_volume:.2f}mL to animal {animal_id}")
-                            time.sleep(stagger_interval)
+                delivered = delivered_volumes.get(str(animal_id), 0)
+                if delivered >= target_volume:
+                    continue
+                    
+                # Calculate volume for this cycle
+                remaining_volume = target_volume - delivered
+                volume_per_cycle = target_volume / self.settings['total_cycles']
+                delivery_volume = min(remaining_volume, volume_per_cycle)
+                
+                # Trigger relay for this animal
+                relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
+                if relay_unit_id:
+                    success = self.trigger_relay(relay_unit_id, delivery_volume)
+                    if success:
+                        delivered_volumes[str(animal_id)] = delivered + delivery_volume
+                        self.progress.emit(f"Delivered {delivery_volume:.2f}mL to animal {animal_id}")
+                        time.sleep(stagger_interval)
             
-            # Schedule next check
-            next_check = min(1.0, window_end.timestamp() - current_timestamp)  # Check every second like old version
-            if next_check > 0:
-                self.main_timer.singleShot(int(next_check * 1000), self.run_staggered_cycle)
+            # Schedule next cycle
+            remaining_time = (window_end - current_time).total_seconds()
+            next_cycle = min(cycle_interval, remaining_time)
+            if next_cycle > 0:
+                self.progress.emit(f"Next check in {next_cycle:.1f} seconds")
+                self.main_timer.singleShot(int(next_cycle * 1000), self.run_staggered_cycle)
             
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")

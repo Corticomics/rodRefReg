@@ -18,40 +18,45 @@ class TimingCalculator:
         window_duration = (window_end - window_start).total_seconds()
         total_animals = len(animals_data)
         
-        # Calculate total triggers needed for each animal
-        animal_triggers = {
-            animal['animal_id']: self._calculate_triggers(animal['volume_ml'])
-            for animal in animals_data
-        }
+        # Calculate total volume and triggers needed for each animal
+        animal_volumes = {}
+        animal_triggers = {}
+        for animal in animals_data:
+            volume_ml = animal['volume_ml']
+            animal_volumes[animal['animal_id']] = volume_ml
+            animal_triggers[animal['animal_id']] = self._calculate_triggers(volume_ml)
         
-        max_animal_triggers = max(animal_triggers.values())
-        total_cycles_needed = math.ceil(max_animal_triggers / self.max_triggers_per_cycle)
+        # Calculate optimal delivery cycles
+        max_triggers = max(animal_triggers.values())
+        min_cycles = 4  # Minimum number of cycles to ensure uniform distribution
+        total_cycles = max(min_cycles, math.ceil(max_triggers / self.max_triggers_per_cycle))
         
         # Calculate timing intervals
-        cycle_interval = window_duration / total_cycles_needed
-        min_stagger = (self.min_trigger_interval_ms / 1000) * self.max_triggers_per_cycle
-        stagger_interval = max(cycle_interval / total_animals, min_stagger)
+        cycle_interval = window_duration / total_cycles
+        stagger_interval = max(
+            self.min_trigger_interval_ms / 1000,  # Convert to seconds
+            cycle_interval / (total_animals * 2)  # Ensure enough spacing between animals
+        )
         
         # Generate delivery schedule
         schedule = {}
         for idx, animal in enumerate(animals_data):
             animal_id = animal['animal_id']
             total_triggers = animal_triggers[animal_id]
-            triggers_per_cycle = math.ceil(total_triggers / total_cycles_needed)
+            triggers_per_cycle = math.ceil(total_triggers / total_cycles)
             
             schedule[animal_id] = {
+                'volume_per_cycle': animal_volumes[animal_id] / total_cycles,
                 'triggers_per_cycle': triggers_per_cycle,
-                'total_cycles': total_cycles_needed,
-                'cycle_start_offset': idx * stagger_interval,
-                'trigger_interval_ms': self.min_trigger_interval_ms,
-                'cycle_interval_seconds': cycle_interval
+                'cycle_offset': idx * stagger_interval,
+                'total_cycles': total_cycles
             }
-            
+        
         return {
             'schedule': schedule,
             'cycle_interval': cycle_interval,
             'stagger_interval': stagger_interval,
-            'total_cycles': total_cycles_needed
+            'total_cycles': total_cycles
         }
     
     def calculate_instant_timing(self, delivery_time, animals_data):
