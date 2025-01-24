@@ -120,16 +120,18 @@ def run_program(schedule, mode, window_start, window_end):
                 })
         else:  # Staggered mode
             target_volumes = {}
+            relay_assignments = {}
             for animal_id in schedule.animals:
                 volume_ml = schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume)
                 target_volumes[str(animal_id)] = volume_ml
+                relay_assignments[str(animal_id)] = schedule.relay_unit_assignments.get(str(animal_id))
             
             worker_settings.update({
                 'target_volumes': target_volumes,
                 'delivered_volumes': {},
-                'relay_unit_assignments': schedule.relay_unit_assignments,
-                'min_trigger_interval_ms': 500,
-                'volume_calculator': volume_calculator
+                'relay_unit_assignments': relay_assignments,
+                'volume_calculator': volume_calculator,
+                'min_trigger_interval_ms': 500
             })
 
         # Initialize worker with correct settings

@@ -342,6 +342,9 @@ class SchedulesTab(QWidget):
                 else:
                     schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
                     schedule.desired_water_outputs.update(relay_data['desired_water_output'])
+                    # Add this line to set relay assignments
+                    for animal in relay_data['animals']:
+                        schedule.relay_unit_assignments[str(animal.animal_id)] = unit_id
 
             # Save schedule to database
             print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
