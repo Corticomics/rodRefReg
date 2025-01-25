@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout, 
     QPushButton, QDateTimeEdit
 )
-from PyQt5.QtCore import Qt, QDateTime, pyqtSignal
+from PyQt5.QtCore import Qt, QDateTime, pyqtSignal, QTimer
 from datetime import datetime
 
 class StaggeredDeliverySlot(QWidget):
@@ -22,7 +22,6 @@ class StaggeredDeliverySlot(QWidget):
         self.start_datetime = QDateTimeEdit()
         self.start_datetime.setCalendarPopup(True)
         self.start_datetime.setDateTime(QDateTime.currentDateTime())
-        self.start_datetime.setMinimumDateTime(QDateTime.currentDateTime())
         self.start_datetime.setDisplayFormat("yyyy-MM-dd hh:mm AP")
         start_time_layout.addWidget(start_label)
         start_time_layout.addWidget(self.start_datetime)
@@ -33,7 +32,6 @@ class StaggeredDeliverySlot(QWidget):
         self.end_datetime = QDateTimeEdit()
         self.end_datetime.setCalendarPopup(True)
         self.end_datetime.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default 1 hour window
-        self.end_datetime.setMinimumDateTime(QDateTime.currentDateTime())
         self.end_datetime.setDisplayFormat("yyyy-MM-dd hh:mm AP")
         end_time_layout.addWidget(end_label)
         end_time_layout.addWidget(self.end_datetime)
@@ -86,9 +84,19 @@ class StaggeredDeliverySlot(QWidget):
         self.is_deleted = False
 
     def validate_times(self):
-        """Ensure end time is after start time"""
-        if self.end_datetime.dateTime() <= self.start_datetime.dateTime():
-            self.end_datetime.setDateTime(self.start_datetime.dateTime().addSecs(3600))
+        """Ensure end time is after start time with minimum 5-minute window"""
+        start_time = self.start_datetime.dateTime()
+        end_time = self.end_datetime.dateTime()
+        
+        if end_time <= start_time:
+            # Add 5 minutes to ensure minimum window
+            new_end_time = start_time.addSecs(300)  # 5 minutes = 300 seconds
+            self.end_datetime.setDateTime(new_end_time)
+            return
+            
+        # Ensure minimum 5-minute window
+        if end_time < start_time.addSecs(300):
+            self.end_datetime.setDateTime(start_time.addSecs(300))
 
     def handle_delete(self):
         """Handle the deletion of the slot."""
