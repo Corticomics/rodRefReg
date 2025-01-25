@@ -65,3 +65,42 @@ class Schedule:
         """Update the schedule's time window"""
         self.start_time = start_time
         self.end_time = end_time
+        
+
+    def get_unit_data(self, unit_id):
+        """Get delivery data for a specific relay unit"""
+        try:
+            if self.delivery_mode.lower() == 'staggered':
+                # For staggered mode, create delivery windows based on start/end time
+                return {
+                    'delivery_schedule': [{
+                        'start_time': self.start_time,
+                        'end_time': self.end_time
+                    }]
+                }
+            else:  # instant mode
+                # Filter deliveries for this relay unit
+                unit_deliveries = [
+                    d for d in self.instant_deliveries 
+                    if d['relay_unit_id'] == unit_id
+                ]
+                return {
+                    'delivery_schedule': unit_deliveries
+                } if unit_deliveries else None
+                
+        except Exception as e:
+            print(f"Error getting unit data: {e}")
+            return None
+
+    def get_delivery_windows(self):
+        """Get all delivery windows for the schedule"""
+        if self.delivery_mode.lower() == 'staggered':
+            return [{
+                'start_time': datetime.fromisoformat(self.start_time),
+                'end_time': datetime.fromisoformat(self.end_time)
+            }]
+        else:
+            return [{
+                'start_time': d['datetime'],
+                'end_time': d['datetime']
+            } for d in self.instant_deliveries]
