@@ -162,16 +162,7 @@ sqlite> SELECT * FROM schedules;
 15|st3|3.0|2025-01-24T11:16:30|2025-01-24T11:17:30|2|0|staggered|pending
 16|test|3.0|2025-01-24T11:18:22.456000|2025-01-24T11:19:23.688000|2|0|instant|pending
 
-DEBUG INFO:
-Schedule: {'schedule_id': 3, 'name': 'tesdt1', 'water_volume': 3.0, 'start_time': '2025-01-25T12:59:57.072000', 'end_time': '2025-01-25T13:04:58.016000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'staggered', 'cycles_per_day': 1, 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': [], 'relay_unit_assignments': {}}
-Mode: Staggered
-Relay unit assignments: {}
 
-Checking delivery windows:
-
-Collected times:
-Start times: []
-End times: []
 System Messages
 Loaded 2 animals for all trainers (guest mode)
 Displaying all animals (guest mode)
