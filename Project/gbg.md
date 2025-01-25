@@ -172,3 +172,29 @@ Checking delivery windows:
 Collected times:
 Start times: []
 End times: []
+
+System Messages
+Loaded 2 animals for all trainers (guest mode)
+Displaying all animals (guest mode)
+Loaded 2 animals for all trainers (guest mode)
+Initiating authentication for username: adm
+Authentication successful.
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer 1
+Login successful: {'username': 'adm', 'trainer_id': 1, 'role': 'normal'}
+Logged in as: adm
+Displaying animals for trainer ID 1
+About to load animals for trainer_id: 1 (type: <class 'int'>)
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer ID 1
+
+DEBUG INFO:
+Schedule: {'schedule_id': 3, 'name': 'tesdt1', 'water_volume': 3.0, 'start_time': '2025-01-25T12:59:57.072000', 'end_time': '2025-01-25T13:04:58.016000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'staggered', 'cycles_per_day': 1, 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': [], 'relay_unit_assignments': {}}
+Mode: Staggered
+Running program with schedule: tesdt1, mode: Staggered, window_start: 1737835197.072, window_end: 1737835498.016
+Program Started
+Traceback (most recent call last):
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 65, in run_cycle
+    self.progress.emit(f"Starting {self.mode} cycle")
+                                   ^^^^^^^^^
+AttributeError: 'RelayWorker' object has no attribute 'mode'
