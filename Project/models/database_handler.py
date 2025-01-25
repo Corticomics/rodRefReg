@@ -925,6 +925,11 @@ class DatabaseHandler:
     def add_staggered_schedule(self, schedule):
         """Add a new staggered delivery schedule"""
         try:
+            print(f"Adding staggered schedule: {schedule.name}")
+            print(f"Animals: {schedule.animals}")
+            print(f"Relay assignments: {schedule.relay_unit_assignments}")
+            print(f"Water outputs: {schedule.desired_water_outputs}")
+            
             with self.connect() as conn:
                 cursor = conn.cursor()
                 # Insert main schedule

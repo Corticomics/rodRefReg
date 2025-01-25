@@ -332,18 +332,44 @@ class SchedulesTab(QWidget):
                             delivery['volume'],
                             unit_id  # Add relay unit ID to instant delivery
                         )
-                else:
-                    schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
-                    schedule.desired_water_outputs.update(relay_data['desired_water_output'])
+                else:  # staggered mode
+                    for animal in relay_data['animals']:
+                        # Add animal with relay unit assignment
+                        schedule.add_animal(
+                            animal.animal_id,
+                            unit_id,  # This is the relay_unit_id
+                            relay_data['desired_water_output'].get(str(animal.animal_id))
+                        )
+                        
+                        # Add delivery windows for this animal
+                        for window in relay_data['delivery_schedule']:
+                            if 'start_time' in window and 'end_time' in window:
+                                if min_time is None or window['start_time'] < min_time:
+                                    min_time = window['start_time']
+                                if max_time is None or window['end_time'] > max_time:
+                                    max_time = window['end_time']
+                                total_volume += window['volume']
 
-            # Save schedule to database
-            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
-            self.database_handler.add_schedule(schedule)
-            QMessageBox.information(self, "Success", "Schedule saved successfully!")
-            self.load_schedules()
-            
+            # Update schedule times and volume after collecting all data
+            schedule.start_time = min_time.isoformat() if min_time else datetime.now().isoformat()
+            schedule.end_time = max_time.isoformat() if max_time else datetime.now().isoformat()
+            schedule.water_volume = total_volume
+
+            # Save schedule to database using the appropriate method
+            if delivery_mode == 'staggered':
+                schedule_id = self.database_handler.add_staggered_schedule(schedule)
+            else:
+                schedule_id = self.database_handler.add_schedule(schedule)
+
+            if schedule_id:
+                QMessageBox.information(self, "Success", "Schedule saved successfully!")
+                self.load_schedules()
+            else:
+                raise Exception("Failed to save schedule to database")
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error saving schedule: {str(e)}")
+            print(f"Error details: {traceback.format_exc()}")
 
     def load_selected_schedule(self, item):
         """Load the selected schedule and populate the relay units."""
