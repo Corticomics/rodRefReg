@@ -964,24 +964,20 @@ class DatabaseHandler:
                         VALUES (?, ?, ?)
                     ''', (schedule_id, animal_id, desired_output))
                     
-                    # Calculate and add delivery windows
-                    timing_data = self.timing_calculator.calculate_staggered_timing(
-                        datetime.fromisoformat(schedule.start_time),
-                        datetime.fromisoformat(schedule.end_time),
-                        [{'animal_id': animal_id, 'volume_ml': desired_output}]
-                    )
+                    # Calculate single window for the entire schedule duration
+                    start_time = datetime.fromisoformat(schedule.start_time)
+                    end_time = datetime.fromisoformat(schedule.end_time)
                     
-                    for window in timing_data['schedule'][animal_id]['windows']:
-                        cursor.execute('''
-                            INSERT INTO schedule_staggered_windows
-                            (schedule_id, animal_id, start_time, end_time, target_volume)
-                            VALUES (?, ?, ?, ?, ?)
-                        ''', (
-                            schedule_id, animal_id,
-                            window['start_time'].isoformat(),
-                            window['end_time'].isoformat(),
-                            window['volume']
-                        ))
+                    cursor.execute('''
+                        INSERT INTO schedule_staggered_windows
+                        (schedule_id, animal_id, start_time, end_time, target_volume)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        schedule_id, animal_id,
+                        start_time.isoformat(),
+                        end_time.isoformat(),
+                        desired_output
+                    ))
                 
                 conn.commit()
                 return schedule_id
