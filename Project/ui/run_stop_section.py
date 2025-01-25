@@ -176,19 +176,9 @@ class RunStopSection(QWidget):
                 window_start = min(delivery_times).timestamp()
                 window_end = max(delivery_times).timestamp()
             
-            # Update settings with mode before passing to run_program_callback
-            settings = {
-                'window_start': window_start,
-                'window_end': window_end,
-                'mode': mode,  # Add mode to settings
-                'schedule_id': schedule.schedule_id,
-                'target_volumes': schedule.desired_water_outputs,
-                'relay_unit_assignments': schedule.relay_unit_assignments
-            }
-            
-            # Start the schedule execution with updated settings
-            print(f"Starting schedule execution with settings: {settings}")
-            self.run_program_callback(schedule, settings)
+            # Call run_program_callback with the correct arguments
+            print(f"Starting schedule execution with mode: {mode}, window_start: {window_start}, window_end: {window_end}")
+            self.run_program_callback(schedule, mode, window_start, window_end)
             self.job_in_progress = True
             self.update_button_states()
             
