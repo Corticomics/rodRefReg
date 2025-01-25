@@ -11,7 +11,6 @@ from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from .available_animals_list import AvailableAnimalsList  # Import the custom list
-from .time_window_dialog import TimeWindowDialog  # Import the custom dialog
 import traceback
 
 class SchedulesTab(QWidget):
@@ -272,29 +271,23 @@ class SchedulesTab(QWidget):
             max_time = None
             total_volume = 0
             
-            if delivery_mode == 'staggered':
-                # Show time window dialog for staggered mode
-                time_dialog = TimeWindowDialog(self)
-                if time_dialog.exec_() != QDialog.Accepted:
-                    return
+            # Calculate schedule window based on delivery slots
+            for unit_id, relay_widget in self.relay_unit_widgets.items():
+                relay_data = relay_widget.get_data()
+                if not relay_data['animals']:
+                    continue
                     
-                min_time, max_time = time_dialog.get_times()
-                
-                # Collect volumes from relay units
-                for unit_id, relay_widget in self.relay_unit_widgets.items():
-                    relay_data = relay_widget.get_data()
-                    if not relay_data['animals']:
-                        continue
+                if delivery_mode == 'staggered':
+                    for window in relay_data['delivery_schedule']:
+                        start_time = window['start_time']
+                        end_time = window['end_time']
+                        total_volume += window['volume']
                         
-                    for volume in relay_data['desired_water_output'].values():
-                        total_volume += volume
-                        
-            else:  # instant mode
-                for unit_id, relay_widget in self.relay_unit_widgets.items():
-                    relay_data = relay_widget.get_data()
-                    if not relay_data['animals']:
-                        continue
-                        
+                        if min_time is None or start_time < min_time:
+                            min_time = start_time
+                        if max_time is None or end_time > max_time:
+                            max_time = end_time
+                else:  # instant mode
                     for delivery in relay_data['delivery_schedule']:
                         total_volume += delivery['volume']
                         delivery_time = delivery['datetime']
@@ -303,11 +296,11 @@ class SchedulesTab(QWidget):
                             min_time = delivery_time
                         if max_time is None or delivery_time > max_time:
                             max_time = delivery_time
-                
-                if min_time is None:
-                    min_time = datetime.now()
-                if max_time is None:
-                    max_time = datetime.now()
+
+            if min_time is None:
+                min_time = datetime.now()
+            if max_time is None:
+                max_time = datetime.now()
 
             # Create schedule object
             schedule = Schedule(
