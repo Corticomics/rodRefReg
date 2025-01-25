@@ -148,21 +148,21 @@ class RelayWorker(QObject):
             current_time = datetime.now()
             
             # Debug print settings
-            logging.info("\nStaggered Cycle Debug Info:")
-            logging.info(f"Current time: {current_time}")
-            logging.info(f"Settings: {self.settings}")
+            print("\nStaggered Cycle Debug Info:")
+            print(f"Current time: {current_time}")
+            print(f"Settings: {self.settings}")
             
             # Initialize tracking if not present
             if not hasattr(self, 'animal_windows') or not self.animal_windows:
-                logging.info("Initializing animal windows")
+                print("Initializing animal windows")
                 self.animal_windows = {}
                 
                 # Get relay assignments and target volumes
                 relay_assignments = self.settings.get('relay_unit_assignments', {})
                 desired_outputs = self.settings.get('desired_water_outputs', {})
                 
-                logging.info(f"Relay assignments: {relay_assignments}")
-                logging.info(f"Desired outputs: {desired_outputs}")
+                print(f"Relay assignments: {relay_assignments}")
+                print(f"Desired outputs: {desired_outputs}")
                 
                 for animal_id in relay_assignments:
                     # Get animal's individual window
@@ -185,19 +185,19 @@ class RelayWorker(QObject):
                         'relay_unit': relay_assignments.get(str(animal_id)),
                         'target_volume': target_volume  # Set from desired outputs
                     }
-                    logging.info(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
+                    print(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
 
             # Get active animals for current time
             active_animals = {}
-            logging.info(f"Checking active animals at {current_time}")
-            logging.info(f"Window start: {self.window_start}, Window end: {self.window_end}")
-            logging.info(f"Animal windows: {self.animal_windows.items()}")
+            print(f"Checking active animals at {current_time}")
+            print(f"Window start: {self.window_start}, Window end: {self.window_end}")
+            print(f"Animal windows: {self.animal_windows.items()}")
             
             for animal_id, window in self.animal_windows.items():
                 if window['start'] <= current_time <= window['end']:
                     delivered = self.delivered_volumes.get(animal_id, 0)
                     target = window['target_volume']
-                    logging.info(f"Animal {animal_id}: delivered={delivered}, target={target}")
+                    print(f"Animal {animal_id}: delivered={delivered}, target={target}")
                     
                     if delivered < target:
                         active_animals[animal_id] = {
@@ -205,9 +205,9 @@ class RelayWorker(QObject):
                             'last_delivery': window['last_delivery'],
                             'relay_unit': window['relay_unit']
                         }
-                        logging.info(f"Animal {animal_id} is active with {target-delivered}mL remaining")
+                        print(f"Animal {animal_id} is active with {target-delivered}mL remaining")
 
-            logging.info(f"Active animals: {active_animals.items()}")
+            print(f"Active animals: {active_animals.items()}")
             if not active_animals:
                 self.progress.emit("No active animals in current time window")
                 logging.warning("No active animals found")
@@ -250,7 +250,7 @@ class RelayWorker(QObject):
                     # Add staggered delay based on animal index
                     stagger_delay = list(active_animals.keys()).index(animal_id) * 1000  # 1 second between animals
                     
-                    logging.info(f"Scheduling delivery for animal {animal_id}: {cycle_volume}mL in {stagger_delay}ms")
+                    print(f"Scheduling delivery for animal {animal_id}: {cycle_volume}mL in {stagger_delay}ms")
                     
                     timer = QTimer()
                     timer.setSingleShot(True)
@@ -263,7 +263,7 @@ class RelayWorker(QObject):
             # Schedule next cycle
             if self._is_running:
                 next_cycle = self.settings.get('cycle_interval', 3600) * 1000
-                logging.info(f"Scheduling next cycle in {next_cycle/1000} seconds")
+                print(f"Scheduling next cycle in {next_cycle/1000} seconds")
                 self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
 
         except Exception as e:
@@ -554,8 +554,8 @@ class RelayWorker(QObject):
             desired_outputs = schedule.get('desired_water_outputs', {})
             base_volume = schedule.get('water_volume', 0.0)
             
-            logging.info(f"Setting up schedule with {len(animal_ids)} animals")
-            logging.info(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
+            print(f"Setting up schedule with {len(animal_ids)} animals")
+            print(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
             
             # Setup windows for each animal
             for animal_id in animal_ids:
@@ -576,13 +576,13 @@ class RelayWorker(QObject):
                 }
                 self.delivered_volumes[animal_id] = 0
                 
-                logging.info(f"Added window for animal {animal_id}: "
+                print(f"Added window for animal {animal_id}: "
                             f"target={target_volume}mL, relay={relay_unit}")
             
             if not self.animal_windows:
                 logging.warning("No valid animal windows were created")
             else:
-                logging.info(f"Successfully setup {len(self.animal_windows)} animal windows")
+                print(f"Successfully setup {len(self.animal_windows)} animal windows")
                 
             return len(self.animal_windows) > 0
             
