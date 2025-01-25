@@ -4,6 +4,8 @@ from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 from PyQt5.QtCore import pyqtSignal
 
+from datetime import datetime
+
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
 
@@ -156,7 +158,6 @@ class RunStopSection(QWidget):
                         "Schedule must have start and end times for staggered mode")
                     return
                     
-                from datetime import datetime
                 # Convert ISO format strings to datetime objects
                 start_dt = datetime.fromisoformat(schedule.start_time)
                 end_dt = datetime.fromisoformat(schedule.end_time)
@@ -186,13 +187,14 @@ class RunStopSection(QWidget):
             }
             
             # Start the schedule execution with updated settings
+            print(f"Starting schedule execution with settings: {settings}")
             self.run_program_callback(schedule, settings)
             self.job_in_progress = True
             self.update_button_states()
             
         except Exception as e:
             print(f"Error details: {str(e)}")  # Add detailed error logging
-            QMessageBox.critical(self, "Error", f"Failed to run program: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to run program in RunStopSection: {e}")
 
     def stop_program(self):
         """Pause the current schedule and display dispensed volumes"""
