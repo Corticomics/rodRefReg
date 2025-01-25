@@ -186,8 +186,9 @@ class RelayWorker(QObject):
 
             # Get active animals for current time
             active_animals = {}
-            logging.info(f"Checking active animals at {current_time}")
-            
+            logging.info(f"Checking active animals at {current_time}, window_start: {self.window_start}, window_end: {self.window_end}")
+            print(f"Checking active animals at {current_time}, window_start: {self.window_start}, window_end: {self.window_end}")
+            print(f"Animal windows: {self.animal_windows.items()}")
             for animal_id, window in self.animal_windows.items():
                 if window['start'] <= current_time <= window['end']:
                     delivered = self.delivered_volumes.get(animal_id, 0)
