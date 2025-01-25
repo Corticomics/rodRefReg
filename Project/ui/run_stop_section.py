@@ -152,8 +152,13 @@ class RunStopSection(QWidget):
             
             # Update schedule with complete data
             schedule.animals = schedule_details['animal_ids']
-            schedule.relay_unit_assignments = schedule_details.get('relay_assignments', {})
+            schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
             schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+            
+            # Debug print to verify assignments
+            print("\nSchedule details from DB:")
+            print(f"Animal IDs: {schedule_details['animal_ids']}")
+            print(f"Relay assignments: {schedule_details.get('relay_unit_assignments', {})}")
             
             if not schedule.animals:
                 QMessageBox.warning(self, "Invalid Schedule", "No animals assigned to this schedule")
