@@ -162,7 +162,22 @@ sqlite> SELECT * FROM schedules;
 15|st3|3.0|2025-01-24T11:16:30|2025-01-24T11:17:30|2|0|staggered|pending
 16|test|3.0|2025-01-24T11:18:22.456000|2025-01-24T11:19:23.688000|2|0|instant|pending
 
-Schedule object: staggered, s2, 3.0, 2025-01-24T16:04:48, 2025-01-24T16:05:48, 1, False, [1, 2], {'1': 1.0, '2': 2.0}, []
-Running program with schedule: s2, mode: Staggered, window_start: 1737759888, window_end: 1737759948
-Program Started
-Starting staggered cycle
+System Messages
+Loaded 2 animals for all trainers (guest mode)
+Displaying all animals (guest mode)
+Loaded 2 animals for all trainers (guest mode)
+Initiating authentication for username: adm
+Authentication failed: hashed password does not match.
+Authentication failed: invalid username or password.
+Initiating authentication for username: adm
+Authentication successful.
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer 1
+Login successful: {'username': 'adm', 'trainer_id': 1, 'role': 'normal'}
+Logged in as: adm
+Displaying animals for trainer ID 1
+About to load animals for trainer_id: 1 (type: <class 'int'>)
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer ID 1
+Schedule object: staggered, test, 3.0, 2025-01-25T12:48:00.879000, 2025-01-25T13:48:01.666000, 1, False, [1, 2], {'1': 0.0, '2': 0.0}, []
+No delivery windows configured for staggered mode
