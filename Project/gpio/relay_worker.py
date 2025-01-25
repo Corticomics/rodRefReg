@@ -3,6 +3,8 @@ from datetime import datetime, timedelta
 import time
 from utils.volume_calculator import VolumeCalculator
 import asyncio
+import logging
+
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
 
@@ -495,3 +497,75 @@ class RelayWorker(QObject):
         
         self.progress.emit("RelayWorker stopped")
         self.finished.emit()
+
+    def setup_schedule(self, schedule):
+        """Setup delivery windows for each animal"""
+        self.animal_windows = {}
+        self.delivered_volumes = {}
+        
+        # Convert schedule times to timestamps
+        window_start = datetime.fromisoformat(schedule.start_time).timestamp()
+        window_end = datetime.fromisoformat(schedule.end_time).timestamp()
+        
+        # Setup windows for each animal
+        for animal_id in schedule.animals:
+            str_animal_id = str(animal_id)
+            target_volume = schedule.desired_water_outputs.get(str_animal_id, schedule.water_volume)
+            relay_unit = schedule.relay_unit_assignments.get(str_animal_id)
+            
+            if relay_unit is None:
+                logging.warning(f"No relay unit assigned for animal {animal_id}")
+                continue
+                
+            self.animal_windows[animal_id] = {
+                'start': window_start,
+                'end': window_end,
+                'relay_unit': relay_unit,
+                'target_volume': target_volume,
+                'last_delivery': 0
+            }
+            self.delivered_volumes[animal_id] = 0
+            
+        logging.info(f"Setup schedule with windows: {self.animal_windows}")
+        
+    def check_active_animals(self):
+        """Check which animals are active in the current time window"""
+        if not self.animal_windows:
+            logging.warning("No animal windows configured")
+            return {}
+            
+        current_time = time.time()
+        active_animals = {}
+        
+        for animal_id, window in self.animal_windows.items():
+            if window['start'] <= current_time <= window['end']:
+                delivered = self.delivered_volumes.get(animal_id, 0)
+                target = window['target_volume']
+                
+                if delivered < target:
+                    active_animals[animal_id] = {
+                        'remaining': target - delivered,
+                        'last_delivery': window['last_delivery'],
+                        'relay_unit': window['relay_unit']
+                    }
+                    
+        if not active_animals:
+            logging.debug(f"No active animals at {datetime.fromtimestamp(current_time)}")
+            logging.debug(f"Windows: {self.animal_windows}")
+            
+        return active_animals
+    
+    def update_delivery(self, animal_id, volume):
+        """Update delivered volume for an animal"""
+        if animal_id in self.delivered_volumes:
+            self.delivered_volumes[animal_id] += volume
+            self.animal_windows[animal_id]['last_delivery'] = time.time()
+            logging.debug(f"Updated delivery for animal {animal_id}: {self.delivered_volumes[animal_id]}mL")
+            
+    def is_schedule_complete(self):
+        """Check if all animals have received their target volumes"""
+        for animal_id, window in self.animal_windows.items():
+            delivered = self.delivered_volumes.get(animal_id, 0)
+            if delivered < window['target_volume']:
+                return False
+        return True
