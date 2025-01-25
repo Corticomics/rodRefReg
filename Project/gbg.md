@@ -172,7 +172,6 @@ Checking delivery windows:
 Collected times:
 Start times: []
 End times: []
-
 System Messages
 Loaded 2 animals for all trainers (guest mode)
 Displaying all animals (guest mode)
@@ -187,14 +186,58 @@ Displaying animals for trainer ID 1
 About to load animals for trainer_id: 1 (type: <class 'int'>)
 Retrieved 2 animals from the database for trainer_id 1
 Loaded 2 animals for trainer ID 1
+save_current_schedule: adding instant deliveries for unit 1
+save_current_schedule: adding instant delivery for animal 1 at 2025-01-25 13:15:06.787000 with volume 1.0
+save_current_schedule: adding instant deliveries for unit 2
+save_current_schedule: adding instant delivery for animal 2 at 2025-01-25 13:16:07.539000 with volume 2.0
+Schedule object: instant, test, 3.0, 2025-01-25T13:15:06.787000, 2025-01-25T13:16:07.539000, 1, False, [], {}, [{'animal_id': 1, 'datetime': datetime.datetime(2025, 1, 25, 13, 15, 6, 787000), 'volume': 1.0, 'relay_unit_id': 1}, {'animal_id': 2, 'datetime': datetime.datetime(2025, 1, 25, 13, 16, 7, 539000), 'volume': 2.0, 'relay_unit_id': 2}]
 
 DEBUG INFO:
-Schedule: {'schedule_id': 3, 'name': 'tesdt1', 'water_volume': 3.0, 'start_time': '2025-01-25T12:59:57.072000', 'end_time': '2025-01-25T13:04:58.016000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'staggered', 'cycles_per_day': 1, 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': [], 'relay_unit_assignments': {}}
-Mode: Staggered
-Running program with schedule: tesdt1, mode: Staggered, window_start: 1737835197.072, window_end: 1737835498.016
+Schedule: {'schedule_id': 4, 'name': 'test', 'water_volume': 3.0, 'start_time': '2025-01-25T13:15:06.787000', 'end_time': '2025-01-25T13:16:07.539000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'instant', 'cycles_per_day': 1, 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': [{'animal_id': 1, 'datetime': datetime.datetime(2025, 1, 25, 13, 15, 6, 787000), 'volume': 1.0, 'relay_unit_id': 1}, {'animal_id': 2, 'datetime': datetime.datetime(2025, 1, 25, 13, 16, 7, 539000), 'volume': 2.0, 'relay_unit_id': 2}], 'relay_unit_assignments': {'1': 1, '2': 2}}
+Mode: Instant
+Running program with schedule: test, mode: Instant
 Program Started
+Starting Instant cycle
+Outside delivery window
+Error checking completion: 'target_volumes'
+Error in staggered cycle: 'RelayWorker' object has no attribute 'main_timer'
+Error checking completion: 'target_volumes'
 Traceback (most recent call last):
-  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 65, in run_cycle
-    self.progress.emit(f"Starting {self.mode} cycle")
-                                   ^^^^^^^^^
-AttributeError: 'RelayWorker' object has no attribute 'mode'
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 375, in check_window_completion
+    for aid, target in self.settings['target_volumes'].items()
+                       ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+KeyError: 'target_volumes'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 140, in run_staggered_cycle
+    self.check_window_completion()
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 395, in check_window_completion
+    self.stop()
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 403, in stop
+    self.main_timer.stop()
+    ^^^^^^^^^^^^^^^
+AttributeError: 'RelayWorker' object has no attribute 'main_timer'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 375, in check_window_completion
+    for aid, target in self.settings['target_volumes'].items()
+                       ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+KeyError: 'target_volumes'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 73, in run_cycle
+    self.run_staggered_cycle()
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 218, in run_staggered_cycle
+    self.check_window_completion()
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 395, in check_window_completion
+    self.stop()
+  File "/home/conelab-rrr2/Documents/GitHub/rodRefReg/Project/gpio/relay_worker.py", line 403, in stop
+    self.main_timer.stop()
+    ^^^^^^^^^^^^^^^
+AttributeError: 'RelayWorker' object has no attribute 'main_timer'
