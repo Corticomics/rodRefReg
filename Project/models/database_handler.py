@@ -1205,3 +1205,46 @@ class DatabaseHandler:
                 conn.commit()
         except sqlite3.Error as e:
             print(f"Error updating cycle progress: {e}")
+
+    def get_schedule_staggered_windows(self, schedule_id):
+        """Get staggered delivery windows for a schedule"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT 
+                        w.window_id,
+                        w.animal_id,
+                        w.start_time,
+                        w.end_time,
+                        w.target_volume,
+                        w.delivered_volume,
+                        w.status,
+                        sa.relay_unit_id
+                    FROM schedule_staggered_windows w
+                    JOIN schedule_animals sa 
+                        ON w.schedule_id = sa.schedule_id 
+                        AND w.animal_id = sa.animal_id
+                    WHERE w.schedule_id = ?
+                    ORDER BY w.start_time ASC
+                ''', (schedule_id,))
+                
+                windows = []
+                for row in cursor.fetchall():
+                    window = {
+                        'window_id': row[0],
+                        'animal_id': row[1],
+                        'start_time': row[2],
+                        'end_time': row[3],
+                        'target_volume': row[4],
+                        'delivered_volume': row[5],
+                        'status': row[6],
+                        'relay_unit_id': row[7]
+                    }
+                    windows.append(window)
+                return windows
+                
+        except sqlite3.Error as e:
+            print(f"Error getting staggered windows: {e}")
+            traceback.print_exc()
+            return []
