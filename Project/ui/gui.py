@@ -24,7 +24,7 @@ class RodentRefreshmentGUI(QWidget):
         super().__init__()
 
         # Store callbacks with correct signatures
-        self.run_program = lambda schedule, settings: run_program(schedule, settings)
+        self.run_program = lambda schedule, mode, window_start, window_end: run_program(schedule, mode, window_start, window_end)
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
         self.settings = settings
