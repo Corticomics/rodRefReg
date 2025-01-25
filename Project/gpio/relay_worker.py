@@ -183,7 +183,7 @@ class RelayWorker(QObject):
                         'end': animal_end,
                         'last_delivery': None,
                         'relay_unit': relay_assignments.get(str(animal_id)),
-                        'target_volume': target_volume  # Set from desired outputs
+                        'target_volume': target_volume
                     }
                     print(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
 
@@ -192,6 +192,19 @@ class RelayWorker(QObject):
             print(f"Checking active animals at {current_time}")
             print(f"Window start: {self.window_start}, Window end: {self.window_end}")
             print(f"Animal windows: {self.animal_windows.items()}")
+            
+            # Check if current time is within the overall window
+            if current_time < self.window_start:
+                print(f"Current time ({current_time}) is before window start ({self.window_start})")
+                # Schedule next check at window start
+                delay_ms = int((self.window_start - current_time).total_seconds() * 1000)
+                self.main_timer.singleShot(delay_ms, self.run_staggered_cycle)
+                return
+            
+            if current_time > self.window_end:
+                print(f"Current time ({current_time}) is after window end ({self.window_end})")
+                self.check_window_completion()
+                return
             
             for animal_id, window in self.animal_windows.items():
                 if window['start'] <= current_time <= window['end']:
