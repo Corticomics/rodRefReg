@@ -260,7 +260,12 @@ class RelayUnitWidget(QWidget):
         """
         # Build desired water output dictionary
         desired_water_output = {}
+        relay_unit_assignments = {}
+        
         if self.assigned_animal:
+            # Add relay unit assignment
+            relay_unit_assignments[str(self.assigned_animal.animal_id)] = self.relay_unit.unit_id
+            
             # Calculate recommended water volume for the animal
             recommended_volume = self.calculate_recommended_water(self.assigned_animal)
             desired_water_output[str(self.assigned_animal.animal_id)] = recommended_volume
@@ -269,6 +274,7 @@ class RelayUnitWidget(QWidget):
         data = {
             'animals': [self.assigned_animal] if self.assigned_animal else [],
             'desired_water_output': desired_water_output,
+            'relay_unit_assignments': relay_unit_assignments,  # Add relay unit assignments
             'delivery_mode': self.current_mode.lower()
         }
         
@@ -282,7 +288,8 @@ class RelayUnitWidget(QWidget):
                     volume = float(slot.volume_input.text())
                     schedule.append({
                         'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
-                        'volume': volume
+                        'volume': volume,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
                     })
                 except (ValueError, AttributeError):
                     continue
@@ -299,7 +306,8 @@ class RelayUnitWidget(QWidget):
                     schedule.append({
                         'start_time': slot.start_datetime.dateTime().toPyDateTime(),
                         'end_time': slot.end_datetime.dateTime().toPyDateTime(),
-                        'volume': volume
+                        'volume': volume,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
                     })
                 except (ValueError, AttributeError):
                     continue
@@ -310,7 +318,8 @@ class RelayUnitWidget(QWidget):
                 data['staggered_settings'] = {
                     str(self.assigned_animal.animal_id): {
                         'total_volume': total_volume,
-                        'windows': schedule
+                        'windows': schedule,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
                     }
                 }
                 # Update the desired water output with the total volume
