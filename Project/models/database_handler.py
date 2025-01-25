@@ -964,9 +964,9 @@ class DatabaseHandler:
                         VALUES (?, ?, ?)
                     ''', (schedule_id, animal_id, desired_output))
                     
-                    # Calculate single window for the entire schedule duration
-                    start_time = datetime.fromisoformat(schedule.start_time)
-                    end_time = datetime.fromisoformat(schedule.end_time)
+                    # Parse datetime strings using strptime
+                    start_time = datetime.strptime(schedule.start_time, "%Y-%m-%dT%H:%M:%S.%f")
+                    end_time = datetime.strptime(schedule.end_time, "%Y-%m-%dT%H:%M:%S.%f")
                     
                     cursor.execute('''
                         INSERT INTO schedule_staggered_windows
@@ -984,6 +984,10 @@ class DatabaseHandler:
                 
         except sqlite3.Error as e:
             print(f"Database error: {e}")
+            traceback.print_exc()
+            return None
+        except ValueError as e:
+            print(f"DateTime parsing error: {e}")
             traceback.print_exc()
             return None
 
