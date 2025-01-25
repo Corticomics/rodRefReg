@@ -98,7 +98,9 @@ def run_program(schedule, mode, window_start, window_end):
             'mode': mode,
             'window_start': window_start,
             'window_end': window_end,
-            'min_trigger_interval_ms': 500
+            'min_trigger_interval_ms': 500,
+            'database_handler': database_handler,  # Add database handler
+            'pump_controller': controller.pump_controller if hasattr(controller, 'pump_controller') else None
         }
         
         if mode.lower() == "instant":
@@ -116,8 +118,14 @@ def run_program(schedule, mode, window_start, window_end):
                 'cycle_interval': 3600,
                 'stagger_interval': 0.5,
                 'water_volume': schedule.water_volume,
-                'relay_unit_assignments': schedule.relay_unit_assignments
+                'relay_unit_assignments': schedule.relay_unit_assignments,
+                'desired_water_outputs': schedule.desired_water_outputs  # Add this line
             })
+        
+        print("\nWorker Settings Debug:")
+        print(f"Mode: {worker_settings.get('mode')}")
+        print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
+        print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
         
         # Initialize worker with correct settings
         worker = RelayWorker(worker_settings, relay_handler, notification_handler)
