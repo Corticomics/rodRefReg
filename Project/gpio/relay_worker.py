@@ -353,31 +353,47 @@ class RelayWorker(QObject):
         """Update window progress information"""
         try:
             current_time = datetime.now()
-            window_duration = (self.window_end - self.window_start).total_seconds()
-            elapsed_time = (current_time - self.window_start).total_seconds()
-            progress_percent = min(100, (elapsed_time / window_duration) * 100)
-
-            # Calculate volume progress for each animal
-            volume_progress = {}
-            for animal_id, target in self.settings['target_volumes'].items():
-                delivered = self.delivered_volumes.get(animal_id, 0)
-                volume_progress[animal_id] = {
-                    'delivered': delivered,
-                    'target': target,
-                    'percent': (delivered / target) * 100 if target > 0 else 0
+            
+            if self.settings['mode'].lower() == 'instant':
+                # For instant mode, just track completion of scheduled deliveries
+                total_deliveries = len(self.delivery_instants)
+                completed_deliveries = sum(1 for d in self.delivery_instants 
+                                        if datetime.fromisoformat(d['delivery_time'].replace('Z', '+00:00')) <= current_time)
+                
+                progress_info = {
+                    'window_progress': (completed_deliveries / total_deliveries * 100) if total_deliveries > 0 else 100,
+                    'time_remaining': 0,  # Not applicable for instant mode
+                    'volume_progress': {},  # No target volumes in instant mode
+                    'failed_deliveries': self.failed_deliveries.copy()
                 }
+                
+            else:  # Staggered mode
+                window_duration = (self.window_end - self.window_start).total_seconds()
+                elapsed_time = (current_time - self.window_start).total_seconds()
+                progress_percent = min(100, (elapsed_time / window_duration) * 100)
 
-            progress_info = {
-                'window_progress': progress_percent,
-                'time_remaining': max(0, (self.window_end - current_time).total_seconds()),
-                'volume_progress': volume_progress,
-                'failed_deliveries': self.failed_deliveries.copy()
-            }
+                # Calculate volume progress for each animal
+                volume_progress = {}
+                for animal_id, target in self.settings.get('target_volumes', {}).items():
+                    delivered = self.delivered_volumes.get(animal_id, 0)
+                    volume_progress[animal_id] = {
+                        'delivered': delivered,
+                        'target': target,
+                        'percent': (delivered / target) * 100 if target > 0 else 0
+                    }
+
+                progress_info = {
+                    'window_progress': progress_percent,
+                    'time_remaining': max(0, (self.window_end - current_time).total_seconds()),
+                    'volume_progress': volume_progress,
+                    'failed_deliveries': self.failed_deliveries.copy()
+                }
 
             self.window_progress.emit(progress_info)
 
         except Exception as e:
             self.progress.emit(f"Error updating progress: {str(e)}")
+            print(f"Progress update error details: {e}")  # Additional debug info
 
     def check_window_completion(self):
         """Check if window is complete or needs to continue"""
