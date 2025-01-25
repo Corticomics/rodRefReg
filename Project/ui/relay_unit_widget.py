@@ -82,10 +82,9 @@ class RelayUnitWidget(QWidget):
         self.relay_unit = relay_unit
         self.database_handler = database_handler
         self.available_animals_list = available_animals_list
-        self.assigned_animal = None  # Only one animal per relay unit
-        self.desired_water_output = 0.0  # Desired water output for the animal
+        self.assigned_animal = None
         self.pump_controller = pump_controller
-        self.current_mode = "Staggered"  # Track mode internally
+        self.current_mode = "Staggered"
 
         # Main layout
         self.layout = QVBoxLayout()
@@ -124,40 +123,12 @@ class RelayUnitWidget(QWidget):
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.layout.addWidget(self.recommended_water_label)
 
-        # **Desired Water Output Input**
-        # Create a horizontal layout for the label and input box
-        desired_output_layout = QHBoxLayout()
-
-        # Label for Desired Water Output
-        self.desired_output_label = QLabel("Water Output (mL):")
-        self.desired_output_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.desired_output_label.setFixedWidth(150)  # Optional: Set a fixed width for better alignment
-
-        # Input box for Desired Water Output
-        self.desired_output_input = QLineEdit()
-        self.desired_output_input.setPlaceholderText("Enter desired water volume")
-        self.desired_output_input.setFixedWidth(200)  # Set a fixed width as desired
-
-        # Add widgets to the horizontal layout
-        desired_output_layout.addWidget(self.desired_output_label)
-        desired_output_layout.addWidget(self.desired_output_input)
-        desired_output_layout.addStretch()  # Pushes the widgets to the left
-
-        # Add the horizontal layout to the main vertical layout
-        self.layout.addLayout(desired_output_layout)
-
-        # Connect input change to update desired water output
-        self.desired_output_input.textChanged.connect(self.update_desired_water_output)
-
-        # Connect double-click to remove animal
-        self.animal_table.cellDoubleClicked.connect(self.remove_animal)
-
         # Container for instant delivery slots
         self.instant_delivery_container = QWidget()
         self.instant_delivery_layout = QVBoxLayout()
         self.instant_delivery_container.setLayout(self.instant_delivery_layout)
         
-        # Add delivery slot button with icon or clear text
+        # Add delivery slot button
         self.add_slot_button = QPushButton("+ Add Water Delivery Time")
         self.add_slot_button.clicked.connect(self.add_delivery_slot)
         
@@ -174,6 +145,9 @@ class RelayUnitWidget(QWidget):
         # Hide instant delivery components by default
         self.instant_delivery_container.hide()
         self.add_slot_button.hide()
+
+        # Connect double-click to remove animal
+        self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
         # Initialize UI state
         self.delivery_slots = []
@@ -239,7 +213,6 @@ class RelayUnitWidget(QWidget):
             animal (Animal): The animal to assign.
         """
         self.assigned_animal = animal
-        self.desired_water_output = 0.0  # Reset desired water output
 
         # Update the animal information table
         self.animal_table.setRowCount(1)
@@ -275,38 +248,14 @@ class RelayUnitWidget(QWidget):
         recommended_water = round(weight * 0.1, 2)  # Example: 10% of body weight
         return recommended_water
 
-    def update_desired_water_output(self, text):
-        """
-        Update the desired water output based on user input.
-
-        Args:
-            text (str): The text input from the user.
-        """
-        try:
-            if text.strip() == "":
-                self.desired_water_output = 0.0
-            else:
-                self.desired_water_output = float(text)
-        except ValueError:
-            QMessageBox.warning(self, "Input Error", "Please enter a valid number for water volume.")
-            self.desired_output_input.setText("")
-
     def get_data(self):
         """
         Retrieve the current data from the widget.
         """
-        # Get base desired output
-        desired_output_text = self.desired_output_input.text().strip()
-        try:
-            desired_output = float(desired_output_text) if desired_output_text else 0.0
-        except ValueError:
-            desired_output = 0.0
-            QMessageBox.warning(self, "Input Error", "Invalid desired water output. Resetting to 0.0 mL.")
-
         # Build desired water output dictionary
         desired_water_output = {}
         if self.assigned_animal:
-            desired_water_output[str(self.assigned_animal.animal_id)] = desired_output
+            desired_water_output[str(self.assigned_animal.animal_id)] = 0.0
 
         # Prepare base data structure
         data = {
@@ -350,7 +299,7 @@ class RelayUnitWidget(QWidget):
             if self.assigned_animal:
                 data['staggered_settings'] = {
                     str(self.assigned_animal.animal_id): {
-                        'total_volume': desired_output,
+                        'total_volume': 0.0,
                         'windows': schedule
                     }
                 }
@@ -369,19 +318,13 @@ class RelayUnitWidget(QWidget):
         if animals:
             animal = animals[0]  # Assuming only one animal per relay unit
             self.add_animal(animal)
-            if animal.animal_id in desired_water_output:
-                self.desired_output_input.setText(str(desired_water_output[animal.animal_id]))
-            else:
-                self.desired_output_input.setText("0.0")
 
     def clear_assignments(self):
         """
         Clear all assigned animals and reset inputs.
         """
         self.assigned_animal = None
-        self.desired_water_output = 0.0
         self.animal_table.setRowCount(0)
-        self.desired_output_input.clear()
         self.recommended_water_label.setText("Recommended water volume: N/A")
         self.drag_area_label.show()
 
