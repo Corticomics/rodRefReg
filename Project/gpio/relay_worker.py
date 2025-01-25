@@ -147,11 +147,24 @@ class RelayWorker(QObject):
         try:
             current_time = datetime.now()
             
+            # Debug print settings
+            logging.info("\nStaggered Cycle Debug Info:")
+            logging.info(f"Current time: {current_time}")
+            logging.info(f"Settings: {self.settings}")
+            
             # Initialize tracking if not present
             if not hasattr(self, 'animal_windows') or not self.animal_windows:
                 logging.info("Initializing animal windows")
                 self.animal_windows = {}
-                for animal_id in self.settings.get('relay_unit_assignments', {}):
+                
+                # Get relay assignments and target volumes
+                relay_assignments = self.settings.get('relay_unit_assignments', {})
+                target_volumes = self.settings.get('desired_water_outputs', {})  # Changed from target_volumes
+                
+                logging.info(f"Relay assignments: {relay_assignments}")
+                logging.info(f"Target volumes: {target_volumes}")
+                
+                for animal_id in relay_assignments:
                     # Get animal's individual window
                     animal_start = datetime.fromtimestamp(
                         self.settings.get(f'window_start_{animal_id}', 
@@ -161,25 +174,25 @@ class RelayWorker(QObject):
                         self.settings.get(f'window_end_{animal_id}', 
                         self.settings['window_end'])
                     )
+                    
                     self.animal_windows[animal_id] = {
                         'start': animal_start,
                         'end': animal_end,
                         'last_delivery': None,
-                        'relay_unit': self.settings['relay_unit_assignments'].get(str(animal_id))
+                        'relay_unit': relay_assignments.get(str(animal_id)),
+                        'target_volume': target_volumes.get(str(animal_id), 0)  # Store target volume in window
                     }
-                    logging.debug(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
+                    logging.info(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
 
             # Get active animals for current time
             active_animals = {}
-            logging.debug(f"Checking active animals at {current_time}")
-            logging.debug(f"Current animal windows: {self.animal_windows}")
-            logging.debug(f"Target volumes: {self.settings.get('target_volumes', {})}")
+            logging.info(f"Checking active animals at {current_time}")
             
             for animal_id, window in self.animal_windows.items():
                 if window['start'] <= current_time <= window['end']:
                     delivered = self.delivered_volumes.get(animal_id, 0)
-                    target = self.settings['target_volumes'].get(str(animal_id), 0)
-                    logging.debug(f"Animal {animal_id}: delivered={delivered}, target={target}")
+                    target = window['target_volume']  # Get target from window
+                    logging.info(f"Animal {animal_id}: delivered={delivered}, target={target}")
                     
                     if delivered < target:
                         active_animals[animal_id] = {
