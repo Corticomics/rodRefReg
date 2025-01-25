@@ -415,14 +415,27 @@ class RelayWorker(QObject):
                     self.main_timer.singleShot(10000, self.check_window_completion)
                     
             else:  # Staggered mode
+                # First check if target_volumes exists in settings
+                target_volumes = self.settings.get('target_volumes', {})
+                
+                if not target_volumes:
+                    # If no target volumes, just check time
+                    if current_time >= self.window_end:
+                        self.progress.emit("Window time completed")
+                        self.stop()
+                    else:
+                        self.main_timer.singleShot(10000, self.check_window_completion)
+                    return
+
+                # If we have target volumes, check them
                 all_volumes_delivered = all(
                     self.delivered_volumes.get(aid, 0) >= target
-                    for aid, target in self.settings.get('target_volumes', {}).items()
+                    for aid, target in target_volumes.items()
                 )
 
                 if all_volumes_delivered or current_time >= self.window_end:
                     # Log final status
-                    for animal_id, target in self.settings['target_volumes'].items():
+                    for animal_id, target in target_volumes.items():
                         delivered = self.delivered_volumes.get(animal_id, 0)
                         self.progress.emit(
                             f"Final delivery for animal {animal_id}: "
@@ -438,6 +451,7 @@ class RelayWorker(QObject):
         except Exception as e:
             self.progress.emit(f"Error checking completion: {str(e)}")
             print(f"Completion check error details: {e}")  # Additional debug info
+            print(f"Current settings: {self.settings}")  # Print settings for debugging
             self.stop()
 
     def stop(self):
