@@ -141,58 +141,84 @@ class RelayWorker(QObject):
             self.check_completion()
 
     def run_staggered_cycle(self):
-        """Handle staggered deliveries with volume tracking"""
+        """Handle staggered deliveries with individual time windows"""
         try:
             current_time = datetime.now()
-            if not (self.window_start <= current_time <= self.window_end):
-                self.progress.emit("Outside delivery window")
-                self.check_window_completion()
-                return
-
-            # Initialize target volumes if not present
-            if 'target_volumes' not in self.settings:
-                self.settings['target_volumes'] = {}
+            
+            # Initialize tracking if not present
+            if not hasattr(self, 'animal_windows'):
+                self.animal_windows = {}
                 for animal_id in self.settings.get('relay_unit_assignments', {}):
-                    self.settings['target_volumes'][animal_id] = self.settings.get('water_volume', 0)
+                    # Get animal's individual window
+                    animal_start = datetime.fromtimestamp(
+                        self.settings.get(f'window_start_{animal_id}', 
+                        self.settings['window_start'])
+                    )
+                    animal_end = datetime.fromtimestamp(
+                        self.settings.get(f'window_end_{animal_id}', 
+                        self.settings['window_end'])
+                    )
+                    self.animal_windows[animal_id] = {
+                        'start': animal_start,
+                        'end': animal_end,
+                        'last_delivery': None
+                    }
 
-            # Get remaining volumes
-            remaining_volumes = {}
-            for animal_id, target in self.settings['target_volumes'].items():
-                delivered = self.delivered_volumes.get(animal_id, 0)
-                if delivered < target:
-                    remaining_volumes[animal_id] = target - delivered
+            # Get active animals for current time
+            active_animals = {}
+            for animal_id, window in self.animal_windows.items():
+                if window['start'] <= current_time <= window['end']:
+                    delivered = self.delivered_volumes.get(animal_id, 0)
+                    target = self.settings['target_volumes'].get(str(animal_id), 0)
+                    if delivered < target:
+                        active_animals[animal_id] = {
+                            'remaining': target - delivered,
+                            'last_delivery': window['last_delivery']
+                        }
 
-            if not remaining_volumes:
-                self.progress.emit("All volumes delivered")
+            if not active_animals:
+                self.progress.emit("No active animals in current time window")
                 self.check_window_completion()
                 return
 
-            # Schedule deliveries for each animal
-            for animal_id, remaining_volume in remaining_volumes.items():
-                relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
-                if not relay_unit_id:
-                    self.progress.emit(f"No relay unit for animal {animal_id}")
+            # Calculate optimal delivery volumes for active animals
+            for animal_id, data in active_animals.items():
+                remaining_time = (self.animal_windows[animal_id]['end'] - current_time).total_seconds()
+                if remaining_time <= 0:
                     continue
 
-                # Calculate triggers needed
-                required_triggers = self.volume_calculator.calculate_triggers(remaining_volume)
-                
-                delivery_data = {
-                    'schedule_id': self.settings.get('schedule_id'),
-                    'animal_id': animal_id,
-                    'relay_unit_id': relay_unit_id,
-                    'water_volume': remaining_volume,
-                    'instant_time': current_time,
-                    'triggers': required_triggers
-                }
-
-                timer = QTimer()
-                timer.setSingleShot(True)
-                timer.timeout.connect(
-                    lambda d=delivery_data: self.execute_delivery(d)
+                # Calculate volume for this cycle
+                remaining_volume = data['remaining']
+                cycle_volume = min(
+                    remaining_volume / (remaining_time / self.settings.get('cycle_interval', 3600)),
+                    self.settings.get('max_cycle_volume', 0.2)  # Max 0.2ml per cycle
                 )
-                timer.start(1000)  # Start after 1 second
-                self.timers.append(timer)
+
+                if cycle_volume > 0:
+                    relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
+                    if not relay_unit_id:
+                        continue
+
+                    # Schedule delivery with staggered timing
+                    delivery_data = {
+                        'schedule_id': self.settings.get('schedule_id'),
+                        'animal_id': animal_id,
+                        'relay_unit_id': relay_unit_id,
+                        'water_volume': cycle_volume,
+                        'instant_time': current_time,
+                        'triggers': self.volume_calculator.calculate_triggers(cycle_volume)
+                    }
+
+                    # Add staggered delay based on animal index
+                    stagger_delay = list(active_animals.keys()).index(animal_id) * 1000  # 1 second between animals
+                    
+                    timer = QTimer()
+                    timer.setSingleShot(True)
+                    timer.timeout.connect(
+                        lambda d=delivery_data: self.execute_delivery(d)
+                    )
+                    timer.start(stagger_delay)
+                    self.timers.append(timer)
 
             # Schedule next cycle
             if self._is_running:

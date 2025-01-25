@@ -4,94 +4,62 @@ import math
 class TimingCalculator:
     def __init__(self, settings):
         # Hardware constraints
-        self.min_trigger_interval_ms = settings.get('min_trigger_interval_ms', 500)  # Minimum 500ms between triggers
-        self.pump_volume_ul = settings.get('pump_volume_ul', 50)  # 50µL per trigger
+        self.min_trigger_interval_ms = settings.get('min_trigger_interval_ms', 500)
+        self.pump_volume_ul = settings.get('pump_volume_ul', 50)
         self.calibration_factor = settings.get('calibration_factor', 1.0)
         self.max_triggers_per_cycle = settings.get('max_triggers_per_cycle', 5)
+        self.min_cycle_spacing_minutes = settings.get('min_cycle_spacing_minutes', 30)
         
     def calculate_staggered_timing(self, window_start, window_end, animals_data):
-        """
-        Calculate optimal staggered delivery timing with actual delivery instants
-        
-        Args:
-            window_start (datetime): Start time of delivery window
-            window_end (datetime): End time of delivery window
-            animals_data: list of {animal_id, volume_ml} dicts
-        
-        Returns:
-            Dict with timing plan and delivery instants for each animal
-        """
+        """Calculate optimal staggered delivery timing with actual delivery instants"""
         window_duration = (window_end - window_start).total_seconds()
         total_animals = len(animals_data)
         
-        # Calculate total triggers needed for each animal
-        animal_triggers = {
-            animal['animal_id']: self._calculate_triggers(animal['volume_ml'])
-            for animal in animals_data
-        }
+        # Calculate volume and trigger requirements for each animal
+        animal_requirements = {}
+        max_cycles_needed = 1
         
-        max_animal_triggers = max(animal_triggers.values())
-        total_cycles_needed = math.ceil(max_animal_triggers / self.max_triggers_per_cycle)
+        for animal in animals_data:
+            volume_calc = self._calculate_volume_requirements(
+                animal['volume_ml'],
+                window_duration
+            )
+            animal_requirements[animal['animal_id']] = volume_calc
+            max_cycles_needed = max(max_cycles_needed, volume_calc['total_cycles'])
         
         # Calculate timing intervals
-        cycle_interval = window_duration / total_cycles_needed
-        min_stagger = (self.min_trigger_interval_ms / 1000) * self.max_triggers_per_cycle
-        stagger_interval = max(cycle_interval / total_animals, min_stagger)
+        cycle_interval = self._calculate_cycle_interval(
+            window_duration, 
+            max_cycles_needed,
+            total_animals
+        )
         
-        # Generate delivery schedule with actual instants
+        # Calculate stagger between animals
+        stagger_interval = self._calculate_stagger_interval(
+            cycle_interval,
+            total_animals
+        )
+        
+        # Generate delivery schedule
         schedule = {}
         for idx, animal in enumerate(animals_data):
             animal_id = animal['animal_id']
-            total_triggers = animal_triggers[animal_id]
-            volume_per_trigger = (animal['volume_ml'] * 1000 / total_triggers) / 1000  # in mL
+            reqs = animal_requirements[animal_id]
             
-            # Calculate triggers per cycle, ensuring even distribution
-            triggers_per_cycle = math.ceil(total_triggers / total_cycles_needed)
-            cycle_start_offset = idx * stagger_interval
-            
-            # Generate actual delivery instants
-            delivery_instants = []
-            remaining_triggers = total_triggers
-            
-            for cycle in range(total_cycles_needed):
-                if remaining_triggers <= 0:
-                    break
-                    
-                cycle_triggers = min(triggers_per_cycle, remaining_triggers)
-                cycle_start_time = window_start + timedelta(
-                    seconds=(cycle * cycle_interval + cycle_start_offset)
-                )
-                
-                # Generate instants for this cycle
-                for trigger in range(cycle_triggers):
-                    instant_time = cycle_start_time + timedelta(
-                        milliseconds=trigger * self.min_trigger_interval_ms
-                    )
-                    
-                    if instant_time >= window_end:
-                        # Adjust timing if we're near window end
-                        remaining_time = (window_end - cycle_start_time).total_seconds()
-                        if remaining_time > 0:
-                            # Compress remaining triggers into available time
-                            compressed_interval = remaining_time / (cycle_triggers - trigger)
-                            instant_time = cycle_start_time + timedelta(
-                                seconds=trigger * compressed_interval
-                            )
-                        else:
-                            continue
-                    
-                    delivery_instants.append({
-                        'time': instant_time,
-                        'volume': volume_per_trigger,
-                        'triggers': 1
-                    })
-                
-                remaining_triggers -= cycle_triggers
+            delivery_instants = self._generate_delivery_instants(
+                window_start,
+                window_end,
+                animal,
+                reqs,
+                cycle_interval,
+                stagger_interval,
+                idx
+            )
             
             schedule[animal_id] = {
-                'triggers_per_cycle': triggers_per_cycle,
-                'total_cycles': total_cycles_needed,
-                'cycle_start_offset': cycle_start_offset,
+                'triggers_per_cycle': reqs['triggers_per_cycle'],
+                'total_cycles': reqs['total_cycles'],
+                'cycle_start_offset': idx * stagger_interval,
                 'trigger_interval_ms': self.min_trigger_interval_ms,
                 'cycle_interval_seconds': cycle_interval,
                 'delivery_instants': delivery_instants,
@@ -102,8 +70,102 @@ class TimingCalculator:
             'schedule': schedule,
             'cycle_interval': cycle_interval,
             'stagger_interval': stagger_interval,
-            'total_cycles': total_cycles_needed
+            'total_cycles': max_cycles_needed
         }
+    
+    def _calculate_volume_requirements(self, volume_ml, window_duration):
+        """Calculate volume and trigger requirements for an animal"""
+        volume_ul = volume_ml * 1000
+        adjusted_volume = volume_ul * self.calibration_factor
+        total_triggers = math.ceil(adjusted_volume / self.pump_volume_ul)
+        
+        # Calculate cycles needed
+        total_cycles = math.ceil(total_triggers / self.max_triggers_per_cycle)
+        triggers_per_cycle = math.ceil(total_triggers / total_cycles)
+        
+        # Ensure minimum cycle spacing
+        min_cycle_duration = self.min_cycle_spacing_minutes * 60
+        min_cycles_for_spacing = math.ceil(window_duration / min_cycle_duration)
+        
+        total_cycles = max(total_cycles, min_cycles_for_spacing)
+        triggers_per_cycle = math.ceil(total_triggers / total_cycles)
+        
+        return {
+            'total_triggers': total_triggers,
+            'triggers_per_cycle': triggers_per_cycle,
+            'total_cycles': total_cycles,
+            'volume_per_trigger': (self.pump_volume_ul / 1000)
+        }
+    
+    def _calculate_cycle_interval(self, window_duration, total_cycles, total_animals):
+        """Calculate optimal cycle interval"""
+        min_cycle_spacing = self.min_cycle_spacing_minutes * 60
+        base_interval = window_duration / total_cycles
+        
+        return max(base_interval, min_cycle_spacing)
+    
+    def _calculate_stagger_interval(self, cycle_interval, total_animals):
+        """Calculate stagger interval between animals"""
+        min_stagger = (self.min_trigger_interval_ms / 1000) * self.max_triggers_per_cycle
+        return max(cycle_interval / total_animals, min_stagger)
+    
+    def _generate_delivery_instants(self, window_start, window_end, animal, reqs,
+                                  cycle_interval, stagger_interval, animal_index):
+        """Generate delivery instants for an animal"""
+        delivery_instants = []
+        remaining_triggers = reqs['total_triggers']
+        
+        for cycle in range(reqs['total_cycles']):
+            if remaining_triggers <= 0:
+                break
+                
+            cycle_start = window_start + timedelta(
+                seconds=(cycle * cycle_interval + animal_index * stagger_interval)
+            )
+            
+            cycle_triggers = min(reqs['triggers_per_cycle'], remaining_triggers)
+            cycle_instants = self._generate_cycle_instants(
+                cycle_start,
+                window_end,
+                cycle_triggers,
+                reqs['volume_per_trigger'],
+                animal['relay_unit_id'],
+                cycle == (reqs['total_cycles'] - 1)
+            )
+            
+            delivery_instants.extend(cycle_instants)
+            remaining_triggers -= cycle_triggers
+            
+        return delivery_instants
+    
+    def _generate_cycle_instants(self, cycle_start, window_end, num_triggers,
+                               volume_per_trigger, relay_unit_id, is_last_cycle):
+        """Generate delivery instants within a cycle"""
+        instants = []
+        
+        for i in range(num_triggers):
+            if is_last_cycle:
+                # Compress remaining triggers if needed
+                remaining_time = (window_end - cycle_start).total_seconds()
+                if remaining_time <= 0:
+                    break
+                    
+                interval = remaining_time / (num_triggers - i)
+                instant_time = cycle_start + timedelta(seconds=i * interval)
+            else:
+                instant_time = cycle_start + timedelta(
+                    milliseconds=i * self.min_trigger_interval_ms
+                )
+                
+            if instant_time <= window_end:
+                instants.append({
+                    'time': instant_time,
+                    'volume': volume_per_trigger,
+                    'triggers': 1,
+                    'relay_unit_id': relay_unit_id
+                })
+                
+        return instants
     
     def calculate_instant_timing(self, delivery_time, animals_data):
         """
