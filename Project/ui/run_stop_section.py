@@ -3,7 +3,6 @@ from PyQt5.QtCore import QDateTime, QTimer, Qt
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 from PyQt5.QtCore import pyqtSignal
-from .time_window_dialog import TimeWindowDialog
 
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
@@ -136,8 +135,8 @@ class RunStopSection(QWidget):
             self.stop_button.setStyleSheet("")
             self.stop_button.setToolTip("")
 
-
     def run_program(self):
+        """Start executing the current schedule"""
         try:
             if not self.schedule_drop_area.current_schedule:
                 QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
@@ -146,13 +145,29 @@ class RunStopSection(QWidget):
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
+            # Get schedule window from delivery slots
             if mode == "Staggered":
-                # Use the schedule's existing times
-                start_dt = QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss")
-                end_dt = QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss")
+                # For staggered mode, use the earliest start and latest end time
+                # from all delivery windows
+                start_times = []
+                end_times = []
                 
-                window_start = start_dt.toSecsSinceEpoch()
-                window_end = end_dt.toSecsSinceEpoch()
+                for unit_id in schedule.relay_unit_assignments.values():
+                    unit_data = schedule.get_unit_data(unit_id)
+                    if not unit_data or 'delivery_schedule' not in unit_data:
+                        continue
+                        
+                    for window in unit_data['delivery_schedule']:
+                        start_times.append(window['start_time'])
+                        end_times.append(window['end_time'])
+                
+                if not start_times or not end_times:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "No delivery windows configured for staggered mode")
+                    return
+                    
+                window_start = min(start_times).timestamp()
+                window_end = max(end_times).timestamp()
                 
             else:  # Instant mode
                 if not schedule.instant_deliveries:
@@ -160,12 +175,12 @@ class RunStopSection(QWidget):
                         "This schedule has no instant delivery times configured")
                     return
                 
-                delivery_times = [QDateTime.fromString(d['datetime'].strftime("%Y-%m-%d %H:%M:%S"), 
-                                                     "yyyy-MM-dd HH:mm:ss") 
-                                for d in schedule.instant_deliveries]
-                window_start = min(delivery_times).toSecsSinceEpoch()
-                window_end = max(delivery_times).toSecsSinceEpoch()
+                # Use the earliest and latest delivery times
+                delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
+                window_start = min(delivery_times).timestamp()
+                window_end = max(delivery_times).timestamp()
             
+            # Start the schedule execution
             self.run_program_callback(schedule, mode, window_start, window_end)
             self.job_in_progress = True
             self.update_button_states()
