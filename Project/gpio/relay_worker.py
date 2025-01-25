@@ -159,10 +159,10 @@ class RelayWorker(QObject):
                 
                 # Get relay assignments and target volumes
                 relay_assignments = self.settings.get('relay_unit_assignments', {})
-                target_volumes = self.settings.get('desired_water_outputs', {})  # Changed from target_volumes
+                desired_outputs = self.settings.get('desired_water_outputs', {})
                 
                 logging.info(f"Relay assignments: {relay_assignments}")
-                logging.info(f"Target volumes: {target_volumes}")
+                logging.info(f"Desired outputs: {desired_outputs}")
                 
                 for animal_id in relay_assignments:
                     # Get animal's individual window
@@ -175,24 +175,28 @@ class RelayWorker(QObject):
                         self.settings['window_end'])
                     )
                     
+                    # Get target volume from desired outputs
+                    target_volume = float(desired_outputs.get(str(animal_id), 0.0))
+                    
                     self.animal_windows[animal_id] = {
                         'start': animal_start,
                         'end': animal_end,
                         'last_delivery': None,
                         'relay_unit': relay_assignments.get(str(animal_id)),
-                        'target_volume': target_volumes.get(str(animal_id), 0)  # Store target volume in window
+                        'target_volume': target_volume  # Set from desired outputs
                     }
                     logging.info(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
 
             # Get active animals for current time
             active_animals = {}
-            logging.info(f"Checking active animals at {current_time}, window_start: {self.window_start}, window_end: {self.window_end}")
-            print(f"Checking active animals at {current_time}, window_start: {self.window_start}, window_end: {self.window_end}")
-            print(f"Animal windows: {self.animal_windows.items()}")
+            logging.info(f"Checking active animals at {current_time}")
+            logging.info(f"Window start: {self.window_start}, Window end: {self.window_end}")
+            logging.info(f"Animal windows: {self.animal_windows.items()}")
+            
             for animal_id, window in self.animal_windows.items():
                 if window['start'] <= current_time <= window['end']:
                     delivered = self.delivered_volumes.get(animal_id, 0)
-                    target = window['target_volume']  # Get target from window
+                    target = window['target_volume']
                     logging.info(f"Animal {animal_id}: delivered={delivered}, target={target}")
                     
                     if delivered < target:
@@ -203,8 +207,7 @@ class RelayWorker(QObject):
                         }
                         logging.info(f"Animal {animal_id} is active with {target-delivered}mL remaining")
 
-            print(f"Active animals: {active_animals.items()}")
-
+            logging.info(f"Active animals: {active_animals.items()}")
             if not active_animals:
                 self.progress.emit("No active animals in current time window")
                 logging.warning("No active animals found")
