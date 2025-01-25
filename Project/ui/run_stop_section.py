@@ -163,6 +163,11 @@ class RunStopSection(QWidget):
             print(f"Schedule: {schedule.__dict__}")
             print(f"Mode: {mode}")
             
+            # Debug print before creating settings
+            print("\nSchedule Debug Info:")
+            print(f"Desired water outputs: {schedule.desired_water_outputs}")
+            print(f"Relay assignments: {schedule.relay_unit_assignments}")
+            
             # Create settings dictionary with all necessary data
             settings = {
                 'mode': mode,
@@ -177,6 +182,11 @@ class RunStopSection(QWidget):
                 'database_handler': self.database_handler,
                 'pump_controller': self.pump_controller if hasattr(self, 'pump_controller') else None
             }
+            
+            # Debug print after creating settings
+            print("\nSettings Debug Info:")
+            print(f"Settings desired water outputs: {settings.get('desired_water_outputs')}")
+            print(f"Settings relay assignments: {settings.get('relay_unit_assignments')}")
             
             # Mode-specific handling
             if mode == "Staggered":
