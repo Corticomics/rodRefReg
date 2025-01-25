@@ -140,14 +140,26 @@ class RelayUnitWidget(QWidget):
         self.instant_delivery_layout = QVBoxLayout(self.instant_delivery_container)
         self.layout.addWidget(self.instant_delivery_container)
         
-        # Add delivery slot button
-        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
-        self.add_slot_button.clicked.connect(self.add_delivery_slot)
-        self.layout.addWidget(self.add_slot_button)
+        # Add delivery slot button for instant mode
+        self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
+        self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
+        self.layout.addWidget(self.add_instant_slot_button)
         
-        # Hide instant delivery components by default
+        # Container for staggered delivery slots
+        self.staggered_delivery_container = QWidget()
+        self.staggered_delivery_layout = QVBoxLayout(self.staggered_delivery_container)
+        self.layout.addWidget(self.staggered_delivery_container)
+        
+        # Add delivery slot button for staggered mode
+        self.add_staggered_slot_button = QPushButton("+ Add Time Window")
+        self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
+        self.layout.addWidget(self.add_staggered_slot_button)
+        
+        # Hide all delivery components by default
         self.instant_delivery_container.hide()
-        self.add_slot_button.hide()
+        self.add_instant_slot_button.hide()
+        self.staggered_delivery_container.hide()
+        self.add_staggered_slot_button.hide()
 
     def dragEnterEvent(self, event):
         """
@@ -390,17 +402,47 @@ class RelayUnitWidget(QWidget):
         """Set the delivery mode and update UI accordingly"""
         self.current_mode = mode
         
-        # Show/hide instant delivery components based on mode
+        # Show/hide components based on mode
         if mode == "Instant":
             self.instant_delivery_container.show()
-            self.add_slot_button.show()
+            self.add_instant_slot_button.show()
+            self.staggered_delivery_container.hide()
+            self.add_staggered_slot_button.hide()
+            # Clear staggered slots
+            self.clear_staggered_slots()
         else:  # Staggered mode
             self.instant_delivery_container.hide()
-            self.add_slot_button.hide()
-            # Clear any existing instant delivery slots
-            for slot in self.delivery_slots:
+            self.add_instant_slot_button.hide()
+            self.staggered_delivery_container.show()
+            self.add_staggered_slot_button.show()
+            # Clear instant slots
+            self.clear_instant_slots()
+
+    def add_staggered_slot(self):
+        """Add a new staggered delivery time window slot"""
+        slot = StaggeredDeliverySlot()
+        slot.slot_deleted.connect(self.remove_staggered_slot)
+        self.delivery_slots.append(slot)
+        self.staggered_delivery_layout.addWidget(slot)
+
+    def remove_staggered_slot(self, slot):
+        """Remove a staggered delivery time window slot"""
+        if slot in self.delivery_slots:
+            self.delivery_slots.remove(slot)
+
+    def clear_instant_slots(self):
+        """Clear instant delivery slots"""
+        for slot in self.delivery_slots[:]:
+            if isinstance(slot, WaterDeliverySlot):
                 slot.deleteLater()
-            self.delivery_slots.clear()
+                self.delivery_slots.remove(slot)
+
+    def clear_staggered_slots(self):
+        """Clear staggered delivery slots"""
+        for slot in self.delivery_slots[:]:
+            if isinstance(slot, StaggeredDeliverySlot):
+                slot.deleteLater()
+                self.delivery_slots.remove(slot)
 
     def update_animal_info(self, animal):
         """Update the animal information display"""
