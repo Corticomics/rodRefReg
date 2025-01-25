@@ -148,7 +148,8 @@ class RelayWorker(QObject):
             current_time = datetime.now()
             
             # Initialize tracking if not present
-            if not hasattr(self, 'animal_windows'):
+            if not hasattr(self, 'animal_windows') or not self.animal_windows:
+                logging.info("Initializing animal windows")
                 self.animal_windows = {}
                 for animal_id in self.settings.get('relay_unit_assignments', {}):
                     # Get animal's individual window
@@ -163,23 +164,35 @@ class RelayWorker(QObject):
                     self.animal_windows[animal_id] = {
                         'start': animal_start,
                         'end': animal_end,
-                        'last_delivery': None
+                        'last_delivery': None,
+                        'relay_unit': self.settings['relay_unit_assignments'].get(str(animal_id))
                     }
+                    logging.debug(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
 
             # Get active animals for current time
             active_animals = {}
+            logging.debug(f"Checking active animals at {current_time}")
+            logging.debug(f"Current animal windows: {self.animal_windows}")
+            logging.debug(f"Target volumes: {self.settings.get('target_volumes', {})}")
+            
             for animal_id, window in self.animal_windows.items():
                 if window['start'] <= current_time <= window['end']:
                     delivered = self.delivered_volumes.get(animal_id, 0)
                     target = self.settings['target_volumes'].get(str(animal_id), 0)
+                    logging.debug(f"Animal {animal_id}: delivered={delivered}, target={target}")
+                    
                     if delivered < target:
                         active_animals[animal_id] = {
                             'remaining': target - delivered,
-                            'last_delivery': window['last_delivery']
+                            'last_delivery': window['last_delivery'],
+                            'relay_unit': window['relay_unit']
                         }
+                        logging.info(f"Animal {animal_id} is active with {target-delivered}mL remaining")
 
             if not active_animals:
                 self.progress.emit("No active animals in current time window")
+                logging.warning("No active animals found")
+                logging.debug(f"Delivered volumes: {self.delivered_volumes}")
                 self.check_window_completion()
                 return
 
@@ -187,6 +200,7 @@ class RelayWorker(QObject):
             for animal_id, data in active_animals.items():
                 remaining_time = (self.animal_windows[animal_id]['end'] - current_time).total_seconds()
                 if remaining_time <= 0:
+                    logging.debug(f"Skipping animal {animal_id} - no remaining time")
                     continue
 
                 # Calculate volume for this cycle
@@ -195,10 +209,13 @@ class RelayWorker(QObject):
                     remaining_volume / (remaining_time / self.settings.get('cycle_interval', 3600)),
                     self.settings.get('max_cycle_volume', 0.2)  # Max 0.2ml per cycle
                 )
+                
+                logging.debug(f"Calculated cycle volume for animal {animal_id}: {cycle_volume}mL")
 
                 if cycle_volume > 0:
-                    relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
+                    relay_unit_id = data['relay_unit']
                     if not relay_unit_id:
+                        logging.warning(f"No relay unit assigned for animal {animal_id}")
                         continue
 
                     # Schedule delivery with staggered timing
@@ -214,6 +231,8 @@ class RelayWorker(QObject):
                     # Add staggered delay based on animal index
                     stagger_delay = list(active_animals.keys()).index(animal_id) * 1000  # 1 second between animals
                     
+                    logging.info(f"Scheduling delivery for animal {animal_id}: {cycle_volume}mL in {stagger_delay}ms")
+                    
                     timer = QTimer()
                     timer.setSingleShot(True)
                     timer.timeout.connect(
@@ -224,13 +243,13 @@ class RelayWorker(QObject):
 
             # Schedule next cycle
             if self._is_running:
-                self.main_timer.singleShot(
-                    self.settings.get('cycle_interval', 3600) * 1000,
-                    self.run_staggered_cycle
-                )
+                next_cycle = self.settings.get('cycle_interval', 3600) * 1000
+                logging.info(f"Scheduling next cycle in {next_cycle/1000} seconds")
+                self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
 
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
+            logging.error(f"Staggered cycle error: {str(e)}", exc_info=True)
             self.check_window_completion()
 
     async def execute_delivery(self, delivery_data):
@@ -500,34 +519,56 @@ class RelayWorker(QObject):
 
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
-        self.animal_windows = {}
-        self.delivered_volumes = {}
-        
-        # Convert schedule times to timestamps
-        window_start = datetime.fromisoformat(schedule.start_time).timestamp()
-        window_end = datetime.fromisoformat(schedule.end_time).timestamp()
-        
-        # Setup windows for each animal
-        for animal_id in schedule.animals:
-            str_animal_id = str(animal_id)
-            target_volume = schedule.desired_water_outputs.get(str_animal_id, schedule.water_volume)
-            relay_unit = schedule.relay_unit_assignments.get(str_animal_id)
+        try:
+            self.animal_windows = {}
+            self.delivered_volumes = {}
             
-            if relay_unit is None:
-                logging.warning(f"No relay unit assigned for animal {animal_id}")
-                continue
+            # Convert schedule times to timestamps
+            window_start = datetime.fromisoformat(schedule['start_time']).timestamp()
+            window_end = datetime.fromisoformat(schedule['end_time']).timestamp()
+            
+            # Get animal assignments and volumes
+            animal_ids = schedule.get('animal_ids', [])
+            relay_assignments = schedule.get('relay_unit_assignments', {})
+            desired_outputs = schedule.get('desired_water_outputs', {})
+            base_volume = schedule.get('water_volume', 0.0)
+            
+            logging.info(f"Setting up schedule with {len(animal_ids)} animals")
+            logging.info(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
+            
+            # Setup windows for each animal
+            for animal_id in animal_ids:
+                str_animal_id = str(animal_id)
+                target_volume = desired_outputs.get(str_animal_id, base_volume)
+                relay_unit = relay_assignments.get(str_animal_id)
                 
-            self.animal_windows[animal_id] = {
-                'start': window_start,
-                'end': window_end,
-                'relay_unit': relay_unit,
-                'target_volume': target_volume,
-                'last_delivery': 0
-            }
-            self.delivered_volumes[animal_id] = 0
+                if relay_unit is None:
+                    logging.warning(f"No relay unit assigned for animal {animal_id}")
+                    continue
+                    
+                self.animal_windows[animal_id] = {
+                    'start': window_start,
+                    'end': window_end,
+                    'relay_unit': relay_unit,
+                    'target_volume': target_volume,
+                    'last_delivery': 0
+                }
+                self.delivered_volumes[animal_id] = 0
+                
+                logging.info(f"Added window for animal {animal_id}: "
+                            f"target={target_volume}mL, relay={relay_unit}")
             
-        logging.info(f"Setup schedule with windows: {self.animal_windows}")
-        
+            if not self.animal_windows:
+                logging.warning("No valid animal windows were created")
+            else:
+                logging.info(f"Successfully setup {len(self.animal_windows)} animal windows")
+                
+            return len(self.animal_windows) > 0
+            
+        except Exception as e:
+            logging.error(f"Error setting up schedule: {str(e)}")
+            return False
+
     def check_active_animals(self):
         """Check which animals are active in the current time window"""
         if not self.animal_windows:
