@@ -150,9 +150,32 @@ class RelayWorker(QObject):
             # Debug print settings
             print("\nStaggered Cycle Debug Info:")
             print(f"Current time: {current_time}")
-            print(f"Settings: {self.settings}")
             
-            # Initialize tracking if not present
+            # Calculate optimal cycle interval based on window duration and volumes
+            window_duration = (self.window_end - self.window_start).total_seconds()
+            
+            # Get the animal with the largest volume to determine minimum cycles needed
+            max_volume = max(
+                float(vol) for vol in self.settings.get('desired_water_outputs', {}).values()
+            )
+            
+            # Calculate minimum number of cycles needed based on max volume and max per cycle
+            max_volume_per_cycle = self.settings.get('max_cycle_volume', 0.2)  # 0.2ml max per cycle
+            min_cycles_needed = max_volume / max_volume_per_cycle
+            
+            # Calculate cycle interval (ensure at least 2 cycles in the window)
+            cycle_interval = min(
+                window_duration / max(min_cycles_needed, 2),  # At least 2 cycles
+                window_duration / 2  # Maximum interval is half the window
+            )
+            
+            print(f"\nCycle Calculation Debug:")
+            print(f"Window duration: {window_duration} seconds")
+            print(f"Max volume to deliver: {max_volume}ml")
+            print(f"Min cycles needed: {min_cycles_needed}")
+            print(f"Calculated cycle interval: {cycle_interval} seconds")
+            
+            # Check feasibility when initializing windows
             if not hasattr(self, 'animal_windows') or not self.animal_windows:
                 print("Initializing animal windows")
                 self.animal_windows = {}
@@ -165,28 +188,35 @@ class RelayWorker(QObject):
                 print(f"Desired outputs: {desired_outputs}")
                 
                 for animal_id in relay_assignments:
-                    # Get animal's individual window
-                    animal_start = datetime.fromtimestamp(
-                        self.settings.get(f'window_start_{animal_id}', 
-                        self.settings['window_start'])
-                    )
-                    animal_end = datetime.fromtimestamp(
-                        self.settings.get(f'window_end_{animal_id}', 
-                        self.settings['window_end'])
-                    )
-                    
-                    # Get target volume from desired outputs
                     target_volume = float(desired_outputs.get(str(animal_id), 0.0))
                     
+                    # Calculate volume per cycle for this animal
+                    cycles_in_window = window_duration / cycle_interval
+                    volume_per_cycle = min(
+                        target_volume / cycles_in_window,
+                        max_volume_per_cycle
+                    )
+                    
                     self.animal_windows[animal_id] = {
-                        'start': animal_start,
-                        'end': animal_end,
+                        'start': self.window_start,
+                        'end': self.window_end,
                         'last_delivery': None,
                         'relay_unit': relay_assignments.get(str(animal_id)),
-                        'target_volume': target_volume
+                        'target_volume': target_volume,
+                        'volume_per_cycle': volume_per_cycle
                     }
                     print(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
+                    print(f"Volume per cycle: {volume_per_cycle}ml")
 
+                # Check if schedule is feasible
+                is_feasible, details = self.calculate_schedule_feasibility()
+                if not is_feasible:
+                    self.progress.emit(
+                        f"Warning: Schedule may not be feasible. "
+                        f"Needs {details['time_needed']:.1f}s but shortest window is "
+                        f"{details['shortest_window']:.1f}s"
+                    )
+            
             # Get active animals for current time
             active_animals = {}
             print(f"Checking active animals at {current_time}")
@@ -228,56 +258,15 @@ class RelayWorker(QObject):
                 self.check_window_completion()
                 return
 
-            # Calculate optimal delivery volumes for active animals
-            for animal_id, data in active_animals.items():
-                remaining_time = (self.animal_windows[animal_id]['end'] - current_time).total_seconds()
-                if remaining_time <= 0:
-                    logging.debug(f"Skipping animal {animal_id} - no remaining time")
-                    continue
-
-                # Calculate volume for this cycle
-                remaining_volume = data['remaining']
-                cycle_volume = min(
-                    remaining_volume / (remaining_time / self.settings.get('cycle_interval', 3600)),
-                    self.settings.get('max_cycle_volume', 0.2)  # Max 0.2ml per cycle
-                )
+            # Schedule deliveries with proper queuing
+            success = self.schedule_deliveries(active_animals)
+            if not success:
+                self.progress.emit("Failed to schedule deliveries")
+                return
                 
-                logging.debug(f"Calculated cycle volume for animal {animal_id}: {cycle_volume}mL")
-
-                if cycle_volume > 0:
-                    relay_unit_id = data['relay_unit']
-                    if not relay_unit_id:
-                        logging.warning(f"No relay unit assigned for animal {animal_id}")
-                        continue
-
-                    # Schedule delivery with staggered timing
-                    delivery_data = {
-                        'schedule_id': self.settings.get('schedule_id'),
-                        'animal_id': animal_id,
-                        'relay_unit_id': relay_unit_id,
-                        'water_volume': cycle_volume,
-                        'instant_time': current_time,
-                        'triggers': self.volume_calculator.calculate_triggers(cycle_volume)
-                    }
-
-                    # Add staggered delay based on animal index
-                    stagger_delay = list(active_animals.keys()).index(animal_id) * 1000  # 1 second between animals
-                    
-                    print(f"Scheduling delivery for animal {animal_id}: {cycle_volume}mL in {stagger_delay}ms")
-                    
-                    timer = QTimer()
-                    timer.setSingleShot(True)
-                    timer.timeout.connect(
-                        lambda d=delivery_data: self.execute_delivery(d)
-                    )
-                    timer.start(stagger_delay)
-                    self.timers.append(timer)
-
             # Schedule next cycle
-            if self._is_running:
-                next_cycle = self.settings.get('cycle_interval', 3600) * 1000
-                print(f"Scheduling next cycle in {next_cycle/1000} seconds")
-                self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
+            next_cycle = int(cycle_interval * 1000)
+            self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
 
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
@@ -644,3 +633,101 @@ class RelayWorker(QObject):
             if delivered < window['target_volume']:
                 return False
         return True
+
+    def calculate_schedule_feasibility(self):
+        """
+        Calculate if all deliveries can be completed within their time windows.
+        Returns (is_feasible, details)
+        """
+        try:
+            total_triggers = 0
+            time_per_trigger = 0.5  # Base time for each trigger in seconds
+            setup_time = 0.1  # Setup time for each delivery in seconds
+            
+            # Calculate total triggers needed for all animals
+            for animal_id, window in self.animal_windows.items():
+                volume = window['target_volume']
+                triggers = self.volume_calculator.calculate_triggers(volume)
+                total_triggers += triggers
+            
+            # Calculate total time needed
+            total_time_needed = (
+                (total_triggers * time_per_trigger) +  # Time for all triggers
+                (len(self.animal_windows) * setup_time)  # Setup time for each animal
+            )
+            
+            # Get shortest window duration
+            window_durations = []
+            for window in self.animal_windows.values():
+                duration = (window['end'] - window['start']).total_seconds()
+                window_durations.append(duration)
+            
+            shortest_window = min(window_durations) if window_durations else 0
+            
+            is_feasible = total_time_needed <= shortest_window
+            details = {
+                'total_triggers': total_triggers,
+                'time_needed': total_time_needed,
+                'shortest_window': shortest_window,
+                'is_feasible': is_feasible
+            }
+            
+            return is_feasible, details
+            
+        except Exception as e:
+            logging.error(f"Error calculating feasibility: {str(e)}")
+            return False, {'error': str(e)}
+
+    def schedule_deliveries(self, active_animals):
+        """Schedule deliveries with proper queuing for overlapping windows"""
+        try:
+            # Sort animals by remaining volume (descending) to prioritize larger volumes
+            sorted_animals = sorted(
+                active_animals.items(),
+                key=lambda x: x[1]['remaining'],
+                reverse=True
+            )
+            
+            base_time = datetime.now()
+            cumulative_delay = 0
+            
+            for animal_id, data in sorted_animals:
+                volume_per_cycle = self.animal_windows[animal_id]['volume_per_cycle']
+                cycle_volume = min(data['remaining'], volume_per_cycle)
+                
+                if cycle_volume <= 0:
+                    continue
+                    
+                # Calculate triggers needed
+                triggers = self.volume_calculator.calculate_triggers(cycle_volume)
+                trigger_time = triggers * 0.5  # 0.5 seconds per trigger
+                
+                delivery_data = {
+                    'schedule_id': self.settings.get('schedule_id'),
+                    'animal_id': animal_id,
+                    'relay_unit_id': data['relay_unit'],
+                    'water_volume': cycle_volume,
+                    'instant_time': base_time + timedelta(seconds=cumulative_delay),
+                    'triggers': triggers
+                }
+                
+                # Schedule with cumulative delay
+                timer = QTimer()
+                timer.setSingleShot(True)
+                timer.timeout.connect(
+                    lambda d=delivery_data: self._handle_delivery(d)
+                )
+                timer.start(int(cumulative_delay * 1000))
+                self.timers.append(timer)
+                
+                print(f"Scheduled delivery for animal {animal_id}: "
+                      f"{cycle_volume}mL in {cumulative_delay}s")
+                
+                # Update cumulative delay for next delivery
+                cumulative_delay += trigger_time + 0.1  # Add 0.1s setup time between deliveries
+                
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error scheduling deliveries: {str(e)}")
+            return False
