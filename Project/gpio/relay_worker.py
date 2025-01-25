@@ -45,6 +45,9 @@ class RelayWorker(QObject):
         self._is_running = True
         self.timers = []
         
+        # Store mode from settings
+        self.mode = settings.get('mode', 'staggered')
+        
         # Initialize tracking
         self.delivered_volumes = {}
         self.failed_deliveries = {}

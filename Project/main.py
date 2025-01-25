@@ -81,11 +81,11 @@ def setup():
         login_system=login_system
     )
 
-def run_program(schedule, mode, window_start, window_end):
+def run_program(schedule, settings):
     global thread, worker, notification_handler, controller
 
     try:
-        print(f"Running program with schedule: {schedule.name}, mode: {mode}, window_start: {window_start}, window_end: {window_end}")
+        print(f"Running program with schedule: {schedule.name}, mode: {settings['mode']}")
 
         # Reinitialize the thread and worker
         if thread is not None:
@@ -102,14 +102,15 @@ def run_program(schedule, mode, window_start, window_end):
 
         # Base settings
         worker_settings = {
-            'mode': mode,
-            'window_start': window_start,
-            'window_end': window_end,
+            'mode': settings['mode'],
+            'window_start': settings['window_start'],
+            'window_end': settings['window_end'],
             'pump_volume_ul': volume_calculator.pump_volume_ul,
-            'calibration_factor': volume_calculator.calibration_factor
+            'calibration_factor': volume_calculator.calibration_factor,
+            'schedule_id': settings['schedule_id']
         }
         
-        if mode == "Instant":
+        if settings['mode'] == "Instant":
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
                 worker_settings['delivery_instants'].append({
@@ -119,14 +120,9 @@ def run_program(schedule, mode, window_start, window_end):
                     'water_volume': delivery['volume']
                 })
         else:  # Staggered mode
-            # Calculate target volumes and required triggers
-            target_volumes = {}
-            for animal_id in schedule.animals:
-                volume_ml = schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume)
-                target_volumes[str(animal_id)] = volume_ml
-            
             worker_settings.update({
-                'target_volumes': target_volumes,
+                'target_volumes': settings['target_volumes'],
+                'relay_unit_assignments': settings['relay_unit_assignments'],
                 'cycle_interval': 3600,  # Default 1 hour
                 'stagger_interval': 0.5,  # Default 500ms
                 'delivered_volumes': {}
