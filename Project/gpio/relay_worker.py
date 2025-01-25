@@ -270,7 +270,9 @@ class RelayWorker(QObject):
         try:
             animal_id = delivery_data['animal_id']
             current_delivered = self.delivered_volumes.get(animal_id, 0)
-            target_volume = self.settings['target_volumes'][animal_id]
+            
+            # Get target volume from animal windows instead of settings
+            target_volume = self.animal_windows[animal_id]['target_volume']
             
             if current_delivered >= target_volume:
                 return True
