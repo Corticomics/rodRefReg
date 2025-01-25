@@ -123,28 +123,8 @@ class RelayUnitWidget(QWidget):
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.layout.addWidget(self.recommended_water_label)
 
-        # Container for instant delivery slots
-        self.instant_delivery_container = QWidget()
-        self.instant_delivery_layout = QVBoxLayout()
-        self.instant_delivery_container.setLayout(self.instant_delivery_layout)
-        
-        # Add delivery slot button
-        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
-        self.add_slot_button.clicked.connect(self.add_delivery_slot)
-        
-        # Add widgets to layout
-        self.layout.addWidget(self.instant_delivery_container)
-        self.layout.addWidget(self.add_slot_button)
-        
-        # Add spacing between relay units
-        self.layout.addSpacing(20)
-        
-        # Initialize UI state
-        self.delivery_slots = []
-        
-        # Hide instant delivery components by default
-        self.instant_delivery_container.hide()
-        self.add_slot_button.hide()
+        # Instant Delivery Components
+        self.setup_instant_delivery_components()
 
         # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
@@ -152,6 +132,22 @@ class RelayUnitWidget(QWidget):
         # Initialize UI state
         self.delivery_slots = []
         self.set_mode("Staggered")  # Default mode
+
+    def setup_instant_delivery_components(self):
+        """Setup components for instant delivery mode"""
+        # Container for instant delivery slots
+        self.instant_delivery_container = QWidget()
+        self.instant_delivery_layout = QVBoxLayout(self.instant_delivery_container)
+        self.layout.addWidget(self.instant_delivery_container)
+        
+        # Add delivery slot button
+        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
+        self.add_slot_button.clicked.connect(self.add_delivery_slot)
+        self.layout.addWidget(self.add_slot_button)
+        
+        # Hide instant delivery components by default
+        self.instant_delivery_container.hide()
+        self.add_slot_button.hide()
 
     def dragEnterEvent(self, event):
         """
@@ -379,21 +375,16 @@ class RelayUnitWidget(QWidget):
                 "Please enter a valid number")
 
     def add_delivery_slot(self):
-        """Add a new delivery time slot based on current mode"""
-        if self.current_mode == "Instant":
-            slot = WaterDeliverySlot()
-        else:  # Staggered mode
-            slot = StaggeredDeliverySlot()
-        
-        slot.slot_deleted.connect(self.on_slot_deleted)
+        """Add a new water delivery time slot"""
+        slot = WaterDeliverySlot()
+        slot.slot_deleted.connect(self.remove_delivery_slot)
         self.delivery_slots.append(slot)
         self.instant_delivery_layout.addWidget(slot)
-        
-        # Update button text based on mode
-        self.add_slot_button.setText(
-            "+ Add Delivery Time" if self.current_mode == "Instant" 
-            else "+ Add Delivery Window"
-        )
+
+    def remove_delivery_slot(self, slot):
+        """Remove a water delivery time slot"""
+        if slot in self.delivery_slots:
+            self.delivery_slots.remove(slot)
 
     def set_mode(self, mode):
         """Set the delivery mode and update UI accordingly"""
@@ -410,13 +401,6 @@ class RelayUnitWidget(QWidget):
             for slot in self.delivery_slots:
                 slot.deleteLater()
             self.delivery_slots.clear()
-
-    def on_slot_deleted(self, slot):
-        """Handle the deletion of a WaterDeliverySlot."""
-        if slot in self.delivery_slots:
-            self.delivery_slots.remove(slot)
-        else:
-            print("Attempted to remove a slot that was not in the delivery_slots list.")
 
     def update_animal_info(self, animal):
         """Update the animal information display"""
