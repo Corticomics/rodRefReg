@@ -25,3 +25,18 @@ RelayWorker stopped
 [DEBUG] Starting cleanup process
 [DEBUG] All relays deactivated
 [ERROR] An unexpected error occurred during cleanup: wrapped C/C++ object of type QTimer has been deleted
+
+
+
+DEBUG INFO:
+Schedule: {'schedule_id': 6, 'name': 'is1', 'water_volume': 3.0, 'start_time': '2025-01-25T13:29:25.554000', 'end_time': '2025-01-25T13:29:26.191000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'instant', 'cycles_per_day': 1, 'animals': [], 'desired_water_outputs': {}, 'instant_deliveries': [{'animal_id': 1, 'datetime': datetime.datetime(2025, 1, 25, 13, 29, 25, 554000), 'volume': 2.0, 'relay_unit_id': 1}, {'animal_id': 2, 'datetime': datetime.datetime(2025, 1, 25, 13, 29, 26, 191000), 'volume': 1.0, 'relay_unit_id': 2}], 'relay_unit_assignments': {'1': 1, '2': 2}}
+Mode: Instant
+Running program with schedule: is1, mode: Instant
+Program Started
+Starting Instant cycle
+Outside delivery window
+Error checking completion: 'target_volumes'
+RelayWorker stopped
+[DEBUG] Starting cleanup process
+[DEBUG] All relays deactivated
+[ERROR] An unexpected error occurred during cleanup: wrapped C/C++ object of type QTimer has been deleted
