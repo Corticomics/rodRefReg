@@ -261,7 +261,9 @@ class RelayUnitWidget(QWidget):
         # Build desired water output dictionary
         desired_water_output = {}
         if self.assigned_animal:
-            desired_water_output[str(self.assigned_animal.animal_id)] = 0.0
+            # Calculate recommended water volume for the animal
+            recommended_volume = self.calculate_recommended_water(self.assigned_animal)
+            desired_water_output[str(self.assigned_animal.animal_id)] = recommended_volume
 
         # Prepare base data structure
         data = {
@@ -289,9 +291,11 @@ class RelayUnitWidget(QWidget):
             schedule = []
             active_slots = [slot for slot in self.delivery_slots 
                            if slot.isVisible() and not slot.is_deleted]
+            total_volume = 0
             for slot in active_slots:
                 try:
                     volume = float(slot.volume_input.text())
+                    total_volume += volume
                     schedule.append({
                         'start_time': slot.start_datetime.dateTime().toPyDateTime(),
                         'end_time': slot.end_datetime.dateTime().toPyDateTime(),
@@ -301,14 +305,16 @@ class RelayUnitWidget(QWidget):
                     continue
             data['delivery_schedule'] = schedule
             
-            # Add staggered-specific data
+            # Update staggered-specific data with total volume
             if self.assigned_animal:
                 data['staggered_settings'] = {
                     str(self.assigned_animal.animal_id): {
-                        'total_volume': 0.0,
+                        'total_volume': total_volume,
                         'windows': schedule
                     }
                 }
+                # Update the desired water output with the total volume
+                desired_water_output[str(self.assigned_animal.animal_id)] = total_volume
         
         return data
 

@@ -147,18 +147,42 @@ class RunStopSection(QWidget):
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
+            # Load complete schedule data from database
+            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+            
+            # Update schedule with complete data
+            schedule.animals = schedule_details['animal_ids']
+            schedule.relay_unit_assignments = schedule_details.get('relay_assignments', {})
+            schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+            
+            if not schedule.animals:
+                QMessageBox.warning(self, "Invalid Schedule", "No animals assigned to this schedule")
+                return
+            
             print("\nDEBUG INFO:")
             print(f"Schedule: {schedule.__dict__}")
             print(f"Mode: {mode}")
             
-            # Get schedule window from delivery slots
+            # Mode-specific handling
             if mode == "Staggered":
                 if not schedule.start_time or not schedule.end_time:
                     QMessageBox.warning(self, "Invalid Schedule", 
                         "Schedule must have start and end times for staggered mode")
                     return
-                    
-                # Convert ISO format strings to datetime objects
+                
+                if not schedule.desired_water_outputs:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "No water outputs configured for staggered mode")
+                    return
+                
+                # Get staggered windows
+                windows = self.database_handler.get_schedule_staggered_windows(schedule.schedule_id)
+                if not windows:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "No delivery windows configured for staggered mode")
+                    return
+                
+                schedule.window_data = windows
                 start_dt = datetime.fromisoformat(schedule.start_time)
                 end_dt = datetime.fromisoformat(schedule.end_time)
                 
@@ -166,25 +190,45 @@ class RunStopSection(QWidget):
                 window_end = end_dt.timestamp()
                 
             else:  # Instant mode
-                if not schedule.instant_deliveries:
+                # Load instant deliveries
+                deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
+                if not deliveries:
                     QMessageBox.warning(self, "Invalid Schedule", 
                         "This schedule has no instant delivery times configured")
                     return
                 
-                # Use the earliest and latest delivery times
+                # Process deliveries
+                schedule.instant_deliveries = []
+                for delivery in deliveries:
+                    animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
+                    delivery_time = datetime.fromisoformat(datetime_str)
+                    schedule.add_instant_delivery(animal_id, delivery_time, volume, relay_unit_id)
+                
                 delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
                 window_start = min(delivery_times).timestamp()
                 window_end = max(delivery_times).timestamp()
             
-            # Call run_program_callback with the correct arguments
+            # Verify relay assignments
+            if not schedule.relay_unit_assignments:
+                QMessageBox.warning(self, "Invalid Schedule", 
+                    "No relay unit assignments configured")
+                return
+            
+            # Call run_program_callback with the complete schedule
             print(f"Starting schedule execution with mode: {mode}, window_start: {window_start}, window_end: {window_end}")
+            print(f"Animals: {schedule.animals}")
+            print(f"Relay assignments: {schedule.relay_unit_assignments}")
+            print(f"Water outputs: {schedule.desired_water_outputs}")
+            
             self.run_program_callback(schedule, mode, window_start, window_end)
             self.job_in_progress = True
             self.update_button_states()
             
         except Exception as e:
-            print(f"Error details: {str(e)}")  # Add detailed error logging
-            QMessageBox.critical(self, "Error", f"Failed to run program in RunStopSection: {e}")
+            print(f"Error details: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
     def stop_program(self):
         """Pause the current schedule and display dispensed volumes"""
