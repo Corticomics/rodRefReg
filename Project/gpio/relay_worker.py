@@ -45,14 +45,21 @@ class RelayWorker(QObject):
         self._is_running = True
         self.timers = []
         
-        # Store mode from settings
+        # Add main_timer initialization
+        self.main_timer = QTimer(self)
+        
+        # Store mode and delivery instants from settings
         self.mode = settings.get('mode', 'staggered')
+        self.delivery_instants = settings.get('delivery_instants', [])
         
         # Initialize tracking
         self.delivered_volumes = {}
         self.failed_deliveries = {}
         self.window_start = datetime.fromtimestamp(settings['window_start'])
         self.window_end = datetime.fromtimestamp(settings['window_end'])
+        
+        # Initialize volume calculator
+        self.volume_calculator = VolumeCalculator(settings)
         
         # Progress monitoring
         self.monitor_timer = QTimer()
@@ -140,6 +147,12 @@ class RelayWorker(QObject):
                 self.check_window_completion()
                 return
 
+            # Initialize target volumes if not present
+            if 'target_volumes' not in self.settings:
+                self.settings['target_volumes'] = {}
+                for animal_id in self.settings.get('relay_unit_assignments', {}):
+                    self.settings['target_volumes'][animal_id] = self.settings.get('water_volume', 0)
+
             # Get remaining volumes
             remaining_volumes = {}
             for animal_id, target in self.settings['target_volumes'].items():
@@ -152,64 +165,37 @@ class RelayWorker(QObject):
                 self.check_window_completion()
                 return
 
-            # Calculate timing plan for remaining volumes
-            animals_data = [
-                {'animal_id': aid, 'volume_ml': vol}
-                for aid, vol in remaining_volumes.items()
-            ]
-            
-            timing_plan = self.timing_calculator.calculate_staggered_timing(
-                current_time, self.window_end, animals_data
-            )
-
-            # Schedule deliveries
-            for animal_id, schedule in timing_plan['schedule'].items():
+            # Schedule deliveries for each animal
+            for animal_id, remaining_volume in remaining_volumes.items():
                 relay_unit_id = self.settings['relay_unit_assignments'].get(str(animal_id))
                 if not relay_unit_id:
                     self.progress.emit(f"No relay unit for animal {animal_id}")
                     continue
 
-                for instant in schedule['delivery_instants']:
-                    if instant['time'] <= current_time:
-                        continue
-
-                    # Calculate delay and schedule delivery
-                    delay_ms = (instant['time'] - current_time).total_seconds() * 1000
-                    
-                    delivery_data = {
-                        'schedule_id': self.settings['schedule_id'],
-                        'animal_id': animal_id,
-                        'relay_unit_id': relay_unit_id,
-                        'water_volume': instant['volume'],
-                        'instant_time': instant['time'],
-                        'triggers': instant['triggers']
-                    }
-
-                    timer = QTimer()
-                    timer.setSingleShot(True)
-                    timer.timeout.connect(
-                        lambda d=delivery_data: asyncio.create_task(
-                            self.execute_delivery(d)
-                        )
-                    )
-                    timer.start(int(delay_ms))
-                    self.timers.append(timer)
-
-                    self.progress.emit(
-                        f"Scheduled {instant['volume']:.3f}mL for animal {animal_id} "
-                        f"at {instant['time'].strftime('%H:%M:%S')}"
-                    )
-
-            # Schedule next cycle check
-            remaining_window = (self.window_end - current_time).total_seconds()
-            if remaining_window > 0:
-                next_check = min(
-                    timing_plan['cycle_interval'],
-                    remaining_window
-                ) * 1000
+                # Calculate triggers needed
+                required_triggers = self.volume_calculator.calculate_triggers(remaining_volume)
                 
+                delivery_data = {
+                    'schedule_id': self.settings.get('schedule_id'),
+                    'animal_id': animal_id,
+                    'relay_unit_id': relay_unit_id,
+                    'water_volume': remaining_volume,
+                    'instant_time': current_time,
+                    'triggers': required_triggers
+                }
+
+                timer = QTimer()
+                timer.setSingleShot(True)
+                timer.timeout.connect(
+                    lambda d=delivery_data: self.execute_delivery(d)
+                )
+                timer.start(1000)  # Start after 1 second
+                self.timers.append(timer)
+
+            # Schedule next cycle
+            if self._is_running:
                 self.main_timer.singleShot(
-                    int(next_check),
+                    self.settings.get('cycle_interval', 3600) * 1000,
                     self.run_staggered_cycle
                 )
 
