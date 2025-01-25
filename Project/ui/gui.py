@@ -23,7 +23,8 @@ class RodentRefreshmentGUI(QWidget):
                  settings, database_handler, login_system, style='bitlearns'):
         super().__init__()
 
-        self.run_program = run_program
+        # Store callbacks with correct signatures
+        self.run_program = lambda schedule, settings: run_program(schedule, settings)
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
         self.settings = settings
@@ -250,7 +251,7 @@ class RodentRefreshmentGUI(QWidget):
         
         # Create sections
         self.run_stop_section = RunStopSection(
-            self.run_program,
+            self.run_stop_section,
             self.stop_program,
             self.change_relay_hats,
             self.settings,

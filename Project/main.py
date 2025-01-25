@@ -85,7 +85,7 @@ def run_program(schedule, mode, window_start, window_end):
     global thread, worker, notification_handler, controller
 
     try:
-        print(f"Running program with schedule: {schedule.name}, mode: {mode}, window_start: {window_start}, window_end: {window_end}")
+        print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
         # Reinitialize the thread and worker
         if thread is not None:
@@ -98,7 +98,7 @@ def run_program(schedule, mode, window_start, window_end):
             'mode': mode,
             'window_start': window_start,
             'window_end': window_end,
-            'min_trigger_interval_ms': 500  # Add default stagger interval
+            'min_trigger_interval_ms': 500
         }
         
         if mode.lower() == "instant":
@@ -113,8 +113,8 @@ def run_program(schedule, mode, window_start, window_end):
                 })
         else:  # Staggered mode
             worker_settings.update({
-                'cycle_interval': 3600,  # 1 hour in seconds
-                'stagger_interval': 0.5,  # 500ms between triggers
+                'cycle_interval': 3600,
+                'stagger_interval': 0.5,
                 'water_volume': schedule.water_volume,
                 'relay_unit_assignments': schedule.relay_unit_assignments
             })
