@@ -731,3 +731,79 @@ class RelayWorker(QObject):
         except Exception as e:
             logging.error(f"Error scheduling deliveries: {str(e)}")
             return False
+
+    def _handle_delivery(self, delivery_data):
+        """Synchronously handle a delivery"""
+        try:
+            animal_id = delivery_data['animal_id']
+            current_delivered = self.delivered_volumes.get(animal_id, 0)
+            
+            # Get target volume from animal windows
+            target_volume = self.animal_windows[animal_id]['target_volume']
+            
+            if current_delivered >= target_volume:
+                return True
+
+            # Check for failed deliveries and adjust volume
+            failed_count = self.failed_deliveries.get(animal_id, 0)
+            if failed_count > 0:
+                # Increase volume by up to 20% based on failures
+                volume_increase = min(failed_count * 0.05, 0.2)  # 5% per failure, max 20%
+                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
+                delivery_data['water_volume'] = min(
+                    adjusted_volume,
+                    target_volume - current_delivered
+                )
+
+            # Trigger the relay directly
+            success = self.trigger_relay(
+                delivery_data['relay_unit_id'],
+                delivery_data['water_volume']
+            )
+
+            if success:
+                with QMutexLocker(self.mutex):
+                    # Update delivered volume
+                    actual_volume = delivery_data['water_volume']
+                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
+                    self.failed_deliveries[animal_id] = 0  # Reset failures
+
+                    # Log success
+                    if self.database_handler:
+                        self.database_handler.log_delivery({
+                            'schedule_id': delivery_data['schedule_id'],
+                            'animal_id': animal_id,
+                            'relay_unit_id': delivery_data['relay_unit_id'],
+                            'volume_delivered': actual_volume,
+                            'timestamp': delivery_data['instant_time'].isoformat(),
+                            'status': 'completed'
+                        })
+
+                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
+                self.progress.emit(
+                    f"Delivered {actual_volume:.3f}mL to animal {animal_id} "
+                    f"(Total: {self.delivered_volumes[animal_id]:.3f}mL)"
+                )
+
+            else:
+                # Handle failure
+                with QMutexLocker(self.mutex):
+                    self.failed_deliveries[animal_id] = failed_count + 1
+                    
+                    if self.database_handler:
+                        self.database_handler.log_delivery({
+                            'schedule_id': delivery_data['schedule_id'],
+                            'animal_id': animal_id,
+                            'relay_unit_id': delivery_data['relay_unit_id'],
+                            'volume_delivered': 0,
+                            'timestamp': delivery_data['instant_time'].isoformat(),
+                            'status': 'failed'
+                        })
+
+                self.schedule_retry(delivery_data)
+
+            return success
+
+        except Exception as e:
+            self.progress.emit(f"Delivery error: {str(e)}")
+            return False
