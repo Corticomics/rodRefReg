@@ -148,41 +148,21 @@ class RunStopSection(QWidget):
             print("\nDEBUG INFO:")
             print(f"Schedule: {schedule.__dict__}")
             print(f"Mode: {mode}")
-            print(f"Relay unit assignments: {schedule.relay_unit_assignments}")
             
             # Get schedule window from delivery slots
             if mode == "Staggered":
-                # For staggered mode, use the earliest start and latest end time
-                # from all delivery windows
-                start_times = []
-                end_times = []
-                
-                print("\nChecking delivery windows:")
-                for unit_id in schedule.relay_unit_assignments.values():
-                    print(f"\nChecking unit_id: {unit_id}")
-                    unit_data = schedule.get_unit_data(unit_id)
-                    print(f"Unit data: {unit_data}")
-                    
-                    if not unit_data or 'delivery_schedule' not in unit_data:
-                        print(f"No delivery schedule for unit {unit_id}")
-                        continue
-                        
-                    for window in unit_data['delivery_schedule']:
-                        print(f"Window: {window}")
-                        start_times.append(window['start_time'])
-                        end_times.append(window['end_time'])
-                
-                print(f"\nCollected times:")
-                print(f"Start times: {start_times}")
-                print(f"End times: {end_times}")
-                
-                if not start_times or not end_times:
+                if not schedule.start_time or not schedule.end_time:
                     QMessageBox.warning(self, "Invalid Schedule", 
-                        "No delivery windows configured for staggered mode")
+                        "Schedule must have start and end times for staggered mode")
                     return
                     
-                window_start = min(start_times).timestamp()
-                window_end = max(end_times).timestamp()
+                from datetime import datetime
+                # Convert ISO format strings to datetime objects
+                start_dt = datetime.fromisoformat(schedule.start_time)
+                end_dt = datetime.fromisoformat(schedule.end_time)
+                
+                window_start = start_dt.timestamp()
+                window_end = end_dt.timestamp()
                 
             else:  # Instant mode
                 if not schedule.instant_deliveries:
@@ -201,6 +181,7 @@ class RunStopSection(QWidget):
             self.update_button_states()
             
         except Exception as e:
+            print(f"Error details: {str(e)}")  # Add detailed error logging
             QMessageBox.critical(self, "Error", f"Failed to run program: {e}")
 
     def stop_program(self):
