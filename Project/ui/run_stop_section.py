@@ -166,8 +166,8 @@ class RunStopSection(QWidget):
             # Create settings dictionary with all necessary data
             settings = {
                 'mode': mode,
-                'window_start': schedule.start_time.timestamp() if hasattr(schedule, 'start_time') else None,
-                'window_end': schedule.end_time.timestamp() if hasattr(schedule, 'end_time') else None,
+                'window_start': datetime.fromisoformat(schedule.start_time).timestamp() if hasattr(schedule, 'start_time') else None,
+                'window_end': datetime.fromisoformat(schedule.end_time).timestamp() if hasattr(schedule, 'end_time') else None,
                 'min_trigger_interval_ms': 500,
                 'cycle_interval': 3600,
                 'stagger_interval': 0.5,
