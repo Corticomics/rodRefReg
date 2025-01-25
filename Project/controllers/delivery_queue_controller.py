@@ -202,3 +202,45 @@ class DeliveryQueueController(QObject):
             self.notification_handler,
             self.delivery_queue
         )
+
+    async def load_staggered_windows(self):
+        """Load active staggered delivery windows into queue"""
+        windows = await self.database_handler.get_active_staggered_windows()
+        
+        for window in windows:
+            remaining_volume = window['target_volume'] - window['delivered_volume']
+            if remaining_volume <= 0:
+                continue
+            
+            entry = {
+                'window_id': window['window_id'],
+                'schedule_id': window['schedule_id'],
+                'animal_id': window['animal_id'],
+                'relay_unit_id': window['relay_unit_id'],
+                'start_time': datetime.fromisoformat(window['start_time']),
+                'end_time': datetime.fromisoformat(window['end_time']),
+                'target_volume': window['target_volume'],
+                'remaining_volume': remaining_volume,
+                'mode': 'staggered'
+            }
+            
+            # Calculate delivery instants within window
+            timing = self.timing_calculator.calculate_staggered_timing(
+                entry['start_time'],
+                entry['end_time'],
+                [{'animal_id': entry['animal_id'], 'volume_ml': remaining_volume}]
+            )
+            
+            # Add each delivery instant to queue
+            for instant in timing['schedule'][entry['animal_id']]['instants']:
+                instant_entry = {
+                    **entry,
+                    'instant_id': f"staggered_{window['window_id']}_{instant['time'].timestamp()}",
+                    'delivery_time': instant['time'],
+                    'water_volume': instant['volume'],
+                    'num_triggers': instant['triggers']
+                }
+                heapq.heappush(
+                    self.delivery_queue,
+                    (self.sort_queue_entry(instant_entry), instant_entry)
+                )

@@ -146,6 +146,22 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Create schedule_staggered_windows table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_staggered_windows (
+                        window_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT NOT NULL,
+                        target_volume REAL NOT NULL,
+                        delivered_volume REAL DEFAULT 0,
+                        status TEXT DEFAULT 'pending',
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    )
+                ''')
+
                 conn.commit()
                 print("Database schema created/updated successfully.")
                 
@@ -867,6 +883,95 @@ class DatabaseHandler:
                     WHERE sid.schedule_id = ?
                     ORDER BY sid.delivery_datetime
                 ''', (schedule_id,))
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return []
+
+    def add_staggered_schedule(self, schedule):
+        """Add a new staggered delivery schedule"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                # Insert main schedule
+                cursor.execute('''
+                    INSERT INTO schedules (
+                        name, water_volume, start_time, end_time, 
+                        created_by, is_super_user, delivery_mode
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, 'staggered')
+                ''', (
+                    schedule.name, schedule.water_volume,
+                    schedule.start_time, schedule.end_time,
+                    schedule.created_by, schedule.is_super_user
+                ))
+                schedule_id = cursor.lastrowid
+                
+                # Insert animal assignments and windows
+                for animal_id in schedule.animals:
+                    # Add animal assignment
+                    relay_unit_id = schedule.relay_unit_assignments.get(str(animal_id))
+                    cursor.execute('''
+                        INSERT INTO schedule_animals 
+                        (schedule_id, animal_id, relay_unit_id)
+                        VALUES (?, ?, ?)
+                    ''', (schedule_id, animal_id, relay_unit_id))
+                    
+                    # Add desired output
+                    desired_output = schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume)
+                    cursor.execute('''
+                        INSERT INTO schedule_desired_outputs 
+                        (schedule_id, animal_id, desired_output)
+                        VALUES (?, ?, ?)
+                    ''', (schedule_id, animal_id, desired_output))
+                    
+                    # Calculate and add delivery windows
+                    timing_data = self.timing_calculator.calculate_staggered_timing(
+                        datetime.fromisoformat(schedule.start_time),
+                        datetime.fromisoformat(schedule.end_time),
+                        [{'animal_id': animal_id, 'volume_ml': desired_output}]
+                    )
+                    
+                    for window in timing_data['schedule'][animal_id]['windows']:
+                        cursor.execute('''
+                            INSERT INTO schedule_staggered_windows
+                            (schedule_id, animal_id, start_time, end_time, target_volume)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (
+                            schedule_id, animal_id,
+                            window['start_time'].isoformat(),
+                            window['end_time'].isoformat(),
+                            window['volume']
+                        ))
+                
+                conn.commit()
+                return schedule_id
+                
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return None
+
+    def get_active_staggered_windows(self):
+        """Get all active staggered delivery windows"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT 
+                        w.window_id, w.schedule_id, w.animal_id,
+                        w.start_time, w.end_time, w.target_volume,
+                        w.delivered_volume, sa.relay_unit_id
+                    FROM schedule_staggered_windows w
+                    JOIN schedule_animals sa 
+                        ON w.schedule_id = sa.schedule_id 
+                        AND w.animal_id = sa.animal_id
+                    WHERE w.status = 'pending'
+                        AND datetime(w.start_time) <= datetime('now')
+                        AND datetime(w.end_time) >= datetime('now')
+                    ORDER BY w.start_time ASC
+                ''')
                 return cursor.fetchall()
         except sqlite3.Error as e:
             print(f"Database error: {e}")
