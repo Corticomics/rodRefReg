@@ -399,28 +399,45 @@ class RelayWorker(QObject):
         """Check if window is complete or needs to continue"""
         try:
             current_time = datetime.now()
-            all_volumes_delivered = all(
-                self.delivered_volumes.get(aid, 0) >= target
-                for aid, target in self.settings['target_volumes'].items()
-            )
+            
+            if self.settings['mode'].lower() == 'instant':
+                # For instant mode, check if all scheduled deliveries are past their time
+                all_deliveries_complete = all(
+                    datetime.fromisoformat(d['delivery_time'].replace('Z', '+00:00')) <= current_time
+                    for d in self.delivery_instants
+                )
+                
+                if all_deliveries_complete:
+                    self.progress.emit("All instant deliveries completed")
+                    self.stop()
+                else:
+                    # Continue monitoring
+                    self.main_timer.singleShot(10000, self.check_window_completion)
+                    
+            else:  # Staggered mode
+                all_volumes_delivered = all(
+                    self.delivered_volumes.get(aid, 0) >= target
+                    for aid, target in self.settings.get('target_volumes', {}).items()
+                )
 
-            if all_volumes_delivered or current_time >= self.window_end:
-                # Log final status
-                for animal_id, target in self.settings['target_volumes'].items():
-                    delivered = self.delivered_volumes.get(animal_id, 0)
-                    self.progress.emit(
-                        f"Final delivery for animal {animal_id}: "
-                        f"{delivered:.3f}mL of {target:.3f}mL "
-                        f"({(delivered/target)*100:.1f}%)"
-                    )
+                if all_volumes_delivered or current_time >= self.window_end:
+                    # Log final status
+                    for animal_id, target in self.settings['target_volumes'].items():
+                        delivered = self.delivered_volumes.get(animal_id, 0)
+                        self.progress.emit(
+                            f"Final delivery for animal {animal_id}: "
+                            f"{delivered:.3f}mL of {target:.3f}mL "
+                            f"({(delivered/target)*100:.1f}%)"
+                        )
 
-                self.stop()
-            else:
-                # Continue monitoring
-                self.main_timer.singleShot(10000, self.check_window_completion)
+                    self.stop()
+                else:
+                    # Continue monitoring
+                    self.main_timer.singleShot(10000, self.check_window_completion)
 
         except Exception as e:
             self.progress.emit(f"Error checking completion: {str(e)}")
+            print(f"Completion check error details: {e}")  # Additional debug info
             self.stop()
 
     def stop(self):
