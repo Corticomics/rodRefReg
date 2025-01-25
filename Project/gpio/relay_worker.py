@@ -203,6 +203,8 @@ class RelayWorker(QObject):
                         }
                         logging.info(f"Animal {animal_id} is active with {target-delivered}mL remaining")
 
+            print(f"Active animals: {active_animals.items()}")
+
             if not active_animals:
                 self.progress.emit("No active animals in current time window")
                 logging.warning("No active animals found")
