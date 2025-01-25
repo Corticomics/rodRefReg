@@ -42,14 +42,14 @@ class RelayWorker(QObject):
         self.pump_controller = settings.get('pump_controller')
         self.timing_calculator = settings.get('timing_calculator')
         self.mutex = QMutex()
-        self._is_running = True
+        self._is_running = False
         self.timers = []
         
         # Add main_timer initialization
         self.main_timer = QTimer(self)
         
         # Store mode and delivery instants from settings
-        self.mode = settings.get('mode', 'staggered')
+        self.mode = settings.get('mode', 'instant').lower()
         self.delivery_instants = settings.get('delivery_instants', [])
         
         # Initialize tracking
@@ -66,7 +66,7 @@ class RelayWorker(QObject):
         self.monitor_timer.timeout.connect(self.update_window_progress)
         self.monitor_timer.start(10000)  # Update every 10 seconds
         
-        self.progress.emit("RelayWorker initialized")
+        self.progress.emit(f"Initialized RelayWorker with settings: {settings}")
 
     @pyqtSlot()
     def run_cycle(self):
@@ -92,7 +92,7 @@ class RelayWorker(QObject):
         
         self.progress.emit(f"Processing {len(self.delivery_instants)} deliveries")
         
-        # Group deliveries by relay unit to ensure proper timing
+        # Group deliveries by relay unit
         deliveries_by_unit = {}
         for instant in self.delivery_instants:
             unit_id = instant['relay_unit_id']
@@ -100,15 +100,12 @@ class RelayWorker(QObject):
                 deliveries_by_unit[unit_id] = []
             deliveries_by_unit[unit_id].append(instant)
         
-        # Process each relay unit's deliveries with proper timing
+        # Process each unit's deliveries
         for unit_id, unit_deliveries in deliveries_by_unit.items():
             for idx, instant in enumerate(unit_deliveries):
                 try:
-                    delivery_time = datetime.fromisoformat(instant['delivery_time'])
-                    self.progress.emit(f"Processing delivery time: {delivery_time}")
-                    
+                    delivery_time = instant['datetime']
                     if delivery_time > current_time:
-                        # Calculate delay including stagger between triggers
                         base_delay = (delivery_time - current_time).total_seconds() * 1000
                         trigger_delay = idx * self.settings.get('min_trigger_interval_ms', 500)
                         total_delay = base_delay + trigger_delay
@@ -120,7 +117,7 @@ class RelayWorker(QObject):
                         timer.timeout.connect(
                             lambda i=instant: self.trigger_relay(
                                 i['relay_unit_id'],
-                                i['water_volume']
+                                i['volume']
                             )
                         )
                         timer.start(int(total_delay))
@@ -311,16 +308,41 @@ class RelayWorker(QObject):
         else:
             self.main_timer.singleShot(1000, self.check_completion)
 
-    async def trigger_relay(self, relay_unit_id, water_volume):
-        """Wrapper for backward compatibility"""
-        delivery_data = {
-            'relay_unit_id': relay_unit_id,
-            'water_volume': water_volume,
-            'animal_id': self.settings.get('current_animal_id'),
-            'schedule_id': self.settings.get('schedule_id'),
-            'instant_time': datetime.now()
-        }
-        return await self.execute_delivery(delivery_data)
+    def trigger_relay(self, relay_unit_id, water_volume):
+        with QMutexLocker(self.mutex):
+            if not self._is_running:
+                return
+            
+            try:
+                relay_unit_id = int(relay_unit_id)
+                required_triggers = self.volume_calculator.calculate_triggers(water_volume)
+                triggers_dict = {str(relay_unit_id): required_triggers}
+                
+                self.progress.emit(
+                    f"Triggering relay unit {relay_unit_id} for {water_volume}ml "
+                    f"({required_triggers} triggers)"
+                )
+                
+                relay_info = self.relay_handler.trigger_relays(
+                    [relay_unit_id],
+                    triggers_dict,
+                    self.settings.get('stagger', 0.5)
+                )
+                
+                if relay_info:
+                    success_msg = (
+                        f"Successfully triggered relay unit {relay_unit_id} "
+                        f"{required_triggers} times"
+                    )
+                    self.progress.emit(success_msg)
+                    if self.notification_handler:
+                        self.notification_handler.send_slack_notification(success_msg)
+                return relay_info
+                
+            except Exception as e:
+                error_msg = f"Error triggering relay {relay_unit_id}: {str(e)}"
+                self.progress.emit(error_msg)
+                return None
 
     def update_window_progress(self):
         """Update window progress information"""

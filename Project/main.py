@@ -81,11 +81,11 @@ def setup():
         login_system=login_system
     )
 
-def run_program(schedule, settings):
+def run_program(schedule, mode, window_start, window_end):
     global thread, worker, notification_handler, controller
 
     try:
-        print(f"Running program with schedule: {schedule.name}, mode: {settings['mode']}")
+        print(f"Running program with schedule: {schedule.name}, mode: {mode}, window_start: {window_start}, window_end: {window_end}")
 
         # Reinitialize the thread and worker
         if thread is not None:
@@ -93,24 +93,16 @@ def run_program(schedule, settings):
             thread.wait()
         thread = QThread()
 
-        # Initialize VolumeCalculator first
-        volume_calculator = VolumeCalculator({
-            'pump_volume_ul': settings.get('pump_volume_ul', 50),
-            'calibration_factor': settings.get('calibration_factor', 1.0),
-            'min_triggers': settings.get('min_triggers', 1)
-        })
-
-        # Base settings
+        # Create base worker settings
         worker_settings = {
-            'mode': settings['mode'],
-            'window_start': settings['window_start'],
-            'window_end': settings['window_end'],
-            'pump_volume_ul': volume_calculator.pump_volume_ul,
-            'calibration_factor': volume_calculator.calibration_factor,
-            'schedule_id': settings['schedule_id']
+            'mode': mode,
+            'window_start': window_start,
+            'window_end': window_end,
+            'min_trigger_interval_ms': 500  # Add default stagger interval
         }
         
-        if settings['mode'] == "Instant":
+        if mode.lower() == "instant":
+            # Create delivery instants with correct relay unit assignments
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
                 worker_settings['delivery_instants'].append({
@@ -121,31 +113,27 @@ def run_program(schedule, settings):
                 })
         else:  # Staggered mode
             worker_settings.update({
-                'target_volumes': settings['target_volumes'],
-                'relay_unit_assignments': settings['relay_unit_assignments'],
-                'cycle_interval': 3600,  # Default 1 hour
-                'stagger_interval': 0.5,  # Default 500ms
-                'delivered_volumes': {}
+                'cycle_interval': 3600,  # 1 hour in seconds
+                'stagger_interval': 0.5,  # 500ms between triggers
+                'water_volume': schedule.water_volume,
+                'relay_unit_assignments': schedule.relay_unit_assignments
             })
-
+        
         # Initialize worker with correct settings
         worker = RelayWorker(worker_settings, relay_handler, notification_handler)
-        
-        # Move worker to thread
         worker.moveToThread(thread)
-        
+
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
-        
+
         thread.started.connect(worker.run_cycle)
         thread.start()
-        
-        print("Program Started")
 
+        print("Program Started")
     except Exception as e:
         print(f"Failed to run program: {e}")
         if notification_handler:
