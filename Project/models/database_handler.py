@@ -8,7 +8,7 @@ import datetime
 from models.animal import Animal
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
-from utils.timing_calculator import TimingCalculator
+from datetime import datetime
 class DatabaseHandler:
     def __init__(self, db_path='rrr_database.db'):
         self.db_path = db_path
