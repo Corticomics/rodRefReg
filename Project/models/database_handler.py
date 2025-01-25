@@ -284,8 +284,8 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 # Get main schedule data
                 cursor.execute('''
-                    SELECT schedule_id, name, water_volume, start_time, end_time,
-                        created_by, is_super_user, delivery_mode, dispensing_status
+                    SELECT name, water_volume, start_time, end_time, 
+                           created_by, is_super_user, delivery_mode
                     FROM schedules 
                     WHERE schedule_id = ?
                 ''', (schedule_id,))
@@ -293,85 +293,57 @@ class DatabaseHandler:
                 schedule_row = cursor.fetchone()
                 if not schedule_row:
                     print(f"No schedule found with ID {schedule_id}")
-                    return None
+                    return []
 
-                schedule = Schedule(
-                    schedule_id=schedule_row[0],
-                    name=schedule_row[1],
-                    water_volume=schedule_row[2],
-                    start_time=schedule_row[3],
-                    end_time=schedule_row[4],
-                    created_by=schedule_row[5],
-                    is_super_user=schedule_row[6],
-                    delivery_mode=schedule_row[7]
-                )
-                
+                result = {
+                    'delivery_mode': schedule_row[6],  # delivery_mode
+                    'water_volume': schedule_row[1],   # water_volume
+                    'start_time': schedule_row[2],     # start_time
+                    'end_time': schedule_row[3],       # end_time
+                }
+
                 # Get assigned animals with their relay units
                 cursor.execute('''
-                    SELECT sa.animal_id, sa.relay_unit_id, sdo.desired_output
+                    SELECT sa.animal_id, sa.relay_unit_id 
                     FROM schedule_animals sa
-                    LEFT JOIN schedule_desired_outputs sdo 
-                        ON sa.schedule_id = sdo.schedule_id 
-                        AND sa.animal_id = sdo.animal_id
                     WHERE sa.schedule_id = ?
                 ''', (schedule_id,))
                 
-                for row in cursor.fetchall():
-                    animal_id, relay_unit_id, desired_output = row
-                    schedule.add_animal(
-                        animal_id=animal_id,
-                        relay_unit_id=relay_unit_id,
-                        desired_volume=desired_output
-                    )
-
-                if schedule.delivery_mode == 'instant':
+                animal_rows = cursor.fetchall()
+                result['animal_ids'] = [row[0] for row in animal_rows]
+                result['relay_unit_assignments'] = {str(row[0]): row[1] for row in animal_rows}
+                
+                if result['delivery_mode'] == 'instant':
                     cursor.execute('''
                         SELECT animal_id, delivery_datetime, water_volume, relay_unit_id
                         FROM schedule_instant_deliveries
                         WHERE schedule_id = ?
                         ORDER BY delivery_datetime
                     ''', (schedule_id,))
-                    
-                    for row in cursor.fetchall():
-                        schedule.add_instant_delivery(
-                            animal_id=row[0],
-                            delivery_datetime=datetime.fromisoformat(row[1]),
-                            volume=row[2],
-                            relay_unit_id=row[3]
-                        )
+                    result['delivery_schedule'] = [
+                        {
+                            'animal_id': row[0],
+                            'datetime': row[1],
+                            'volume': row[2],
+                            'relay_unit_id': row[3]
+                        } for row in cursor.fetchall()
+                    ]
                 else:
-                    # Get cycle tracking data for staggered mode
                     cursor.execute('''
-                        SELECT animal_id, cycle_index, start_time, end_time,
-                            target_volume, delivered_volume, status
-                        FROM cycle_tracking
+                        SELECT animal_id, desired_output 
+                        FROM schedule_desired_outputs 
                         WHERE schedule_id = ?
-                        ORDER BY cycle_index
                     ''', (schedule_id,))
-                    
-                    cycle_data = cursor.fetchall()
-                    if cycle_data:
-                        schedule.window_data = {
-                            str(row[0]): {
-                                'cycle_index': row[1],
-                                'start_time': row[2],
-                                'end_time': row[3],
-                                'target_volume': row[4],
-                                'delivered_volume': row[5],
-                                'status': row[6]
-                            } for row in cycle_data
-                        }
+                    result['desired_water_outputs'] = {
+                        str(row[0]): row[1] for row in cursor.fetchall()
+                    }
 
-                print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, "
-                    f"{schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, "
-                    f"{schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
-                
-                return schedule
+                return [result]
                 
         except sqlite3.Error as e:
             print(f"Database error: {e}")
             traceback.print_exc()
-            return None
+            return []
 
     def get_animal_by_id(self, animal_id):
         """Retrieve an animal by its ID."""
