@@ -155,11 +155,6 @@ class RunStopSection(QWidget):
             schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
             schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
             
-            # Debug print to verify assignments
-            print("\nSchedule details from DB:")
-            print(f"Animal IDs: {schedule_details['animal_ids']}")
-            print(f"Relay assignments: {schedule_details.get('relay_unit_assignments', {})}")
-            
             if not schedule.animals:
                 QMessageBox.warning(self, "Invalid Schedule", "No animals assigned to this schedule")
                 return
@@ -167,6 +162,21 @@ class RunStopSection(QWidget):
             print("\nDEBUG INFO:")
             print(f"Schedule: {schedule.__dict__}")
             print(f"Mode: {mode}")
+            
+            # Create settings dictionary with all necessary data
+            settings = {
+                'mode': mode,
+                'window_start': schedule.start_time.timestamp() if hasattr(schedule, 'start_time') else None,
+                'window_end': schedule.end_time.timestamp() if hasattr(schedule, 'end_time') else None,
+                'min_trigger_interval_ms': 500,
+                'cycle_interval': 3600,
+                'stagger_interval': 0.5,
+                'water_volume': schedule.water_volume,
+                'relay_unit_assignments': schedule.relay_unit_assignments,
+                'desired_water_outputs': schedule.desired_water_outputs,
+                'database_handler': self.database_handler,
+                'pump_controller': self.pump_controller if hasattr(self, 'pump_controller') else None
+            }
             
             # Mode-specific handling
             if mode == "Staggered":
@@ -188,11 +198,8 @@ class RunStopSection(QWidget):
                     return
                 
                 schedule.window_data = windows
-                start_dt = datetime.fromisoformat(schedule.start_time)
-                end_dt = datetime.fromisoformat(schedule.end_time)
-                
-                window_start = start_dt.timestamp()
-                window_end = end_dt.timestamp()
+                window_start = datetime.fromisoformat(schedule.start_time).timestamp()
+                window_end = datetime.fromisoformat(schedule.end_time).timestamp()
                 
             else:  # Instant mode
                 # Load instant deliveries
@@ -219,13 +226,13 @@ class RunStopSection(QWidget):
                     "No relay unit assignments configured")
                 return
             
-            # Call run_program_callback with the complete schedule
-            print(f"Starting schedule execution with mode: {mode}, window_start: {window_start}, window_end: {window_end}")
+            # Call run_program_callback with the complete schedule and settings
+            print(f"Starting schedule execution with mode: {mode}, window_start: {settings['window_start']}, window_end: {settings['window_end']}")
             print(f"Animals: {schedule.animals}")
             print(f"Relay assignments: {schedule.relay_unit_assignments}")
             print(f"Water outputs: {schedule.desired_water_outputs}")
             
-            self.run_program_callback(schedule, mode, window_start, window_end)
+            self.run_program_callback(schedule, mode, settings['window_start'], settings['window_end'])
             self.job_in_progress = True
             self.update_button_states()
             
