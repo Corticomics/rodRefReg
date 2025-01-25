@@ -104,7 +104,11 @@ class RelayWorker(QObject):
         for unit_id, unit_deliveries in deliveries_by_unit.items():
             for idx, instant in enumerate(unit_deliveries):
                 try:
-                    delivery_time = instant['datetime']
+                    # Convert delivery_time string to datetime if needed
+                    delivery_time = instant['delivery_time']
+                    if isinstance(delivery_time, str):
+                        delivery_time = datetime.fromisoformat(delivery_time.replace('Z', '+00:00'))
+                    
                     if delivery_time > current_time:
                         base_delay = (delivery_time - current_time).total_seconds() * 1000
                         trigger_delay = idx * self.settings.get('min_trigger_interval_ms', 500)
@@ -117,7 +121,7 @@ class RelayWorker(QObject):
                         timer.timeout.connect(
                             lambda i=instant: self.trigger_relay(
                                 i['relay_unit_id'],
-                                i['volume']
+                                i['water_volume']  # Changed from 'volume' to 'water_volume'
                             )
                         )
                         timer.start(int(total_delay))
@@ -127,6 +131,7 @@ class RelayWorker(QObject):
                         self.progress.emit(f"Skipping past delivery time: {delivery_time}")
                 except Exception as e:
                     self.progress.emit(f"Error scheduling delivery: {str(e)}")
+                    print(f"Instant delivery data: {instant}")  # Debug print
 
         if scheduled_count == 0:
             self.progress.emit("No future deliveries to schedule")
