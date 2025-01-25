@@ -218,10 +218,8 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setRowCount(1)
         self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
         self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
-        last_weight = str(animal.last_weight) if animal.last_weight is not None else "N/A"
-        self.animal_table.setItem(0, 2, QTableWidgetItem(last_weight))
-        last_watering = animal.last_watering if animal.last_watering else "N/A"
-        self.animal_table.setItem(0, 3, QTableWidgetItem(last_watering))
+        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
+        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
 
         # Align text to center for better readability
         for column in range(4):
@@ -398,28 +396,20 @@ class RelayUnitWidget(QWidget):
         )
 
     def set_mode(self, mode):
-        """Set the delivery mode from parent widget"""
+        """Set the delivery mode and update UI accordingly"""
         self.current_mode = mode
-        is_instant = mode == "Instant"
         
-        # Update visibility of containers
-        self.instant_delivery_container.setVisible(True)  # Always visible now
-        self.add_slot_button.setVisible(True)  # Always visible
-        
-        # Update input visibility based on mode
-        self.desired_output_label.setVisible(not is_instant)
-        self.desired_output_input.setVisible(not is_instant)
-        
-        # Update button text
-        self.add_slot_button.setText(
-            "+ Add Delivery Time" if is_instant else "+ Add Delivery Window"
-        )
-        
-        # Clear existing slots when switching modes
-        while self.delivery_slots:
-            slot = self.delivery_slots.pop()
-            slot.setParent(None)
-            slot.deleteLater()
+        # Show/hide instant delivery components based on mode
+        if mode == "Instant":
+            self.instant_delivery_container.show()
+            self.add_slot_button.show()
+        else:  # Staggered mode
+            self.instant_delivery_container.hide()
+            self.add_slot_button.hide()
+            # Clear any existing instant delivery slots
+            for slot in self.delivery_slots:
+                slot.deleteLater()
+            self.delivery_slots.clear()
 
     def on_slot_deleted(self, slot):
         """Handle the deletion of a WaterDeliverySlot."""
@@ -427,3 +417,29 @@ class RelayUnitWidget(QWidget):
             self.delivery_slots.remove(slot)
         else:
             print("Attempted to remove a slot that was not in the delivery_slots list.")
+
+    def update_animal_info(self, animal):
+        """Update the animal information display"""
+        self.animal_table.setRowCount(1)
+        self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
+        self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
+        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
+        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
+        
+        # Update recommended water label if weight is available
+        if animal.last_weight:
+            recommended = self.calculate_recommended_water(animal.last_weight)
+            self.recommended_water_label.setText(f"Recommended water volume: {recommended:.2f} mL")
+        else:
+            self.recommended_water_label.setText("Recommended water volume: N/A")
+
+    def clear_animal_info(self):
+        """Clear all animal information from the display"""
+        self.animal_table.setRowCount(0)
+        self.recommended_water_label.setText("Recommended water volume: N/A")
+        self.assigned_animal = None
+        
+        # Clear any instant delivery slots
+        for slot in self.delivery_slots:
+            slot.deleteLater()
+        self.delivery_slots.clear()
