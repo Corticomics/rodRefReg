@@ -1248,3 +1248,54 @@ class DatabaseHandler:
             print(f"Error getting staggered windows: {e}")
             traceback.print_exc()
             return []
+
+    def log_delivery(self, delivery_data):
+        """
+        Log a water delivery attempt in the dispensing_history table.
+        
+        Args:
+            delivery_data (dict): Dictionary containing:
+                - schedule_id: ID of the schedule
+                - animal_id: ID of the animal
+                - relay_unit_id: ID of the relay unit used
+                - volume_delivered: Amount of water delivered
+                - timestamp: Time of delivery
+                - status: Status of delivery ('completed' or 'failed')
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO dispensing_history 
+                    (schedule_id, animal_id, relay_unit_id, timestamp, 
+                     volume_dispensed, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    delivery_data['schedule_id'],
+                    delivery_data['animal_id'],
+                    delivery_data['relay_unit_id'],
+                    delivery_data['timestamp'],
+                    delivery_data['volume_delivered'],
+                    delivery_data['status']
+                ))
+                
+                # If delivery was successful, update animal's last watering info
+                if delivery_data['status'] == 'completed' and delivery_data['volume_delivered'] > 0:
+                    cursor.execute('''
+                        UPDATE animals
+                        SET last_watering = ?,
+                            last_water_volume = ?
+                        WHERE animal_id = ?
+                    ''', (
+                        delivery_data['timestamp'],
+                        delivery_data['volume_delivered'],
+                        delivery_data['animal_id']
+                    ))
+                
+                conn.commit()
+                return True
+                
+        except sqlite3.Error as e:
+            print(f"Error logging delivery: {e}")
+            traceback.print_exc()
+            return False
