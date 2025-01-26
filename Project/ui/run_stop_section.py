@@ -207,6 +207,26 @@ class RunStopSection(QWidget):
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
+            # Load complete schedule data from database
+            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+            
+            # Extract animal IDs from instant deliveries if in instant mode
+            if mode == "Instant":
+                deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
+                animal_ids = list(set(delivery[0] for delivery in deliveries))  # Get unique animal IDs
+                schedule.animals = animal_ids
+                
+                # Build relay assignments from deliveries
+                schedule.relay_unit_assignments = {
+                    str(delivery[0]): delivery[6]  # animal_id: relay_unit_id
+                    for delivery in deliveries
+                }
+            else:
+                # Staggered mode - use existing logic
+                schedule.animals = schedule_details['animal_ids']
+                schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
+                schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+
             if mode == "Staggered":
                 # For staggered mode, use the time window from UI
                 if self.tab_widget.currentIndex() == 0:  # Calendar Mode
