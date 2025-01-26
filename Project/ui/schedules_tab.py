@@ -308,6 +308,7 @@ class SchedulesTab(QWidget):
                             delivery['volume'],
                             unit_id  # Add relay unit ID to instant delivery
                         )
+                        print("Schedule object in conditional: ", schedule)
                 else:
                     schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
                     schedule.desired_water_outputs.update(relay_data['desired_water_output'])
