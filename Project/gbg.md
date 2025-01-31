@@ -344,3 +344,142 @@ Successfully triggered relay unit 2 3 times
 2025-01-31 12:07:26.794128 - Failed to send Slack message: not_authed
 Logged pump trigger: {'timestamp': '2025-01-31T12:07:26.794283', 'relay_info': 'Successfully triggered relay unit 2 3 times'}
 Delivered 0.133mL to animal 2 (Total: 0.933mL)z
+
+
+
+
+
+mouseuser@raspberrypi:~/Documents/GitHub/rodRefReg/Project $ sqlite3 rrr_database.db 
+SQLite version 3.40.1 2022-12-28 14:03:47
+Enter ".help" for usage hints.
+sqlite> .schema 
+CREATE TABLE dispensing_history (
+                            history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            schedule_id INTEGER NOT NULL,
+                            animal_id INTEGER NOT NULL,
+                            relay_unit_id INTEGER NOT NULL,
+                            timestamp TEXT NOT NULL,
+                            volume_dispensed REAL NOT NULL,
+                            status TEXT NOT NULL,
+                            cycle_index INTEGER DEFAULT NULL,
+                            FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                            FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                            FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
+                        );
+CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE trainers (
+                        trainer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        trainer_name TEXT UNIQUE NOT NULL,
+                        salt TEXT NOT NULL,
+                        password TEXT NOT NULL,
+                        role TEXT DEFAULT 'normal'
+                    );
+CREATE TABLE animals (
+                        animal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        lab_animal_id TEXT UNIQUE NOT NULL,
+                        name TEXT NOT NULL,
+                        initial_weight REAL,
+                        last_weight REAL,
+                        last_weighted TEXT,
+                        last_watering TEXT,
+                        last_water_volume REAL,
+                        trainer_id INTEGER,
+                        FOREIGN KEY(trainer_id) REFERENCES trainers(trainer_id)
+                    );
+CREATE TABLE relay_units (
+                        relay_unit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        relay_ids TEXT NOT NULL
+                    );
+CREATE TABLE schedules (
+                        schedule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        water_volume REAL NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT NOT NULL,
+                        created_by INTEGER NOT NULL,
+                        is_super_user BOOLEAN DEFAULT 0,
+                        delivery_mode TEXT DEFAULT 'staggered',
+                        dispensing_status TEXT DEFAULT 'pending',
+                        FOREIGN KEY(created_by) REFERENCES trainers(trainer_id)
+                    );
+CREATE TABLE schedule_animals (
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        relay_unit_id INTEGER,
+                        PRIMARY KEY (schedule_id, animal_id),
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
+                    );
+CREATE TABLE schedule_desired_outputs (
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        desired_output REAL NOT NULL,
+                        interval_minutes INTEGER DEFAULT 60,
+                        volume_per_interval REAL,
+                        PRIMARY KEY (schedule_id, animal_id),
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    );
+CREATE TABLE schedule_instant_deliveries (
+                        delivery_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        delivery_datetime TEXT NOT NULL,
+                        water_volume REAL NOT NULL,
+                        relay_unit_id INTEGER,
+                        completed BOOLEAN DEFAULT 0,
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
+                    );
+CREATE TABLE logs (
+                        log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        action TEXT NOT NULL,
+                        super_user_id INTEGER NOT NULL,
+                        details TEXT,
+                        FOREIGN KEY(super_user_id) REFERENCES trainers(trainer_id)
+                    );
+CREATE TABLE schedule_staggered_windows (
+                        window_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT NOT NULL,
+                        target_volume REAL NOT NULL,
+                        delivered_volume REAL DEFAULT 0,
+                        status TEXT DEFAULT 'pending',
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    );
+CREATE TABLE cycle_tracking (
+                        tracking_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        cycle_index INTEGER NOT NULL,
+                        start_time TEXT NOT NULL,
+                        end_time TEXT NOT NULL,
+                        target_volume REAL NOT NULL,
+                        delivered_volume REAL DEFAULT 0,
+                        status TEXT DEFAULT 'pending',
+                        completed_at TEXT,
+                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
+                    );
+sqlite> SELECT * FROM schedule
+   ...> ;
+Parse error: no such table: schedule
+sqlite> SELECT * FROM schedules;
+1|terst|3.0|2025-01-31T11:55:40.011000|2025-01-31T12:02:40.859000|1|0|staggered|pending
+2|test 1|5.0|2025-01-31T12:04:31.073000|2025-01-31T12:11:32.273000|1|0|staggered|pending
+3|time window debug stag|3.0|2025-01-31T12:22:54.975000|2025-01-31T12:30:58.789000|1|0|staggered|pending
+sqlite> SELECT * FROM schedules_staggered_windows;
+Parse error: no such table: schedules_staggered_windows
+sqlite> SELECT * FROM schedule_staggered_windows;
+1|1|1|2025-01-31T11:55:40.011000|2025-01-31T12:02:40.859000|2.0|0.0|pending
+2|1|2|2025-01-31T11:55:40.011000|2025-01-31T12:02:40.859000|1.0|0.0|pending
+3|2|1|2025-01-31T12:04:31.073000|2025-01-31T12:11:32.273000|3.0|0.0|pending
+4|2|2|2025-01-31T12:04:31.073000|2025-01-31T12:11:32.273000|2.0|0.0|pending
+5|3|1|2025-01-31T12:22:54.975000|2025-01-31T12:30:58.789000|1.0|0.0|pending
+6|3|2|2025-01-31T12:22:54.975000|2025-01-31T12:30:58.789000|2.0|0.0|pending
