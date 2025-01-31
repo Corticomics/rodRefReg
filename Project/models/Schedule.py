@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 class Schedule:
     def __init__(self, schedule_id, name, water_volume, start_time, end_time, 
-                 created_by, is_super_user, delivery_mode='staggered', cycles_per_day=1):
+                 created_by, is_super_user, delivery_mode='staggered', cycles_per_day=1, window_data=None):
         self.schedule_id = schedule_id
         self.name = name
         self.water_volume = water_volume
@@ -29,7 +29,7 @@ class Schedule:
         self.status = 'pending'
         self.delivered_volumes = {}       # {animal_id: volume}
         self.last_delivery = {}          # {animal_id: datetime}
-        self.window_data = {}            # {animal_id: [{start, end, target, delivered}]}
+        self.window_data = window_data if window_data else {}  # {animal_id: [{start, end, target, delivered}]}
         
     def add_animal(self, animal_id, relay_unit_id, desired_volume=None):
         """Add an animal to the schedule with its relay unit and desired volume"""
