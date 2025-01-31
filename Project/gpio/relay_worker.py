@@ -551,6 +551,7 @@ class RelayWorker(QObject):
             relay_assignments = schedule.get('relay_unit_assignments', {})
             desired_outputs = schedule.get('desired_water_outputs', {})
             base_volume = schedule.get('water_volume', 0.0)
+            animal_windows = schedule.get('window_data', {})
             
             print(f"Setting up schedule with {len(animal_ids)} animals")
             print(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
@@ -565,13 +566,30 @@ class RelayWorker(QObject):
                     logging.warning(f"No relay unit assigned for animal {animal_id}")
                     continue
                     
-                self.animal_windows[animal_id] = {
-                    'start': window_start,
-                    'end': window_end,
-                    'relay_unit': relay_unit,
-                    'target_volume': target_volume,
-                    'last_delivery': 0
-                }
+                # Get animal-specific windows if available
+                animal_specific_windows = animal_windows.get(str_animal_id, [])
+                if animal_specific_windows:
+                    # Use animal-specific windows
+                    for window in animal_specific_windows:
+                        window_start = datetime.fromisoformat(window['start_time']).timestamp()
+                        window_end = datetime.fromisoformat(window['end_time']).timestamp()
+                        self.animal_windows[animal_id] = {
+                            'start': window_start,
+                            'end': window_end,
+                            'relay_unit': relay_unit,
+                            'target_volume': window['volume'],
+                            'last_delivery': 0
+                        }
+                else:
+                    # Use default window
+                    self.animal_windows[animal_id] = {
+                        'start': window_start,
+                        'end': window_end,
+                        'relay_unit': relay_unit,
+                        'target_volume': target_volume,
+                        'last_delivery': 0
+                    }
+                
                 self.delivered_volumes[animal_id] = 0
                 
                 print(f"Added window for animal {animal_id}: "

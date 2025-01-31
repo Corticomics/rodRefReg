@@ -31,8 +31,8 @@ class Schedule:
         self.last_delivery = {}          # {animal_id: datetime}
         self.window_data = {}            # {animal_id: [{start, end, target, delivered}]}
         
-    def add_animal(self, animal_id, relay_unit_id, desired_volume=None):
-        """Add an animal to the schedule with its relay unit and desired volume"""
+    def add_animal(self, animal_id, relay_unit_id, desired_volume=None, windows=None):
+        """Add an animal to the schedule with its relay unit, desired volume and time windows"""
         self.animals.append(animal_id)
         self.relay_unit_assignments[str(animal_id)] = relay_unit_id
         if desired_volume is not None:
@@ -40,6 +40,9 @@ class Schedule:
         else:
             self.desired_water_outputs[str(animal_id)] = self.water_volume
             
+        if windows:
+            self.window_data[str(animal_id)] = windows
+        
     def add_instant_delivery(self, animal_id, delivery_datetime, volume, relay_unit_id):
         """Add an instant delivery for an animal"""
         if self.delivery_mode != 'instant':

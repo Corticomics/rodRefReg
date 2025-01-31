@@ -951,6 +951,9 @@ class DatabaseHandler:
                 ))
                 schedule_id = cursor.lastrowid
                 
+                # Get animal windows from the schedule
+                animal_windows = schedule.window_data
+                
                 # Insert animal assignments and windows
                 for animal_id in schedule.animals:
                     # Add animal assignment
@@ -969,9 +972,10 @@ class DatabaseHandler:
                         VALUES (?, ?, ?)
                     ''', (schedule_id, animal_id, desired_output))
                     
-                    # Parse datetime strings using strptime
-                    start_time = datetime.strptime(schedule.start_time, "%Y-%m-%dT%H:%M:%S.%f")
-                    end_time = datetime.strptime(schedule.end_time, "%Y-%m-%dT%H:%M:%S.%f")
+                    # Get individual window times for this animal
+                    animal_window = animal_windows.get(str(animal_id), {})
+                    window_start = animal_window.get('start', schedule.start_time)
+                    window_end = animal_window.get('end', schedule.end_time)
                     
                     cursor.execute('''
                         INSERT INTO schedule_staggered_windows
@@ -979,8 +983,8 @@ class DatabaseHandler:
                         VALUES (?, ?, ?, ?, ?)
                     ''', (
                         schedule_id, animal_id,
-                        start_time.isoformat(),
-                        end_time.isoformat(),
+                        window_start,
+                        window_end,
                         desired_output
                     ))
                 
@@ -989,10 +993,6 @@ class DatabaseHandler:
                 
         except sqlite3.Error as e:
             print(f"Database error: {e}")
-            traceback.print_exc()
-            return None
-        except ValueError as e:
-            print(f"DateTime parsing error: {e}")
             traceback.print_exc()
             return None
 

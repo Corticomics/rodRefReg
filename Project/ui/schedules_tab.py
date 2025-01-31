@@ -263,30 +263,47 @@ class SchedulesTab(QWidget):
             return
 
         try:
-            # Get delivery mode from mode selector
             delivery_mode = self.mode_selector.currentText().lower()
             
-            # Initialize time variables
+            # Initialize schedule window variables
             min_time = None
             max_time = None
             total_volume = 0
+            animal_windows = {}  # Track individual animal windows
             
-            # Calculate schedule window based on delivery slots
+            # Collect data from relay units
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
                 if not relay_data['animals']:
                     continue
                     
                 if delivery_mode == 'staggered':
+                    # Get animal ID
+                    animal_id = relay_data['animals'][0].animal_id
+                    
+                    # Process staggered windows for this animal
+                    animal_schedule = []
                     for window in relay_data['delivery_schedule']:
                         start_time = window['start_time']
                         end_time = window['end_time']
-                        total_volume += window['volume']
+                        volume = window['volume']
                         
+                        # Track overall schedule boundaries
                         if min_time is None or start_time < min_time:
                             min_time = start_time
                         if max_time is None or end_time > max_time:
                             max_time = end_time
+                        
+                        animal_schedule.append({
+                            'start_time': start_time,
+                            'end_time': end_time,
+                            'volume': volume
+                        })
+                        total_volume += volume
+                    
+                    # Store animal's windows
+                    animal_windows[str(animal_id)] = animal_schedule
+
                 else:  # instant mode
                     for delivery in relay_data['delivery_schedule']:
                         total_volume += delivery['volume']
@@ -302,7 +319,7 @@ class SchedulesTab(QWidget):
             if max_time is None:
                 max_time = datetime.now()
 
-            # Create schedule object
+            # Create schedule object with overall window
             schedule = Schedule(
                 schedule_id=None,
                 name=schedule_name,
@@ -314,41 +331,34 @@ class SchedulesTab(QWidget):
                 delivery_mode=delivery_mode
             )
 
-            # Track all animals for both modes
-            all_animals = set()
-
-            # Add delivery data with correct relay unit assignments
+            # Add animals and their individual windows
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
                 if not relay_data['animals']:
                     continue
 
-                if delivery_mode == 'instant':
+                if delivery_mode == 'staggered':
+                    animal = relay_data['animals'][0]
+                    animal_id = str(animal.animal_id)
+                    
+                    # Add animal with its windows
+                    schedule.add_animal(
+                        animal.animal_id,
+                        unit_id,
+                        relay_data['desired_water_output'].get(animal_id),
+                        windows=animal_windows.get(animal_id, [])
+                    )
+
+                else:  # instant mode
                     print(f"save_current_schedule: adding instant deliveries for unit {unit_id}")
                     # Add animal to the set of all animals
                     animal_id = relay_data['animals'][0].animal_id
-                    all_animals.add(animal_id)
-                    
-                    for delivery in relay_data['delivery_schedule']:
-                        print(f"save_current_schedule: adding instant delivery for animal {animal_id} "
-                              f"at {delivery['datetime']} with volume {delivery['volume']}")
-                        schedule.add_instant_delivery(
-                            animal_id,
-                            delivery['datetime'],
-                            delivery['volume'],
-                            unit_id
-                        )
-                else:  # staggered mode
-                    for animal in relay_data['animals']:
-                        all_animals.add(animal.animal_id)
-                        schedule.add_animal(
-                            animal.animal_id,
-                            unit_id,
-                            relay_data['desired_water_output'].get(str(animal.animal_id))
-                        )
-
-            # Ensure animals are added to schedule for both modes
-            schedule.animals = list(all_animals)
+                    schedule.add_instant_delivery(
+                        animal_id,
+                        delivery_time,
+                        delivery['volume'],
+                        unit_id
+                    )
 
             # Save schedule to database using the appropriate method
             if delivery_mode == 'staggered':
