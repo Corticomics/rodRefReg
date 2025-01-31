@@ -18,6 +18,7 @@ class Schedule:
         # For staggered mode
         self.animals = []
         self.desired_water_outputs = {}
+        self.window_data = window_data if window_data else {}
         
         # For instant mode
         self.instant_deliveries = []
@@ -29,7 +30,6 @@ class Schedule:
         self.status = 'pending'
         self.delivered_volumes = {}       # {animal_id: volume}
         self.last_delivery = {}          # {animal_id: datetime}
-        self.window_data = window_data if window_data else {}  # {animal_id: [{start, end, target, delivered}]}
         
     def add_animal(self, animal_id, relay_unit_id, desired_volume=None):
         """Add an animal to the schedule with its relay unit and desired volume"""
