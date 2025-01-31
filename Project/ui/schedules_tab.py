@@ -353,8 +353,9 @@ class SchedulesTab(QWidget):
             # Save schedule to database using the appropriate method
             if delivery_mode == 'staggered':
                 schedule_id = self.database_handler.add_staggered_schedule(schedule)
+                print(f"save_current_schedule: added staggered schedule with details:" + str(schedule))
             else:
-                print(f"save_current_schedule: adding instant schedule" + str(schedule))
+                print(f"save_current_schedule: adding instant schedule with details:" + str(schedule))
                 schedule_id = self.database_handler.add_schedule(schedule)
 
             if schedule_id:
