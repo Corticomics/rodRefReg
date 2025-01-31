@@ -174,12 +174,6 @@ class RelayWorker(QObject):
                 window_duration / 2  # Maximum interval is half the window
             )
             
-            print(f"\nCycle Calculation Debug:")
-            print(f"Window duration: {window_duration} seconds")
-            print(f"Max volume to deliver: {max_volume}ml")
-            print(f"Min cycles needed: {min_cycles_needed}")
-            print(f"Calculated cycle interval: {cycle_interval} seconds")
-            
             # Check feasibility when initializing windows
             if not hasattr(self, 'animal_windows') or not self.animal_windows:
                 print("Initializing animal windows")
@@ -189,13 +183,19 @@ class RelayWorker(QObject):
                 relay_assignments = self.settings.get('relay_unit_assignments', {})
                 desired_outputs = self.settings.get('desired_water_outputs', {})
                 
-                print(f"Relay assignments: {relay_assignments}")
-                print(f"Desired outputs: {desired_outputs}")
+                # Get individual animal windows from settings
+                animal_windows = self.settings.get('animal_windows', {})
                 
                 for animal_id in relay_assignments:
                     target_volume = float(desired_outputs.get(str(animal_id), 0.0))
                     
+                    # Get individual window times for this animal
+                    animal_window = animal_windows.get(str(animal_id), {})
+                    window_start = datetime.fromisoformat(animal_window.get('start', self.window_start.isoformat()))
+                    window_end = datetime.fromisoformat(animal_window.get('end', self.window_end.isoformat()))
+                    
                     # Calculate volume per cycle for this animal
+                    window_duration = (window_end - window_start).total_seconds()
                     cycles_in_window = window_duration / cycle_interval
                     volume_per_cycle = min(
                         target_volume / cycles_in_window,
@@ -203,8 +203,8 @@ class RelayWorker(QObject):
                     )
                     
                     self.animal_windows[animal_id] = {
-                        'start': self.window_start,
-                        'end': self.window_end,
+                        'start': window_start,
+                        'end': window_end,
                         'last_delivery': None,
                         'relay_unit': relay_assignments.get(str(animal_id)),
                         'target_volume': target_volume,
@@ -212,15 +212,6 @@ class RelayWorker(QObject):
                     }
                     print(f"Created window for animal {animal_id}: {self.animal_windows[animal_id]}")
                     print(f"Volume per cycle: {volume_per_cycle}ml")
-
-                # Check if schedule is feasible
-                is_feasible, details = self.calculate_schedule_feasibility()
-                if not is_feasible:
-                    self.progress.emit(
-                        f"Warning: Schedule may not be feasible. "
-                        f"Needs {details['time_needed']:.1f}s but shortest window is "
-                        f"{details['shortest_window']:.1f}s"
-                    )
             
             # Get active animals for current time
             active_animals = {}
