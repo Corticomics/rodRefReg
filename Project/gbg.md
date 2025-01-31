@@ -483,3 +483,32 @@ sqlite> SELECT * FROM schedule_staggered_windows;
 4|2|2|2025-01-31T12:04:31.073000|2025-01-31T12:11:32.273000|2.0|0.0|pending
 5|3|1|2025-01-31T12:22:54.975000|2025-01-31T12:30:58.789000|1.0|0.0|pending
 6|3|2|2025-01-31T12:22:54.975000|2025-01-31T12:30:58.789000|2.0|0.0|pending
+
+
+
+System Messages
+Loaded 2 animals for all trainers (guest mode)
+Displaying all animals (guest mode)
+Loaded 2 animals for all trainers (guest mode)
+Initiating authentication for username: adm
+Authentication successful.
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer 1
+Login successful: {'username': 'adm', 'trainer_id': 1, 'role': 'normal'}
+Logged in as: adm
+Displaying animals for trainer ID 1
+About to load animals for trainer_id: 1 (type: <class 'int'>)
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer ID 1
+Adding staggered schedule: tesrrrr
+Animals: [1, 2]
+Relay assignments: {'1': 1, '2': 2}
+Water outputs: {'1': 2.0, '2': 4.0}
+Error details: Traceback (most recent call last):
+  File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/ui/schedules_tab.py", line 372, in save_current_schedule
+    schedule_id = self.database_handler.add_staggered_schedule(schedule)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/models/database_handler.py", line 977, in add_staggered_schedule
+    window_start = animal_window.get('start', schedule.start_time)
+                   ^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
