@@ -100,7 +100,8 @@ def run_program(schedule, mode, window_start, window_end):
             'window_end': window_end,
             'min_trigger_interval_ms': 500,
             'database_handler': database_handler,  # Add database handler
-            'pump_controller': controller.pump_controller if hasattr(controller, 'pump_controller') else None
+            'pump_controller': controller.pump_controller if hasattr(controller, 'pump_controller') else None,
+            'schedule_id': schedule.schedule_id
         }
         
         if mode.lower() == "instant":
