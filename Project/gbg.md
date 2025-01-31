@@ -344,3 +344,60 @@ Successfully triggered relay unit 2 3 times
 2025-01-31 12:07:26.794128 - Failed to send Slack message: not_authed
 Logged pump trigger: {'timestamp': '2025-01-31T12:07:26.794283', 'relay_info': 'Successfully triggered relay unit 2 3 times'}
 Delivered 0.133mL to animal 2 (Total: 0.933mL)z
+
+System Messages
+Loaded 2 animals for all trainers (guest mode)
+Displaying all animals (guest mode)
+Loaded 2 animals for all trainers (guest mode)
+Initiating authentication for username: adm
+Authentication successful.
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer 1
+Login successful: {'username': 'adm', 'trainer_id': 1, 'role': 'normal'}
+Logged in as: adm
+Displaying animals for trainer ID 1
+About to load animals for trainer_id: 1 (type: <class 'int'>)
+Retrieved 2 animals from the database for trainer_id 1
+Loaded 2 animals for trainer ID 1
+Adding staggered schedule: stag 1
+Animals: [1, 2]
+Relay assignments: {'1': 1, '2': 2}
+Water outputs: {'1': 2.0, '2': 1.0}
+save_current_schedule: added staggered schedule with details:<models.Schedule.Schedule object at 0x7fa8c73f90>
+
+DEBUG INFO:
+Schedule: {'schedule_id': 5, 'name': 'stag 1', 'water_volume': 3.0, 'start_time': '2025-01-31T13:07:38.934000', 'end_time': '2025-01-31T13:15:39.635000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'staggered', 'cycles_per_day': 1, 'animals': [1, 2], 'desired_water_outputs': {'1': 2.0, '2': 1.0}, 'instant_deliveries': [], 'relay_unit_assignments': {'1': 1, '2': 2}, 'status': 'pending', 'delivered_volumes': {}, 'last_delivery': {}, 'window_data': {}}
+Mode: Staggered
+
+Schedule Debug Info:
+Desired water outputs: {'1': 2.0, '2': 1.0}
+Relay assignments: {'1': 1, '2': 2}
+
+Settings Debug Info:
+Settings desired water outputs: {'1': 2.0, '2': 1.0}
+Settings relay assignments: {'1': 1, '2': 2}
+Starting schedule execution with mode: Staggered, window_start: 1738354058.934, window_end: 1738354539.635
+Animals: [1, 2]
+Relay assignments: {'1': 1, '2': 2}
+Water outputs: {'1': 2.0, '2': 1.0}
+Running program with schedule: stag 1, mode: Staggered
+
+Worker Settings Debug:
+Mode: Staggered
+Desired outputs: {'1': 2.0, '2': 1.0}
+Relay assignments: {'1': 1, '2': 2}
+
+Program Started
+Starting staggered cycle
+
+Staggered Cycle Debug Info:
+Current time: 2025-01-31 13:06:00.148831
+Initializing animal windows
+Created window for animal 1: {'start': datetime.datetime(2025, 1, 31, 13, 7, 38, 934000), 'end': datetime.datetime(2025, 1, 31, 13, 15, 39, 635000), 'last_delivery': None, 'relay_unit': 1, 'target_volume': 2.0, 'volume_per_cycle': 0.2}
+Volume per cycle: 0.2ml
+Created window for animal 2: {'start': datetime.datetime(2025, 1, 31, 13, 7, 38, 934000), 'end': datetime.datetime(2025, 1, 31, 13, 15, 39, 635000), 'last_delivery': None, 'relay_unit': 2, 'target_volume': 1.0, 'volume_per_cycle': 0.1}
+Volume per cycle: 0.1ml
+Checking active animals at 2025-01-31 13:06:00.148831
+Window start: 2025-01-31 13:07:38.934000, Window end: 2025-01-31 13:15:39.635000
+Animal windows: dict_items([('1', {'start': datetime.datetime(2025, 1, 31, 13, 7, 38, 934000), 'end': datetime.datetime(2025, 1, 31, 13, 15, 39, 635000), 'last_delivery': None, 'relay_unit': 1, 'target_volume': 2.0, 'volume_per_cycle': 0.2}), ('2', {'start': datetime.datetime(2025, 1, 31, 13, 7, 38, 934000), 'end': datetime.datetime(2025, 1, 31, 13, 15, 39, 635000), 'last_delivery': None, 'relay_unit': 2, 'target_volume': 1.0, 'volume_per_cycle': 0.1})])
+Current time (2025-01-31 13:06:00.148831) is before window start (2025-01-31 13:07:38.934000)
