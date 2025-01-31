@@ -35,12 +35,19 @@ class Schedule:
         """Add an animal to the schedule with its relay unit, desired volume and time windows"""
         self.animals.append(animal_id)
         self.relay_unit_assignments[str(animal_id)] = relay_unit_id
+        
+        # Handle desired volume
         if desired_volume is not None:
             self.desired_water_outputs[str(animal_id)] = desired_volume
         else:
             self.desired_water_outputs[str(animal_id)] = self.water_volume
-            
-        if windows:
+        
+        # Handle windows - initialize if not exists
+        if not hasattr(self, 'window_data'):
+            self.window_data = {}
+        
+        # Store windows if provided
+        if windows is not None:
             self.window_data[str(animal_id)] = windows
         
     def add_instant_delivery(self, animal_id, delivery_datetime, volume, relay_unit_id):

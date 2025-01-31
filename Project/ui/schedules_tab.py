@@ -341,11 +341,18 @@ class SchedulesTab(QWidget):
                     animal = relay_data['animals'][0]
                     animal_id = str(animal.animal_id)
                     
+                    # Get desired water output safely
+                    desired_output = None
+                    if isinstance(relay_data['desired_water_output'], dict):
+                        desired_output = relay_data['desired_water_output'].get(animal_id)
+                    elif isinstance(relay_data['desired_water_output'], (int, float)):
+                        desired_output = relay_data['desired_water_output']
+                    
                     # Add animal with its windows
                     schedule.add_animal(
                         animal.animal_id,
                         unit_id,
-                        relay_data['desired_water_output'].get(animal_id),
+                        desired_output,
                         windows=animal_windows.get(animal_id, [])
                     )
 
