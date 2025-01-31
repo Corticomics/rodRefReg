@@ -949,15 +949,16 @@ class DatabaseHandler:
                     schedule.start_time, schedule.end_time,
                     schedule.created_by, schedule.is_super_user
                 ))
+                
                 schedule_id = cursor.lastrowid
                 
-                # Get animal windows from the schedule
-                animal_windows = schedule.window_data
-                
-                # Insert animal assignments and windows
+                # Add animals and their relay unit assignments
                 for animal_id in schedule.animals:
-                    # Add animal assignment
-                    relay_unit_id = schedule.relay_unit_assignments.get(str(animal_id))
+                    str_animal_id = str(animal_id)
+                    relay_unit_id = schedule.relay_unit_assignments.get(str_animal_id)
+                    desired_output = schedule.desired_water_outputs.get(str_animal_id)
+                    
+                    # Add animal to schedule_animals
                     cursor.execute('''
                         INSERT INTO schedule_animals 
                         (schedule_id, animal_id, relay_unit_id)
@@ -965,28 +966,26 @@ class DatabaseHandler:
                     ''', (schedule_id, animal_id, relay_unit_id))
                     
                     # Add desired output
-                    desired_output = schedule.desired_water_outputs.get(str(animal_id), schedule.water_volume)
                     cursor.execute('''
-                        INSERT INTO schedule_desired_outputs 
+                        INSERT INTO schedule_desired_outputs
                         (schedule_id, animal_id, desired_output)
                         VALUES (?, ?, ?)
                     ''', (schedule_id, animal_id, desired_output))
                     
-                    # Get individual window times for this animal
-                    animal_window = animal_windows.get(str(animal_id), {})
-                    window_start = animal_window.get('start', schedule.start_time)
-                    window_end = animal_window.get('end', schedule.end_time)
-                    
-                    cursor.execute('''
-                        INSERT INTO schedule_staggered_windows
-                        (schedule_id, animal_id, start_time, end_time, target_volume)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (
-                        schedule_id, animal_id,
-                        window_start,
-                        window_end,
-                        desired_output
-                    ))
+                    # Add staggered windows for this animal
+                    windows = schedule.window_data.get(str_animal_id, [])
+                    for window in windows:
+                        cursor.execute('''
+                            INSERT INTO schedule_staggered_windows
+                            (schedule_id, animal_id, start_time, end_time, target_volume)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (
+                            schedule_id,
+                            animal_id,
+                            window['start_time'],
+                            window['end_time'],
+                            window['volume']
+                        ))
                 
                 conn.commit()
                 return schedule_id
