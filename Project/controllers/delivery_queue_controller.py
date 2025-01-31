@@ -81,11 +81,12 @@ class DeliveryQueueController(QObject):
                 'relay_unit_id': schedule.relay_unit_assignments.get(str(animal_id))
             })
         
-        # Calculate timing for all animals
+        # Calculate timing for all animals with proper spacing
         timing_plan = self.timing_calculator.calculate_staggered_timing(
             datetime.fromisoformat(schedule.start_time),
             datetime.fromisoformat(schedule.end_time),
-            animals_data
+            animals_data,
+            min_interval=timedelta(minutes=0.5)  # Add minimum interval between deliveries
         )
         
         # Initialize cycle tracking
@@ -97,9 +98,14 @@ class DeliveryQueueController(QObject):
             } for animal in animals_data
         }
         
-        # Queue all delivery instants
+        # Queue deliveries with proper spacing
         for animal_id, animal_plan in timing_plan['schedule'].items():
+            last_delivery_time = None
             for cycle_idx, cycle in enumerate(animal_plan['delivery_instants']):
+                # Ensure minimum spacing between deliveries
+                if last_delivery_time and (cycle['time'] - last_delivery_time) < timedelta(minutes=0.5):
+                    cycle['time'] = last_delivery_time + timedelta(minutes=0.5)
+                
                 entry = {
                     'instant_id': f"stag_{schedule.schedule_id}_{animal_id}_{cycle['time'].timestamp()}",
                     'schedule_id': schedule.schedule_id,
@@ -113,43 +119,49 @@ class DeliveryQueueController(QObject):
                     'mode': 'staggered'
                 }
                 heapq.heappush(self.delivery_queue, (self.sort_queue_entry(entry), entry))
+                last_delivery_time = cycle['time']
                 
     async def process_delivery(self, instant):
         """Process a single delivery instant"""
         try:
+            # Check if animal already has active delivery
             if self.current_delivery:
                 if instant['animal_id'] == self.current_delivery['animal_id']:
+                    # Requeue with longer delay to ensure proper spacing
                     await self.requeue_instant(instant, delay_minutes=0.5)
-                return
-
+                    return
+            
             self.current_delivery = instant
             delivered_volume = await self.get_delivered_volume(
                 instant['schedule_id'], 
                 instant['animal_id']
             )
             
-            # Calculate volume for this attempt
+            # Calculate remaining volume
             remaining_volume = instant['water_volume'] - delivered_volume
             if remaining_volume <= 0:
                 await self._complete_delivery(instant)
                 return
 
-            # Execute delivery
-            success = await self._execute_delivery(instant, remaining_volume)
+            # Execute delivery with volume limits
+            max_volume_per_delivery = self.volume_calculator.max_volume_per_delivery
+            volume_this_attempt = min(remaining_volume, max_volume_per_delivery)
+            
+            success = await self._execute_delivery(instant, volume_this_attempt)
             
             if success:
-                # Update cycle tracking for staggered mode
                 if instant['mode'] == 'staggered':
                     await self._update_cycle_progress(instant)
                 
-                # Check if complete or needs requeue
-                new_total = delivered_volume + instant['water_volume']
-                if new_total >= instant['water_volume']:
-                    await self._complete_delivery(instant)
+                # Check if more volume needed
+                new_total = delivered_volume + volume_this_attempt
+                if new_total < instant['water_volume']:
+                    # Requeue for remaining volume with proper spacing
+                    instant['water_volume'] = instant['water_volume'] - new_total
+                    await self.requeue_instant(instant, delay_minutes=0.5)
                 else:
-                    await self.requeue_instant(instant, delay_minutes=0.1)
+                    await self._complete_delivery(instant)
             else:
-                # Handle failure
                 await self._handle_delivery_failure(instant)
                 
         except Exception as e:

@@ -24,6 +24,34 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 
+                # First, check if dispensing_history exists and get its columns
+                cursor.execute("PRAGMA table_info(dispensing_history)")
+                existing_columns = {col[1] for col in cursor.fetchall()}
+                
+                # If table doesn't exist, create it
+                if not existing_columns:
+                    cursor.execute('''
+                        CREATE TABLE dispensing_history (
+                            history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            schedule_id INTEGER NOT NULL,
+                            animal_id INTEGER NOT NULL,
+                            relay_unit_id INTEGER NOT NULL,
+                            timestamp TEXT NOT NULL,
+                            volume_dispensed REAL NOT NULL,
+                            status TEXT NOT NULL,
+                            cycle_index INTEGER DEFAULT NULL,
+                            FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
+                            FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
+                            FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
+                        )
+                    ''')
+                # If table exists but needs cycle_index column
+                elif 'cycle_index' not in existing_columns:
+                    cursor.execute('''
+                        ALTER TABLE dispensing_history 
+                        ADD COLUMN cycle_index INTEGER DEFAULT NULL
+                    ''')
+                
                 # Create trainers table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS trainers (
@@ -118,23 +146,6 @@ class DatabaseHandler:
                     )
                 ''')
 
-                # Create dispensing_history table
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS dispensing_history (
-                        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        schedule_id INTEGER NOT NULL,
-                        animal_id INTEGER NOT NULL,
-                        relay_unit_id INTEGER NOT NULL,
-                        timestamp TEXT NOT NULL,
-                        volume_dispensed REAL NOT NULL,
-                        status TEXT NOT NULL,
-                        cycle_index INTEGER DEFAULT NULL,
-                        FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
-                        FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
-                        FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
-                    )
-                ''')
-
                 # Create logs table
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS logs (
@@ -179,12 +190,6 @@ class DatabaseHandler:
                         FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
                         FOREIGN KEY(animal_id) REFERENCES animals(animal_id)
                     )
-                ''')
-
-                # Add cycle_index column to dispensing_history if it doesn't exist
-                cursor.execute('''
-                    ALTER TABLE dispensing_history 
-                    ADD COLUMN cycle_index INTEGER DEFAULT NULL
                 ''')
 
                 conn.commit()
@@ -1248,7 +1253,6 @@ class DatabaseHandler:
             print(f"Error getting staggered windows: {e}")
             traceback.print_exc()
             return []
-
     def log_delivery(self, delivery_data):
         """
         Log a water delivery attempt in the dispensing_history table.

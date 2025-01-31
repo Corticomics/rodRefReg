@@ -69,6 +69,11 @@ class RelayWorker(QObject):
         self.monitor_timer.start(10000)  # Update every 10 seconds
         
         self.progress.emit(f"Initialized RelayWorker with settings: {settings}")
+        
+        # Add schedule_id to instance variables
+        self.schedule_id = settings.get('schedule_id')
+        if not self.schedule_id:
+            raise ValueError("schedule_id is required in settings")
 
     @pyqtSlot()
     def run_cycle(self):
@@ -703,7 +708,7 @@ class RelayWorker(QObject):
                 trigger_time = triggers * 0.5  # 0.5 seconds per trigger
                 
                 delivery_data = {
-                    'schedule_id': self.settings.get('schedule_id'),
+                    'schedule_id': self.schedule_id,  # Use instance variable
                     'animal_id': animal_id,
                     'relay_unit_id': data['relay_unit'],
                     'water_volume': cycle_volume,
@@ -735,6 +740,10 @@ class RelayWorker(QObject):
     def _handle_delivery(self, delivery_data):
         """Synchronously handle a delivery"""
         try:
+            # Ensure schedule_id is present
+            if 'schedule_id' not in delivery_data:
+                delivery_data['schedule_id'] = self.schedule_id
+                
             animal_id = delivery_data['animal_id']
             current_delivered = self.delivered_volumes.get(animal_id, 0)
             
@@ -768,16 +777,19 @@ class RelayWorker(QObject):
                     self.delivered_volumes[animal_id] = current_delivered + actual_volume
                     self.failed_deliveries[animal_id] = 0  # Reset failures
 
+                    # Ensure all required fields are present
+                    delivery_log = {
+                        'schedule_id': self.schedule_id,  # Use instance variable
+                        'animal_id': animal_id,
+                        'relay_unit_id': delivery_data['relay_unit_id'],
+                        'volume_delivered': actual_volume,
+                        'timestamp': delivery_data['instant_time'].isoformat(),
+                        'status': 'completed'
+                    }
+                    
                     # Log success
                     if self.database_handler:
-                        self.database_handler.log_delivery({
-                            'schedule_id': delivery_data['schedule_id'],
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': actual_volume,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'completed'
-                        })
+                        self.database_handler.log_delivery(delivery_log)
 
                 self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
                 self.progress.emit(
@@ -791,14 +803,15 @@ class RelayWorker(QObject):
                     self.failed_deliveries[animal_id] = failed_count + 1
                     
                     if self.database_handler:
-                        self.database_handler.log_delivery({
-                            'schedule_id': delivery_data['schedule_id'],
+                        delivery_log = {
+                            'schedule_id': self.schedule_id,  # Use instance variable
                             'animal_id': animal_id,
                             'relay_unit_id': delivery_data['relay_unit_id'],
                             'volume_delivered': 0,
                             'timestamp': delivery_data['instant_time'].isoformat(),
                             'status': 'failed'
-                        })
+                        }
+                        self.database_handler.log_delivery(delivery_log)
 
                 self.schedule_retry(delivery_data)
 
