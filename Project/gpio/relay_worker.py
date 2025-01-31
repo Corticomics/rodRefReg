@@ -542,39 +542,29 @@ class RelayWorker(QObject):
             self.animal_windows = {}
             self.delivered_volumes = {}
             
+            # Convert schedule times to timestamps
+            window_start = datetime.fromisoformat(schedule['start_time']).timestamp()
+            window_end = datetime.fromisoformat(schedule['end_time']).timestamp()
+            
             # Get animal assignments and volumes
             animal_ids = schedule.get('animal_ids', [])
             relay_assignments = schedule.get('relay_unit_assignments', {})
             desired_outputs = schedule.get('desired_water_outputs', {})
             base_volume = schedule.get('water_volume', 0.0)
             
-            # Get staggered windows data
-            window_data = schedule.get('window_data', {})
-            
             print(f"Setting up schedule with {len(animal_ids)} animals")
+            print(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
             
             # Setup windows for each animal
             for animal_id in animal_ids:
                 str_animal_id = str(animal_id)
+                target_volume = desired_outputs.get(str_animal_id, base_volume)
                 relay_unit = relay_assignments.get(str_animal_id)
                 
                 if relay_unit is None:
                     logging.warning(f"No relay unit assigned for animal {animal_id}")
                     continue
-                
-                # Get animal-specific windows or use default
-                if str_animal_id in window_data and window_data[str_animal_id]:
-                    # Use first window for now (can be extended to handle multiple windows)
-                    window = window_data[str_animal_id][0]
-                    window_start = datetime.fromisoformat(window['start_time'])
-                    window_end = datetime.fromisoformat(window['end_time'])
-                    target_volume = window['volume']
-                else:
-                    # Fallback to default schedule window
-                    window_start = datetime.fromisoformat(schedule['start_time'])
-                    window_end = datetime.fromisoformat(schedule['end_time'])
-                    target_volume = desired_outputs.get(str_animal_id, base_volume)
-                
+                    
                 self.animal_windows[animal_id] = {
                     'start': window_start,
                     'end': window_end,
@@ -585,9 +575,13 @@ class RelayWorker(QObject):
                 self.delivered_volumes[animal_id] = 0
                 
                 print(f"Added window for animal {animal_id}: "
-                      f"start={window_start}, end={window_end}, "
-                      f"target={target_volume}mL, relay={relay_unit}")
+                            f"target={target_volume}mL, relay={relay_unit}")
             
+            if not self.animal_windows:
+                logging.warning("No valid animal windows were created")
+            else:
+                print(f"Successfully setup {len(self.animal_windows)} animal windows")
+                
             return len(self.animal_windows) > 0
             
         except Exception as e:
