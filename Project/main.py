@@ -198,47 +198,58 @@ def cleanup():
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
 def stop_program():
-    """Central stop control function"""
-    global thread, worker, relay_handler, gui
-    
+    global thread, worker
     try:
-        print("[DEBUG] Initiating stop sequence")
+        print("[DEBUG] Starting stop sequence")
         
-        # 1. Stop the worker first
+        # First stop the worker if it exists
         if worker:
+            # Stop all timers first
             worker._is_running = False
+            for timer in getattr(worker, 'timers', []):
+                if timer and timer.isActive():
+                    timer.stop()
+            
+            if hasattr(worker, 'main_timer') and worker.main_timer:
+                worker.main_timer.stop()
+            
+            if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
+                worker.monitor_timer.stop()
+            
+            # Call worker's stop method
             worker.stop()
+            
             print("[DEBUG] Worker stopped")
         
-        # 2. Deactivate all relays
+        # Wait for thread with timeout
+        if thread and thread.isRunning():
+            if not thread.wait(2000):  # 2 second timeout
+                print("[DEBUG] Thread timeout - forcing termination")
+                thread.terminate()
+            thread.wait()
+            print("[DEBUG] Thread stopped")
+        
+        # Ensure relays are deactivated
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
         
-        # 3. Clean up thread
-        if thread and thread.isRunning():
-            thread.quit()
-            if not thread.wait(1000):  # 1 second timeout
-                thread.terminate()
-            print("[DEBUG] Thread stopped")
-        
-        # 4. Clear references
+        # Clear worker and thread references
         worker = None
         thread = None
         
-        # 5. Reset GUI state (this will close any lingering dialogs)
-        if gui and hasattr(gui, 'run_stop_section'):
-            gui.run_stop_section.reset_ui()
+        # Run final cleanup
+        QTimer.singleShot(100, cleanup)
         
-        print("[DEBUG] Stop sequence completed successfully")
-        return True
+        print("[DEBUG] Stop sequence completed")
         
     except Exception as e:
         print(f"[ERROR] Stop sequence failed: {e}")
-        # Still try to reset GUI even if stop failed
-        if gui and hasattr(gui, 'run_stop_section'):
-            gui.run_stop_section.reset_ui()
-        return False
+        # Try emergency cleanup
+        try:
+            cleanup()
+        except Exception as cleanup_error:
+            print(f"[ERROR] Emergency cleanup failed: {cleanup_error}")
 
 def change_relay_hats():
     global relay_handler, settings
