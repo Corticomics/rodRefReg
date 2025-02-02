@@ -4,7 +4,7 @@ import sys
 import os
 from utils.volume_calculator import VolumeCalculator
 from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
-from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -202,20 +202,39 @@ def stop_program():
     global thread, worker
     try:
         if worker:
-            worker.stop()  # Request the worker to stop
-        else:
-            print("Worker is None in stop_program")
-
-        # Wait for the worker to finish
+            # First stop all timers in the worker
+            worker._is_running = False
+            for timer in getattr(worker, 'timers', []):
+                if timer and timer.isActive():
+                    timer.stop()
+            
+            if hasattr(worker, 'main_timer') and worker.main_timer:
+                worker.main_timer.stop()
+            
+            if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
+                worker.monitor_timer.stop()
+                
+            # Call worker's stop method
+            worker.stop()
+        
+        # Wait for the thread to finish with timeout
         if thread and thread.isRunning():
-            thread.quit()
-            thread.wait()
-
-        cleanup()
-
+            if not thread.wait(1000):  # 1 second timeout
+                thread.terminate()
+                thread.wait()
+        
+        # Run cleanup after a short delay to ensure all Qt objects are properly handled
+        QTimer.singleShot(100, cleanup)
+        
         print("Program Stopped")
+        
     except Exception as e:
         print(f"Error stopping program: {e}")
+        # Try to run cleanup even if there was an error
+        try:
+            cleanup()
+        except Exception as cleanup_error:
+            print(f"Error during emergency cleanup: {cleanup_error}")
 
 def change_relay_hats():
     global relay_handler, settings
