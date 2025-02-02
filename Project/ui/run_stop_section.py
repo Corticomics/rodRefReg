@@ -283,28 +283,30 @@ class RunStopSection(QWidget):
             if not self.job_in_progress:
                 return
             
+            # Store progress dialog as instance variable to prevent premature deletion
+            self.progress_dialog = QMessageBox(self)
+            self.progress_dialog.setIcon(QMessageBox.Information)
+            self.progress_dialog.setText("Stopping schedule...")
+            self.progress_dialog.setStandardButtons(QMessageBox.NoButton)
+            
             # Disable stop button immediately to prevent multiple clicks
             self.stop_button.setEnabled(False)
             self.stop_button.setText("Stopping...")
             
-            # Create a progress dialog
-            progress = QMessageBox(self)
-            progress.setIcon(QMessageBox.Information)
-            progress.setText("Stopping schedule...")
-            progress.setStandardButtons(QMessageBox.NoButton)
-            progress.show()
-            
-            # Call the stop callback
-            QTimer.singleShot(0, lambda: self._execute_stop(progress))
+            # Call stop callback directly instead of using QTimer
+            self._execute_stop()
             
         except Exception as e:
             self.job_in_progress = False
             self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
 
-    def _execute_stop(self, progress_dialog):
+    def _execute_stop(self):
         """Execute the stop operation with proper cleanup"""
         try:
+            # Show progress dialog
+            self.progress_dialog.show()
+            
             # Call the main stop callback
             self.stop_program_callback()
             
@@ -312,30 +314,26 @@ class RunStopSection(QWidget):
             self.job_in_progress = False
             self.update_button_states()
             
-            # Close progress dialog
-            progress_dialog.close()
+            # Close and cleanup progress dialog
+            self.progress_dialog.close()
+            self.progress_dialog = None
             
-            # Schedule final cleanup
-            QTimer.singleShot(100, self._complete_stop)
+            # Reset the UI
+            self.reset_ui()
             
         except Exception as e:
-            progress_dialog.close()
+            if hasattr(self, 'progress_dialog') and self.progress_dialog:
+                self.progress_dialog.close()
+                self.progress_dialog = None
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
             self.job_in_progress = False
             self.update_button_states()
-
-    def _complete_stop(self):
-        """Handle any additional cleanup after the main stop operation"""
-        try:
-            # Additional cleanup if needed
-            pass
-        except Exception as e:
-            print(f"Cleanup error: {str(e)}")
 
     def reset_ui(self):
         """Reset the UI to the initial state after a job is completed."""
         self.job_in_progress = False
         self.update_button_states()
+        self.stop_button.setText("Stop")  # Reset button text
 
     def change_relay_hats(self):
         """Change relay hats configuration"""
