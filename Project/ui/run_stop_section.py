@@ -278,23 +278,51 @@ class RunStopSection(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
     def stop_program(self):
-        """Stop the current schedule"""
+        """Stop the current schedule with proper state management"""
         try:
             if not self.job_in_progress:
                 return
             
+            # Disable stop button immediately to prevent multiple clicks
+            self.stop_button.setEnabled(False)
+            self.stop_button.setText("Stopping...")
+            
+            # Create a progress dialog
+            progress = QMessageBox(self)
+            progress.setIcon(QMessageBox.Information)
+            progress.setText("Stopping schedule...")
+            progress.setStandardButtons(QMessageBox.NoButton)
+            progress.show()
+            
             # Call the stop callback
+            QTimer.singleShot(0, lambda: self._execute_stop(progress))
+            
+        except Exception as e:
+            self.job_in_progress = False
+            self.update_button_states()
+            QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+
+    def _execute_stop(self, progress_dialog):
+        """Execute the stop operation with proper cleanup"""
+        try:
+            # Call the main stop callback
             self.stop_program_callback()
             
-            # Update UI state immediately
+            # Update UI state
             self.job_in_progress = False
             self.update_button_states()
             
-            # Schedule any additional cleanup
+            # Close progress dialog
+            progress_dialog.close()
+            
+            # Schedule final cleanup
             QTimer.singleShot(100, self._complete_stop)
             
         except Exception as e:
+            progress_dialog.close()
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+            self.job_in_progress = False
+            self.update_button_states()
 
     def _complete_stop(self):
         """Handle any additional cleanup after the main stop operation"""

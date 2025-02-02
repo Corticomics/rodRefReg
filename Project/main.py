@@ -200,8 +200,11 @@ def cleanup():
 def stop_program():
     global thread, worker
     try:
+        print("[DEBUG] Starting stop sequence")
+        
+        # First stop the worker if it exists
         if worker:
-            # First stop all timers in the worker
+            # Stop all timers first
             worker._is_running = False
             for timer in getattr(worker, 'timers', []):
                 if timer and timer.isActive():
@@ -212,28 +215,41 @@ def stop_program():
             
             if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
                 worker.monitor_timer.stop()
-                
+            
             # Call worker's stop method
             worker.stop()
+            
+            print("[DEBUG] Worker stopped")
         
-        # Wait for the thread to finish with timeout
+        # Wait for thread with timeout
         if thread and thread.isRunning():
-            if not thread.wait(1000):  # 1 second timeout
+            if not thread.wait(2000):  # 2 second timeout
+                print("[DEBUG] Thread timeout - forcing termination")
                 thread.terminate()
-                thread.wait()
+            thread.wait()
+            print("[DEBUG] Thread stopped")
         
-        # Only call cleanup here, remove it from the worker's finished signal
+        # Ensure relays are deactivated
+        if relay_handler:
+            relay_handler.set_all_relays(0)
+            print("[DEBUG] All relays deactivated")
+        
+        # Clear worker and thread references
+        worker = None
+        thread = None
+        
+        # Run final cleanup
         QTimer.singleShot(100, cleanup)
         
-        print("Program Stopped")
+        print("[DEBUG] Stop sequence completed")
         
     except Exception as e:
-        print(f"Error stopping program: {e}")
-        # Try to run cleanup even if there was an error
+        print(f"[ERROR] Stop sequence failed: {e}")
+        # Try emergency cleanup
         try:
             cleanup()
         except Exception as cleanup_error:
-            print(f"Error during emergency cleanup: {cleanup_error}")
+            print(f"[ERROR] Emergency cleanup failed: {cleanup_error}")
 
 def change_relay_hats():
     global relay_handler, settings
