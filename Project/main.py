@@ -199,7 +199,7 @@ def cleanup():
 
 def stop_program():
     """Central stop control function"""
-    global thread, worker, relay_handler
+    global thread, worker, relay_handler, gui
     
     try:
         print("[DEBUG] Initiating stop sequence")
@@ -226,11 +226,18 @@ def stop_program():
         worker = None
         thread = None
         
+        # 5. Reset GUI state (this will close any lingering dialogs)
+        if gui and hasattr(gui, 'run_stop_section'):
+            gui.run_stop_section.reset_ui()
+        
         print("[DEBUG] Stop sequence completed successfully")
         return True
         
     except Exception as e:
         print(f"[ERROR] Stop sequence failed: {e}")
+        # Still try to reset GUI even if stop failed
+        if gui and hasattr(gui, 'run_stop_section'):
+            gui.run_stop_section.reset_ui()
         return False
 
 def change_relay_hats():

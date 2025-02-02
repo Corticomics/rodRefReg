@@ -367,4 +367,15 @@ class RunStopSection(QWidget):
         self.update_table(updated_schedule)
         self.schedule_updated.emit(updated_schedule.schedule_id)
 
+    def reset_ui(self):
+        """Reset the UI to the initial state after a job is completed."""
+        self.job_in_progress = False
+        self.update_button_states()
+        self.stop_button.setText("Stop")
+        
+        # Close any lingering progress dialogs
+        if hasattr(self, 'progress_dialog') and self.progress_dialog:
+            self.progress_dialog.close()
+            self.progress_dialog = None
+
 
