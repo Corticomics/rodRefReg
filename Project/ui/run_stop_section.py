@@ -5,6 +5,7 @@ from .edit_schedule_dialog import EditScheduleDialog
 from PyQt5.QtCore import pyqtSignal
 from gpio.relay_worker import RelayWorker
 from datetime import datetime
+from PyQt5.QtWidgets import QApplication
 
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
@@ -306,30 +307,32 @@ class RunStopSection(QWidget):
         try:
             # Show progress dialog
             self.progress_dialog.show()
+            QApplication.processEvents()  # Force UI update
             
-            # Call the main stop callback and wait for result
+            # Call the main stop callback
             success = self.stop_program_callback()
             
-            if success:
-                # Update UI state
-                self.job_in_progress = False
-                self.update_button_states()
-                
-                # Close and cleanup progress dialog
+            # Ensure we process any pending events
+            QApplication.processEvents()
+            
+            # Always close the dialog and cleanup, regardless of success
+            if hasattr(self, 'progress_dialog') and self.progress_dialog:
                 self.progress_dialog.close()
+                self.progress_dialog.deleteLater()
                 self.progress_dialog = None
-                
-                # Reset the UI
-                self.reset_ui()
-            else:
-                # If stop failed, show error and cleanup
+            
+            # Update UI state
+            self.job_in_progress = False
+            self.update_button_states()
+            self.reset_ui()
+            
+            if not success:
                 QMessageBox.warning(self, "Warning", "Failed to stop schedule completely")
-                self.progress_dialog.close()
-                self.progress_dialog = None
                 
         except Exception as e:
             if hasattr(self, 'progress_dialog') and self.progress_dialog:
                 self.progress_dialog.close()
+                self.progress_dialog.deleteLater()
                 self.progress_dialog = None
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
             self.job_in_progress = False
