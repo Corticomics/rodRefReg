@@ -143,6 +143,9 @@ class RunStopSection(QWidget):
     def run_program(self):
         """Start executing the current schedule"""
         try:
+            if self.job_in_progress:
+                return
+            
             if not self.schedule_drop_area.current_schedule:
                 QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
                 return
@@ -251,34 +254,55 @@ class RunStopSection(QWidget):
                     "No relay unit assignments configured")
                 return
             
-            # Call run_program_callback with the complete schedule and settings
-            print(f"Starting schedule execution with mode: {mode}, window_start: {settings['window_start']}, window_end: {settings['window_end']}")
-            print(f"Animals: {schedule.animals}")
-            print(f"Relay assignments: {schedule.relay_unit_assignments}")
-            print(f"Water outputs: {schedule.desired_water_outputs}")
-            
-            self.run_program_callback(schedule, mode, settings['window_start'], settings['window_end'])
+            # Update UI state before starting
             self.job_in_progress = True
             self.update_button_states()
             
+            # Call run_program_callback after UI update
+            QTimer.singleShot(0, lambda: self._execute_program(
+                schedule, mode, settings['window_start'], settings['window_end']
+            ))
+            
         except Exception as e:
-            print(f"Error details: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            self.job_in_progress = False
+            self.update_button_states()
+            QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
+
+    def _execute_program(self, schedule, mode, window_start, window_end):
+        """Execute the program after UI update"""
+        try:
+            self.run_program_callback(schedule, mode, window_start, window_end)
+        except Exception as e:
+            self.job_in_progress = False
+            self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
     def stop_program(self):
         """Stop the current schedule"""
         try:
+            if not self.job_in_progress:
+                return
+            
             # Call the stop callback
             self.stop_program_callback()
             
-            # Update UI state
+            # Update UI state immediately
             self.job_in_progress = False
             self.update_button_states()
             
+            # Schedule any additional cleanup
+            QTimer.singleShot(100, self._complete_stop)
+            
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+
+    def _complete_stop(self):
+        """Handle any additional cleanup after the main stop operation"""
+        try:
+            # Additional cleanup if needed
+            pass
+        except Exception as e:
+            print(f"Cleanup error: {str(e)}")
 
     def reset_ui(self):
         """Reset the UI to the initial state after a job is completed."""
