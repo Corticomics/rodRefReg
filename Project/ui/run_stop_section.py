@@ -307,20 +307,26 @@ class RunStopSection(QWidget):
             # Show progress dialog
             self.progress_dialog.show()
             
-            # Call the main stop callback
-            self.stop_program_callback()
+            # Call the main stop callback and wait for result
+            success = self.stop_program_callback()
             
-            # Update UI state
-            self.job_in_progress = False
-            self.update_button_states()
-            
-            # Close and cleanup progress dialog
-            self.progress_dialog.close()
-            self.progress_dialog = None
-            
-            # Reset the UI
-            self.reset_ui()
-            
+            if success:
+                # Update UI state
+                self.job_in_progress = False
+                self.update_button_states()
+                
+                # Close and cleanup progress dialog
+                self.progress_dialog.close()
+                self.progress_dialog = None
+                
+                # Reset the UI
+                self.reset_ui()
+            else:
+                # If stop failed, show error and cleanup
+                QMessageBox.warning(self, "Warning", "Failed to stop schedule completely")
+                self.progress_dialog.close()
+                self.progress_dialog = None
+                
         except Exception as e:
             if hasattr(self, 'progress_dialog') and self.progress_dialog:
                 self.progress_dialog.close()
