@@ -338,6 +338,7 @@ class SchedulesTab(QWidget):
                             delivery['volume'],
                             unit_id
                         )
+
                 else:  # staggered mode
                     for animal in relay_data['animals']:
                         all_animals.add(animal.animal_id)
