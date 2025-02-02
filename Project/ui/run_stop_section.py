@@ -268,25 +268,17 @@ class RunStopSection(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
     def stop_program(self):
-        """Pause the current schedule and display dispensed volumes"""
+        """Stop the current schedule"""
         try:
+            # Call the stop callback
             self.stop_program_callback()
+            
+            # Update UI state
             self.job_in_progress = False
             self.update_button_states()
             
-            # Display paused message with volumes
-            volumes_text = "\n".join([
-                f"Relay unit {unit}: {volume}mL" 
-                for unit, volume in self.schedule_manager.dispensed_volumes.items()
-            ])
-            QMessageBox.information(
-                self,
-                "Schedule Paused",
-                f"Schedule paused. Volumes dispensed:\n{volumes_text}"
-            )
-            
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to pause schedule: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
 
     def reset_ui(self):
         """Reset the UI to the initial state after a job is completed."""
