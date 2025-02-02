@@ -137,7 +137,6 @@ def run_program(schedule, mode, window_start, window_end):
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
@@ -223,7 +222,7 @@ def stop_program():
                 thread.terminate()
                 thread.wait()
         
-        # Run cleanup after a short delay to ensure all Qt objects are properly handled
+        # Only call cleanup here, remove it from the worker's finished signal
         QTimer.singleShot(100, cleanup)
         
         print("Program Stopped")
