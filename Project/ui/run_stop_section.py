@@ -9,13 +9,16 @@ from datetime import datetime
 class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
 
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, database_handler=None, parent=None):
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, 
+                 settings=None, database_handler=None, relay_handler=None, notification_handler=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
         self.settings = settings
         self.database_handler = database_handler
+        self.relay_handler = relay_handler
+        self.notification_handler = notification_handler
         self.current_schedule = None
         self.schedule_manager = None
         self.worker_thread = None

@@ -78,7 +78,9 @@ def setup():
         change_relay_hats, 
         settings, 
         database_handler=database_handler, 
-        login_system=login_system
+        login_system=login_system,
+        relay_handler=relay_handler,
+        notification_handler=notification_handler
     )
 
 def run_program(schedule, mode, window_start, window_end):

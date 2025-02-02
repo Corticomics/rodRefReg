@@ -20,7 +20,8 @@ class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
     def __init__(self, run_program, stop_program, change_relay_hats,
-                 settings, database_handler, login_system, style='bitlearns'):
+                 settings, database_handler, login_system, style='bitlearns',
+                 relay_handler=None, notification_handler=None):
         super().__init__()
 
         # Store callbacks with correct signatures
@@ -30,6 +31,8 @@ class RodentRefreshmentGUI(QWidget):
         self.settings = settings
         self.database_handler = database_handler
         self.login_system = login_system
+        self.relay_handler = relay_handler
+        self.notification_handler = notification_handler
 
         # Default to guest mode
         self.current_user = None
@@ -256,7 +259,8 @@ class RodentRefreshmentGUI(QWidget):
             self.change_relay_hats,
             self.settings,
             self.database_handler,
-            self
+            self.relay_handler,
+            self.notification_handler
         )
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
