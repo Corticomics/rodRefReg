@@ -198,7 +198,9 @@ def cleanup():
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
 def stop_program():
-    global thread, worker
+    """Central stop control function"""
+    global thread, worker, relay_handler
+    
     try:
         print("[DEBUG] Starting stop sequence")
         
@@ -238,18 +240,12 @@ def stop_program():
         worker = None
         thread = None
         
-        # Run final cleanup
-        QTimer.singleShot(100, cleanup)
-        
-        print("[DEBUG] Stop sequence completed")
+        print("[DEBUG] Stop sequence completed successfully")
+        return True
         
     except Exception as e:
         print(f"[ERROR] Stop sequence failed: {e}")
-        # Try emergency cleanup
-        try:
-            cleanup()
-        except Exception as cleanup_error:
-            print(f"[ERROR] Emergency cleanup failed: {cleanup_error}")
+        return False
 
 def change_relay_hats():
     global relay_handler, settings
