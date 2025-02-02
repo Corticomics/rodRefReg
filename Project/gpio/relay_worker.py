@@ -522,47 +522,19 @@ class RelayWorker(QObject):
 
     def stop(self):
         """Stop all timers and clean up"""
-        try:
-            with QMutexLocker(self.mutex):
-                if not self._is_running:
-                    return
-                self._is_running = False
-                
-                # Stop monitor timer
-                if self.monitor_timer and self.monitor_timer.isActive():
-                    self.monitor_timer.stop()
-                
-                # Stop main timer
-                if self.main_timer and self.main_timer.isActive():
-                    self.main_timer.stop()
-                
-                # Stop and cleanup delivery timers
-                for timer in self.timers:
-                    if timer and timer.isActive():
-                        timer.stop()
-                        # Disconnect any connected slots
-                        try:
-                            timer.timeout.disconnect()
-                        except TypeError:
-                            pass  # Timer might not have connections
-                
-                # Clear timer list
-                self.timers.clear()
-                
-                # Deactivate all relays for safety
-                if hasattr(self, 'relay_handler') and self.relay_handler:
-                    self.relay_handler.set_all_relays(0)
-                
-                self.progress.emit("RelayWorker stopped")
-                self.finished.emit()
-                
-        except Exception as e:
-            self.progress.emit(f"Error during stop: {str(e)}")
-        finally:
-            # Ensure finished signal is emitted even if there's an error
-            if self._is_running:
-                self._is_running = False
-                self.finished.emit()
+        with QMutexLocker(self.mutex):
+            self._is_running = False
+            
+        self.monitor_timer.stop()
+        self.main_timer.stop()
+        
+        for timer in self.timers:
+            timer.stop()
+            timer.deleteLater()
+        self.timers.clear()
+        
+        self.progress.emit("RelayWorker stopped")
+        self.finished.emit()
 
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
