@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox, QDialog)
-from PyQt5.QtCore import QDateTime, QTimer, Qt, QMutex, QMutexLocker
+from PyQt5.QtCore import QDateTime, QTimer, Qt, QMutex, QMutexLocker, QThread
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 from PyQt5.QtCore import pyqtSignal
-
+from gpio.relay_worker import RelayWorker
 from datetime import datetime
 
 class RunStopSection(QWidget):
