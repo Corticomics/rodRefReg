@@ -149,91 +149,90 @@ def run_program(schedule, mode, window_start, window_end):
         if notification_handler:
             notification_handler.send_slack_notification(f"Program error: {e}")
 
-def cleanup():
+def cleanup(emergency=False):
+    """Centralized cleanup function
+    
+    Args:
+        emergency (bool): If True, this is an emergency cleanup call
+    """
     global thread, worker
     
-    print("[DEBUG] Starting cleanup process")
+    if emergency:
+        print("[DEBUG] Starting emergency cleanup process")
+    else:
+        print("[DEBUG] Starting normal cleanup process")
     
-    if worker and worker._is_running:
+    if worker and worker._is_running and not emergency:
         print("[DEBUG] Worker still running, waiting for completion")
         return
         
     try:
+        # Deactivate all relays first for safety
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
             
+        # Clean up worker
         if worker:
             worker._is_running = False
-            for timer in worker.timers:
-                timer.stop()
-            worker.main_timer.stop()
-            print("[DEBUG] All timers stopped")
             
-        # Check if the worker still exists before trying to disconnect signals
-        if worker is not None:
+            # Stop all timers
+            try:
+                for timer in getattr(worker, 'timers', []):
+                    if timer and timer.isActive():
+                        timer.stop()
+                if hasattr(worker, 'main_timer') and worker.main_timer:
+                    worker.main_timer.stop()
+                if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
+                    worker.monitor_timer.stop()
+                print("[DEBUG] All timers stopped")
+            except RuntimeError:
+                # Handle case where timer was already deleted
+                print("[DEBUG] Timers already cleaned up")
+            
+            # Disconnect signals
             try:
                 worker.finished.disconnect()
                 worker.progress.disconnect()
-            except TypeError as e:
-                print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
-            except RuntimeError as e:
-                print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
+            except (TypeError, RuntimeError):
+                print("[DEBUG] Signals already disconnected")
 
-            worker = None  # Clear the worker reference
+            worker = None
 
-        # Stop and clear the thread
-        if thread is not None and thread.isRunning():
-            try:
-                thread.quit()  # Gracefully exit the thread loop
-                thread.wait()  # Block until the thread has fully finished execution
-            except Exception as e:
-                print(f"[ERROR] Error stopping thread: {e}")
+        # Clean up thread
+        if thread is not None:
+            if thread.isRunning():
+                thread.quit()
+                if not thread.wait(1000):  # 1 second timeout
+                    thread.terminate()
+                    thread.wait()
+            thread = None
 
-        thread = None  # Explicitly set thread to None for reinitialization
-        gui.run_stop_section.reset_ui()  # Reset the run_stop_section
-
-        print("[DEBUG] Cleanup completed. Program ready for the next job.")
+        # Reset UI
+        gui.run_stop_section.reset_ui()
+        
+        print("[DEBUG] Cleanup completed successfully")
+        
     except Exception as e:
-        print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
+        print(f"[ERROR] Cleanup error: {str(e)}")
+        if not emergency:  # Prevent infinite recursion
+            cleanup(emergency=True)
 
 def stop_program():
+    """Stop the current program and initiate cleanup"""
     global thread, worker
     try:
         if worker:
-            # First stop all timers in the worker
             worker._is_running = False
-            for timer in getattr(worker, 'timers', []):
-                if timer and timer.isActive():
-                    timer.stop()
-            
-            if hasattr(worker, 'main_timer') and worker.main_timer:
-                worker.main_timer.stop()
-            
-            if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
-                worker.monitor_timer.stop()
-                
-            # Call worker's stop method
             worker.stop()
         
-        # Wait for the thread to finish with timeout
-        if thread and thread.isRunning():
-            if not thread.wait(1000):  # 1 second timeout
-                thread.terminate()
-                thread.wait()
-        
-        # Only call cleanup here, remove it from the worker's finished signal
-        QTimer.singleShot(100, cleanup)
-        
+        # Schedule cleanup with a short delay
+        QTimer.singleShot(100, lambda: cleanup(emergency=False))
         print("Program Stopped")
         
     except Exception as e:
-        print(f"Error stopping program: {e}")
-        # Try to run cleanup even if there was an error
-        try:
-            cleanup()
-        except Exception as cleanup_error:
-            print(f"Error during emergency cleanup: {cleanup_error}")
+        print(f"Error stopping program: {str(e)}")
+        cleanup(emergency=True)
 
 def change_relay_hats():
     global relay_handler, settings
