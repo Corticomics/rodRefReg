@@ -268,16 +268,20 @@ class RunStopSection(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
     def stop_program(self):
-        """Stop the current schedule"""
+        """Stop the current schedule with proper state management"""
         try:
+            # Set state before calling callback to prevent race conditions
+            self.job_in_progress = False
+            
             # Call the stop callback
             self.stop_program_callback()
             
             # Update UI state
-            self.job_in_progress = False
             self.update_button_states()
             
         except Exception as e:
+            self.job_in_progress = False  # Ensure state is reset even on error
+            self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
 
     def reset_ui(self):

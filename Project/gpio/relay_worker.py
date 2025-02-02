@@ -80,41 +80,51 @@ class RelayWorker(QObject):
         self.timers.append(self.main_timer)
         
     def stop(self):
-        self._is_running = False
-        # Stop all timers
-        if self.main_timer:
-            self.main_timer.stop()
-        for timer in self.timers:
-            if timer:
-                timer.stop()
-        self.cleanup()
-        
-    def cleanup(self):
+        """Safely stop the worker and clean up resources"""
         try:
-            # Stop and disconnect all timers
+            # Set running flag first to prevent new operations
+            self._is_running = False
+            
+            # 1. Stop all ongoing operations
+            if hasattr(self, 'monitor_timer'):
+                self.monitor_timer.stop()
+                self.monitor_timer.deleteLater()
+            
             if self.main_timer:
                 self.main_timer.stop()
-                try:
-                    self.main_timer.timeout.disconnect()
-                except TypeError:
-                    pass
-                
-            for timer in self.timers:
+                self.main_timer.deleteLater()
+            
+            # 2. Handle child timers
+            for timer in self.timers[:]:
                 if timer:
                     timer.stop()
+                    # Disconnect any connected slots
                     try:
                         timer.timeout.disconnect()
-                    except TypeError:
+                    except (TypeError, RuntimeError):
                         pass
-                        
+                    timer.deleteLater()
+            
+            # 3. Clear collections
             self.timers.clear()
             self.main_timer = None
+            self.delivered_volumes.clear()
+            self.failed_deliveries.clear()
             
-            # Emit finished signal
+            # 4. Ensure relay deactivation
+            if hasattr(self, 'relay_handler'):
+                self.relay_handler.set_all_relays(0)
+            
+            # 5. Emit finished signal
             self.finished.emit()
             
         except Exception as e:
-            print(f"Error in worker cleanup: {e}")
+            print(f"Error in worker stop: {e}")
+            # Still try to emit finished signal
+            try:
+                self.finished.emit()
+            except:
+                pass
 
     @pyqtSlot()
     def run_cycle(self):

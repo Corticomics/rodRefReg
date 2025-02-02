@@ -196,29 +196,64 @@ def cleanup():
         traceback.print_exc()
 
 def stop_program():
+    """Stop the current program with proper cleanup"""
     global thread, worker
     
     try:
-        if worker:
-            # Disconnect any existing connections first
-            try:
-                worker.finished.disconnect()
-                worker.progress.disconnect()
-            except (TypeError, RuntimeError):
-                pass
-                
-            # Stop the worker
-            worker.stop()
-            
-        # Let cleanup handle the rest
-        cleanup()
+        print("[DEBUG] Starting program stop sequence")
         
-        print("Program Stopped Successfully")
+        # 1. Stop accepting new operations
+        if worker:
+            worker._is_running = False
+        
+        # 2. Disconnect signals (prevent callbacks during cleanup)
+        if worker:
+            signals_to_disconnect = [
+                worker.finished,
+                worker.progress,
+                worker.volume_updated,
+                worker.window_progress
+            ]
+            for signal in signals_to_disconnect:
+                try:
+                    signal.disconnect()
+                except (TypeError, RuntimeError):
+                    pass
+        
+        # 3. Stop worker (includes timer cleanup)
+        if worker:
+            worker.stop()
+        
+        # 4. Ensure relays are deactivated
+        if relay_handler:
+            relay_handler.set_all_relays(0)
+            print("[DEBUG] All relays deactivated")
+        
+        # 5. Handle thread cleanup with timeout
+        if thread and thread.isRunning():
+            thread.quit()
+            if not thread.wait(3000):  # 3 second timeout
+                print("[DEBUG] Thread did not quit normally, forcing termination")
+                thread.terminate()
+                thread.wait()
+        
+        # 6. Clear references and reset UI
+        worker = None
+        thread = None
+        gui.run_stop_section.reset_ui()
+        
+        print("[DEBUG] Program stop sequence completed")
         
     except Exception as e:
-        print(f"Error stopping program: {e}")
+        print(f"[ERROR] Error stopping program: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Ensure UI reset even on error
+        try:
+            gui.run_stop_section.reset_ui()
+        except:
+            pass
 
 def change_relay_hats():
     global relay_handler, settings
