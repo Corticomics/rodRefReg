@@ -154,10 +154,22 @@ class RunStopSection(QWidget):
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
+            # Create worker settings with schedule information
+            worker_settings = self.settings.copy() if self.settings else {}
+            worker_settings.update({
+                'schedule_id': schedule.schedule_id,
+                'mode': mode,
+                'window_start': schedule.start_time,
+                'window_end': schedule.end_time,
+                'water_volume': schedule.water_volume,
+                'relay_unit_assignments': schedule.relay_unit_assignments,
+                'desired_water_outputs': schedule.desired_water_outputs
+            })
+            
             # Create new thread and worker
             with QMutexLocker(self.thread_mutex):
                 self.worker_thread = QThread()
-                self.schedule_manager = RelayWorker(self.settings, self.relay_handler, 
+                self.schedule_manager = RelayWorker(worker_settings, self.relay_handler, 
                                                   self.notification_handler)
                 self.schedule_manager.moveToThread(self.worker_thread)
                 
