@@ -155,67 +155,70 @@ def cleanup():
     
     print("[DEBUG] Starting cleanup process")
     
-    if worker and worker._is_running:
-        print("[DEBUG] Worker still running, waiting for completion")
-        return
-        
     try:
+        # 1. Stop the worker first
+        if worker:
+            worker.stop()  # This will stop all timers
+            
+        # 2. Deactivate relays
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
             
-        if worker:
-            worker._is_running = False
-            for timer in worker.timers:
-                timer.stop()
-            worker.main_timer.stop()
-            print("[DEBUG] All timers stopped")
-            
-        # Check if the worker still exists before trying to disconnect signals
-        if worker is not None:
-            try:
-                worker.finished.disconnect()
-                worker.progress.disconnect()
-            except TypeError as e:
-                print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
-            except RuntimeError as e:
-                print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
-
-            worker = None  # Clear the worker reference
-
-        # Stop and clear the thread
-        if thread is not None and thread.isRunning():
-            try:
-                thread.quit()  # Gracefully exit the thread loop
-                thread.wait()  # Block until the thread has fully finished execution
-            except Exception as e:
-                print(f"[ERROR] Error stopping thread: {e}")
-
-        thread = None  # Explicitly set thread to None for reinitialization
-        gui.run_stop_section.reset_ui()  # Reset the run_stop_section
-
-        print("[DEBUG] Cleanup completed. Program ready for the next job.")
+        # 3. Handle thread cleanup
+        if thread and thread.isRunning():
+            # Disconnect all signals first
+            if worker:
+                try:
+                    worker.finished.disconnect()
+                    worker.progress.disconnect()
+                except (TypeError, RuntimeError):
+                    pass
+                    
+            # Now handle the thread
+            thread.quit()
+            if not thread.wait(5000):  # 5 second timeout
+                thread.terminate()
+                thread.wait()
+                
+        # 4. Clear references
+        worker = None
+        thread = None
+        
+        # 5. Reset UI
+        gui.run_stop_section.reset_ui()
+        
+        print("[DEBUG] Cleanup completed successfully")
+        
     except Exception as e:
-        print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
+        print(f"[ERROR] Cleanup error: {e}")
+        import traceback
+        traceback.print_exc()
 
 def stop_program():
     global thread, worker
+    
     try:
         if worker:
-            worker.stop()  # Request the worker to stop
-        else:
-            print("Worker is None in stop_program")
-
-        # Wait for the worker to finish
-        if thread and thread.isRunning():
-            thread.quit()
-            thread.wait()
-
+            # Disconnect any existing connections first
+            try:
+                worker.finished.disconnect()
+                worker.progress.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+                
+            # Stop the worker
+            worker.stop()
+            
+        # Let cleanup handle the rest
         cleanup()
-
-        print("Program Stopped")
+        
+        print("Program Stopped Successfully")
+        
     except Exception as e:
         print(f"Error stopping program: {e}")
+        import traceback
+        traceback.print_exc()
 
 def change_relay_hats():
     global relay_handler, settings

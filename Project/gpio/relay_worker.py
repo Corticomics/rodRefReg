@@ -46,9 +46,7 @@ class RelayWorker(QObject):
         self.mutex = QMutex()
         self._is_running = False
         self.timers = []
-        
-        # Add main_timer initialization
-        self.main_timer = QTimer(self)
+        self.main_timer = None
         
         # Store mode and delivery instants from settings
         self.mode = settings.get('mode', 'instant').lower()
@@ -74,6 +72,49 @@ class RelayWorker(QObject):
         self.schedule_id = settings.get('schedule_id')
         if not self.schedule_id:
             raise ValueError("schedule_id is required in settings")
+
+    def setup_timers(self):
+        self.main_timer = QTimer()
+        self.main_timer.setInterval(1000)  # 1 second interval
+        self.main_timer.timeout.connect(self.check_schedule)
+        self.timers.append(self.main_timer)
+        
+    def stop(self):
+        self._is_running = False
+        # Stop all timers
+        if self.main_timer:
+            self.main_timer.stop()
+        for timer in self.timers:
+            if timer:
+                timer.stop()
+        self.cleanup()
+        
+    def cleanup(self):
+        try:
+            # Stop and disconnect all timers
+            if self.main_timer:
+                self.main_timer.stop()
+                try:
+                    self.main_timer.timeout.disconnect()
+                except TypeError:
+                    pass
+                
+            for timer in self.timers:
+                if timer:
+                    timer.stop()
+                    try:
+                        timer.timeout.disconnect()
+                    except TypeError:
+                        pass
+                        
+            self.timers.clear()
+            self.main_timer = None
+            
+            # Emit finished signal
+            self.finished.emit()
+            
+        except Exception as e:
+            print(f"Error in worker cleanup: {e}")
 
     @pyqtSlot()
     def run_cycle(self):
@@ -519,22 +560,6 @@ class RelayWorker(QObject):
             print(f"Completion check error details: {e}")  # Additional debug info
             print(f"Current settings: {self.settings}")  # Print settings for debugging
             self.stop()
-
-    def stop(self):
-        """Stop all timers and clean up"""
-        with QMutexLocker(self.mutex):
-            self._is_running = False
-            
-        self.monitor_timer.stop()
-        self.main_timer.stop()
-        
-        for timer in self.timers:
-            timer.stop()
-            timer.deleteLater()
-        self.timers.clear()
-        
-        self.progress.emit("RelayWorker stopped")
-        self.finished.emit()
 
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
