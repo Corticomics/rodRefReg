@@ -1,25 +1,31 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox)
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox, QDialog)
 from PyQt5.QtCore import QDateTime, QTimer, Qt
 from .schedule_drop_area import ScheduleDropArea
+from .edit_schedule_dialog import EditScheduleDialog
+from PyQt5.QtCore import pyqtSignal
+from gpio.relay_worker import RelayWorker
+from datetime import datetime
+from PyQt5.QtWidgets import QApplication
 
 class RunStopSection(QWidget):
-    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, settings=None, advanced_settings=None, parent=None):
+    schedule_updated = pyqtSignal(int)
+
+    def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, 
+                 settings=None, database_handler=None, relay_handler=None, notification_handler=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
         self.settings = settings
-        self.advanced_settings = advanced_settings  # Pass advanced settings here
+        self.database_handler = database_handler
+        self.relay_handler = relay_handler
+        self.notification_handler = notification_handler
+        self.current_schedule = None
 
         # Track the state of the job
         self.job_in_progress = False
 
         self.init_ui()
-
-        # Create a QTimer to keep updating the minimum date/time
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_minimum_datetime)
-        self.timer.start(1000)  # Update every second
 
         if settings:
             self.load_settings(settings)
@@ -31,111 +37,55 @@ class RunStopSection(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(12)
 
-        # Tab widget for Calendar and Offline modes
-        self.tab_widget = QTabWidget()
-        self.calendar_widget = QWidget()
-        self.offline_widget = QWidget()
-
-        # Calendar-Based Time Window Selection
-        calendar_layout = QFormLayout()
-        calendar_layout.setSpacing(12)
-        calendar_layout.setContentsMargins(12, 12, 12, 12)
-        
-        self.start_time_label = QLabel("Start Time:")
-        self.start_time_input = QDateTimeEdit(self.calendar_widget)
-        self.start_time_input.setCalendarPopup(True)
-        self.start_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.start_time_input.setDateTime(QDateTime.currentDateTime())  # Default to now
-        self.start_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-        self.start_time_input.setMinimumWidth(160)  # Set minimum width for the datetime input
-        self.start_time_input.setFixedHeight(28)
-        
-        self.end_time_label = QLabel("End Time:")
-        self.end_time_input = QDateTimeEdit(self.calendar_widget)
-        self.end_time_input.setCalendarPopup(True)
-        self.end_time_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default to 1 hour later
-        self.end_time_input.setMinimumDateTime(QDateTime.currentDateTime())  # Set minimum to now
-        self.end_time_input.setMinimumWidth(160)  # Set minimum width for the datetime input
-        self.end_time_input.setFixedHeight(28)
-
-        # Style the labels to be more visible
-        label_style = "QLabel { font-size: 11pt; padding: 3px; }"
-        self.start_time_label.setStyleSheet(label_style)
-        self.end_time_label.setStyleSheet(label_style)
-
-        # Style the datetime inputs to be more visible
-        date_time_style = """
-            QDateTimeEdit {
-                padding: 5px;
-                min-height: 25px;
-                background-color: white;
-                border: 1px solid #BDBDBD;
-                border-radius: 4px;
-            }
-            QCalendarWidget QAbstractItemView {
-                background-color: #525251;
-                selection-background-color: #607cff;
-            }
-
-            QCalendarWidget QWidget {
-                alternate-background-color: #404040;
-            }
-
-            QCalendarWidget QToolButton {
-                color: white;
-                background-color: #525251;
-            }
-
-            QCalendarWidget QMenu {
-                background-color: #525251;
-            }
-        """
-        self.start_time_input.setStyleSheet(date_time_style)
-        self.end_time_input.setStyleSheet(date_time_style)
-
-        calendar_layout.addRow(self.start_time_label, self.start_time_input)
-        calendar_layout.addRow(self.end_time_label, self.end_time_input)
-        self.calendar_widget.setLayout(calendar_layout)
-
-        # Offline Mode
-        self.offline_label = QLabel("Offline Duration (minutes):")
-        self.offline_input = QLineEdit(self.offline_widget)
-        self.offline_input.setPlaceholderText("Enter minutes")
-
-        offline_layout = QFormLayout()
-        offline_layout.addRow(self.offline_label, self.offline_input)
-        self.offline_widget.setLayout(offline_layout)
-
-        self.tab_widget.addTab(self.calendar_widget, "Calendar Mode")
-        self.tab_widget.addTab(self.offline_widget, "Offline Mode")
-
-        # Schedule drop area
-        self.schedule_drop_area = ScheduleDropArea()
-        
-        # Buttons
+        # Initialize all buttons
         self.run_button = QPushButton("Run", self)
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
+        self.edit_button = QPushButton("Edit Schedule")
         
+        # Set up edit button properties
+        self.edit_button.setObjectName("edit_button")
+        self.edit_button.setEnabled(False)
+        self.edit_button.clicked.connect(self.edit_current_schedule)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:disabled {
+                background-color: #87c4cb;
+            }
+        """)
+
+        # Connect button signals
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
-        self.relay_hats_button.clicked.connect(self.change_relay_hats_callback)
-        
-        # Button layout
+        self.relay_hats_button.clicked.connect(self.change_relay_hats)
+
+        # Create and populate button layout
         self.button_layout = QHBoxLayout()
         self.button_layout.setSpacing(5)
+        self.button_layout.addWidget(self.edit_button)
         self.button_layout.addWidget(self.run_button)
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
+
+        # Schedule drop area
+        self.schedule_drop_area = ScheduleDropArea()
+        self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         
-        # Main layout assembly
-        self.layout.addWidget(self.tab_widget)
-        
-        # Add schedule drop area directly (without label)
-        self.layout.addWidget(self.schedule_drop_area)
-        
+        # Add widgets to main layout
         self.layout.addLayout(self.button_layout)
+        self.layout.addWidget(self.schedule_drop_area)
         self.layout.addStretch()
         
         # Set size policies
@@ -146,23 +96,17 @@ class RunStopSection(QWidget):
         
         self.setLayout(self.layout)
         self.update_button_states()
-
-        # Add after line 112
+        
+        # Connect mode changed signal
         self.schedule_drop_area.mode_changed.connect(self._on_mode_changed)
 
     def load_settings(self, settings):
-        self.start_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_start']))
-        self.end_time_input.setDateTime(QDateTime.fromSecsSinceEpoch(settings['window_end']))
-        self.offline_input.setText(str(settings.get('offline_duration', 60)))
+        """Load settings without calendar-related inputs"""
+        pass  # We no longer need to load calendar settings
 
     def update_minimum_datetime(self):
-        """Update the minimum selectable datetime to 'right now'."""
-        current_datetime = QDateTime.currentDateTime()
-        self.start_time_input.setMinimumDateTime(current_datetime)
-        self.end_time_input.setMinimumDateTime(current_datetime)
-
-    # The rest of your methods remain unchanged...
-
+        """Update minimum datetime is no longer needed"""
+        pass
 
     def update_button_states(self):
         """Enable or disable the Run, Stop, and Change Relay Hats buttons based on the job's state."""
@@ -197,9 +141,12 @@ class RunStopSection(QWidget):
             self.stop_button.setStyleSheet("")
             self.stop_button.setToolTip("")
 
-
     def run_program(self):
+        """Start executing the current schedule"""
         try:
+            if self.job_in_progress:
+                return
+            
             if not self.schedule_drop_area.current_schedule:
                 QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
                 return
@@ -207,89 +154,256 @@ class RunStopSection(QWidget):
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
+            # Create worker settings with schedule information
+            worker_settings = self.settings.copy() if self.settings else {}
+            worker_settings.update({
+                'schedule_id': schedule.schedule_id,
+                'mode': mode,
+                'window_start': schedule.start_time,
+                'window_end': schedule.end_time,
+                'water_volume': schedule.water_volume,
+                'relay_unit_assignments': schedule.relay_unit_assignments,
+                'desired_water_outputs': schedule.desired_water_outputs
+            })
+            
+            # Load complete schedule data from database
+            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+            
+            # Update schedule with complete data
+            schedule.animals = schedule_details['animal_ids']
+            schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
+            schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+            
+            if not schedule.animals:
+                QMessageBox.warning(self, "Invalid Schedule", "No animals assigned to this schedule")
+                return
+            
+            print("\nDEBUG INFO:")
+            print(f"Schedule: {schedule.__dict__}")
+            print(f"Mode: {mode}")
+            
+            # Debug print before creating settings
+            print("\nSchedule Debug Info:")
+            print(f"Desired water outputs: {schedule.desired_water_outputs}")
+            print(f"Relay assignments: {schedule.relay_unit_assignments}")
+            
+            # Create settings dictionary with all necessary data
+            settings = {
+                'mode': mode,
+                'window_start': datetime.fromisoformat(schedule.start_time).timestamp() if hasattr(schedule, 'start_time') else None,
+                'window_end': datetime.fromisoformat(schedule.end_time).timestamp() if hasattr(schedule, 'end_time') else None,
+                'min_trigger_interval_ms': 500,
+                'cycle_interval': 3600,
+                'stagger_interval': 0.5,
+                'water_volume': schedule.water_volume,
+                'relay_unit_assignments': schedule.relay_unit_assignments,
+                'desired_water_outputs': schedule.desired_water_outputs,
+                'database_handler': self.database_handler,
+                'pump_controller': self.pump_controller if hasattr(self, 'pump_controller') else None
+            }
+            
+            # Debug print after creating settings
+            print("\nSettings Debug Info:")
+            print(f"Settings desired water outputs: {settings.get('desired_water_outputs')}")
+            print(f"Settings relay assignments: {settings.get('relay_unit_assignments')}")
+            
+            # Mode-specific handling
             if mode == "Staggered":
-                # For staggered mode, use the time window from UI
-                if self.tab_widget.currentIndex() == 0:  # Calendar Mode
-                    window_start = self.start_time_input.dateTime().toSecsSinceEpoch()
-                    window_end = self.end_time_input.dateTime().toSecsSinceEpoch()
-                else:  # Offline Mode
-                    duration = int(self.offline_input.text()) * 60
-                    window_start = int(QDateTime.currentSecsSinceEpoch())
-                    window_end = window_start + duration
+                if not schedule.start_time or not schedule.end_time:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "Schedule must have start and end times for staggered mode")
+                    return
+                
+                if not schedule.desired_water_outputs:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "No water outputs configured for staggered mode")
+                    return
+                
+                # Get staggered windows
+                windows = self.database_handler.get_schedule_staggered_windows(schedule.schedule_id)
+                if not windows:
+                    QMessageBox.warning(self, "Invalid Schedule", 
+                        "No delivery windows configured for staggered mode")
+                    return
+                
+                schedule.window_data = windows
+                window_start = datetime.fromisoformat(schedule.start_time).timestamp()
+                window_end = datetime.fromisoformat(schedule.end_time).timestamp()
+                
             else:  # Instant mode
-                # Use the schedule's instant delivery times
-                if not schedule.instant_deliveries:
+                # Load instant deliveries
+                deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
+                if not deliveries:
                     QMessageBox.warning(self, "Invalid Schedule", 
                         "This schedule has no instant delivery times configured")
                     return
                 
-                # Get earliest and latest delivery times from schedule
-                delivery_times = [QDateTime.fromString(d['datetime'].strftime("%Y-%m-%d %H:%M:%S"), 
-                                                     "yyyy-MM-dd HH:mm:ss") 
-                                for d in schedule.instant_deliveries]
-                window_start = min(delivery_times).toSecsSinceEpoch()
-                window_end = max(delivery_times).toSecsSinceEpoch()
+                # Process deliveries
+                schedule.instant_deliveries = []
+                for delivery in deliveries:
+                    animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
+                    delivery_time = datetime.fromisoformat(datetime_str)
+                    schedule.add_instant_delivery(animal_id, delivery_time, volume, relay_unit_id)
+                
+                delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
+                window_start = min(delivery_times).timestamp()
+                window_end = max(delivery_times).timestamp()
             
-            self.run_program_callback(schedule, mode, window_start, window_end)
+            # Verify relay assignments
+            if not schedule.relay_unit_assignments:
+                QMessageBox.warning(self, "Invalid Schedule", 
+                    "No relay unit assignments configured")
+                return
+            
+            # Update UI state before starting
             self.job_in_progress = True
             self.update_button_states()
             
+            # Call run_program_callback after UI update
+            QTimer.singleShot(0, lambda: self._execute_program(
+                schedule, mode, settings['window_start'], settings['window_end']
+            ))
+            
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to run program: {e}")
-
-    def stop_program(self):
-        """Pause the current schedule and display dispensed volumes"""
-        try:
-            self.stop_program_callback()
             self.job_in_progress = False
             self.update_button_states()
+            QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
+
+    def _execute_program(self, schedule, mode, window_start, window_end):
+        """Execute the program after UI update"""
+        try:
+            self.run_program_callback(schedule, mode, window_start, window_end)
+        except Exception as e:
+            self.job_in_progress = False
+            self.update_button_states()
+            QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
+
+    def stop_program(self):
+        """Stop the current schedule with proper state management"""
+        try:
+            if not self.job_in_progress:
+                return
             
-            # Display paused message with volumes
-            volumes_text = "\n".join([
-                f"Relay unit {unit}: {volume}mL" 
-                for unit, volume in self.schedule_manager.dispensed_volumes.items()
-            ])
-            QMessageBox.information(
-                self,
-                "Schedule Paused",
-                f"Schedule paused. Volumes dispensed:\n{volumes_text}"
-            )
+            # Store progress dialog as instance variable to prevent premature deletion
+            self.progress_dialog = QMessageBox(self)
+            self.progress_dialog.setIcon(QMessageBox.Information)
+            self.progress_dialog.setText("Stopping schedule...")
+            self.progress_dialog.setStandardButtons(QMessageBox.NoButton)
+            
+            # Disable stop button immediately to prevent multiple clicks
+            self.stop_button.setEnabled(False)
+            self.stop_button.setText("Stopping...")
+            
+            # Call stop callback directly instead of using QTimer
+            self._execute_stop()
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to pause schedule: {str(e)}")
+            self.job_in_progress = False
+            self.update_button_states()
+            QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+
+    def _execute_stop(self):
+        """Execute the stop operation with proper cleanup"""
+        try:
+            # Show progress dialog
+            self.progress_dialog.show()
+            QApplication.processEvents()  # Force UI update
+            
+            # Call the main stop callback
+            success = self.stop_program_callback()
+            
+            # Ensure we process any pending events
+            QApplication.processEvents()
+            
+            # Always close the dialog and cleanup, regardless of success
+            if hasattr(self, 'progress_dialog') and self.progress_dialog:
+                self.progress_dialog.close()
+                self.progress_dialog.deleteLater()
+                self.progress_dialog = None
+            
+            # Update UI state
+            self.job_in_progress = False
+            self.update_button_states()
+            self.reset_ui()
+            
+            if not success:
+                QMessageBox.warning(self, "Warning", "Failed to stop schedule completely")
+                
+        except Exception as e:
+            if hasattr(self, 'progress_dialog') and self.progress_dialog:
+                self.progress_dialog.close()
+                self.progress_dialog.deleteLater()
+                self.progress_dialog = None
+            QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+            self.job_in_progress = False
+            self.update_button_states()
 
     def reset_ui(self):
         """Reset the UI to the initial state after a job is completed."""
         self.job_in_progress = False
         self.update_button_states()
-        self.start_time_input.setDateTime(QDateTime.currentDateTime())
-        self.end_time_input.setDateTime(QDateTime.currentDateTime().addSecs(3600))
-        self.offline_input.clear()
-
+        self.stop_button.setText("Stop")  # Reset button text
 
     def change_relay_hats(self):
-        # Clear any old references in the advanced settings
-        self.advanced_settings.clear_layout(self.advanced_settings.layout)
-        self.advanced_settings.trigger_entries.clear()
-
-        # Execute the callback to change the relay hats
-        self.change_relay_hats_callback()
-
-        # After changing the relay hats, reinitialize the advanced settings UI
-        self.advanced_settings.create_settings_ui()
-
-        # Update the internal settings with new relay pairs (optional but recommended)
-        self.settings['relay_pairs'] = self.advanced_settings.settings['relay_pairs']
-
-        # Reset the UI to ensure no lingering data or state
-        self.reset_ui()
-
-        # Update the button states to reflect the new configuration
-        self.update_button_states()
+        """Change relay hats configuration"""
+        try:
+            # Execute the callback to change the relay hats
+            self.change_relay_hats_callback()
+            
+            # Reset the UI
+            self.reset_ui()
+            
+            # Update the button states
+            self.update_button_states()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to change relay hats: {str(e)}")
 
     def _on_mode_changed(self, mode):
         """Handle mode changes from schedule drop area"""
-        is_staggered = mode == "Staggered"
-        self.tab_widget.setVisible(is_staggered)
+        pass  # No need to handle visibility of removed tab widget
+
+    def edit_current_schedule(self):
+        """Open the edit dialog for the current schedule"""
+        if not self.current_schedule:
+            return
+        
+        try:
+            dialog = EditScheduleDialog(self.current_schedule, self.database_handler, self)
+            if dialog.exec_() == QDialog.Accepted:
+                # Refresh the schedule display
+                self.schedule_drop_area.update_table(self.current_schedule)
+                # Notify any listeners that the schedule was updated
+                self.schedule_updated.emit(self.current_schedule.schedule_id)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to edit schedule: {str(e)}")
+
+    def on_schedule_dropped(self, schedule):
+        """Handle when a schedule is dropped"""
+        self.current_schedule = schedule
+        self.edit_button.setEnabled(True)
+        self.edit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+        # Connect the schedule drop area's signal
+        self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
+
+    def on_schedule_updated(self, updated_schedule):
+        """Handle when a schedule is updated"""
+        self.current_schedule = updated_schedule
+        self.update_table(updated_schedule)
+        self.schedule_updated.emit(updated_schedule.schedule_id)
 
 

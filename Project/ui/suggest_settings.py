@@ -11,11 +11,11 @@ from .SettingsTab import SettingsTab
 SAVED_SETTINGS_DIR = "saved_settings"
 
 class SuggestSettingsSection(QWidget):
-    def __init__(self, settings, suggest_settings_callback, push_settings_callback, save_slack_credentials_callback, advanced_settings, run_stop_section, login_system, load_callback=None):
+    def __init__(self, settings, suggest_settings_callback, push_settings_callback, 
+                 save_slack_credentials_callback, run_stop_section, login_system, load_callback=None):
         super().__init__()
 
         self.settings = settings
-        self.advanced_settings = advanced_settings
         self.run_stop_section = run_stop_section
         self.save_callback = save_slack_credentials_callback
         self.load_callback = load_callback
@@ -43,9 +43,9 @@ class SuggestSettingsSection(QWidget):
 
         # User/Profile Tab
         self.user_tab = UserTab(login_system)
-        self.user_tab.login_signal.connect(self.on_login)  # Handle login
-        self.user_tab.logout_signal.connect(self.on_logout)  # Handle logout
-        self.tab_widget.addTab(self.user_tab, "Profile")  # Initially "Profile" for guests
+        self.user_tab.login_signal.connect(self.on_login)
+        self.user_tab.logout_signal.connect(self.on_logout)
+        self.tab_widget.addTab(self.user_tab, "Profile")
 
         self.layout.addWidget(self.tab_widget)
 
@@ -77,12 +77,9 @@ class SuggestSettingsSection(QWidget):
             interval = int(self.run_stop_section.interval_input.text())
             stagger = int(self.run_stop_section.stagger_input.text())
 
-            num_triggers = self.advanced_settings.get_settings()['num_triggers']
-
             current_settings = {
                 "interval": interval,
                 "stagger": stagger,
-                "num_triggers": {str(k): v for k, v in num_triggers.items()},  # Convert tuple keys to strings
             }
 
             name, ok = QInputDialog.getText(self, "Save Settings", "Enter a name for these settings:")
@@ -125,20 +122,12 @@ class SuggestSettingsSection(QWidget):
                     with open(full_path, 'r') as f:
                         loaded_settings = json.load(f)
 
-                    # Convert string keys back to tuples for num_triggers
-                    num_triggers = {eval(k): v for k, v in loaded_settings.get("num_triggers", {}).items()}
-
                     # Update the settings with loaded values
                     self.settings.update(loaded_settings)
-                    self.settings['num_triggers'] = num_triggers  # Update num_triggers with tuple keys
 
                     # Update UI fields with the loaded settings
                     self.run_stop_section.interval_input.setText(str(self.settings.get('interval', '')))
                     self.run_stop_section.stagger_input.setText(str(self.settings.get('stagger', '')))
-
-                    # Update advanced settings triggers
-                    if hasattr(self, 'advanced_settings'):
-                        self.advanced_settings.update_triggers(self.settings['num_triggers'])
 
                     if self.load_callback:
                         self.load_callback()

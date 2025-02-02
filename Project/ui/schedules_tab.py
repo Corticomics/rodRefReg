@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
@@ -44,6 +44,25 @@ class SchedulesTab(QWidget):
         mode_layout.addWidget(self.mode_selector)
         mode_layout.addStretch()
         self.available_animals_layout.insertLayout(0, mode_layout)
+
+        reset_button = QPushButton("Reset All")
+        reset_button.clicked.connect(self.reset_all)
+        reset_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                min-width: 80px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+        """)
+        mode_layout.addWidget(reset_button)
 
         self.animal_list = AvailableAnimalsList()
         self.animal_list.setMinimumWidth(200)
@@ -107,19 +126,19 @@ class SchedulesTab(QWidget):
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 8px 16px;
-                min-width: 150px;
-                font-weight: bold;
+                padding: 4px 8px;
+                min-width: 120px;
+                font-size: 12px;
             }
             QComboBox::drop-down {
                 border: none;
-                width: 30px;
+                width: 20px;
             }
             QComboBox::down-arrow {
                 image: url(:/icons/down-arrow.png);
             }
             QComboBox QAbstractItemView {
-                background-color: 1a73e8;
+                background-color: #1a73e8;
                 color: #202124;
                 selection-background-color: #f8f9fa;
                 selection-color: white;
@@ -247,19 +266,28 @@ class SchedulesTab(QWidget):
             # Get delivery mode from mode selector
             delivery_mode = self.mode_selector.currentText().lower()
             
-            # Collect data from all relay units
-            total_volume = 0
+            # Initialize time variables
             min_time = None
             max_time = None
+            total_volume = 0
             
+            # Calculate schedule window based on delivery slots
             for unit_id, relay_widget in self.relay_unit_widgets.items():
                 relay_data = relay_widget.get_data()
-                print(f"Relay data for unit {unit_id}: {relay_data}")
-                
                 if not relay_data['animals']:
                     continue
                     
-                if delivery_mode == 'instant':
+                if delivery_mode == 'staggered':
+                    for window in relay_data['delivery_schedule']:
+                        start_time = window['start_time']
+                        end_time = window['end_time']
+                        total_volume += window['volume']
+                        
+                        if min_time is None or start_time < min_time:
+                            min_time = start_time
+                        if max_time is None or end_time > max_time:
+                            max_time = end_time
+                else:  # instant mode
                     for delivery in relay_data['delivery_schedule']:
                         total_volume += delivery['volume']
                         delivery_time = delivery['datetime']
@@ -268,27 +296,26 @@ class SchedulesTab(QWidget):
                             min_time = delivery_time
                         if max_time is None or delivery_time > max_time:
                             max_time = delivery_time
-                else:
-                    # For staggered mode, sum up desired outputs
-                    for volume in relay_data['desired_water_output'].values():
-                        total_volume += volume
 
             if min_time is None:
                 min_time = datetime.now()
             if max_time is None:
                 max_time = datetime.now()
 
-            # Create schedule object without relay_unit_id
+            # Create schedule object
             schedule = Schedule(
                 schedule_id=None,
                 name=schedule_name,
                 water_volume=total_volume,
-                start_time=min_time.isoformat(),
-                end_time=max_time.isoformat(),
+                start_time=min_time if isinstance(min_time, str) else min_time.isoformat(),
+                end_time=max_time if isinstance(max_time, str) else max_time.isoformat(),
                 created_by=current_trainer['trainer_id'],
                 is_super_user=(current_trainer['role'] == 'super'),
                 delivery_mode=delivery_mode
             )
+
+            # Track all animals for both modes
+            all_animals = set()
 
             # Add delivery data with correct relay unit assignments
             for unit_id, relay_widget in self.relay_unit_widgets.items():
@@ -298,29 +325,49 @@ class SchedulesTab(QWidget):
 
                 if delivery_mode == 'instant':
                     print(f"save_current_schedule: adding instant deliveries for unit {unit_id}")
+                    # Add animal to the set of all animals
+                    animal_id = relay_data['animals'][0].animal_id
+                    all_animals.add(animal_id)
+                    
                     for delivery in relay_data['delivery_schedule']:
-                        animal_id = relay_data['animals'][0].animal_id
                         print(f"save_current_schedule: adding instant delivery for animal {animal_id} "
                               f"at {delivery['datetime']} with volume {delivery['volume']}")
                         schedule.add_instant_delivery(
                             animal_id,
                             delivery['datetime'],
                             delivery['volume'],
-                            unit_id  # Add relay unit ID to instant delivery
+                            unit_id
                         )
-                        print("Schedule object in conditional: ", schedule)
-                else:
-                    schedule.animals.extend([animal.animal_id for animal in relay_data['animals']])
-                    schedule.desired_water_outputs.update(relay_data['desired_water_output'])
 
-            # Save schedule to database
-            print(f"Schedule object: {schedule.delivery_mode}, {schedule.name}, {schedule.water_volume}, {schedule.start_time}, {schedule.end_time}, {schedule.created_by}, {schedule.is_super_user}, {schedule.animals}, {schedule.desired_water_outputs}, {schedule.instant_deliveries}")
-            self.database_handler.add_schedule(schedule)
-            QMessageBox.information(self, "Success", "Schedule saved successfully!")
-            self.load_schedules()
-            
+                else:  # staggered mode
+                    for animal in relay_data['animals']:
+                        all_animals.add(animal.animal_id)
+                        schedule.add_animal(
+                            animal.animal_id,
+                            unit_id,
+                            relay_data['desired_water_output'].get(str(animal.animal_id))
+                        )
+
+            # Ensure animals are added to schedule for both modes
+            schedule.animals = list(all_animals)
+
+            # Save schedule to database using the appropriate method
+            if delivery_mode == 'staggered':
+                schedule_id = self.database_handler.add_staggered_schedule(schedule)
+                print(f"save_current_schedule: added staggered schedule with details:" + str(schedule))
+            else:
+                print(f"save_current_schedule: adding instant schedule with details:" + str(schedule))
+                schedule_id = self.database_handler.add_schedule(schedule)
+
+            if schedule_id:
+                QMessageBox.information(self, "Success", "Schedule saved successfully!")
+                self.load_schedules()
+            else:
+                raise Exception("Failed to save schedule to database")
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error saving schedule: {str(e)}")
+            print(f"Error details: {traceback.format_exc()}")
 
     def load_selected_schedule(self, item):
         """Load the selected schedule and populate the relay units."""
@@ -373,9 +420,12 @@ class SchedulesTab(QWidget):
             relay_widget.clear_assignments()
 
     def startDrag(self, event):
-        """Start the drag operation."""
+        """Start the drag operation with proper selection handling"""
         item = self.schedule_list.currentItem()
-        if item:
+        if not item:
+            return
+        
+        try:
             schedule = item.data(Qt.UserRole)
             # Get fresh schedule details from database
             schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)
@@ -383,7 +433,6 @@ class SchedulesTab(QWidget):
                 schedule_detail = schedule_details[0]
                 
                 mime_data = QMimeData()
-                # Create serializable schedule data
                 schedule_data = {
                     'schedule_id': schedule.schedule_id,
                     'name': schedule.name,
@@ -400,9 +449,16 @@ class SchedulesTab(QWidget):
                 
                 mime_data.setData('application/x-schedule', str(schedule_data).encode())
                 
-                drag = QDrag(self)
+                drag = QDrag(self.schedule_list)
                 drag.setMimeData(mime_data)
+                
+                # Clear selection after drag completes
+                drag.finished.connect(lambda: self.schedule_list.clearSelection())
+                
                 drag.exec_(Qt.CopyAction)
+                
+        except Exception as e:
+            self.print_to_terminal(f"Error starting drag: {e}")
 
     def handle_login_status_change(self):
         """Handle changes in login status"""
@@ -415,17 +471,43 @@ class SchedulesTab(QWidget):
             widget.set_mode(mode)
 
     def schedule_list_mouse_press(self, event):
+        """Handle mouse press events on the schedule list"""
         if event.button() == Qt.LeftButton:
             item = self.schedule_list.itemAt(event.pos())
             if item:
-                self.startDrag(event)
-
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        if event.button() == Qt.LeftButton:
-            item = self.schedule_list.itemAt(event.pos())
-            if item:
-                self.startDrag(event)
+                # Clear previous selection
+                self.schedule_list.clearSelection()
+                # Select the new item
+                item.setSelected(True)
+                # Only start drag if left button is pressed
+                drag = QDrag(self.schedule_list)
+                mime_data = QMimeData()
+                
+                schedule = item.data(Qt.UserRole)
+                schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)
+                
+                if schedule_details:
+                    schedule_detail = schedule_details[0]
+                    schedule_data = {
+                        'schedule_id': schedule.schedule_id,
+                        'name': schedule.name,
+                        'water_volume': schedule.water_volume,
+                        'start_time': schedule.start_time,
+                        'end_time': schedule.end_time,
+                        'created_by': schedule.created_by,
+                        'is_super_user': schedule.is_super_user,
+                        'delivery_mode': schedule_detail['delivery_mode'],
+                        'animals': schedule_detail['animal_ids'],
+                        'desired_water_outputs': schedule_detail.get('desired_water_outputs', {}),
+                        'instant_deliveries': schedule_detail.get('delivery_schedule', [])
+                    }
+                    
+                    mime_data.setData('application/x-schedule', str(schedule_data).encode())
+                    drag.setMimeData(mime_data)
+                    drag.exec_(Qt.CopyAction)
+        
+        # Call the parent's mouse press event
+        super(QListWidget, self.schedule_list).mousePressEvent(event)
 
     def get_relay_assignments(self):
         """Get current relay unit assignments for all animals"""
@@ -434,3 +516,44 @@ class SchedulesTab(QWidget):
             if relay_widget.assigned_animal:
                 assignments[str(relay_widget.assigned_animal.animal_id)] = unit_id
         return assignments
+
+    def reset_all(self):
+        """Reset all components to their default state"""
+        try:
+            # Reset mode selector to default
+            self.mode_selector.setCurrentText("Staggered")
+            
+            # Clear animal list and reload
+            self.animal_list.clear()
+            self.load_animals()
+            
+            # Reset all relay units
+            for relay_widget in self.relay_unit_widgets.values():
+                relay_widget.clear_assignments()
+            
+            # Deselect any selected schedule
+            self.schedule_list.clearSelection()
+            
+            # Reset the mode for all relay units
+            self.set_delivery_mode("Staggered")
+            
+            # Notify user
+            QMessageBox.information(
+                self,
+                "Reset Complete",
+                "All settings have been reset to their default state."
+            )
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Reset Error",
+                f"An error occurred while resetting: {str(e)}"
+            )
+            self.print_to_terminal(f"Error during reset: {e}")
+            traceback.print_exc()
+
+    def update_time_window(self, start_time, end_time):
+        """Update schedule time window"""
+        self.start_time = start_time
+        self.end_time = end_time

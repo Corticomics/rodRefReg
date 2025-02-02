@@ -2,8 +2,9 @@
 
 import sys
 import os
+from utils.volume_calculator import VolumeCalculator
 from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
-from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -77,14 +78,16 @@ def setup():
         change_relay_hats, 
         settings, 
         database_handler=database_handler, 
-        login_system=login_system
+        login_system=login_system,
+        relay_handler=relay_handler,
+        notification_handler=notification_handler
     )
 
 def run_program(schedule, mode, window_start, window_end):
     global thread, worker, notification_handler, controller
 
     try:
-        print(f"Running program with schedule: {schedule.name}, mode: {mode}, window_start: {window_start}, window_end: {window_end}")
+        print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
         # Reinitialize the thread and worker
         if thread is not None:
@@ -92,23 +95,40 @@ def run_program(schedule, mode, window_start, window_end):
             thread.wait()
         thread = QThread()
 
-        # Create worker settings
+        # Create base worker settings
         worker_settings = {
             'mode': mode,
             'window_start': window_start,
-            'window_end': window_end
+            'window_end': window_end,
+            'min_trigger_interval_ms': 500,
+            'database_handler': database_handler,  # Add database handler
+            'pump_controller': controller.pump_controller if hasattr(controller, 'pump_controller') else None,
+            'schedule_id': schedule.schedule_id
         }
         
-        if mode == "Instant":
+        if mode.lower() == "instant":
             # Create delivery instants with correct relay unit assignments
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
                 worker_settings['delivery_instants'].append({
-                    'relay_unit_id': delivery['relay_unit_id'],  # Use stored relay unit ID
+                    'relay_unit_id': delivery['relay_unit_id'],
                     'animal_id': delivery['animal_id'],
                     'delivery_time': delivery['datetime'].isoformat() if hasattr(delivery['datetime'], 'isoformat') else delivery['datetime'],
                     'water_volume': delivery['volume']
                 })
+        else:  # Staggered mode
+            worker_settings.update({
+                'cycle_interval': 3600,
+                'stagger_interval': 0.5,
+                'water_volume': schedule.water_volume,
+                'relay_unit_assignments': schedule.relay_unit_assignments,
+                'desired_water_outputs': schedule.desired_water_outputs  # Add this line
+            })
+        
+        print("\nWorker Settings Debug:")
+        print(f"Mode: {worker_settings.get('mode')}")
+        print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
+        print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
         
         # Initialize worker with correct settings
         worker = RelayWorker(worker_settings, relay_handler, notification_handler)
@@ -117,7 +137,6 @@ def run_program(schedule, mode, window_start, window_end):
         # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup, Qt.QueuedConnection)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
@@ -126,21 +145,31 @@ def run_program(schedule, mode, window_start, window_end):
 
         print("Program Started")
     except Exception as e:
-        print(f"Error running program: {e}")
+        print(f"Failed to run program: {e}")
+        if notification_handler:
+            notification_handler.send_slack_notification(f"Program error: {e}")
 
 def cleanup():
     global thread, worker
-
+    
+    print("[DEBUG] Starting cleanup process")
+    
+    if worker and worker._is_running:
+        print("[DEBUG] Worker still running, waiting for completion")
+        return
+        
     try:
-        print("[DEBUG] Starting cleanup process")
-
-        # Ensure all relays are deactivated
-        try:
+        if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        except Exception as e:
-            print(f"[ERROR] Error deactivating relays: {e}")
-
+            
+        if worker:
+            worker._is_running = False
+            for timer in worker.timers:
+                timer.stop()
+            worker.main_timer.stop()
+            print("[DEBUG] All timers stopped")
+            
         # Check if the worker still exists before trying to disconnect signals
         if worker is not None:
             try:
@@ -169,23 +198,54 @@ def cleanup():
         print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
 
 def stop_program():
-    global thread, worker
+    """Central stop control function"""
+    global thread, worker, relay_handler
+    
     try:
+        print("[DEBUG] Starting stop sequence")
+        
+        # First stop the worker if it exists
         if worker:
-            worker.stop()  # Request the worker to stop
-        else:
-            print("Worker is None in stop_program")
-
-        # Wait for the worker to finish
+            # Stop all timers first
+            worker._is_running = False
+            for timer in getattr(worker, 'timers', []):
+                if timer and timer.isActive():
+                    timer.stop()
+            
+            if hasattr(worker, 'main_timer') and worker.main_timer:
+                worker.main_timer.stop()
+            
+            if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
+                worker.monitor_timer.stop()
+            
+            # Call worker's stop method
+            worker.stop()
+            
+            print("[DEBUG] Worker stopped")
+        
+        # Wait for thread with timeout
         if thread and thread.isRunning():
-            thread.quit()
+            if not thread.wait(2000):  # 2 second timeout
+                print("[DEBUG] Thread timeout - forcing termination")
+                thread.terminate()
             thread.wait()
-
-        cleanup()
-
-        print("Program Stopped")
+            print("[DEBUG] Thread stopped")
+        
+        # Ensure relays are deactivated
+        if relay_handler:
+            relay_handler.set_all_relays(0)
+            print("[DEBUG] All relays deactivated")
+        
+        # Clear worker and thread references
+        worker = None
+        thread = None
+        
+        print("[DEBUG] Stop sequence completed successfully")
+        return True
+        
     except Exception as e:
-        print(f"Error stopping program: {e}")
+        print(f"[ERROR] Stop sequence failed: {e}")
+        return False
 
 def change_relay_hats():
     global relay_handler, settings

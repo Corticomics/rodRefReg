@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
 from models.animal import Animal
 from .available_animals_list import AvailableAnimalsList
 from datetime import datetime
+from .staggered_delivery_slot import StaggeredDeliverySlot
 
 class WaterDeliverySlot(QWidget):
     # Signal emitted when the slot is about to be deleted
@@ -81,10 +82,9 @@ class RelayUnitWidget(QWidget):
         self.relay_unit = relay_unit
         self.database_handler = database_handler
         self.available_animals_list = available_animals_list
-        self.assigned_animal = None  # Only one animal per relay unit
-        self.desired_water_output = 0.0  # Desired water output for the animal
+        self.assigned_animal = None
         self.pump_controller = pump_controller
-        self.current_mode = "Staggered"  # Track mode internally
+        self.current_mode = "Staggered"
 
         # Main layout
         self.layout = QVBoxLayout()
@@ -123,60 +123,43 @@ class RelayUnitWidget(QWidget):
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.layout.addWidget(self.recommended_water_label)
 
-        # **Desired Water Output Input**
-        # Create a horizontal layout for the label and input box
-        desired_output_layout = QHBoxLayout()
-
-        # Label for Desired Water Output
-        self.desired_output_label = QLabel("Water Output (mL):")
-        self.desired_output_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.desired_output_label.setFixedWidth(150)  # Optional: Set a fixed width for better alignment
-
-        # Input box for Desired Water Output
-        self.desired_output_input = QLineEdit()
-        self.desired_output_input.setPlaceholderText("Enter desired water volume")
-        self.desired_output_input.setFixedWidth(200)  # Set a fixed width as desired
-
-        # Add widgets to the horizontal layout
-        desired_output_layout.addWidget(self.desired_output_label)
-        desired_output_layout.addWidget(self.desired_output_input)
-        desired_output_layout.addStretch()  # Pushes the widgets to the left
-
-        # Add the horizontal layout to the main vertical layout
-        self.layout.addLayout(desired_output_layout)
-
-        # Connect input change to update desired water output
-        self.desired_output_input.textChanged.connect(self.update_desired_water_output)
+        # Instant Delivery Components
+        self.setup_instant_delivery_components()
 
         # Connect double-click to remove animal
         self.animal_table.cellDoubleClicked.connect(self.remove_animal)
 
-        # Container for instant delivery slots
-        self.instant_delivery_container = QWidget()
-        self.instant_delivery_layout = QVBoxLayout()
-        self.instant_delivery_container.setLayout(self.instant_delivery_layout)
-        
-        # Add delivery slot button with icon or clear text
-        self.add_slot_button = QPushButton("+ Add Water Delivery Time")
-        self.add_slot_button.clicked.connect(self.add_delivery_slot)
-        
-        # Add widgets to layout
-        self.layout.addWidget(self.instant_delivery_container)
-        self.layout.addWidget(self.add_slot_button)
-        
-        # Add spacing between relay units
-        self.layout.addSpacing(20)
-        
-        # Initialize UI state
-        self.delivery_slots = []
-        
-        # Hide instant delivery components by default
-        self.instant_delivery_container.hide()
-        self.add_slot_button.hide()
-
         # Initialize UI state
         self.delivery_slots = []
         self.set_mode("Staggered")  # Default mode
+
+    def setup_instant_delivery_components(self):
+        """Setup components for instant delivery mode"""
+        # Container for instant delivery slots
+        self.instant_delivery_container = QWidget()
+        self.instant_delivery_layout = QVBoxLayout(self.instant_delivery_container)
+        self.layout.addWidget(self.instant_delivery_container)
+        
+        # Add delivery slot button for instant mode
+        self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
+        self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
+        self.layout.addWidget(self.add_instant_slot_button)
+        
+        # Container for staggered delivery slots
+        self.staggered_delivery_container = QWidget()
+        self.staggered_delivery_layout = QVBoxLayout(self.staggered_delivery_container)
+        self.layout.addWidget(self.staggered_delivery_container)
+        
+        # Add delivery slot button for staggered mode
+        self.add_staggered_slot_button = QPushButton("+ Add Time Window")
+        self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
+        self.layout.addWidget(self.add_staggered_slot_button)
+        
+        # Hide all delivery components by default
+        self.instant_delivery_container.hide()
+        self.add_instant_slot_button.hide()
+        self.staggered_delivery_container.hide()
+        self.add_staggered_slot_button.hide()
 
     def dragEnterEvent(self, event):
         """
@@ -238,16 +221,13 @@ class RelayUnitWidget(QWidget):
             animal (Animal): The animal to assign.
         """
         self.assigned_animal = animal
-        self.desired_water_output = 0.0  # Reset desired water output
 
         # Update the animal information table
         self.animal_table.setRowCount(1)
         self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
         self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
-        last_weight = str(animal.last_weight) if animal.last_weight is not None else "N/A"
-        self.animal_table.setItem(0, 2, QTableWidgetItem(last_weight))
-        last_watering = animal.last_watering if animal.last_watering else "N/A"
-        self.animal_table.setItem(0, 3, QTableWidgetItem(last_watering))
+        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
+        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
 
         # Align text to center for better readability
         for column in range(4):
@@ -274,46 +254,33 @@ class RelayUnitWidget(QWidget):
         recommended_water = round(weight * 0.1, 2)  # Example: 10% of body weight
         return recommended_water
 
-    def update_desired_water_output(self, text):
-        """
-        Update the desired water output based on user input.
-
-        Args:
-            text (str): The text input from the user.
-        """
-        try:
-            if text.strip() == "":
-                self.desired_water_output = 0.0
-            else:
-                self.desired_water_output = float(text)
-        except ValueError:
-            QMessageBox.warning(self, "Input Error", "Please enter a valid number for water volume.")
-            self.desired_output_input.setText("")
-
     def get_data(self):
         """
         Retrieve the current data from the widget.
         """
-        desired_output_text = self.desired_output_input.text().strip()
-        try:
-            desired_output = float(desired_output_text) if desired_output_text else 0.0
-        except ValueError:
-            desired_output = 0.0
-            QMessageBox.warning(self, "Input Error", "Invalid desired water output. Resetting to 0.0 mL.")
-
+        # Build desired water output dictionary
         desired_water_output = {}
+        relay_unit_assignments = {}
+        
         if self.assigned_animal:
-            desired_water_output[str(self.assigned_animal.animal_id)] = desired_output
+            # Add relay unit assignment
+            relay_unit_assignments[str(self.assigned_animal.animal_id)] = self.relay_unit.unit_id
+            
+            # Calculate recommended water volume for the animal
+            recommended_volume = self.calculate_recommended_water(self.assigned_animal)
+            desired_water_output[str(self.assigned_animal.animal_id)] = recommended_volume
 
+        # Prepare base data structure
         data = {
             'animals': [self.assigned_animal] if self.assigned_animal else [],
             'desired_water_output': desired_water_output,
+            'relay_unit_assignments': relay_unit_assignments,  # Add relay unit assignments
             'delivery_mode': self.current_mode.lower()
         }
         
+        # Handle delivery schedule based on mode
         if data['delivery_mode'] == 'instant':
             schedule = []
-            # Check both visibility and deletion status
             active_slots = [slot for slot in self.delivery_slots 
                            if slot.isVisible() and not slot.is_deleted]
             for slot in active_slots:
@@ -321,11 +288,42 @@ class RelayUnitWidget(QWidget):
                     volume = float(slot.volume_input.text())
                     schedule.append({
                         'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
-                        'volume': volume
+                        'volume': volume,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
                     })
                 except (ValueError, AttributeError):
                     continue
             data['delivery_schedule'] = schedule
+        else:  # staggered mode
+            schedule = []
+            active_slots = [slot for slot in self.delivery_slots 
+                           if slot.isVisible() and not slot.is_deleted]
+            total_volume = 0
+            for slot in active_slots:
+                try:
+                    volume = float(slot.volume_input.text())
+                    total_volume += volume
+                    schedule.append({
+                        'start_time': slot.start_datetime.dateTime().toPyDateTime(),
+                        'end_time': slot.end_datetime.dateTime().toPyDateTime(),
+                        'volume': volume,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
+                    })
+                except (ValueError, AttributeError):
+                    continue
+            data['delivery_schedule'] = schedule
+            
+            # Update staggered-specific data with total volume
+            if self.assigned_animal:
+                data['staggered_settings'] = {
+                    str(self.assigned_animal.animal_id): {
+                        'total_volume': total_volume,
+                        'windows': schedule,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
+                    }
+                }
+                # Update the desired water output with the total volume
+                desired_water_output[str(self.assigned_animal.animal_id)] = total_volume
         
         return data
 
@@ -341,19 +339,13 @@ class RelayUnitWidget(QWidget):
         if animals:
             animal = animals[0]  # Assuming only one animal per relay unit
             self.add_animal(animal)
-            if animal.animal_id in desired_water_output:
-                self.desired_output_input.setText(str(desired_water_output[animal.animal_id]))
-            else:
-                self.desired_output_input.setText("0.0")
 
     def clear_assignments(self):
         """
         Clear all assigned animals and reset inputs.
         """
         self.assigned_animal = None
-        self.desired_water_output = 0.0
         self.animal_table.setRowCount(0)
-        self.desired_output_input.clear()
         self.recommended_water_label.setText("Recommended water volume: N/A")
         self.drag_area_label.show()
 
@@ -410,33 +402,85 @@ class RelayUnitWidget(QWidget):
                 "Please enter a valid number")
 
     def add_delivery_slot(self):
-        """Add a new instant delivery time slot"""
+        """Add a new water delivery time slot"""
         slot = WaterDeliverySlot()
-        slot.slot_deleted.connect(self.on_slot_deleted)  # Connect the deletion signal
+        slot.slot_deleted.connect(self.remove_delivery_slot)
         self.delivery_slots.append(slot)
         self.instant_delivery_layout.addWidget(slot)
 
-    def set_mode(self, mode):
-        """Set the delivery mode from parent widget"""
-        self.current_mode = mode
-        is_instant = mode == "Instant"
-        
-        # Update visibility
-        self.instant_delivery_container.setVisible(is_instant)
-        self.add_slot_button.setVisible(is_instant)
-        self.desired_output_label.setVisible(not is_instant)
-        self.desired_output_input.setVisible(not is_instant)
-        
-        # Clear existing slots when switching modes
-        if not is_instant:
-            while self.delivery_slots:
-                slot = self.delivery_slots.pop()
-                slot.setParent(None)  # Remove parent reference
-                slot.deleteLater()  # Schedule for deletion
-
-    def on_slot_deleted(self, slot):
-        """Handle the deletion of a WaterDeliverySlot."""
+    def remove_delivery_slot(self, slot):
+        """Remove a water delivery time slot"""
         if slot in self.delivery_slots:
             self.delivery_slots.remove(slot)
+
+    def set_mode(self, mode):
+        """Set the delivery mode and update UI accordingly"""
+        self.current_mode = mode
+        
+        # Show/hide components based on mode
+        if mode == "Instant":
+            self.instant_delivery_container.show()
+            self.add_instant_slot_button.show()
+            self.staggered_delivery_container.hide()
+            self.add_staggered_slot_button.hide()
+            # Clear staggered slots
+            self.clear_staggered_slots()
+        else:  # Staggered mode
+            self.instant_delivery_container.hide()
+            self.add_instant_slot_button.hide()
+            self.staggered_delivery_container.show()
+            self.add_staggered_slot_button.show()
+            # Clear instant slots
+            self.clear_instant_slots()
+
+    def add_staggered_slot(self):
+        """Add a new staggered delivery time window slot"""
+        slot = StaggeredDeliverySlot()
+        slot.slot_deleted.connect(self.remove_staggered_slot)
+        self.delivery_slots.append(slot)
+        self.staggered_delivery_layout.addWidget(slot)
+
+    def remove_staggered_slot(self, slot):
+        """Remove a staggered delivery time window slot"""
+        if slot in self.delivery_slots:
+            self.delivery_slots.remove(slot)
+
+    def clear_instant_slots(self):
+        """Clear instant delivery slots"""
+        for slot in self.delivery_slots[:]:
+            if isinstance(slot, WaterDeliverySlot):
+                slot.deleteLater()
+                self.delivery_slots.remove(slot)
+
+    def clear_staggered_slots(self):
+        """Clear staggered delivery slots"""
+        for slot in self.delivery_slots[:]:
+            if isinstance(slot, StaggeredDeliverySlot):
+                slot.deleteLater()
+                self.delivery_slots.remove(slot)
+
+    def update_animal_info(self, animal):
+        """Update the animal information display"""
+        self.animal_table.setRowCount(1)
+        self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
+        self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
+        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
+        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
+        
+        # Update recommended water label if weight is available
+        if animal.last_weight:
+            recommended = self.calculate_recommended_water(animal.last_weight)
+            self.recommended_water_label.setText(f"Recommended water volume: {recommended:.2f} mL")
         else:
-            print("Attempted to remove a slot that was not in the delivery_slots list.")
+            self.recommended_water_label.setText("Recommended water volume: N/A")
+
+    def clear_animal_info(self):
+        """Clear all animal information from the display"""
+        self.animal_table.setRowCount(0)
+        self.recommended_water_label.setText("Recommended water volume: N/A")
+        self.assigned_animal = None
+        
+        # Clear any instant delivery slots
+        for slot in self.delivery_slots:
+            slot.deleteLater()
+        self.delivery_slots.clear()

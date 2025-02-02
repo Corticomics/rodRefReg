@@ -20,15 +20,19 @@ class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
     def __init__(self, run_program, stop_program, change_relay_hats,
-                 settings, database_handler, login_system, style='bitlearns'):
+                 settings, database_handler, login_system, style='bitlearns',
+                 relay_handler=None, notification_handler=None):
         super().__init__()
 
-        self.run_program = run_program
+        # Store callbacks with correct signatures
+        self.run_program = lambda schedule, mode, window_start, window_end: run_program(schedule, mode, window_start, window_end)
         self.stop_program = stop_program
         self.change_relay_hats = change_relay_hats
         self.settings = settings
         self.database_handler = database_handler
         self.login_system = login_system
+        self.relay_handler = relay_handler
+        self.notification_handler = notification_handler
 
         # Default to guest mode
         self.current_user = None
@@ -250,18 +254,19 @@ class RodentRefreshmentGUI(QWidget):
         
         # Create sections
         self.run_stop_section = RunStopSection(
-            self.run_program, 
-            self.stop_program, 
-            self.change_relay_hats, 
+            self.run_program,
+            self.stop_program,
+            self.change_relay_hats,
             self.settings,
-            advanced_settings=None
+            self.database_handler,
+            self.relay_handler,
+            self.notification_handler
         )
         self.suggest_settings_section = SuggestSettingsSection(
             self.settings,
             self.suggest_settings_callback,
             self.push_settings_callback,
             self.save_slack_credentials_callback,
-            advanced_settings=None,
             run_stop_section=self.run_stop_section,
             login_system=self.login_system
         )
@@ -430,7 +435,7 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal(f"Error generating suggestions: {e}")
 
     def push_settings_callback(self):
-        """Apply the suggested settings to the Run/Stop and Advanced sections."""
+        """Apply the suggested settings to the Run/Stop section."""
         if not hasattr(self, 'suggested_settings'):
             self.print_to_terminal("No suggested settings available.")
             return
@@ -440,18 +445,6 @@ class RodentRefreshmentGUI(QWidget):
             self.run_stop_section.start_time_input.setDateTime(settings["start_datetime"])
             end_datetime = settings["start_datetime"].addDays(settings["duration"])
             self.run_stop_section.end_time_input.setDateTime(end_datetime)
-            self.run_stop_section.interval_input.setText("86400")  # Assume daily for example
-            self.run_stop_section.stagger_input.setText("5")
-
-            # Calculate triggers based on volumes
-            volume_calculator = VolumeCalculator(self.settings)
-            calculated_triggers = {
-                pair: volume_calculator.calculate_triggers(vol) 
-                for pair, vol in settings["relay_volumes"].items()
-            }
-            
-            if hasattr(self, 'advanced_settings') and self.advanced_settings:
-                self.advanced_settings.update_triggers(calculated_triggers)
             self.print_to_terminal("Settings applied successfully.")
 
         except Exception as e:
@@ -467,3 +460,13 @@ class RodentRefreshmentGUI(QWidget):
         global notification_handler
         notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
         self.print_to_terminal("Slack credentials saved and NotificationHandler updated.")
+
+    def change_relay_hats(self):
+        # Execute the callback to change the relay hats
+        self.change_relay_hats_callback()
+        
+        # Reset the UI to ensure no lingering data or state
+        self.reset_ui()
+        
+        # Update the button states to reflect the new configuration
+        self.update_button_states()

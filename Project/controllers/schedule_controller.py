@@ -21,122 +21,149 @@ class ScheduleController(QObject):
         self.notification_handler = notification_handler
         self.delivery_queue = delivery_queue_controller
         self.active_schedules = {}
-        self.workers = {}  # Store active RelayWorkers
-        self.worker_threads = {}  # Store worker threads
         self.volume_calculator = VolumeCalculator(settings)
         self.timing_calculator = TimingCalculator(settings)
         
-    async def start_schedule(self, schedule, mode, window_start, window_end):
-        """Start executing a schedule in specified mode"""
+        # Connect to delivery queue signals
+        self.delivery_queue.delivery_complete.connect(self.handle_delivery_complete)
+        self.delivery_queue.delivery_status.connect(self.handle_delivery_status)
+        
+    async def start_schedule(self, schedule, window_start, window_end):
+        """Start executing a schedule"""
         try:
             schedule_id = schedule.schedule_id
             
-            # Calculate base water volume and triggers
-            base_volume = schedule.water_volume
-            base_triggers = self.volume_calculator.calculate_triggers(base_volume)
+            # Prevent duplicate starts
+            if schedule_id in self.active_schedules:
+                self.schedule_status.emit(f"Schedule {schedule_id} already running")
+                return
             
-            if mode == "Instant":
-                # Use timing calculator for instant deliveries
-                animals_data = [
-                    {'animal_id': d['animal_id'], 'volume_ml': d['volume']}
-                    for d in schedule.instant_deliveries
-                ]
-                timing_plan = self.timing_calculator.calculate_instant_timing(
-                    window_start, 
-                    animals_data
-                )
-                
-                worker_settings = {
-                    'mode': mode,
-                    'delivery_instants': [
-                        {
-                            'relay_unit_id': schedule.relay_unit_id,
-                            'delivery_time': timing['start_time'].isoformat(),
-                            'water_volume': animals_data[idx]['volume_ml'],
-                            'num_triggers': len(timing['trigger_times'])
-                        }
-                        for idx, (animal_id, timing) in enumerate(timing_plan.items())
-                    ]
-                }
-            else:  # Staggered mode
-                animals_data = [
-                    {'animal_id': animal_id, 'volume_ml': schedule.desired_water_outputs.get(str(animal_id), base_volume)}
-                    for animal_id in schedule.animals
-                ]
-                
-                timing_plan = self.timing_calculator.calculate_staggered_timing(
-                    window_start,
-                    window_end,
-                    animals_data
-                )
-                
-                worker_settings = {
-                    'mode': mode,
-                    'window_start': window_start,
-                    'window_end': window_end,
-                    'cycle_interval': timing_plan['cycle_interval'],
-                    'stagger_interval': timing_plan['stagger_interval'],
-                    'num_triggers': timing_plan['triggers_per_cycle']
-                }
-            
-            # Create and start RelayWorker
-            worker = RelayWorker(worker_settings, self.relay_handler, self.notification_handler)
-            worker_thread = QThread()
-            self.workers[schedule_id] = worker
-            self.worker_threads[schedule_id] = worker_thread
-            
-            worker.moveToThread(worker_thread)
-            worker.progress.connect(lambda msg: self.schedule_status.emit(msg))
-            worker.finished.connect(lambda: self.handle_schedule_complete(schedule_id))
-            
-            # Add schedule to delivery queue before starting worker
-            await self.delivery_queue.load_schedule(schedule_id)
-            
-            worker_thread.started.connect(worker.run_cycle)
-            worker_thread.start()
-            
+            # Initialize schedule tracking
             self.active_schedules[schedule_id] = {
                 'schedule': schedule,
+                'window_start': window_start,
+                'window_end': window_end,
                 'dispensed_volumes': {},
-                'status': 'running'
+                'status': 'running',
+                'mode': schedule.delivery_mode
             }
             
+            # Load schedule into delivery queue
+            await self.delivery_queue.load_schedule(schedule_id)
+            
+            self.schedule_status.emit(
+                f"Started {schedule.delivery_mode} schedule {schedule.name} "
+                f"from {window_start} to {window_end}"
+            )
+            
+            # Start completion checking
+            asyncio.create_task(self.check_schedule_completion(schedule_id))
+            
         except Exception as e:
-            self.schedule_status.emit(f"Schedule error: {str(e)}")
+            self.schedule_status.emit(f"Schedule start error: {str(e)}")
+            if schedule_id in self.active_schedules:
+                del self.active_schedules[schedule_id]
     
-    def handle_schedule_complete(self, schedule_id):
+    async def check_schedule_completion(self, schedule_id):
+        """Periodically check if schedule is complete"""
+        try:
+            while schedule_id in self.active_schedules:
+                schedule_data = self.active_schedules[schedule_id]
+                
+                if datetime.now() > schedule_data['window_end']:
+                    await self.handle_schedule_complete(schedule_id, "Window ended")
+                    break
+                
+                # Check if all volumes are delivered
+                all_complete = True
+                schedule = schedule_data['schedule']
+                
+                for animal_id in schedule.animals:
+                    delivered = schedule_data['dispensed_volumes'].get(str(animal_id), 0)
+                    target = schedule.desired_water_outputs.get(
+                        str(animal_id), 
+                        schedule.water_volume
+                    )
+                    if delivered < target:
+                        all_complete = False
+                        break
+                
+                if all_complete:
+                    await self.handle_schedule_complete(schedule_id, "All volumes delivered")
+                    break
+                
+                await asyncio.sleep(10)  # Check every 10 seconds
+                
+        except Exception as e:
+            self.schedule_status.emit(f"Completion check error: {str(e)}")
+    
+    async def handle_schedule_complete(self, schedule_id, reason=""):
         """Handle schedule completion"""
-        if schedule_id in self.workers:
-            worker = self.workers[schedule_id]
-            thread = self.worker_threads[schedule_id]
+        try:
+            if schedule_id not in self.active_schedules:
+                return
+                
+            schedule_data = self.active_schedules[schedule_id]
+            
+            # Log completion
+            await self.database_handler.update_schedule_status(
+                schedule_id,
+                'completed',
+                schedule_data['dispensed_volumes']
+            )
+            
+            # Notify completion
+            completion_msg = (
+                f"Schedule {schedule_data['schedule'].name} completed: {reason}\n"
+                f"Delivered volumes:"
+            )
+            for animal_id, volume in schedule_data['dispensed_volumes'].items():
+                completion_msg += f"\nAnimal {animal_id}: {volume:.3f}mL"
+            
+            self.schedule_status.emit(completion_msg)
+            if self.notification_handler:
+                self.notification_handler.send_slack_notification(completion_msg)
+            
+            # Emit completion signal
+            self.schedule_complete.emit({
+                'schedule_id': schedule_id,
+                'volumes': schedule_data['dispensed_volumes'].copy(),
+                'reason': reason
+            })
             
             # Cleanup
-            worker.deleteLater()
-            thread.quit()
-            thread.wait()
-            thread.deleteLater()
+            del self.active_schedules[schedule_id]
             
-            del self.workers[schedule_id]
-            del self.worker_threads[schedule_id]
+        except Exception as e:
+            self.schedule_status.emit(f"Completion handling error: {str(e)}")
+    
+    def handle_delivery_complete(self, delivery_data):
+        """Handle completed delivery from queue"""
+        schedule_id = delivery_data.get('schedule_id')
+        if schedule_id in self.active_schedules:
+            animal_id = str(delivery_data['animal_id'])
+            volume = delivery_data['total_volume']
             
-            self.schedule_complete.emit(self.active_schedules[schedule_id]['dispensed_volumes'])
+            # Update tracking
+            current = self.active_schedules[schedule_id]['dispensed_volumes'].get(animal_id, 0)
+            self.active_schedules[schedule_id]['dispensed_volumes'][animal_id] = current + volume
+    
+    def handle_delivery_status(self, status_msg):
+        """Forward delivery status messages"""
+        self.schedule_status.emit(status_msg)
     
     async def pause_schedule(self, schedule_id):
         """Pause a running schedule"""
-        if schedule_id in self.workers:
-            worker = self.workers[schedule_id]
-            worker.stop()
-            
-            # Update schedule status
-            if schedule_id in self.active_schedules:
-                self.active_schedules[schedule_id]['status'] = 'paused'
-                await self.database_handler.update_schedule_status(
-                    schedule_id,
-                    'paused',
-                    self.active_schedules[schedule_id]['dispensed_volumes']
-                )
+        if schedule_id in self.active_schedules:
+            self.active_schedules[schedule_id]['status'] = 'paused'
+            await self.database_handler.update_schedule_status(
+                schedule_id,
+                'paused',
+                self.active_schedules[schedule_id]['dispensed_volumes']
+            )
+            self.schedule_status.emit(f"Paused schedule {schedule_id}")
     
     def stop_all_schedules(self):
         """Stop all running schedules"""
-        for schedule_id in list(self.workers.keys()):
+        for schedule_id in list(self.active_schedules.keys()):
             asyncio.create_task(self.pause_schedule(schedule_id))
