@@ -522,19 +522,34 @@ class RelayWorker(QObject):
 
     def stop(self):
         """Stop all timers and clean up"""
-        with QMutexLocker(self.mutex):
-            self._is_running = False
-            
-        self.monitor_timer.stop()
-        self.main_timer.stop()
-        
-        for timer in self.timers:
-            timer.stop()
-            timer.deleteLater()
-        self.timers.clear()
-        
-        self.progress.emit("RelayWorker stopped")
-        self.finished.emit()
+        try:
+            with QMutexLocker(self.mutex):
+                self._is_running = False
+                
+                # Stop all timers
+                self.monitor_timer.stop()
+                self.main_timer.stop()
+                
+                # Clean up delivery timers
+                for timer in self.timers:
+                    if timer.isActive():
+                        timer.stop()
+                    timer.deleteLater()
+                self.timers.clear()
+                
+                # Log final status
+                self.progress.emit("[DEBUG] All timers stopped")
+                
+                # Clean up resources
+                if hasattr(self, 'relay_handler'):
+                    self.relay_handler.deactivate_all_relays()
+                    self.progress.emit("[DEBUG] All relays deactivated")
+                
+        except Exception as e:
+            self.progress.emit(f"Error during stop: {str(e)}")
+        finally:
+            self.progress.emit("RelayWorker stopped")
+            self.finished.emit()
 
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""

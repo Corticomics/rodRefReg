@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, QHBoxLayout, QMessageBox, QComboBox, QDialog)
-from PyQt5.QtCore import QDateTime, QTimer, Qt
+from PyQt5.QtCore import QDateTime, QTimer, Qt, QMutex, QMutexLocker
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 from PyQt5.QtCore import pyqtSignal
@@ -17,6 +17,11 @@ class RunStopSection(QWidget):
         self.settings = settings
         self.database_handler = database_handler
         self.current_schedule = None
+        self.schedule_manager = None
+        self.worker_thread = None
+        
+        # Initialize mutex for thread safety
+        self.thread_mutex = QMutex()
 
         # Track the state of the job
         self.job_in_progress = False
@@ -138,145 +143,65 @@ class RunStopSection(QWidget):
             self.stop_button.setToolTip("")
 
     def run_program(self):
-        """Start executing the current schedule"""
         try:
             if not self.schedule_drop_area.current_schedule:
                 QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
                 return
-            
+                
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
-            # Load complete schedule data from database
-            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
-            
-            # Update schedule with complete data
-            schedule.animals = schedule_details['animal_ids']
-            schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
-            schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
-            
-            if not schedule.animals:
-                QMessageBox.warning(self, "Invalid Schedule", "No animals assigned to this schedule")
-                return
-            
-            print("\nDEBUG INFO:")
-            print(f"Schedule: {schedule.__dict__}")
-            print(f"Mode: {mode}")
-            
-            # Debug print before creating settings
-            print("\nSchedule Debug Info:")
-            print(f"Desired water outputs: {schedule.desired_water_outputs}")
-            print(f"Relay assignments: {schedule.relay_unit_assignments}")
-            
-            # Create settings dictionary with all necessary data
-            settings = {
-                'mode': mode,
-                'window_start': datetime.fromisoformat(schedule.start_time).timestamp() if hasattr(schedule, 'start_time') else None,
-                'window_end': datetime.fromisoformat(schedule.end_time).timestamp() if hasattr(schedule, 'end_time') else None,
-                'min_trigger_interval_ms': 500,
-                'cycle_interval': 3600,
-                'stagger_interval': 0.5,
-                'water_volume': schedule.water_volume,
-                'relay_unit_assignments': schedule.relay_unit_assignments,
-                'desired_water_outputs': schedule.desired_water_outputs,
-                'database_handler': self.database_handler,
-                'pump_controller': self.pump_controller if hasattr(self, 'pump_controller') else None
-            }
-            
-            # Debug print after creating settings
-            print("\nSettings Debug Info:")
-            print(f"Settings desired water outputs: {settings.get('desired_water_outputs')}")
-            print(f"Settings relay assignments: {settings.get('relay_unit_assignments')}")
-            
-            # Mode-specific handling
-            if mode == "Staggered":
-                if not schedule.start_time or not schedule.end_time:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "Schedule must have start and end times for staggered mode")
-                    return
+            # Create new thread and worker
+            with QMutexLocker(self.thread_mutex):
+                self.worker_thread = QThread()
+                self.schedule_manager = RelayWorker(self.settings, self.relay_handler, 
+                                                  self.notification_handler)
+                self.schedule_manager.moveToThread(self.worker_thread)
                 
-                if not schedule.desired_water_outputs:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "No water outputs configured for staggered mode")
-                    return
+                # Connect signals
+                self.worker_thread.started.connect(self.schedule_manager.run_cycle)
+                self.schedule_manager.finished.connect(self.worker_thread.quit)
+                self.schedule_manager.finished.connect(self.schedule_manager.deleteLater)
+                self.worker_thread.finished.connect(self.worker_thread.deleteLater)
+                self.worker_thread.finished.connect(self.cleanup_thread)
                 
-                # Get staggered windows
-                windows = self.database_handler.get_schedule_staggered_windows(schedule.schedule_id)
-                if not windows:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "No delivery windows configured for staggered mode")
-                    return
+                # Start thread
+                self.worker_thread.start()
+                self.job_in_progress = True
+                self.update_button_states()
                 
-                schedule.window_data = windows
-                window_start = datetime.fromisoformat(schedule.start_time).timestamp()
-                window_end = datetime.fromisoformat(schedule.end_time).timestamp()
-                
-            else:  # Instant mode
-                # Load instant deliveries
-                deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
-                if not deliveries:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "This schedule has no instant delivery times configured")
-                    return
-                
-                # Process deliveries
-                schedule.instant_deliveries = []
-                for delivery in deliveries:
-                    animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
-                    delivery_time = datetime.fromisoformat(datetime_str)
-                    schedule.add_instant_delivery(animal_id, delivery_time, volume, relay_unit_id)
-                
-                delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
-                window_start = min(delivery_times).timestamp()
-                window_end = max(delivery_times).timestamp()
-            
-            # Verify relay assignments
-            if not schedule.relay_unit_assignments:
-                QMessageBox.warning(self, "Invalid Schedule", 
-                    "No relay unit assignments configured")
-                return
-            
-            # Call run_program_callback with the complete schedule and settings
-            print(f"Starting schedule execution with mode: {mode}, window_start: {settings['window_start']}, window_end: {settings['window_end']}")
-            print(f"Animals: {schedule.animals}")
-            print(f"Relay assignments: {schedule.relay_unit_assignments}")
-            print(f"Water outputs: {schedule.desired_water_outputs}")
-            
-            self.run_program_callback(schedule, mode, settings['window_start'], settings['window_end'])
-            self.job_in_progress = True
-            self.update_button_states()
-            
         except Exception as e:
-            print(f"Error details: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            self.cleanup_thread()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
     def stop_program(self):
-        """Pause the current schedule and display dispensed volumes"""
         try:
-            self.stop_program_callback()
+            with QMutexLocker(self.thread_mutex):
+                if self.schedule_manager:
+                    self.schedule_manager.stop()
+                    self.job_in_progress = False
+                    self.update_button_states()
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to stop program: {str(e)}")
+        finally:
+            self.cleanup_thread()
+
+    def cleanup_thread(self):
+        """Clean up thread resources"""
+        with QMutexLocker(self.thread_mutex):
+            if self.worker_thread and self.worker_thread.isRunning():
+                self.worker_thread.quit()
+                self.worker_thread.wait()
+            
+            self.worker_thread = None
+            self.schedule_manager = None
             self.job_in_progress = False
             self.update_button_states()
             
-            # Display paused message with volumes
-            volumes_text = "\n".join([
-                f"Relay unit {unit}: {volume}mL" 
-                for unit, volume in self.schedule_manager.dispensed_volumes.items()
-            ])
-            QMessageBox.information(
-                self,
-                "Schedule Paused",
-                f"Schedule paused. Volumes dispensed:\n{volumes_text}"
-            )
-            
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to pause schedule: {str(e)}")
-
-    def reset_ui(self):
-        """Reset the UI to the initial state after a job is completed."""
-        self.job_in_progress = False
-        self.update_button_states()
+            print("[DEBUG] Starting cleanup process")
+            # Additional cleanup if needed
+            print("[DEBUG] Cleanup completed. Program ready for the next job.")
 
     def change_relay_hats(self):
         """Change relay hats configuration"""
