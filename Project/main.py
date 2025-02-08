@@ -14,6 +14,7 @@ from controllers.projects_controller import ProjectsController
 from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem  # Import LoginSystem
 from models.relay_unit import RelayUnit
+from controllers.system_controller import SystemController
 
 import time
 import sys
@@ -44,39 +45,41 @@ thread = QThread()
 worker = None
 
 def setup():
-    global relay_handler, settings, gui, notification_handler, controller, database_handler, login_system
+    global relay_handler, settings, gui, notification_handler, controller, database_handler, login_system, system_controller
 
-    # Initialize the Projects Controller and Database Handler
-    controller = ProjectsController()
+    # Initialize the Database Handler
     database_handler = DatabaseHandler()
 
-    # Initialize the login system with database handler and assume "Guest" mode if not logged in
+    # Initialize SystemController
+    system_controller = SystemController(database_handler)
+    
+    # Initialize other controllers
+    controller = ProjectsController()
+    
+    # Initialize the login system
     login_system = LoginSystem(database_handler)
     if not login_system.is_logged_in():
         login_system.set_guest_mode()
 
-    # Load settings (if any) and initialize relays
-    settings = load_settings()
+    # Get settings from SystemController
+    settings = system_controller.settings
     
-    # Initialize relay unit manager
+    # Initialize relay unit manager with settings from SystemController
     relay_unit_manager = RelayUnitManager(settings)
     
-    # Initialize relay handler with relay unit manager
-    relay_handler = RelayHandler(relay_unit_manager, settings.get('num_hats', 1))
-    relay_handler.set_all_relays(0)  # Ensure all relays are closed during setup
-
-    # Initialize Slack notification handler
+    # Initialize other components with SystemController
+    relay_handler = RelayHandler(relay_unit_manager, settings['num_hats'])
     notification_handler = NotificationHandler(
-        settings.get('slack_token', 'SLACKTOKEN'), 
-        settings.get('channel_id', 'ChannelId')
+        settings.get('slack_token'), 
+        settings.get('channel_id')
     )
 
-    # Initialize GUI components
+    # Initialize GUI with SystemController
     gui = RodentRefreshmentGUI(
         run_program, 
         stop_program, 
         change_relay_hats, 
-        settings, 
+        system_controller,  # Pass controller instead of settings dict
         database_handler=database_handler, 
         login_system=login_system,
         relay_handler=relay_handler,
@@ -84,25 +87,22 @@ def setup():
     )
 
 def run_program(schedule, mode, window_start, window_end):
-    global thread, worker, notification_handler, controller
+    global thread, worker, notification_handler, controller, system_controller
 
     try:
         print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
-        # Reinitialize the thread and worker
-        if thread is not None:
-            thread.quit()
-            thread.wait()
-        thread = QThread()
-
+        # Get settings from SystemController
+        settings = system_controller.settings
+        
         # Create base worker settings
         worker_settings = {
             'mode': mode,
             'window_start': window_start,
             'window_end': window_end,
-            'min_trigger_interval_ms': 500,
-            'database_handler': database_handler,  # Add database handler
-            'pump_controller': controller.pump_controller if hasattr(controller, 'pump_controller') else None,
+            'min_trigger_interval_ms': settings.get('min_trigger_interval_ms', 500),
+            'database_handler': database_handler,
+            'pump_controller': controller.pump_controller,
             'schedule_id': schedule.schedule_id
         }
         
@@ -130,8 +130,19 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
         
-        # Initialize worker with correct settings
-        worker = RelayWorker(worker_settings, relay_handler, notification_handler)
+        # Reinitialize the thread and worker
+        if thread is not None:
+            thread.quit()
+            thread.wait()
+        thread = QThread()
+
+        # Create worker with system_controller
+        worker = RelayWorker(
+            worker_settings, 
+            relay_handler, 
+            notification_handler,
+            system_controller
+        )
         worker.moveToThread(thread)
 
         # Connect signals and slots

@@ -192,6 +192,16 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Add system_settings table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS system_settings (
+                        setting_key TEXT PRIMARY KEY,
+                        setting_value TEXT NOT NULL,
+                        setting_type TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                ''')
+
                 conn.commit()
                 print("Database schema created/updated successfully.")
                 
@@ -1302,4 +1312,42 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             print(f"Error logging delivery: {e}")
             traceback.print_exc()
+            return False
+
+    def get_system_settings(self):
+        """Retrieve all system settings from database"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT setting_key, setting_value, setting_type FROM system_settings')
+                settings = {}
+                for row in cursor.fetchall():
+                    key, value, type_name = row
+                    if type_name == 'int':
+                        settings[key] = int(value)
+                    elif type_name == 'float':
+                        settings[key] = float(value)
+                    elif type_name == 'bool':
+                        settings[key] = value.lower() == 'true'
+                    else:
+                        settings[key] = value
+                return settings
+        except sqlite3.Error as e:
+            print(f"Error retrieving system settings: {e}")
+            return {}
+
+    def update_system_setting(self, key, value, setting_type):
+        """Update or insert a system setting"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO system_settings 
+                    (setting_key, setting_value, setting_type, updated_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                ''', (key, str(value), setting_type))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            print(f"Error updating system setting: {e}")
             return False

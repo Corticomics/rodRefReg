@@ -13,20 +13,31 @@ class ScheduleController(QObject):
     schedule_status = pyqtSignal(str)
     schedule_complete = pyqtSignal(dict)
     
-    def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller, settings):
+    def __init__(self, pump_controller, database_handler, relay_handler, notification_handler, delivery_queue_controller, system_controller):
         super().__init__()
         self.pump_controller = pump_controller
         self.database_handler = database_handler
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
         self.delivery_queue = delivery_queue_controller
+        self.system_controller = system_controller
         self.active_schedules = {}
-        self.volume_calculator = VolumeCalculator(settings)
-        self.timing_calculator = TimingCalculator(settings)
+        
+        # Use settings from system_controller
+        self.volume_calculator = VolumeCalculator(system_controller.settings)
+        self.timing_calculator = TimingCalculator(system_controller.settings)
+        
+        # Connect to system settings updates
+        self.system_controller.settings_updated.connect(self._handle_settings_update)
         
         # Connect to delivery queue signals
         self.delivery_queue.delivery_complete.connect(self.handle_delivery_complete)
         self.delivery_queue.delivery_status.connect(self.handle_delivery_status)
+        
+    def _handle_settings_update(self, settings):
+        """Handle system settings updates"""
+        self.volume_calculator.update_settings(settings)
+        self.timing_calculator.update_settings(settings)
         
     async def start_schedule(self, schedule, window_start, window_end):
         """Start executing a schedule"""

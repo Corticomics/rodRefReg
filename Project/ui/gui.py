@@ -15,20 +15,27 @@ from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
 from .login_gate_widget import LoginGateWidget
+from .settings_tab import SettingsTab
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
-    def __init__(self, run_program, stop_program, change_relay_hats,
-                 settings, database_handler, login_system, style='bitlearns',
-                 relay_handler=None, notification_handler=None):
+    def __init__(self, run_callback, stop_callback, change_relay_callback, 
+                 system_controller, database_handler, login_system, 
+                 relay_handler, notification_handler):
         super().__init__()
-
+        self.system_controller = system_controller
+        
+        # Connect to system settings updates
+        self.system_controller.settings_updated.connect(self._handle_settings_update)
+        
+        # Initialize with current settings
+        self.settings = system_controller.settings
+        
         # Store callbacks with correct signatures
-        self.run_program = lambda schedule, mode, window_start, window_end: run_program(schedule, mode, window_start, window_end)
-        self.stop_program = stop_program
-        self.change_relay_hats = change_relay_hats
-        self.settings = settings
+        self.run_program = lambda schedule, mode, window_start, window_end: run_callback(schedule, mode, window_start, window_end)
+        self.stop_program = stop_callback
+        self.change_relay_hats = change_relay_callback
         self.database_handler = database_handler
         self.login_system = login_system
         self.relay_handler = relay_handler
@@ -41,9 +48,9 @@ class RodentRefreshmentGUI(QWidget):
         self.system_message_signal.connect(self.print_to_terminal)
 
         # Initialize the UI with the selected style
-        self.init_ui(style)
+        self.init_ui()
 
-    def init_ui(self, style):
+    def init_ui(self):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
@@ -271,8 +278,18 @@ class RodentRefreshmentGUI(QWidget):
             login_system=self.login_system
         )
         
-        # Add widgets to right layout with stretch
+        # Add the new settings tab
+        self.settings_tab = SettingsTab(
+            self.settings,
+            lambda: save_settings(self.settings)  # Pass the save_settings function as callback
+        )
+        
+        # Connect settings_updated signal
+        self.settings_tab.settings_updated.connect(self.on_settings_updated)
+        
+        # Add both widgets to right layout with stretch
         self.right_layout.addWidget(self.suggest_settings_section, 2)
+        self.right_layout.addWidget(self.settings_tab, 1)
         self.right_layout.addWidget(self.run_stop_section, 1)
         
         # Create right scroll area
@@ -470,3 +487,32 @@ class RodentRefreshmentGUI(QWidget):
         
         # Update the button states to reflect the new configuration
         self.update_button_states()
+
+    @pyqtSlot(dict)
+    def on_settings_updated(self, updated_settings):
+        """Handle settings updates from SettingsTab"""
+        try:
+            # Update notification handler if Slack credentials changed
+            if ('slack_token' in updated_settings or 'channel_id' in updated_settings):
+                self.notification_handler = NotificationHandler(
+                    updated_settings['slack_token'],
+                    updated_settings['channel_id']
+                )
+            
+            # Update any components that depend on settings
+            self.run_stop_section.update_settings(updated_settings)
+            self.print_to_terminal("Settings updated successfully")
+            
+        except Exception as e:
+            self.print_to_terminal(f"Error applying settings updates: {e}")
+            QMessageBox.critical(self, "Settings Update Error", 
+                               f"Failed to apply settings updates: {str(e)}")
+
+    def _handle_settings_update(self, settings):
+        """Handle system settings updates"""
+        self.settings = settings
+        self._update_ui_from_settings()
+
+    def _update_ui_from_settings(self):
+        # Implement the logic to update the UI based on the new settings
+        pass

@@ -2,13 +2,20 @@ import math
 from datetime import timedelta
 
 class VolumeCalculator:
-    def __init__(self, settings):
-        self.pump_volume_ul = settings.get('pump_volume_ul', 50)  # 50µL per trigger
-        self.calibration_factor = settings.get('calibration_factor', 1.0)
-        self.min_triggers = settings.get('min_triggers', 1)
-        self.max_triggers_per_cycle = settings.get('max_triggers_per_cycle', 20)
-        self.min_cycle_spacing = settings.get('min_cycle_spacing_minutes', 30)
+    def __init__(self, system_controller):
+        self.system_controller = system_controller
+        self.settings = system_controller.settings
+        self.system_controller.settings_updated.connect(self.update_settings)
+        self.pump_volume_ul = self.settings.get('pump_volume_ul', 50)  # 50µL per trigger
+        self.calibration_factor = self.settings.get('calibration_factor', 1.0)
+        self.min_triggers = self.settings.get('min_triggers', 1)
+        self.max_triggers_per_cycle = self.settings.get('max_triggers_per_cycle', 20)
+        self.min_cycle_spacing = self.settings.get('min_cycle_spacing_minutes', 30)
         
+    def update_settings(self, settings):
+        """Update calculator settings"""
+        self.settings = settings
+
     def calculate_triggers(self, desired_volume_ml):
         """Calculate number of triggers needed for desired volume"""
         if not desired_volume_ml or desired_volume_ml <= 0:

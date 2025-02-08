@@ -15,7 +15,7 @@ Attributes:
     window_progress (pyqtSignal): Signal emitted to report window progress information.
 
 Methods:
-    __init__(settings, relay_handler, notification_handler):
+    __init__(settings, relay_handler, notification_handler, system_controller):
         Initializes the RelayWorker with the given settings, relay handler, and notification handler.
     
     run_cycle():
@@ -26,6 +26,9 @@ Methods:
     
     stop():
         Stops the relay worker, including all scheduled timers, and emits the finished signal.
+
+    update_system_settings(self, settings):
+        Updates the worker's settings when the system's settings change.
 """
 
 
@@ -35,8 +38,9 @@ class RelayWorker(QObject):
     volume_updated = pyqtSignal(str, float)  # animal_id, total_volume
     window_progress = pyqtSignal(dict)  # window progress info
 
-    def __init__(self, settings, relay_handler, notification_handler):
+    def __init__(self, settings, relay_handler, notification_handler, system_controller):
         super().__init__()
+        self.system_controller = system_controller
         self.settings = settings
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
@@ -74,6 +78,12 @@ class RelayWorker(QObject):
         self.schedule_id = settings.get('schedule_id')
         if not self.schedule_id:
             raise ValueError("schedule_id is required in settings")
+        
+        # Get system settings
+        system_settings = self.system_controller.settings
+        self.min_trigger_interval = system_settings.get('min_trigger_interval_ms', 500)
+        self.cycle_interval = system_settings.get('cycle_interval', 3600)
+        self.stagger_interval = system_settings.get('stagger_interval', 0.5)
 
     @pyqtSlot()
     def run_cycle(self):
@@ -118,7 +128,7 @@ class RelayWorker(QObject):
                     
                     if delivery_time > current_time:
                         base_delay = (delivery_time - current_time).total_seconds() * 1000
-                        trigger_delay = idx * self.settings.get('min_trigger_interval_ms', 500)
+                        trigger_delay = idx * self.min_trigger_interval
                         total_delay = base_delay + trigger_delay
                         
                         self.progress.emit(f"Scheduling delivery in {total_delay/1000:.2f} seconds")
@@ -397,7 +407,7 @@ class RelayWorker(QObject):
                 relay_info = self.relay_handler.trigger_relays(
                     [relay_unit_id],
                     triggers_dict,
-                    self.settings.get('stagger', 0.5)
+                    self.stagger_interval
                 )
                 
                 if relay_info:
@@ -811,3 +821,9 @@ class RelayWorker(QObject):
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
             return False
+
+    def update_system_settings(self, settings):
+        """Update worker settings when system settings change"""
+        self.min_trigger_interval = settings.get('min_trigger_interval_ms', self.min_trigger_interval)
+        self.cycle_interval = settings.get('cycle_interval', self.cycle_interval)
+        self.stagger_interval = settings.get('stagger_interval', self.stagger_interval)
