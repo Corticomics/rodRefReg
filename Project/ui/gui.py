@@ -257,12 +257,12 @@ class RodentRefreshmentGUI(QWidget):
         
         # Settings Tab (contains all sub-settings)
         self.settings_tab = SettingsTab(
-            self.system_controller,
-            self.suggest_settings_callback,
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            self.run_stop_section,
-            self.login_system
+            system_controller=self.system_controller,
+            suggest_callback=self.suggest_settings_callback,
+            push_callback=self.push_settings_callback,
+            save_slack_callback=self.save_slack_credentials_callback,
+            run_stop_section=self.run_stop_section,
+            login_system=self.login_system
         )
         self.main_tab_widget.addTab(self.settings_tab, "Settings")
         

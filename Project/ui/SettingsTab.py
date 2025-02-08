@@ -15,14 +15,14 @@ class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
     
     def __init__(self, system_controller, suggest_callback=None, 
-                 push_callback=None, slack_callback=None, 
+                 push_callback=None, save_slack_callback=None, 
                  run_stop_section=None, login_system=None):
         super().__init__()
         self.system_controller = system_controller
-        self.settings = system_controller.settings  # Get settings dict
+        self.settings = system_controller.settings
         self.suggest_callback = suggest_callback
         self.push_callback = push_callback
-        self.slack_callback = slack_callback
+        self.save_slack_callback = save_slack_callback
         self.run_stop_section = run_stop_section
         self.login_system = login_system
         
