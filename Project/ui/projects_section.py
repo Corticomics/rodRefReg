@@ -20,11 +20,21 @@ class ProjectsSection(QWidget):
         self.tab_widget = QTabWidget()
 
         # Schedules tab
-        self.schedules_tab = SchedulesTab(settings, print_to_terminal, database_handler, login_system)
+        self.schedules_tab = SchedulesTab(
+            settings, 
+            self.print_to_terminal,
+            database_handler, 
+            login_system
+        )
         self.tab_widget.addTab(self.schedules_tab, "Schedules")
 
         # Animals tab
-        self.animals_tab = AnimalsTab(settings, print_to_terminal, database_handler, login_system)
+        self.animals_tab = AnimalsTab(
+            settings, 
+            self.print_to_terminal,
+            database_handler, 
+            login_system
+        )
         self.tab_widget.addTab(self.animals_tab, "Animals")
 
         self.layout.addWidget(self.tab_widget)

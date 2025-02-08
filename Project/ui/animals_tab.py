@@ -13,7 +13,7 @@ class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
         self.settings = settings
-        self.print_to_terminal = print_to_terminal
+        self.print_to_terminal = print_to_terminal or (lambda x: None)  # Fallback if not provided
         self.database_handler = database_handler
         self.login_system = login_system  # Store login_system for permission checks
         self.trainer_id = None  # Add this line back
@@ -163,14 +163,17 @@ class AnimalsTab(QWidget):
                 trainer_id = current_trainer['trainer_id']
                 role = current_trainer['role']
                 animals = self.database_handler.get_animals(trainer_id, role)
-                self.print_to_terminal(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
+                if self.print_to_terminal:
+                    self.print_to_terminal(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
             else:
                 animals = self.database_handler.get_all_animals()
-                self.print_to_terminal(f"Loaded {len(animals)} animals for all trainers (guest mode)")
+                if self.print_to_terminal:
+                    self.print_to_terminal(f"Loaded {len(animals)} animals for all trainers (guest mode)")
             # Populate the UI with the animals table
             self.populate_animal_table(animals)
         except Exception as e:
-            print(f"Exception in AnimalsTab.load_animals: {e}")
+            if self.print_to_terminal:
+                self.print_to_terminal(f"Error loading animals: {str(e)}")
             traceback.print_exc()
             QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
 

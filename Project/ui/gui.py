@@ -204,12 +204,39 @@ class RodentRefreshmentGUI(QWidget):
         # Apply the styles in order
         self.setStyleSheet(base_style + modern_style)
 
-        # Initialize main layout first
-        main_layout = QHBoxLayout(self)
+        # Main layout
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
 
-        # Left side (Projects Section)
+        # Welcome section at top
+        self.welcome_section = WelcomeSection()
+        self.welcome_scroll_area = QScrollArea()
+        self.welcome_scroll_area.setWidgetResizable(True)
+        self.welcome_scroll_area.setWidget(self.welcome_section)
+        
+        # Toggle welcome button
+        self.toggle_welcome_button = QPushButton("Hide Welcome Message")
+        self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
+        
+        main_layout.addWidget(self.welcome_scroll_area)
+        main_layout.addWidget(self.toggle_welcome_button)
+
+        # Content area
+        content_layout = QHBoxLayout()
+        
+        # Left side
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        
+        # Terminal output
+        self.terminal_output = QPlainTextEdit()
+        self.terminal_output.setReadOnly(True)
+        self.terminal_output.setPlainText("System Messages")
+        self.terminal_output.setMinimumHeight(150)
+        left_layout.addWidget(self.terminal_output)
+        
+        # Projects section with login gate
         self.projects_section = ProjectsSection(
             self.system_controller.settings,
             self.print_to_terminal,
@@ -217,38 +244,29 @@ class RodentRefreshmentGUI(QWidget):
             self.login_system
         )
         
-        # Right side with tabs
+        # Wrap projects section in login gate
+        self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
+        left_layout.addWidget(self.login_gate)
+        
+        # Right side
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         
-        # Create main tab widget
+        # Tab widget
         self.main_tab_widget = QTabWidget()
         
         # Add tabs
-        self.suggest_tab = SuggestSettingsTab(
-            self.suggest_settings_callback,
-            self.push_settings_callback
-        )
-        self.main_tab_widget.addTab(self.suggest_tab, "Suggest Settings")
-        
-        self.dashboard_tab = self._create_dashboard_tab()
-        self.main_tab_widget.addTab(self.dashboard_tab, "Dashboard")
-        
         self.settings_tab = SettingsTab(self.system_controller)
-        self.main_tab_widget.addTab(self.settings_tab, "Settings")
-        
         self.user_tab = UserTab(self.login_system)
-        self.user_tab.login_signal.connect(self.on_login)
-        self.user_tab.logout_signal.connect(self.on_logout)
-        self.main_tab_widget.addTab(self.user_tab, "Profile")
-        
         self.help_tab = HelpTab()
+        
+        self.main_tab_widget.addTab(self.settings_tab, "Settings")
+        self.main_tab_widget.addTab(self.user_tab, "Profile")
         self.main_tab_widget.addTab(self.help_tab, "Help")
         
-        # Add tab widget to right layout
         right_layout.addWidget(self.main_tab_widget)
         
-        # Add run/stop section below tabs
+        # Run/stop section
         self.run_stop_section = RunStopSection(
             self.run_program,
             self.stop_program,
@@ -257,123 +275,27 @@ class RodentRefreshmentGUI(QWidget):
         )
         right_layout.addWidget(self.run_stop_section)
         
-        # Add to main layout
-        main_layout.addWidget(self.projects_section, 1)
-        main_layout.addWidget(right_widget, 1)
-
-        # Welcome section
-        self.welcome_section = WelcomeSection()
-        self.welcome_scroll_area = QScrollArea()
-        self.welcome_scroll_area.setWidgetResizable(True)
-        self.welcome_scroll_area.setWidget(self.welcome_section)
-        main_layout.addWidget(self.welcome_scroll_area)
-
-        # Toggle welcome button
-        self.toggle_welcome_button = QPushButton("Hide Welcome Message")
-        self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
-        main_layout.addWidget(self.toggle_welcome_button)
-
-        # Main content area (upper layout)
-        self.upper_layout = QHBoxLayout()
-        self.upper_layout.setContentsMargins(0, 0, 0, 0)
-        self.upper_layout.setSpacing(10)
-
-        # Left side setup
-        left_widget = QWidget()
-        self.left_layout = QVBoxLayout(left_widget)
+        # Add to content layout
+        content_layout.addWidget(left_widget, 3)
+        content_layout.addWidget(right_widget, 2)
         
-        # Terminal output
-        self.terminal_output = QPlainTextEdit()
-        self.terminal_output.setReadOnly(True)
-        self.terminal_output.setPlainText("System Messages")
-        self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.terminal_output.setMinimumHeight(200)
+        # Add content layout to main layout
+        main_layout.addLayout(content_layout)
         
-        # Projects section with login gate
-        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler, self.login_system)
-        self.projects_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Wrap projects section in login gate
-        self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
-        self.login_gate.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Add widgets to left layout with stretch
-        self.left_layout.addWidget(self.terminal_output, 1)
-        self.left_layout.addWidget(self.login_gate, 3)  # Replace projects_section with login_gate
-        
-        # Create left scroll area
-        self.left_scroll = QScrollArea()
-        self.left_scroll.setWidget(left_widget)
-        self.left_scroll.setWidgetResizable(True)
-        self.left_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Right side setup
-        right_widget = QWidget()
-        self.right_layout = QVBoxLayout(right_widget)
-        
-        # Create sections
-        self.run_stop_section = RunStopSection(
-            self.run_program,
-            self.stop_program,
-            self.change_relay_hats,
-            self.system_controller,
-            self.database_handler,
-            self.relay_handler,
-            self.notification_handler
-        )
-        
-        # Create unified settings section
-        self.settings_section = SettingsTab(
-            self.system_controller,
-            self.suggest_settings_callback,
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
-            run_stop_section=self.run_stop_section,
-            login_system=self.login_system
-        )
-        
-        # Add widgets to right layout with stretch
-        self.right_layout.addWidget(self.settings_section, 2)
-        self.right_layout.addWidget(self.run_stop_section, 1)
-        
-        # Create right scroll area
-        self.right_scroll = QScrollArea()
-        self.right_scroll.setWidget(right_widget)
-        self.right_scroll.setWidgetResizable(True)
-        self.right_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Add scroll areas to upper layout with proportion
-        self.upper_layout.addWidget(self.left_scroll, 3)
-        self.upper_layout.addWidget(self.right_scroll, 2)
-
-        # Add upper layout to main layout
-        main_layout.addLayout(self.upper_layout)
-
-        # Connect user tab related signals
-        self.user_tab = self.settings_section.user_tab
-        self.user_tab.login_signal.connect(self.on_login)
-        self.user_tab.logout_signal.connect(self.on_logout)
-        self.user_tab.size_changed_signal.connect(self.adjust_window_size)
-
-        # Add mode toggle button
+        # Mode toggle button at bottom
         self.mode_toggle_button = QPushButton("Switch to Super Mode")
         self.mode_toggle_button.clicked.connect(self.toggle_mode)
         main_layout.addWidget(self.mode_toggle_button)
-
-        # Connect the mode_changed signal from SchedulesTab to RunStopSection
-        self.projects_section.schedules_tab.mode_changed.connect(self.run_stop_section._on_mode_changed)
-
-        # Connect the schedules tab with run_stop_section's schedule drop area
-        self.projects_section.schedules_tab.schedule_list.itemDoubleClicked.connect(
-            lambda item: self.run_stop_section.schedule_drop_area.handle_schedule_drop(
-                item.data(Qt.UserRole)
-            )
+        
+        # Connect signals
+        self.user_tab.login_signal.connect(self.on_login)
+        self.user_tab.logout_signal.connect(self.on_logout)
+        self.projects_section.schedules_tab.mode_changed.connect(
+            self.run_stop_section._on_mode_changed
         )
-
-        # Load initial data
+        
+        # Initialize
         self.load_animals_tab()
-
-        # Maximize window on startup
         self.showMaximized()
     
     def toggle_mode(self):
@@ -390,7 +312,9 @@ class RodentRefreshmentGUI(QWidget):
             QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
 
     def print_to_terminal(self, message):
-        self.terminal_output.appendPlainText(message)
+        """Print message to terminal output"""
+        if hasattr(self, 'terminal_output'):
+            self.terminal_output.appendPlainText(str(message))
 
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()
