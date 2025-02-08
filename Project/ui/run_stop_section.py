@@ -17,7 +17,12 @@ class RunStopSection(QWidget):
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
         self.settings = settings
+        
+        # Add database handler validation
+        if database_handler is None:
+            raise ValueError("database_handler cannot be None")
         self.database_handler = database_handler
+        
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
         self.current_schedule = None
