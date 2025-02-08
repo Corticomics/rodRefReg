@@ -238,13 +238,11 @@ class RodentRefreshmentGUI(QWidget):
         
         # Projects section with login gate
         self.projects_section = ProjectsSection(
-            self.system_controller.settings,
+            self.settings,
             self.print_to_terminal,
             self.database_handler,
             self.login_system
         )
-        
-        # Wrap projects section in login gate
         self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
         left_layout.addWidget(self.login_gate)
         
@@ -252,10 +250,18 @@ class RodentRefreshmentGUI(QWidget):
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         
+        # Create Run/Stop section first
+        self.run_stop_section = RunStopSection(
+            self.run_program,
+            self.stop_program,
+            self.change_relay_hats,
+            self.system_controller
+        )
+        
         # Tab widget
         self.main_tab_widget = QTabWidget()
         
-        # Settings Tab (contains all sub-settings)
+        # Now create Settings Tab after run_stop_section exists
         self.settings_tab = SettingsTab(
             system_controller=self.system_controller,
             suggest_callback=self.suggest_settings_callback,
@@ -266,7 +272,7 @@ class RodentRefreshmentGUI(QWidget):
         )
         self.main_tab_widget.addTab(self.settings_tab, "Settings")
         
-        # Profile Tab (User Tab)
+        # Profile Tab
         self.user_tab = UserTab(self.login_system)
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
@@ -277,14 +283,6 @@ class RodentRefreshmentGUI(QWidget):
         self.main_tab_widget.addTab(self.help_tab, "Help")
         
         right_layout.addWidget(self.main_tab_widget)
-        
-        # Run/stop section
-        self.run_stop_section = RunStopSection(
-            self.run_program,
-            self.stop_program,
-            self.change_relay_hats,
-            self.system_controller
-        )
         right_layout.addWidget(self.run_stop_section)
         
         # Add to content layout
