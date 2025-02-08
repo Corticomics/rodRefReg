@@ -2,13 +2,12 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy
+    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy, QTabWidget
 )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import traceback
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
-from .suggest_settings import SuggestSettingsSection
 from .projects_section import ProjectsSection
 from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
@@ -16,6 +15,7 @@ from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
 from .login_gate_widget import LoginGateWidget
 from .SettingsTab import SettingsTab
+from .HelpTab import HelpTab
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
@@ -205,21 +205,73 @@ class RodentRefreshmentGUI(QWidget):
         self.setStyleSheet(base_style + modern_style)
 
         # Initialize main layout first
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(10)
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+
+        # Left side (Projects Section)
+        self.projects_section = ProjectsSection(
+            self.system_controller.settings,
+            self.print_to_terminal,
+            self.database_handler,
+            self.login_system
+        )
+        
+        # Right side with tabs
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        
+        # Create main tab widget
+        self.main_tab_widget = QTabWidget()
+        
+        # Add tabs
+        self.suggest_tab = SuggestSettingsTab(
+            self.suggest_settings_callback,
+            self.push_settings_callback
+        )
+        self.main_tab_widget.addTab(self.suggest_tab, "Suggest Settings")
+        
+        self.dashboard_tab = self._create_dashboard_tab()
+        self.main_tab_widget.addTab(self.dashboard_tab, "Dashboard")
+        
+        self.settings_tab = SettingsTab(self.system_controller)
+        self.main_tab_widget.addTab(self.settings_tab, "Settings")
+        
+        self.user_tab = UserTab(self.login_system)
+        self.user_tab.login_signal.connect(self.on_login)
+        self.user_tab.logout_signal.connect(self.on_logout)
+        self.main_tab_widget.addTab(self.user_tab, "Profile")
+        
+        self.help_tab = HelpTab()
+        self.main_tab_widget.addTab(self.help_tab, "Help")
+        
+        # Add tab widget to right layout
+        right_layout.addWidget(self.main_tab_widget)
+        
+        # Add run/stop section below tabs
+        self.run_stop_section = RunStopSection(
+            self.run_program,
+            self.stop_program,
+            self.change_relay_hats,
+            self.system_controller
+        )
+        right_layout.addWidget(self.run_stop_section)
+        
+        # Add to main layout
+        main_layout.addWidget(self.projects_section, 1)
+        main_layout.addWidget(right_widget, 1)
 
         # Welcome section
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
         self.welcome_scroll_area.setWidget(self.welcome_section)
-        self.main_layout.addWidget(self.welcome_scroll_area)
+        main_layout.addWidget(self.welcome_scroll_area)
 
         # Toggle welcome button
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
-        self.main_layout.addWidget(self.toggle_welcome_button)
+        main_layout.addWidget(self.toggle_welcome_button)
 
         # Main content area (upper layout)
         self.upper_layout = QHBoxLayout()
@@ -264,13 +316,15 @@ class RodentRefreshmentGUI(QWidget):
             self.run_program,
             self.stop_program,
             self.change_relay_hats,
-            self.settings,
+            self.system_controller,
             self.database_handler,
             self.relay_handler,
             self.notification_handler
         )
-        self.suggest_settings_section = SuggestSettingsSection(
-            self.settings,
+        
+        # Create unified settings section
+        self.settings_section = SettingsTab(
+            self.system_controller,
             self.suggest_settings_callback,
             self.push_settings_callback,
             self.save_slack_credentials_callback,
@@ -278,18 +332,8 @@ class RodentRefreshmentGUI(QWidget):
             login_system=self.login_system
         )
         
-        # Add the new settings tab
-        self.settings_tab = SettingsTab(
-            self.settings,
-            lambda: save_settings(self.settings)  # Pass the save_settings function as callback
-        )
-        
-        # Connect settings_updated signal
-        self.settings_tab.settings_updated.connect(self.on_settings_updated)
-        
-        # Add both widgets to right layout with stretch
-        self.right_layout.addWidget(self.suggest_settings_section, 2)
-        self.right_layout.addWidget(self.settings_tab, 1)
+        # Add widgets to right layout with stretch
+        self.right_layout.addWidget(self.settings_section, 2)
         self.right_layout.addWidget(self.run_stop_section, 1)
         
         # Create right scroll area
@@ -303,10 +347,10 @@ class RodentRefreshmentGUI(QWidget):
         self.upper_layout.addWidget(self.right_scroll, 2)
 
         # Add upper layout to main layout
-        self.main_layout.addLayout(self.upper_layout)
+        main_layout.addLayout(self.upper_layout)
 
         # Connect user tab related signals
-        self.user_tab = self.suggest_settings_section.user_tab
+        self.user_tab = self.settings_section.user_tab
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
         self.user_tab.size_changed_signal.connect(self.adjust_window_size)
@@ -314,7 +358,7 @@ class RodentRefreshmentGUI(QWidget):
         # Add mode toggle button
         self.mode_toggle_button = QPushButton("Switch to Super Mode")
         self.mode_toggle_button.clicked.connect(self.toggle_mode)
-        self.main_layout.addWidget(self.mode_toggle_button)
+        main_layout.addWidget(self.mode_toggle_button)
 
         # Connect the mode_changed signal from SchedulesTab to RunStopSection
         self.projects_section.schedules_tab.mode_changed.connect(self.run_stop_section._on_mode_changed)
@@ -425,7 +469,7 @@ class RodentRefreshmentGUI(QWidget):
 
     def suggest_settings_callback(self):
         """Callback for suggesting settings based on user input."""
-        values = self.suggest_settings_section.suggest_tab.entries
+        values = self.settings_section.entries
         try:
             # Parse relay pairs and volumes, frequency, duration
             relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]
@@ -469,8 +513,8 @@ class RodentRefreshmentGUI(QWidget):
 
     def save_slack_credentials_callback(self):
         """Save Slack credentials and reinitialize NotificationHandler."""
-        self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
-        self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
+        self.settings['slack_token'] = self.settings_section.slack_token_input.text()
+        self.settings['channel_id'] = self.settings_section.slack_channel_input.text()
         save_settings(self.settings)
 
         # Update NotificationHandler

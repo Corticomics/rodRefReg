@@ -14,33 +14,36 @@ from datetime import datetime
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
     
-    def __init__(self, settings, save_settings_callback):
+    def __init__(self, system_controller, suggest_callback=None, 
+                 push_callback=None, slack_callback=None, 
+                 run_stop_section=None, login_system=None):
         super().__init__()
-        self.settings = settings
-        self.save_callback = save_settings_callback
-        self.encryption_key = self._get_or_create_key()
-        self.fernet = Fernet(self.encryption_key)
+        self.system_controller = system_controller
+        self.suggest_callback = suggest_callback
+        self.push_callback = push_callback
+        self.slack_callback = slack_callback
+        self.run_stop_section = run_stop_section
+        self.login_system = login_system
         
         self.init_ui()
         
     def init_ui(self):
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        layout = QVBoxLayout(self)
         
-        # Create tab widget for different settings categories
+        # Create tab widget
         self.tab_widget = QTabWidget()
         
-        # Add settings category tabs
+        # Add tabs
         self.tab_widget.addTab(self._create_pump_settings(), "Pump Settings")
-        self.tab_widget.addTab(self._create_slack_settings(), "Notifications")
         self.tab_widget.addTab(self._create_system_settings(), "System")
-        self.tab_widget.addTab(self._create_backup_settings(), "Backup/Restore")
+        self.tab_widget.addTab(self._create_notifications(), "Notifications")
+        self.tab_widget.addTab(self._create_backup_restore(), "Backup/Restore")
         
         layout.addWidget(self.tab_widget)
         
         # Add save button
         save_button = QPushButton("Save All Settings")
-        save_button.clicked.connect(self.save_all_settings)
+        save_button.clicked.connect(self._save_all_settings)
         layout.addWidget(save_button)
 
     def _create_pump_settings(self):
@@ -53,41 +56,18 @@ class SettingsTab(QWidget):
         
         self.pump_volume = QDoubleSpinBox()
         self.pump_volume.setRange(0, 1000)
-        self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
+        self.pump_volume.setValue(self.system_controller.get('pump_volume_ul', 50))
         self.pump_volume.setSuffix(" µL")
         pump_layout.addRow("Pump Output Volume:", self.pump_volume)
         
         self.calibration_factor = QDoubleSpinBox()
         self.calibration_factor.setRange(0.1, 10.0)
-        self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
+        self.calibration_factor.setValue(self.system_controller.get('calibration_factor', 1.0))
         self.calibration_factor.setSingleStep(0.1)
         pump_layout.addRow("Calibration Factor:", self.calibration_factor)
         
         pump_group.setLayout(pump_layout)
         layout.addWidget(pump_group)
-        
-        widget.setLayout(layout)
-        return widget
-
-    def _create_slack_settings(self):
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        slack_group = QGroupBox("Slack Integration")
-        slack_layout = QFormLayout()
-        
-        self.slack_token = QLineEdit()
-        self.slack_token.setText(self._decrypt_sensitive_data(
-            self.settings.get('slack_token', '')))
-        self.slack_token.setEchoMode(QLineEdit.Password)
-        slack_layout.addRow("Slack Bot Token:", self.slack_token)
-        
-        self.slack_channel = QLineEdit()
-        self.slack_channel.setText(self.settings.get('channel_id', ''))
-        slack_layout.addRow("Channel ID:", self.slack_channel)
-        
-        slack_group.setLayout(slack_layout)
-        layout.addWidget(slack_group)
         
         widget.setLayout(layout)
         return widget
@@ -100,7 +80,7 @@ class SettingsTab(QWidget):
         # Log Level Spinner with proper type handling
         self.log_level = QSpinBox()
         self.log_level.setRange(0, 4)  # 0=DEBUG to 4=CRITICAL
-        self.log_level.setValue(int(self.settings.get('log_level', 2)))
+        self.log_level.setValue(int(self.system_controller.get('log_level', 2)))
         self.log_level.valueChanged.connect(self._log_level_changed)
         
         # Add tooltip to explain log levels
@@ -116,11 +96,34 @@ class SettingsTab(QWidget):
 
     def _log_level_changed(self, value):
         """Handle log level changes"""
-        self.settings['log_level'] = value
-        if self.save_callback:
-            self.save_callback(self.settings)
+        self.system_controller['log_level'] = value
+        if self.push_callback:
+            self.push_callback()
 
-    def _create_backup_settings(self):
+    def _create_notifications(self):
+        widget = QWidget()
+        layout = QVBoxLayout()
+        
+        slack_group = QGroupBox("Slack Integration")
+        slack_layout = QFormLayout()
+        
+        self.slack_token = QLineEdit()
+        self.slack_token.setText(self._decrypt_sensitive_data(
+            self.system_controller.get('slack_token', '')))
+        self.slack_token.setEchoMode(QLineEdit.Password)
+        slack_layout.addRow("Slack Bot Token:", self.slack_token)
+        
+        self.slack_channel = QLineEdit()
+        self.slack_channel.setText(self.system_controller.get('channel_id', ''))
+        slack_layout.addRow("Channel ID:", self.slack_channel)
+        
+        slack_group.setLayout(slack_layout)
+        layout.addWidget(slack_group)
+        
+        widget.setLayout(layout)
+        return widget
+
+    def _create_backup_restore(self):
         widget = QWidget()
         layout = QVBoxLayout()
         
@@ -176,7 +179,7 @@ class SettingsTab(QWidget):
             
             if filename:
                 with open(filename, 'w') as f:
-                    json.dump(self.settings, f, indent=4)
+                    json.dump(self.system_controller, f, indent=4)
                 QMessageBox.information(self, "Success", "Backup created successfully")
                 
         except Exception as e:
@@ -199,7 +202,7 @@ class SettingsTab(QWidget):
                 if not all(key in backup_settings for key in required_keys):
                     raise ValueError("Invalid backup file format")
                 
-                self.settings.update(backup_settings)
+                self.system_controller.update(backup_settings)
                 self.load_settings()
                 QMessageBox.information(self, "Success", "Settings restored successfully")
                 
@@ -208,15 +211,15 @@ class SettingsTab(QWidget):
 
     def load_settings(self):
         """Reload all settings into UI elements"""
-        self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
-        self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
-        self.slack_token.setText(self._decrypt_sensitive_data(self.settings.get('slack_token', '')))
-        self.slack_channel.setText(self.settings.get('channel_id', ''))
-        self.log_level.setValue(self.settings.get('log_level', 2))
+        self.pump_volume.setValue(self.system_controller.get('pump_volume_ul', 50))
+        self.calibration_factor.setValue(self.system_controller.get('calibration_factor', 1.0))
+        self.slack_token.setText(self._decrypt_sensitive_data(self.system_controller.get('slack_token', '')))
+        self.slack_channel.setText(self.system_controller.get('channel_id', ''))
+        self.log_level.setValue(self.system_controller.get('log_level', 2))
 
-    def save_all_settings(self):
+    def _save_all_settings(self):
         try:
-            self.settings.update({
+            self.system_controller.update({
                 'pump_volume_ul': self.pump_volume.value(),
                 'calibration_factor': self.calibration_factor.value(),
                 'slack_token': self._encrypt_sensitive_data(self.slack_token.text()),
@@ -224,8 +227,8 @@ class SettingsTab(QWidget):
                 'log_level': self.log_level.value()
             })
             
-            self.save_callback()
-            self.settings_updated.emit(self.settings)
+            self.push_callback()
+            self.settings_updated.emit(self.system_controller)
             QMessageBox.information(self, "Success", "Settings saved successfully")
             
         except Exception as e:
