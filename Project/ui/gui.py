@@ -15,7 +15,7 @@ from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
 from .login_gate_widget import LoginGateWidget
-from .settings_tab import SettingsTab
+from .SettingsTab import SettingsTab
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
