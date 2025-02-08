@@ -310,4 +310,27 @@ class HelpTab(QWidget):
         topic = item.text(0)
         content = self.help_manager.get_content(topic)
         self.content_browser.setHtml(content)
-        self.help_topic_selected.emit(topic) 
+        self.help_topic_selected.emit(topic)
+
+    def focus_topic_tree(self):
+        """Move focus to the topic tree when enter is pressed in search bar"""
+        self.topic_tree.setFocus()
+        if self.topic_tree.topLevelItemCount() > 0:
+            first_item = self.topic_tree.topLevelItem(0)
+            self.topic_tree.setCurrentItem(first_item)
+
+    def keyPressEvent(self, event):
+        """Handle keyboard navigation"""
+        if event.key() == Qt.Key_F3:
+            self.search_bar.setFocus()
+        elif event.key() == Qt.Key_Escape:
+            if self.search_bar.hasFocus():
+                self.search_bar.clear()
+            else:
+                self.search_bar.setFocus()
+        super().keyPressEvent(event)
+
+    def showEvent(self, event):
+        """Set initial focus to search bar when tab is shown"""
+        super().showEvent(event)
+        self.search_bar.setFocus() 
