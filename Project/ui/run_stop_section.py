@@ -155,7 +155,8 @@ class RunStopSection(QWidget):
             mode = self.schedule_drop_area.get_mode()
             
             # Create worker settings with schedule information
-            worker_settings = self.settings.copy() if self.settings else {}
+            # Get settings from system_controller instead of copying directly
+            worker_settings = self.settings.settings.copy() if self.settings else {}
             worker_settings.update({
                 'schedule_id': schedule.schedule_id,
                 'mode': mode,
