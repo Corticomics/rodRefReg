@@ -7,8 +7,43 @@ from .SuggestSettingsTab import SuggestSettingsTab
 from .SlackCredentialsTab import SlackCredentialsTab
 from .UserTab import UserTab
 from .SettingsTab import SettingsTab
+from .HelpTab import HelpTab
 
 SAVED_SETTINGS_DIR = "saved_settings"
+
+class HelpContent:
+    def __init__(self):
+        self.content = {}
+        self.load_content()
+
+    def load_content(self):
+        """Load help content from storage"""
+        # This would typically load from JSON/YAML files or a database
+        self.content = {
+            "Getting Started": {
+                "title": "Getting Started with RRR",
+                "content": """
+                <h1>Welcome to Rodent Refreshment Regulator</h1>
+                <p>This guide will help you get started with the system...</p>
+                """,
+                "keywords": ["start", "setup", "introduction"]
+            }
+            # Add more content entries
+        }
+
+    def get_content(self, topic):
+        """Retrieve content for a specific topic"""
+        return self.content.get(topic, {}).get("content", "Topic not found")
+
+    def search_content(self, query):
+        """Search through help content"""
+        results = []
+        query = query.lower()
+        for topic, data in self.content.items():
+            if (query in topic.lower() or 
+                any(query in keyword for keyword in data["keywords"])):
+                results.append(topic)
+        return results
 
 class SuggestSettingsSection(QWidget):
     def __init__(self, settings, suggest_settings_callback, push_settings_callback, 
@@ -46,6 +81,10 @@ class SuggestSettingsSection(QWidget):
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
         self.tab_widget.addTab(self.user_tab, "Profile")
+
+        # Help Tab
+        self.help_tab = HelpTab()
+        self.tab_widget.addTab(self.help_tab, "Help")
 
         self.layout.addWidget(self.tab_widget)
 
