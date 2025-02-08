@@ -16,7 +16,7 @@ class HelpContentManager:
         self.content = self._load_default_content()
 
     def _load_default_content(self) -> Dict[str, HelpContent]:
-        return {
+        existing_content = {
             "Getting Started": HelpContent(
                 title="Getting Started with RRR",
                 content="""
@@ -249,6 +249,210 @@ class HelpContentManager:
                 video_tutorials={"Schedule Creation": "create_schedule.mp4"}
             )
         }
+        
+        # Add new content
+        additional_content = {
+            "First Time Setup": HelpContent(
+                title="First Time Setup Guide",
+                content="""
+                <div class='help-section'>
+                    <h1>Setting Up RRR for First Use</h1>
+                    
+                    <h2>Initial Configuration</h2>
+                    <ol>
+                        <li>System Requirements Check:
+                            <ul>
+                                <li>Verify hardware connections</li>
+                                <li>Check pump calibration</li>
+                                <li>Test relay units</li>
+                            </ul>
+                        </li>
+                        <li>User Account Setup:
+                            <ul>
+                                <li>Create administrator account</li>
+                                <li>Configure user roles</li>
+                                <li>Set access permissions</li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <div class='help-warning'>
+                        <strong>Important:</strong> Complete all hardware tests before adding animals to the system.
+                    </div>
+
+                    <h2>Hardware Configuration</h2>
+                    <ul>
+                        <li>Pump Setup:
+                            <ul>
+                                <li>Calibrate flow rates</li>
+                                <li>Set trigger volumes</li>
+                                <li>Test emergency stops</li>
+                            </ul>
+                        </li>
+                        <li>Relay Unit Configuration:
+                            <ul>
+                                <li>Assign unit IDs</li>
+                                <li>Test connections</li>
+                                <li>Verify feedback signals</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                """,
+                keywords=["setup", "configuration", "initial", "first time"],
+                related_topics=["Hardware Setup", "User Management"],
+                video_tutorials={"Initial Setup": "first_time_setup.mp4"}
+            ),
+
+            "Basic Operations": HelpContent(
+                title="Basic System Operations",
+                content="""
+                <div class='help-section'>
+                    <h1>Basic Operations Guide</h1>
+                    
+                    <h2>Daily Tasks</h2>
+                    <ol>
+                        <li>System Startup:
+                            <ul>
+                                <li>Power on sequence</li>
+                                <li>Login procedures</li>
+                                <li>Initial checks</li>
+                            </ul>
+                        </li>
+                        <li>Animal Management:
+                            <ul>
+                                <li>Weight recordings</li>
+                                <li>Health checks</li>
+                                <li>Water consumption monitoring</li>
+                            </ul>
+                        </li>
+                        <li>Schedule Verification:
+                            <ul>
+                                <li>Review active schedules</li>
+                                <li>Check delivery logs</li>
+                                <li>Verify system status</li>
+                            </ul>
+                        </li>
+                    </ol>
+
+                    <div class='help-tip'>
+                        <strong>Pro Tip:</strong> Use the dashboard for quick status overview of all active schedules.
+                    </div>
+                </div>
+                """,
+                keywords=["basic", "operations", "daily", "tasks"],
+                related_topics=["Animal Management", "Schedule Creation"],
+                video_tutorials={"Daily Operations": "basic_ops.mp4"}
+            ),
+
+            "Hardware Setup": HelpContent(
+                title="Hardware Configuration",
+                content="""
+                <div class='help-section'>
+                    <h1>Hardware Setup and Configuration</h1>
+                    
+                    <h2>System Components</h2>
+                    <ul>
+                        <li>Pump Units:
+                            <ul>
+                                <li>0.01mL precision delivery</li>
+                                <li>Emergency stop capability</li>
+                                <li>Flow rate monitoring</li>
+                            </ul>
+                        </li>
+                        <li>Relay Units:
+                            <ul>
+                                <li>Individual animal assignment</li>
+                                <li>Status indicators</li>
+                                <li>Manual override controls</li>
+                            </ul>
+                        </li>
+                    </ul>
+
+                    <div class='help-warning'>
+                        <strong>Critical:</strong> Always perform a full system test after any hardware changes.
+                    </div>
+
+                    <h2>Maintenance Schedule</h2>
+                    <ul>
+                        <li>Daily Checks:
+                            <ul>
+                                <li>Visual inspection</li>
+                                <li>Flow rate verification</li>
+                                <li>Leak detection</li>
+                            </ul>
+                        </li>
+                        <li>Weekly Maintenance:
+                            <ul>
+                                <li>Clean filters</li>
+                                <li>Calibrate pumps</li>
+                                <li>Test safety systems</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                """,
+                keywords=["hardware", "setup", "configuration", "maintenance"],
+                related_topics=["Safety Features", "System Settings"],
+                video_tutorials={"Hardware Setup": "hardware_setup.mp4"}
+            ),
+
+            "Safety Features": HelpContent(
+                title="System Safety Features",
+                content="""
+                <div class='help-section'>
+                    <h1>Safety Systems and Protocols</h1>
+                    
+                    <h2>Automated Safety Controls</h2>
+                    <ul>
+                        <li>Volume Limits:
+                            <ul>
+                                <li>Maximum delivery volumes</li>
+                                <li>Rate limiting</li>
+                                <li>Daily intake monitoring</li>
+                            </ul>
+                        </li>
+                        <li>Emergency Systems:
+                            <ul>
+                                <li>Auto-shutdown triggers</li>
+                                <li>Leak detection</li>
+                                <li>Power failure handling</li>
+                            </ul>
+                        </li>
+                    </ul>
+
+                    <div class='help-warning'>
+                        <strong>Critical:</strong> Never disable safety systems without proper authorization.
+                    </div>
+
+                    <h2>Monitoring and Alerts</h2>
+                    <ul>
+                        <li>Real-time Monitoring:
+                            <ul>
+                                <li>Flow rate tracking</li>
+                                <li>Pressure monitoring</li>
+                                <li>System status updates</li>
+                            </ul>
+                        </li>
+                        <li>Alert System:
+                            <ul>
+                                <li>SMS notifications</li>
+                                <li>Email alerts</li>
+                                <li>System warnings</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+                """,
+                keywords=["safety", "emergency", "monitoring", "alerts"],
+                related_topics=["Hardware Setup", "System Settings"],
+                video_tutorials={"Safety Systems": "safety_features.mp4"}
+            )
+        }
+        
+        # Merge existing and new content
+        existing_content.update(additional_content)
+        return existing_content
 
     def get_content(self, topic: str) -> str:
         """Retrieve formatted content for a specific topic"""
