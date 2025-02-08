@@ -93,26 +93,32 @@ class SettingsTab(QWidget):
         return widget
 
     def _create_system_settings(self):
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        system_group = QGroupBox("System Configuration")
-        system_layout = QFormLayout()
-        
-        self.debug_mode = QCheckBox()
-        self.debug_mode.setChecked(self.settings.get('debug_mode', False))
-        system_layout.addRow("Debug Mode:", self.debug_mode)
-        
+        """Create system settings tab with proper type handling"""
+        system_tab = QWidget()
+        layout = QFormLayout()
+
+        # Log Level Spinner with proper type handling
         self.log_level = QSpinBox()
-        self.log_level.setRange(0, 4)
-        self.log_level.setValue(self.settings.get('log_level', 2))
-        system_layout.addRow("Log Level (0-4):", self.log_level)
+        self.log_level.setRange(0, 4)  # 0=DEBUG to 4=CRITICAL
+        self.log_level.setValue(int(self.settings.get('log_level', 2)))
+        self.log_level.valueChanged.connect(self._log_level_changed)
         
-        system_group.setLayout(system_layout)
-        layout.addWidget(system_group)
+        # Add tooltip to explain log levels
+        self.log_level.setToolTip(
+            "0=DEBUG, 1=INFO, 2=WARNING, 3=ERROR, 4=CRITICAL"
+        )
         
-        widget.setLayout(layout)
-        return widget
+        layout.addRow("Log Level:", self.log_level)
+        
+        # Rest of the system settings...
+        system_tab.setLayout(layout)
+        return system_tab
+
+    def _log_level_changed(self, value):
+        """Handle log level changes"""
+        self.settings['log_level'] = value
+        if self.save_callback:
+            self.save_callback(self.settings)
 
     def _create_backup_settings(self):
         widget = QWidget()
@@ -206,7 +212,6 @@ class SettingsTab(QWidget):
         self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
         self.slack_token.setText(self._decrypt_sensitive_data(self.settings.get('slack_token', '')))
         self.slack_channel.setText(self.settings.get('channel_id', ''))
-        self.debug_mode.setChecked(self.settings.get('debug_mode', False))
         self.log_level.setValue(self.settings.get('log_level', 2))
 
     def save_all_settings(self):
@@ -216,7 +221,6 @@ class SettingsTab(QWidget):
                 'calibration_factor': self.calibration_factor.value(),
                 'slack_token': self._encrypt_sensitive_data(self.slack_token.text()),
                 'channel_id': self.slack_channel.text(),
-                'debug_mode': self.debug_mode.isChecked(),
                 'log_level': self.log_level.value()
             })
             

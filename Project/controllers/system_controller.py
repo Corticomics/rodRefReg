@@ -55,7 +55,7 @@ class SystemController(QObject):
             self.system_status.emit(f"Error saving settings: {str(e)}")
     
     def _create_default_settings(self):
-        """Create default settings"""
+        """Create default settings with proper types"""
         return {
             'num_hats': 1,
             'slack_token': '',
@@ -64,7 +64,14 @@ class SystemController(QObject):
             'cycle_interval': 3600,
             'stagger_interval': 0.5,
             'debug_mode': False,
-            'log_level': 'INFO'
+            'log_level': 2,
+            'log_level_map': {
+                0: 'DEBUG',
+                1: 'INFO',
+                2: 'WARNING',
+                3: 'ERROR',
+                4: 'CRITICAL'
+            }
         }
     
     def _get_json_settings_keys(self):
@@ -79,4 +86,18 @@ class SystemController(QObject):
         return {
             'min_trigger_interval_ms', 'cycle_interval',
             'stagger_interval'
-        } 
+        }
+
+    def _get_setting_type(self, key):
+        """Define type mapping for settings"""
+        type_map = {
+            'num_hats': int,
+            'min_trigger_interval_ms': int,
+            'cycle_interval': int,
+            'stagger_interval': float,
+            'debug_mode': bool,
+            'log_level': int,
+            'slack_token': str,
+            'channel_id': str
+        }
+        return type_map.get(key, str) 

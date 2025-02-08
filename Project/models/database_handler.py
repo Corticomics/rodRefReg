@@ -1315,7 +1315,7 @@ class DatabaseHandler:
             return False
 
     def get_system_settings(self):
-        """Retrieve all system settings from database"""
+        """Retrieve all system settings from database with proper type conversion"""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
@@ -1323,8 +1323,9 @@ class DatabaseHandler:
                 settings = {}
                 for row in cursor.fetchall():
                     key, value, type_name = row
+                    # Convert value based on type
                     if type_name == 'int':
-                        settings[key] = int(value)
+                        settings[key] = int(float(value))  # Handle potential float strings
                     elif type_name == 'float':
                         settings[key] = float(value)
                     elif type_name == 'bool':
