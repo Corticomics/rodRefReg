@@ -31,18 +31,24 @@ class SettingsTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
         
-        # Create tab widget
+        # Create tab widget for settings
         self.tab_widget = QTabWidget()
         
-        # Add tabs
-        self.tab_widget.addTab(self._create_pump_settings(), "Pump Settings")
-        self.tab_widget.addTab(self._create_system_settings(), "System")
-        self.tab_widget.addTab(self._create_notifications(), "Notifications")
-        self.tab_widget.addTab(self._create_backup_restore(), "Backup/Restore")
+        # Create and add settings sub-tabs
+        self.pump_settings = self._create_pump_settings()
+        self.system_settings = self._create_system_settings()
+        self.notifications = self._create_notifications()
+        self.backup_restore = self._create_backup_restore()
+        
+        # Add sub-tabs to settings
+        self.tab_widget.addTab(self.pump_settings, "Pump Settings")
+        self.tab_widget.addTab(self.system_settings, "System")
+        self.tab_widget.addTab(self.notifications, "Notifications")
+        self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
         
         layout.addWidget(self.tab_widget)
         
-        # Add save button
+        # Add save button at bottom of settings
         save_button = QPushButton("Save All Settings")
         save_button.clicked.connect(self._save_all_settings)
         layout.addWidget(save_button)

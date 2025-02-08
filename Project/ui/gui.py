@@ -255,30 +255,16 @@ class RodentRefreshmentGUI(QWidget):
         # Tab widget
         self.main_tab_widget = QTabWidget()
         
-        # Add tabs in correct order as shown in image
-        self.settings_tab = SettingsTab(self.system_controller)
+        # Settings Tab (contains all sub-settings)
+        self.settings_tab = SettingsTab(
+            self.system_controller,
+            self.suggest_settings_callback,
+            self.push_settings_callback,
+            self.save_slack_credentials_callback,
+            self.run_stop_section,
+            self.login_system
+        )
         self.main_tab_widget.addTab(self.settings_tab, "Settings")
-        
-        # Pump Settings Tab
-        self.pump_settings_tab = QWidget()
-        pump_settings_layout = QVBoxLayout(self.pump_settings_tab)
-        # Add pump configuration widgets here
-        self.main_tab_widget.addTab(self.pump_settings_tab, "Pump Settings")
-        
-        # System Tab
-        self.system_tab = QWidget()
-        system_layout = QVBoxLayout(self.system_tab)
-        self.main_tab_widget.addTab(self.system_tab, "System")
-        
-        # Notifications Tab
-        self.notifications_tab = QWidget()
-        notifications_layout = QVBoxLayout(self.notifications_tab)
-        self.main_tab_widget.addTab(self.notifications_tab, "Notifications")
-        
-        # Backup/Restore Tab
-        self.backup_restore_tab = QWidget()
-        backup_restore_layout = QVBoxLayout(self.backup_restore_tab)
-        self.main_tab_widget.addTab(self.backup_restore_tab, "Backup/Restore")
         
         # Profile Tab (User Tab)
         self.user_tab = UserTab(self.login_system)
