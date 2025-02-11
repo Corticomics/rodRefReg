@@ -300,7 +300,7 @@ class UserTab(QWidget):
         username_input.setPlaceholderText("Choose a username")
         username_input.setStyleSheet(self._get_input_style())
         
-        # Password fields with visibility toggles
+        # Password fields
         password_input = QLineEdit()
         password_input.setPlaceholderText("Choose a password")
         password_input.setEchoMode(QLineEdit.Password)
@@ -311,62 +311,60 @@ class UserTab(QWidget):
         confirm_password_input.setEchoMode(QLineEdit.Password)
         confirm_password_input.setStyleSheet(self._get_input_style())
         
-        # Password visibility toggle buttons
-        password_toggle = QPushButton("👁")
-        confirm_password_toggle = QPushButton("👁")
-        
-        # Create password containers with toggle buttons
-        password_container = QHBoxLayout()
-        password_container.addWidget(password_input, stretch=1)
-        password_container.addWidget(password_toggle)
-        
-        confirm_password_container = QHBoxLayout()
-        confirm_password_container.addWidget(confirm_password_input, stretch=1)
-        confirm_password_container.addWidget(confirm_password_toggle)
-        
-        # Toggle password visibility functions
-        def toggle_password_visibility(input_field, button):
-            if input_field.echoMode() == QLineEdit.Password:
-                input_field.setEchoMode(QLineEdit.Normal)
-                button.setStyleSheet("background-color: #e0e4e8;")
-            else:
-                input_field.setEchoMode(QLineEdit.Password)
-                button.setStyleSheet("")
-        
-        password_toggle.clicked.connect(
-            lambda: toggle_password_visibility(password_input, password_toggle))
-        confirm_password_toggle.clicked.connect(
-            lambda: toggle_password_visibility(confirm_password_input, confirm_password_toggle))
-        
-        # Style toggle buttons
-        for button in [password_toggle, confirm_password_toggle]:
-            button.setFixedSize(30, 30)
-            button.setStyleSheet("""
-                QPushButton {
-                    border: 1px solid #e0e4e8;
-                    border-radius: 4px;
-                    padding: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #f5f5f5;
-                }
-            """)
-        
         # Add fields to form
         form_layout.addRow("Username:", username_input)
-        form_layout.addRow("Password:", password_container)
-        form_layout.addRow("Confirm Password:", confirm_password_container)
+        form_layout.addRow("Password:", password_input)
+        form_layout.addRow("Confirm Password:", confirm_password_input)
         
         # Add form to main layout
         layout.addLayout(form_layout)
         
-        # Add buttons
+        # Create bottom container for buttons
+        bottom_container = QHBoxLayout()
+        
+        # Password visibility toggle button
+        password_toggle = QPushButton()
+        password_toggle.setIcon(QIcon.fromTheme("eye", QIcon(":/icons/eye.png")))
+        password_toggle.setFixedSize(24, 24)
+        password_toggle.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background: transparent;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background-color: #f5f5f5;
+                border-radius: 12px;
+            }
+        """)
+        
+        # Toggle password visibility function
+        def toggle_password_visibility():
+            current_mode = password_input.echoMode()
+            new_mode = QLineEdit.Normal if current_mode == QLineEdit.Password else QLineEdit.Password
+            password_input.setEchoMode(new_mode)
+            confirm_password_input.setEchoMode(new_mode)
+            password_toggle.setIcon(QIcon.fromTheme(
+                "eye-off" if new_mode == QLineEdit.Password else "eye",
+                QIcon(":/icons/eye.png")
+            ))
+        
+        password_toggle.clicked.connect(toggle_password_visibility)
+        
+        # Add buttons to bottom container
+        bottom_container.addWidget(password_toggle)
+        bottom_container.addStretch()
+        
+        # Dialog buttons
         button_box = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
+        bottom_container.addWidget(button_box)
+        
+        # Add bottom container to layout
+        layout.addLayout(bottom_container)
         
         dialog.setLayout(layout)
         
