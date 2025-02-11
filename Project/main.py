@@ -1,8 +1,10 @@
-import sys
-import os
+#!/usr/bin/env python3
+import sys, os, time, traceback
+from PyQt5.QtWidgets import (
+    QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
+)
+from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
 from utils.volume_calculator import VolumeCalculator
-from PyQt5.QtWidgets import QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout
-from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -11,12 +13,13 @@ from settings.config import load_settings, save_settings
 from controllers.projects_controller import ProjectsController
 from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem
-from models.relay_unit import RelayUnit
 from controllers.system_controller import SystemController
 from controllers.pump_controller import PumpController
-import time
-import traceback
 from models.relay_unit_manager import RelayUnitManager
+
+# =============================================================================
+# Exception and Stream Redirector
+# =============================================================================
 
 def exception_hook(exctype, value, tb):
     print("".join(traceback.format_exception(exctype, value, tb)))
@@ -26,46 +29,49 @@ sys.excepthook = exception_hook
 
 class StreamRedirector(QObject):
     message_signal = pyqtSignal(str)
-
     def __init__(self):
         super().__init__()
-
     def write(self, message):
         if message.strip():
             self.message_signal.emit(message)
-
     def flush(self):
         pass
 
-# Global thread and worker
-thread = QThread()
+# =============================================================================
+# Global thread and worker variables
+# =============================================================================
+
+thread = None
 worker = None
+
+# =============================================================================
+# Setup and Main Program
+# =============================================================================
 
 def setup():
     global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
 
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
-    
-    # Use a distinct global name for the settings dictionary
+    # Use a distinct global name for the settings dictionary.
     app_settings = system_controller.settings
-    
+
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler = RelayHandler(relay_unit_manager, app_settings['num_hats'])
-    
+
     controller = ProjectsController()
     pump_controller = PumpController(relay_handler, database_handler)
     controller.pump_controller = pump_controller
-    
+
     notification_handler = NotificationHandler(
         app_settings.get('slack_token'),
         app_settings.get('channel_id')
     )
-    
+
     login_system = LoginSystem(database_handler)
     if not login_system.is_logged_in():
         login_system.set_guest_mode()
-    
+
     gui = RodentRefreshmentGUI(
         run_program,
         stop_program,
@@ -78,19 +84,18 @@ def setup():
     )
 
 def run_program(schedule, mode, window_start, window_end):
-    global thread, worker, notification_handler, controller, system_controller
-
+    global thread, worker, notification_handler, controller, system_controller, database_handler
     try:
         print("\nDEBUG - run_program:")
         print(f"system_controller type: {type(system_controller)}")
         print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
-        # Create base worker settings using system_controller's settings
-        worker_settings = {}  # Initialize empty dict first
+        # Create base worker settings using system_controller’s settings.
+        worker_settings = {}
         if hasattr(system_controller, 'settings'):
             worker_settings = system_controller.settings.copy()
-        
-        # Update with schedule-specific settings
+
+        # Update with schedule‐specific settings.
         worker_settings.update({
             'mode': mode,
             'window_start': window_start,
@@ -100,7 +105,7 @@ def run_program(schedule, mode, window_start, window_end):
             'pump_controller': controller.pump_controller,
             'schedule_id': schedule.schedule_id
         })
-        
+
         if mode.lower() == "instant":
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
@@ -118,38 +123,38 @@ def run_program(schedule, mode, window_start, window_end):
                 'relay_unit_assignments': schedule.relay_unit_assignments,
                 'desired_water_outputs': schedule.desired_water_outputs
             })
-        
+
         print("\nWorker Settings Debug:")
         print(f"Mode: {worker_settings.get('mode')}")
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
-        
-        # Reinitialize the thread and worker
+
+        # If a previous thread exists, quit and wait.
+        global thread, worker
         if thread is not None:
             thread.quit()
             thread.wait()
-        thread = QThread()
 
-        # Create worker with explicit system_controller instance
+        thread = QThread()
         if not isinstance(system_controller, QObject):
-            print("WARNING: system_controller is not a QObject instance!")
-            print(f"system_controller type: {type(system_controller)}")
             raise TypeError("system_controller must be a SystemController instance")
 
+        # Create the worker.
         worker = RelayWorker(
-        worker_settings, 
-        relay_handler, 
-        notification_handler,
-        system_controller
+            worker_settings,
+            relay_handler,
+            notification_handler,
+            system_controller
         )
         worker.moveToThread(thread)
 
-        # Connect finished signal to thread and cleanup:
+        # Connect signals:
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
+        # Start the worker when the thread starts.
         thread.started.connect(worker.run_cycle)
         thread.start()
 
@@ -159,31 +164,28 @@ def run_program(schedule, mode, window_start, window_end):
         if notification_handler:
             notification_handler.send_slack_notification(f"Program error: {e}")
 
+# =============================================================================
+# Centralized Cleanup and Stop Logic
+# =============================================================================
+
 def cleanup():
     global thread, worker
     print("[DEBUG] Starting cleanup process")
-    # Only clean up if the worker is not running.
+    # Only proceed if the worker is not running.
     if worker and worker._is_running:
         print("[DEBUG] Worker still running, waiting for completion")
         return
-
     try:
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-
         if worker:
-            worker.stop()
+            worker.stop()  # This stops all timers and emits finished.
             worker = None
-
         if thread is not None and thread.isRunning():
-            try:
-                thread.quit()
-                thread.wait()
-            except Exception as e:
-                print(f"[ERROR] Error stopping thread: {e}")
+            thread.quit()
+            thread.wait()
         thread = None
-
         # Reset the UI state once.
         gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
@@ -195,7 +197,7 @@ def stop_program():
     try:
         print("[DEBUG] Starting stop sequence")
         if worker:
-            # Simply call the worker's stop() method.
+            # Call the worker’s stop() method.
             worker.stop()
             print("[DEBUG] Worker stopped")
         if thread and thread.isRunning():
@@ -207,6 +209,7 @@ def stop_program():
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
+        # Clear globals.
         worker = None
         thread = None
         print("[DEBUG] Stop sequence completed successfully")
@@ -215,26 +218,24 @@ def stop_program():
         print(f"[ERROR] Stop sequence failed: {e}")
         return False
 
+# =============================================================================
+# change_relay_hats() and Helpers
+# =============================================================================
+
 def change_relay_hats():
-    global relay_handler, app_settings  # use app_settings
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
-                                        "Enter the number of relay hats:", min=1, max=8)
+    global relay_handler, app_settings
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",
+                                         "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
-
     app_settings['num_hats'] = num_hats
     app_settings['relay_pairs'] = create_relay_pairs(num_hats)
-    
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
-
     relay_units = relay_unit_manager.get_all_relay_units()
     _update_gui_relay_units(relay_units)
-
     save_settings(app_settings)
-    
     cleanup()
-    
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 def create_relay_pairs(num_hats):
@@ -250,12 +251,10 @@ def _update_gui_relay_units(relay_units):
     gui.projects_section.relay_units = relay_units
     gui.projects_section.schedules_tab.relay_units = relay_units
     gui.projects_section.schedules_tab.relay_containers = {}
-    
     gui.projects_section.schedules_tab.layout.removeItem(
         gui.projects_section.schedules_tab.relay_layout
     )
     gui.projects_section.schedules_tab.relay_layout = QHBoxLayout()
-
     for relay_unit in relay_units:
         container = QListWidget()
         container.setAcceptDrops(True)
@@ -263,27 +262,25 @@ def _update_gui_relay_units(relay_units):
         container.setDefaultDropAction(Qt.MoveAction)
         container.objectName = f"Relay Unit {relay_unit.unit_id}"
         gui.projects_section.schedules_tab.relay_containers[relay_unit.unit_id] = container
-
         relay_layout = QVBoxLayout()
         relay_layout.addWidget(QLabel(str(relay_unit)))
         relay_layout.addWidget(container)
         gui.projects_section.schedules_tab.relay_layout.addLayout(relay_layout)
-
     gui.projects_section.schedules_tab.layout.addLayout(
         gui.projects_section.schedules_tab.relay_layout
     )
 
+# =============================================================================
+# Main Application Entry Point
+# =============================================================================
+
 def main():
     app = QApplication(sys.argv)
-
     setup()
-
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
-
     sys.stdout = redirector
     sys.stderr = redirector
-
     gui.show()
     sys.exit(app.exec_())
 
