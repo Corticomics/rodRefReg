@@ -13,14 +13,14 @@ About to load animals for trainer_id: 1 (type: <class 'int'>)
 Retrieved 2 animals from the database for trainer_id 1
 Loaded 2 animals for trainer ID 1
 save_current_schedule: adding instant deliveries for unit 1
-save_current_schedule: adding instant delivery for animal 1 at 2025-02-11 15:02:54.229000 with volume 1.0
-save_current_schedule: adding instant schedule with details:<models.Schedule.Schedule object at 0x7f86b5ef90>
+save_current_schedule: adding instant delivery for animal 1 at 2025-02-11 15:23:19.849000 with volume 1.0
+save_current_schedule: adding instant schedule with details:<models.Schedule.Schedule object at 0x7f7c98ad50>
 
 DEBUG - RunStopSection run_program:
 self.system_controller type: <class 'controllers.system_controller.SystemController'>
 
 DEBUG INFO:
-Schedule: {'schedule_id': 11, 'name': '1', 'water_volume': 1.0, 'start_time': '2025-02-11T15:02:54.229000', 'end_time': '2025-02-11T15:02:54.229000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'instant', 'cycles_per_day': 1, 'animals': [1], 'desired_water_outputs': {}, 'window_data': {}, 'instant_deliveries': [{'animal_id': 1, 'datetime': datetime.datetime(2025, 2, 11, 15, 2, 54, 229000), 'volume': 1.0, 'relay_unit_id': 1}], 'relay_unit_assignments': {'1': 1}, 'status': 'pending', 'delivered_volumes': {}, 'last_delivery': {}}
+Schedule: {'schedule_id': 13, 'name': 'rererere', 'water_volume': 1.0, 'start_time': '2025-02-11T15:23:19.849000', 'end_time': '2025-02-11T15:23:19.849000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'instant', 'cycles_per_day': 1, 'animals': [1], 'desired_water_outputs': {}, 'window_data': {}, 'instant_deliveries': [{'animal_id': 1, 'datetime': datetime.datetime(2025, 2, 11, 15, 23, 19, 849000), 'volume': 1.0, 'relay_unit_id': 1}], 'relay_unit_assignments': {'1': 1}, 'status': 'pending', 'delivered_volumes': {}, 'last_delivery': {}}
 Mode: Instant
 
 Schedule Debug Info:
@@ -29,7 +29,7 @@ Relay assignments: {'1': 1}
 
 DEBUG - run_program:
 system_controller type: <class 'controllers.system_controller.SystemController'>
-Running program with schedule: 1, mode: Instant
+Running program with schedule: rererere, mode: Instant
 
 Worker Settings Debug:
 Mode: Instant
@@ -44,7 +44,7 @@ self.system_controller type after assignment: <class 'controllers.system_control
 Program Started
 Starting instant cycle
 Processing 1 deliveries
-Scheduling delivery in 104.12 seconds
+Scheduling delivery in 50.50 seconds
 Scheduled 1 deliveries
 Triggering relay unit 1 for 1.0ml (20 triggers)
 Executing trigger 1/20 for relay unit 1
@@ -68,8 +68,5 @@ Executing trigger 18/20 for relay unit 1
 Executing trigger 19/20 for relay unit 1
 Executing trigger 20/20 for relay unit 1
 Successfully triggered relay unit 1 20 times
-2025-02-11 15:03:14.383159 - Failed to send Slack message: not_authed
-Logged pump trigger: {'timestamp': '2025-02-11T15:03:14.383325', 'relay_info': 'Successfully triggered relay unit 1 20 times'}
-[DEBUG] Starting cleanup process
-[DEBUG] All relays deactivated
-[ERROR] Unexpected error during cleanup: wrapped C/C++ object of type QTimer has been deleted
+2025-02-11 15:23:39.312588 - Failed to send Slack message: not_authed
+Logged pump trigger: {'timestamp': '2025-02-11T15:23:39.312745', 'relay_info': 'Successfully triggered relay unit 1 20 times'}
