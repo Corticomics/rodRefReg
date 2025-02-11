@@ -137,15 +137,17 @@ def run_program(schedule, mode, window_start, window_end):
             raise TypeError("system_controller must be a SystemController instance")
 
         worker = RelayWorker(
-            worker_settings, 
-            relay_handler, 
-            notification_handler,
-            system_controller  # Pass the actual SystemController instance
+        worker_settings, 
+        relay_handler, 
+        notification_handler,
+        system_controller
         )
         worker.moveToThread(thread)
 
+        # Connect finished signal to thread and cleanup:
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(cleanup)    # NEW: call cleanup when finished is emitted
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
