@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, 
-    QMessageBox, QFrame, QGridLayout, QSizePolicy, QInputDialog, QFormLayout, QHBoxLayout
+    QMessageBox, QFrame, QGridLayout, QSizePolicy, QInputDialog, QFormLayout, QHBoxLayout, QDialog, QDialogButtonBox
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDateTime
 from PyQt5.QtGui import QFont, QIcon
@@ -286,26 +286,122 @@ class UserTab(QWidget):
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout:\n{str(e)}")
 
     def handle_create_profile(self):
-        """Handle the profile creation process with error handling."""
-        try:
-            username, ok = QInputDialog.getText(self, "Create Profile", "Choose a username:")
-            if not ok or not username:
-                QMessageBox.warning(self, "Invalid Username", "Username cannot be empty.")
-                return
-
-            password, ok = QInputDialog.getText(self, "Create Profile", "Choose a password:", QLineEdit.Password)
-            if not ok or not password:
-                QMessageBox.warning(self, "Invalid Password", "Password cannot be empty.")
-                return
-
-            success = self.login_system.create_user(username, password)
-            if success:
-                QMessageBox.information(self, "Profile Created", f"Profile for '{username}' created successfully.")
+        """Handle the profile creation process with improved form."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Create New Profile")
+        dialog.setMinimumWidth(300)
+        
+        # Create layout
+        layout = QVBoxLayout()
+        form_layout = QFormLayout()
+        
+        # Username field
+        username_input = QLineEdit()
+        username_input.setPlaceholderText("Choose a username")
+        username_input.setStyleSheet(self._get_input_style())
+        
+        # Password fields with visibility toggles
+        password_input = QLineEdit()
+        password_input.setPlaceholderText("Choose a password")
+        password_input.setEchoMode(QLineEdit.Password)
+        password_input.setStyleSheet(self._get_input_style())
+        
+        confirm_password_input = QLineEdit()
+        confirm_password_input.setPlaceholderText("Confirm password")
+        confirm_password_input.setEchoMode(QLineEdit.Password)
+        confirm_password_input.setStyleSheet(self._get_input_style())
+        
+        # Password visibility toggle buttons
+        password_toggle = QPushButton("👁")
+        confirm_password_toggle = QPushButton("👁")
+        
+        # Create password containers with toggle buttons
+        password_container = QHBoxLayout()
+        password_container.addWidget(password_input, stretch=1)
+        password_container.addWidget(password_toggle)
+        
+        confirm_password_container = QHBoxLayout()
+        confirm_password_container.addWidget(confirm_password_input, stretch=1)
+        confirm_password_container.addWidget(confirm_password_toggle)
+        
+        # Toggle password visibility functions
+        def toggle_password_visibility(input_field, button):
+            if input_field.echoMode() == QLineEdit.Password:
+                input_field.setEchoMode(QLineEdit.Normal)
+                button.setStyleSheet("background-color: #e0e4e8;")
             else:
-                QMessageBox.warning(self, "Creation Failed", f"Username '{username}' is already taken.")
-        except Exception as e:
-            QMessageBox.critical(self, "Profile Creation Error", f"An unexpected error occurred during profile creation: {str(e)}")
-
+                input_field.setEchoMode(QLineEdit.Password)
+                button.setStyleSheet("")
+        
+        password_toggle.clicked.connect(
+            lambda: toggle_password_visibility(password_input, password_toggle))
+        confirm_password_toggle.clicked.connect(
+            lambda: toggle_password_visibility(confirm_password_input, confirm_password_toggle))
+        
+        # Style toggle buttons
+        for button in [password_toggle, confirm_password_toggle]:
+            button.setFixedSize(30, 30)
+            button.setStyleSheet("""
+                QPushButton {
+                    border: 1px solid #e0e4e8;
+                    border-radius: 4px;
+                    padding: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #f5f5f5;
+                }
+            """)
+        
+        # Add fields to form
+        form_layout.addRow("Username:", username_input)
+        form_layout.addRow("Password:", password_container)
+        form_layout.addRow("Confirm Password:", confirm_password_container)
+        
+        # Add form to main layout
+        layout.addLayout(form_layout)
+        
+        # Add buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        dialog.setLayout(layout)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            try:
+                username = username_input.text().strip()
+                password = password_input.text()
+                confirm_password = confirm_password_input.text()
+                
+                # Validate inputs
+                if not username:
+                    raise ValueError("Username cannot be empty.")
+                if not password:
+                    raise ValueError("Password cannot be empty.")
+                if password != confirm_password:
+                    raise ValueError("Passwords do not match.")
+                
+                success = self.login_system.create_user(username, password)
+                if success:
+                    QMessageBox.information(
+                        self, "Profile Created", 
+                        f"Profile for '{username}' created successfully."
+                    )
+                else:
+                    QMessageBox.warning(
+                        self, "Creation Failed", 
+                        f"Username '{username}' is already taken."
+                    )
+            except ValueError as ve:
+                QMessageBox.warning(self, "Invalid Input", str(ve))
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "Profile Creation Error", 
+                    f"An unexpected error occurred: {str(e)}"
+                )
 
     def set_guest_view(self):
         """Resets the view for guest mode with error handling."""
