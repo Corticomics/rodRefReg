@@ -45,11 +45,11 @@ class SettingsTab(QWidget):
         self.backup_restore = self._create_backup_restore()
         self.data_import_export = self._create_data_import_export()
         
-        # Add sub-tabs to settings
+        # Add sub-tabs to settings - CHECK USABILITY OF SYSTEM AND BACKUP/RESTORE
         self.tab_widget.addTab(self.pump_settings, "Pump Settings")
-        self.tab_widget.addTab(self.system_settings, "System")
+        #self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
-        self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
+        #self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
         self.tab_widget.addTab(self.data_import_export, "Data Import/Export")
         
         layout.addWidget(self.tab_widget)

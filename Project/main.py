@@ -14,6 +14,7 @@ from models.login_system import LoginSystem
 from controllers.system_controller import SystemController
 from controllers.pump_controller import PumpController
 from models.relay_unit_manager import RelayUnitManager
+from ui.SettingsTab import SettingsTab
 
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
@@ -75,6 +76,13 @@ def setup():
         login_system=login_system,
         relay_handler=relay_handler,
         notification_handler=notification_handler
+    )
+
+    gui.settings_tab = SettingsTab(
+        app_settings,
+        gui.print_to_terminal,
+        database_handler,
+        login_system
     )
 
 # =============================================================================
@@ -191,7 +199,7 @@ def cleanup():
         print(f"[ERROR] Unexpected error during cleanup: {e}")
 
 # =============================================================================
-# stop_program() – called when the user clicks “Stop.”
+# stop_program() – called when the user clicks "Stop."
 # =============================================================================
 def stop_program():
     global thread, worker, relay_handler
