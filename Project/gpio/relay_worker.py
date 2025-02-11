@@ -467,9 +467,14 @@ class RelayWorker(QObject):
             self._is_running = False
         self.monitor_timer.stop()
         self.main_timer.stop()
+        # Since all timers were created with 'self' as parent,
+        # they will be deleted automatically; you can still call stop()
         for timer in self.timers:
-            timer.stop()
-            timer.deleteLater()
+            try:
+                timer.stop()
+                # Do not call deleteLater() if the timer’s parent will delete it
+            except RuntimeError as ex:
+                self.progress.emit(f"Timer already deleted: {ex}")
         self.timers.clear()
         self.progress.emit("RelayWorker stopped")
         self.finished.emit()

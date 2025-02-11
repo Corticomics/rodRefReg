@@ -164,7 +164,7 @@ def cleanup():
     global thread, worker
     print("[DEBUG] Starting cleanup process")
     
-    # If the worker is still running, wait for it to finish.
+    # Only proceed if the worker is not running.
     if worker and worker._is_running:
         print("[DEBUG] Worker still running, waiting for completion")
         return
@@ -173,18 +173,10 @@ def cleanup():
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-            
-        # Assume worker.stop() (or similar) has already been called.
+        
+        # Call the worker’s own stop() method if it exists.
         if worker:
-            # Do not iterate over worker.timers if they are already cleared.
-            if worker.timers:
-                for timer in worker.timers:
-                    try:
-                        timer.stop()
-                        timer.deleteLater()
-                    except RuntimeError as ex:
-                        print(f"[DEBUG] Timer already deleted: {ex}")
-                worker.timers.clear()
+            worker.stop()
             worker = None
 
         if thread is not None and thread.isRunning():
@@ -195,24 +187,18 @@ def cleanup():
                 print(f"[ERROR] Error stopping thread: {e}")
         thread = None
 
+        # Reset UI state once.
         gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
         print(f"[ERROR] Unexpected error during cleanup: {e}")
-        
+
 def stop_program():
     global thread, worker, relay_handler
     try:
         print("[DEBUG] Starting stop sequence")
         if worker:
-            worker._is_running = False
-            for timer in getattr(worker, 'timers', []):
-                if timer and timer.isActive():
-                    timer.stop()
-            if hasattr(worker, 'main_timer') and worker.main_timer:
-                worker.main_timer.stop()
-            if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
-                worker.monitor_timer.stop()
+            # Simply call the worker's stop() method; no need to manually iterate timers.
             worker.stop()
             print("[DEBUG] Worker stopped")
         if thread and thread.isRunning():
