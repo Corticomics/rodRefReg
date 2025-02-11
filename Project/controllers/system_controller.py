@@ -100,4 +100,11 @@ class SystemController(QObject):
             'slack_token': str,
             'channel_id': str
         }
-        return type_map.get(key, str) 
+        return type_map.get(key, str)
+
+    def get_pump_controller(self):
+        """Get or create a pump controller instance"""
+        if not hasattr(self, '_pump_controller'):
+            from controllers.pump_controller import PumpController
+            self._pump_controller = PumpController(self.settings)
+        return self._pump_controller 

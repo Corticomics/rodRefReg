@@ -15,6 +15,7 @@ from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem  # Import LoginSystem
 from models.relay_unit import RelayUnit
 from controllers.system_controller import SystemController
+from controllers.pump_controller import PumpController
 
 import time
 import sys
@@ -47,40 +48,44 @@ worker = None
 def setup():
     global relay_handler, settings, gui, notification_handler, controller, database_handler, login_system, system_controller
 
-    # Initialize the Database Handler
+    # Initialize database handler first
     database_handler = DatabaseHandler()
-
-    # Initialize SystemController
+    
+    # Initialize system controller
     system_controller = SystemController(database_handler)
     
-    # Initialize other controllers
-    controller = ProjectsController()
-    
-    # Initialize the login system
-    login_system = LoginSystem(database_handler)
-    if not login_system.is_logged_in():
-        login_system.set_guest_mode()
-
-    # Get settings from SystemController
+    # Get settings
     settings = system_controller.settings
     
-    # Initialize relay unit manager with settings from SystemController
+    # Initialize relay unit manager
     relay_unit_manager = RelayUnitManager(settings)
     
-    # Initialize other components with SystemController
+    # Initialize relay handler
     relay_handler = RelayHandler(relay_unit_manager, settings['num_hats'])
+    
+    # Initialize the ProjectsController with dependencies
+    controller = ProjectsController()
+    # Create and assign pump controller with proper dependencies
+    pump_controller = PumpController(relay_handler, database_handler)
+    controller.pump_controller = pump_controller
+    
+    # Initialize other components
     notification_handler = NotificationHandler(
         settings.get('slack_token'), 
         settings.get('channel_id')
     )
+    
+    login_system = LoginSystem(database_handler)
+    if not login_system.is_logged_in():
+        login_system.set_guest_mode()
 
-    # Initialize GUI with SystemController
+    # Initialize GUI last, after all dependencies are ready
     gui = RodentRefreshmentGUI(
-        run_program, 
-        stop_program, 
-        change_relay_hats, 
-        system_controller,  # Pass controller instead of settings dict
-        database_handler=database_handler, 
+        run_program,
+        stop_program,
+        change_relay_hats,
+        system_controller,
+        database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
         notification_handler=notification_handler
