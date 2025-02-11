@@ -97,15 +97,12 @@ def run_program(schedule, mode, window_start, window_end):
     try:
         print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
-        # Get settings from SystemController
-        settings = system_controller.settings
-        
-        # Create base worker settings
+        # Create base worker settings using system_controller
         worker_settings = {
             'mode': mode,
             'window_start': window_start,
             'window_end': window_end,
-            'min_trigger_interval_ms': settings['min_trigger_interval_ms'] if 'min_trigger_interval_ms' in settings else 500,
+            'min_trigger_interval_ms': system_controller.settings.get('min_trigger_interval_ms', 500),
             'database_handler': database_handler,
             'pump_controller': controller.pump_controller,
             'schedule_id': schedule.schedule_id
@@ -123,11 +120,11 @@ def run_program(schedule, mode, window_start, window_end):
                 })
         else:  # Staggered mode
             worker_settings.update({
-                'cycle_interval': 3600,
-                'stagger_interval': 0.5,
+                'cycle_interval': system_controller.settings.get('cycle_interval', 3600),
+                'stagger_interval': system_controller.settings.get('stagger_interval', 0.5),
                 'water_volume': schedule.water_volume,
                 'relay_unit_assignments': schedule.relay_unit_assignments,
-                'desired_water_outputs': schedule.desired_water_outputs  # Add this line
+                'desired_water_outputs': schedule.desired_water_outputs
             })
         
         print("\nWorker Settings Debug:")
