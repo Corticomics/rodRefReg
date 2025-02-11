@@ -2,6 +2,7 @@
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDateTimeEdit, QDialogButtonBox, QMessageBox, QComboBox
 from PyQt5.QtCore import QDateTime
+from datetime import datetime
 
 class EditAnimalDialog(QDialog):
     def __init__(self, animal_id, animal_data, parent=None):
@@ -27,18 +28,22 @@ class EditAnimalDialog(QDialog):
         self.last_weighted_input = QDateTimeEdit()
         self.last_weighted_input.setCalendarPopup(True)
         if animal_data['last_weighted']:
-            self.last_weighted_input.setDateTime(
-                QDateTime.fromString(animal_data['last_weighted'], "yyyy-MM-dd HH:mm")
-            )
+            try:
+                dt = datetime.fromisoformat(animal_data['last_weighted'])
+                self.last_weighted_input.setDateTime(QDateTime(dt))
+            except ValueError:
+                self.last_weighted_input.setDateTime(QDateTime.currentDateTime())
         else:
             self.last_weighted_input.setDateTime(QDateTime.currentDateTime())
 
         self.last_watering_input = QDateTimeEdit()
         self.last_watering_input.setCalendarPopup(True)
         if animal_data.get('last_watering'):
-            self.last_watering_input.setDateTime(
-                QDateTime.fromString(animal_data['last_watering'], "yyyy-MM-dd HH:mm")
-            )
+            try:
+                dt = datetime.fromisoformat(animal_data['last_watering'])
+                self.last_watering_input.setDateTime(QDateTime(dt))
+            except ValueError:
+                self.last_watering_input.setDateTime(QDateTime.currentDateTime())
         else:
             self.last_watering_input.setDateTime(QDateTime.currentDateTime())
 
@@ -67,8 +72,8 @@ class EditAnimalDialog(QDialog):
                 'gender': gender,
                 'initial_weight': float(self.initial_weight_input.text().strip()),
                 'last_weight': float(self.last_weight_input.text().strip()) if self.last_weight_input.text().strip() else None,
-                'last_weighted': self.last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm"),
-                'last_watering': self.last_watering_input.dateTime().toString("yyyy-MM-dd HH:mm")
+                'last_weighted': self.last_weighted_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss.zzz"),
+                'last_watering': self.last_watering_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss.zzz")
             }
             super().accept()
         except ValueError as ve:

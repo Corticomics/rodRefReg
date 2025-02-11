@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QGroupBox, 
     QFormLayout, QLineEdit, QLabel, QPushButton, 
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QFileDialog
+    QFileDialog, QGridLayout
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import json
@@ -10,13 +10,15 @@ import os
 import base64
 from cryptography.fernet import Fernet
 from datetime import datetime
+import pandas as pd
 
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
     
     def __init__(self, system_controller, suggest_callback=None, 
                  push_callback=None, save_slack_callback=None, 
-                 run_stop_section=None, login_system=None):
+                 run_stop_section=None, login_system=None,
+                 print_to_terminal=None, database_handler=None):
         super().__init__()
         self.system_controller = system_controller
         self.settings = system_controller.settings
@@ -25,6 +27,8 @@ class SettingsTab(QWidget):
         self.save_slack_callback = save_slack_callback
         self.run_stop_section = run_stop_section
         self.login_system = login_system
+        self.print_to_terminal = print_to_terminal
+        self.database_handler = database_handler
         
         self.init_ui()
         
@@ -39,12 +43,14 @@ class SettingsTab(QWidget):
         self.system_settings = self._create_system_settings()
         self.notifications = self._create_notifications()
         self.backup_restore = self._create_backup_restore()
+        self.data_import_export = self._create_data_import_export()
         
         # Add sub-tabs to settings
         self.tab_widget.addTab(self.pump_settings, "Pump Settings")
         self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
         self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
+        self.tab_widget.addTab(self.data_import_export, "Data Import/Export")
         
         layout.addWidget(self.tab_widget)
         
@@ -151,6 +157,21 @@ class SettingsTab(QWidget):
         widget.setLayout(layout)
         return widget
 
+    def _create_data_import_export(self):
+        widget = QWidget()
+        layout = QGridLayout()
+        
+        export_btn = QPushButton("Export Animals to CSV")
+        export_btn.clicked.connect(self.export_animals)
+        import_btn = QPushButton("Import Animals from CSV")
+        import_btn.clicked.connect(self.import_animals)
+        
+        layout.addWidget(export_btn, 0, 0)
+        layout.addWidget(import_btn, 0, 1)
+        
+        widget.setLayout(layout)
+        return widget
+
     def _get_or_create_key(self):
         key_file = "settings_key.key"
         if os.path.exists(key_file):
@@ -239,4 +260,78 @@ class SettingsTab(QWidget):
             QMessageBox.information(self, "Success", "Settings saved successfully")
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}") 
+            QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
+
+    def export_animals(self):
+        try:
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "Export Animals", "", "CSV Files (*.csv)"
+            )
+            if file_path:
+                animals = self.database_handler.get_all_animals()
+                data = []
+                for animal in animals:
+                    data.append({
+                        'Lab Animal ID': animal.lab_animal_id,
+                        'Name': animal.name,
+                        'Gender': animal.gender or '',
+                        'Initial Weight (g)': animal.initial_weight,
+                        'Last Weight (g)': animal.last_weight,
+                        'Last Weighted': animal.last_weighted,
+                        'Last Watering': animal.last_watering
+                    })
+                
+                df = pd.DataFrame(data)
+                df.to_csv(file_path, index=False)
+                self.print_to_terminal(f"Animals exported to {file_path}")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Error exporting animals: {e}")
+
+    def import_animals(self):
+        try:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Import Animals", "", "CSV Files (*.csv)"
+            )
+            if file_path:
+                df = pd.read_csv(file_path)
+                current_trainer = self.login_system.get_current_trainer()
+                trainer_id = current_trainer['trainer_id'] if current_trainer else None
+                
+                imported = 0
+                errors = []
+                
+                for _, row in df.iterrows():
+                    try:
+                        # Map lab document format to our database format
+                        gender = 'female' if row['# Females'] == 1 else 'male' if row['# Males'] == 1 else None
+                        
+                        # Convert birthdate to our datetime format
+                        birthdate = datetime.strptime(str(row['Birthdate']), '%y%m%d')
+                        
+                        animal = Animal(
+                            animal_id=None,
+                            lab_animal_id=str(row['Ear tag ID#']) if pd.notna(row['Ear tag ID#']) else row['Cage Number #'],
+                            name=row['Nickname'] if pd.notna(row['Nickname']) else '',
+                            initial_weight=None,  # No weight in lab format
+                            last_weight=None,
+                            last_weighted=None,
+                            last_watering=None,
+                            gender=gender
+                        )
+                        
+                        if self.database_handler.add_animal(animal, trainer_id):
+                            imported += 1
+                        
+                    except Exception as e:
+                        errors.append(f"Row {_+2}: {str(e)}")
+                
+                msg = f"Successfully imported {imported} animals."
+                if errors:
+                    msg += f"\n\nErrors ({len(errors)}):\n" + "\n".join(errors)
+                
+                QMessageBox.information(self, "Import Results", msg)
+                self.print_to_terminal(f"Imported {imported} animals from {file_path}")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Import Error", f"Error importing animals: {e}") 
