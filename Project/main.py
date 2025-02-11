@@ -1,5 +1,3 @@
-# main.py
-
 import sys
 import os
 from utils.volume_calculator import VolumeCalculator
@@ -12,13 +10,11 @@ from notifications.notifications import NotificationHandler
 from settings.config import load_settings, save_settings
 from controllers.projects_controller import ProjectsController
 from models.database_handler import DatabaseHandler
-from models.login_system import LoginSystem  # Import LoginSystem
+from models.login_system import LoginSystem
 from models.relay_unit import RelayUnit
 from controllers.system_controller import SystemController
 from controllers.pump_controller import PumpController
-
 import time
-import sys
 import traceback
 from models.relay_unit_manager import RelayUnitManager
 
@@ -35,13 +31,13 @@ class StreamRedirector(QObject):
         super().__init__()
 
     def write(self, message):
-        if message.strip():  # Ignore empty messages
+        if message.strip():
             self.message_signal.emit(message)
 
     def flush(self):
         pass
 
-# Initialize thread and worker globally to reuse them
+# Global thread and worker
 thread = QThread()
 worker = None
 
@@ -51,7 +47,7 @@ def setup():
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
     
-    # Use a different name for the plain dictionary so that system_controller remains distinct.
+    # Use a distinct global name for the settings dictionary
     app_settings = system_controller.settings
     
     relay_unit_manager = RelayUnitManager(app_settings)
@@ -74,7 +70,7 @@ def setup():
         run_program,
         stop_program,
         change_relay_hats,
-        system_controller=system_controller,  # still pass the SystemController instance
+        system_controller=system_controller,
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
@@ -99,7 +95,6 @@ def run_program(schedule, mode, window_start, window_end):
         }
         
         if mode.lower() == "instant":
-            # Create delivery instants with correct relay unit assignments
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
                 worker_settings['delivery_instants'].append({
@@ -108,7 +103,7 @@ def run_program(schedule, mode, window_start, window_end):
                     'delivery_time': delivery['datetime'].isoformat() if hasattr(delivery['datetime'], 'isoformat') else delivery['datetime'],
                     'water_volume': delivery['volume']
                 })
-        else:  # Staggered mode
+        else:
             worker_settings.update({
                 'cycle_interval': system_controller.settings.get('cycle_interval', 3600),
                 'stagger_interval': system_controller.settings.get('stagger_interval', 0.5),
@@ -122,13 +117,11 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
         
-        # Reinitialize the thread and worker
         if thread is not None:
             thread.quit()
             thread.wait()
         thread = QThread()
 
-        # Create worker with system_controller
         worker = RelayWorker(
             worker_settings, 
             relay_handler, 
@@ -137,7 +130,6 @@ def run_program(schedule, mode, window_start, window_end):
         )
         worker.moveToThread(thread)
 
-        # Connect signals and slots
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
@@ -154,7 +146,6 @@ def run_program(schedule, mode, window_start, window_end):
 
 def cleanup():
     global thread, worker
-    
     print("[DEBUG] Starting cleanup process")
     
     if worker and worker._is_running:
@@ -173,116 +164,83 @@ def cleanup():
             worker.main_timer.stop()
             print("[DEBUG] All timers stopped")
             
-        # Check if the worker still exists before trying to disconnect signals
         if worker is not None:
             try:
                 worker.finished.disconnect()
                 worker.progress.disconnect()
             except TypeError as e:
-                print(f"[DEBUG] Error disconnecting signals (may already be disconnected): {e}")
+                print(f"[DEBUG] Error disconnecting signals: {e}")
             except RuntimeError as e:
-                print(f"[DEBUG] Worker was already deleted or disconnected: {e}")
+                print(f"[DEBUG] Worker already deleted: {e}")
+            worker = None
 
-            worker = None  # Clear the worker reference
-
-        # Stop and clear the thread
         if thread is not None and thread.isRunning():
             try:
-                thread.quit()  # Gracefully exit the thread loop
-                thread.wait()  # Block until the thread has fully finished execution
+                thread.quit()
+                thread.wait()
             except Exception as e:
                 print(f"[ERROR] Error stopping thread: {e}")
 
-        thread = None  # Explicitly set thread to None for reinitialization
-        gui.run_stop_section.reset_ui()  # Reset the run_stop_section
-
+        thread = None
+        gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
-        print(f"[ERROR] An unexpected error occurred during cleanup: {e}")
+        print(f"[ERROR] Unexpected error during cleanup: {e}")
 
 def stop_program():
-    """Central stop control function"""
     global thread, worker, relay_handler
-    
     try:
         print("[DEBUG] Starting stop sequence")
-        
-        # First stop the worker if it exists
         if worker:
-            # Stop all timers first
             worker._is_running = False
             for timer in getattr(worker, 'timers', []):
                 if timer and timer.isActive():
                     timer.stop()
-            
             if hasattr(worker, 'main_timer') and worker.main_timer:
                 worker.main_timer.stop()
-            
             if hasattr(worker, 'monitor_timer') and worker.monitor_timer:
                 worker.monitor_timer.stop()
-            
-            # Call worker's stop method
             worker.stop()
-            
             print("[DEBUG] Worker stopped")
-        
-        # Wait for thread with timeout
         if thread and thread.isRunning():
-            if not thread.wait(2000):  # 2 second timeout
+            if not thread.wait(2000):
                 print("[DEBUG] Thread timeout - forcing termination")
                 thread.terminate()
             thread.wait()
             print("[DEBUG] Thread stopped")
-        
-        # Ensure relays are deactivated
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        
-        # Clear worker and thread references
         worker = None
         thread = None
-        
         print("[DEBUG] Stop sequence completed successfully")
         return True
-        
     except Exception as e:
         print(f"[ERROR] Stop sequence failed: {e}")
         return False
 
 def change_relay_hats():
-    global relay_handler, app_settings  # use app_settings instead of settings
-
-    # Prompt user for the number of relay hats
+    global relay_handler, app_settings  # use app_settings
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
                                         "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
 
-    # Update app_settings
     app_settings['num_hats'] = num_hats
     app_settings['relay_pairs'] = create_relay_pairs(num_hats)
     
-    # Create new relay unit manager with updated app_settings
     relay_unit_manager = RelayUnitManager(app_settings)
-    
-    # Update relay handler
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
 
-    # Update GUI components
     relay_units = relay_unit_manager.get_all_relay_units()
     _update_gui_relay_units(relay_units)
 
-    # Save app_settings
     save_settings(app_settings)
     
-    # Reset UI
     cleanup()
     
-    # Confirm update
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
-    
 def create_relay_pairs(num_hats):
     relay_units = []
     for hat in range(num_hats):
@@ -293,18 +251,15 @@ def create_relay_pairs(num_hats):
     return relay_units
 
 def _update_gui_relay_units(relay_units):
-    """Update GUI components with new relay units"""
     gui.projects_section.relay_units = relay_units
     gui.projects_section.schedules_tab.relay_units = relay_units
     gui.projects_section.schedules_tab.relay_containers = {}
     
-    # Remove old layout
     gui.projects_section.schedules_tab.layout.removeItem(
         gui.projects_section.schedules_tab.relay_layout
     )
     gui.projects_section.schedules_tab.relay_layout = QHBoxLayout()
 
-    # Create new containers
     for relay_unit in relay_units:
         container = QListWidget()
         container.setAcceptDrops(True)
@@ -325,14 +280,11 @@ def _update_gui_relay_units(relay_units):
 def main():
     app = QApplication(sys.argv)
 
-    # Call the setup function to initialize everything before starting
     setup()
 
-    # Initialize StreamRedirector and connect its signal to the GUI
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
 
-    # Redirect stdout and stderr to the StreamRedirector
     sys.stdout = redirector
     sys.stderr = redirector
 
