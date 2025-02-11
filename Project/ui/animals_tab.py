@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
-    QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView
+    QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView, QComboBox
 )
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
@@ -208,12 +208,18 @@ class AnimalsTab(QWidget):
         last_watering_input.setCalendarPopup(True)
         last_watering_input.setDateTime(QDateTime.currentDateTime())
 
+        # Add gender selection combo box
+        gender_combo = QComboBox()
+        gender_combo.addItems(["Select Gender", "male", "female"])
+        gender_combo.setCurrentText("Select Gender")
+
         form_layout.addRow("Lab Animal ID:", lab_animal_id_input)
         form_layout.addRow("Name:", name_input)
         form_layout.addRow("Initial Weight (g):", initial_weight_input)
         form_layout.addRow("Last Weight (g):", last_weight_input)
         form_layout.addRow("Last Time Weighted:", last_weighted_input)
         form_layout.addRow("Last Watering:", last_watering_input)
+        form_layout.addRow("Gender:", gender_combo)
         layout.addLayout(form_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -230,6 +236,9 @@ class AnimalsTab(QWidget):
                 last_weight_text = last_weight_input.text().strip()
                 last_weighted = last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm")
                 last_watering = last_watering_input.dateTime().toString("yyyy-MM-dd HH:mm")
+                gender = gender_combo.currentText()
+                if gender == "Select Gender":
+                    gender = None
 
                 # Validate inputs
                 if not lab_animal_id or not name:
@@ -246,7 +255,8 @@ class AnimalsTab(QWidget):
                     initial_weight,
                     last_weight,
                     last_weighted,
-                    last_watering
+                    last_watering,
+                    gender
                 )
                 current_trainer = self.login_system.get_current_trainer()
                 trainer_id = current_trainer['trainer_id'] if current_trainer else None
@@ -316,7 +326,8 @@ class AnimalsTab(QWidget):
                     initial_weight=updated_info['initial_weight'],
                     last_weight=updated_info['last_weight'],
                     last_weighted=updated_info['last_weighted'],
-                    last_watering=updated_info['last_watering']
+                    last_watering=updated_info['last_watering'],
+                    gender=updated_info['gender']
                 )
 
                 # Update the animal in the database
