@@ -84,7 +84,7 @@ def setup():
         run_program,
         stop_program,
         change_relay_hats,
-        system_controller,
+        system_controller=system_controller,
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,

@@ -11,12 +11,12 @@ class RunStopSection(QWidget):
     schedule_updated = pyqtSignal(int)
 
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, 
-                 settings=None, database_handler=None, relay_handler=None, notification_handler=None, parent=None):
+                 system_controller=None, database_handler=None, relay_handler=None, notification_handler=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
         self.change_relay_hats_callback = change_relay_hats_callback
-        self.settings = settings
+        self.system_controller = system_controller
         
         # Add database handler validation
         if database_handler is None:
@@ -32,8 +32,8 @@ class RunStopSection(QWidget):
 
         self.init_ui()
 
-        if settings:
-            self.load_settings(settings)
+        if system_controller:
+            self.load_settings(system_controller.settings)
 
         self.setAcceptDrops(True)  # Enable dropping
 
@@ -159,9 +159,8 @@ class RunStopSection(QWidget):
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
-            # Create worker settings with schedule information
-            # Get settings from system_controller instead of copying directly
-            worker_settings = self.settings.settings.copy() if self.settings else {}
+            # Get settings from system_controller
+            worker_settings = self.system_controller.settings.copy() if self.system_controller else {}
             worker_settings.update({
                 'schedule_id': schedule.schedule_id,
                 'mode': mode,
