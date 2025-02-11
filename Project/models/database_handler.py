@@ -75,6 +75,7 @@ class DatabaseHandler:
                         last_watering TEXT,
                         last_water_volume REAL,
                         trainer_id INTEGER,
+                        gender TEXT CHECK(gender IN ('male', 'female')) DEFAULT NULL,
                         FOREIGN KEY(trainer_id) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -629,16 +630,22 @@ class DatabaseHandler:
             return False
         
     def add_animal(self, animal, trainer_id):
-        """Add a new animal with lab_animal_id and trainer association."""
+        """Add a new animal with lab_animal_id, gender, and trainer association."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO animals (lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering, trainer_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.last_watering, trainer_id))
+                    INSERT INTO animals (
+                        lab_animal_id, name, initial_weight, last_weight, 
+                        last_weighted, last_watering, trainer_id, gender
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    animal.lab_animal_id, animal.name, animal.initial_weight, 
+                    animal.last_weight, animal.last_weighted, animal.last_watering, 
+                    trainer_id, animal.gender
+                ))
                 conn.commit()
-                print(f"Animal '{animal.name}' added with lab ID: {animal.lab_animal_id} for trainer ID: {trainer_id}")
                 return cursor.lastrowid
         except sqlite3.IntegrityError:
             print(f"Error: Animal ID '{animal.lab_animal_id}' already exists.")
@@ -655,14 +662,20 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 cursor.execute('''
                     UPDATE animals
-                    SET lab_animal_id = ?, name = ?, initial_weight = ?, last_weight = ?, last_weighted = ?, last_watering = ?
+                    SET lab_animal_id = ?, name = ?, initial_weight = ?, 
+                        last_weight = ?, last_weighted = ?, last_watering = ?,
+                        gender = ?
                     WHERE animal_id = ?
-                ''', (animal.lab_animal_id, animal.name, animal.initial_weight, animal.last_weight, animal.last_weighted, animal.last_watering, animal.animal_id))
+                ''', (
+                    animal.lab_animal_id, animal.name, animal.initial_weight,
+                    animal.last_weight, animal.last_weighted, animal.last_watering,
+                    animal.gender, animal.animal_id
+                ))
+                conn.commit()
                 if cursor.rowcount > 0:
                     print(f"Animal with lab ID {animal.lab_animal_id} updated.")
                 else:
                     print(f"No animal found with lab ID {animal.lab_animal_id} to update.")
-                conn.commit()
         except sqlite3.Error as e:
             print(f"Error updating animal with lab ID {animal.lab_animal_id}: {e}")
             traceback.print_exc()
@@ -688,7 +701,11 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering FROM animals')
+                cursor.execute('''
+                    SELECT animal_id, lab_animal_id, name, initial_weight, 
+                           last_weight, last_weighted, last_watering, gender 
+                    FROM animals
+                ''')
                 rows = cursor.fetchall()
                 for row in rows:
                     animal = Animal(
@@ -698,10 +715,10 @@ class DatabaseHandler:
                         initial_weight=row[3],
                         last_weight=row[4],
                         last_weighted=row[5],
-                        last_watering=row[6]  # Added last_watering
+                        last_watering=row[6],
+                        gender=row[7]
                     )
                     animals.append(animal)
-                print(f"Retrieved {len(animals)} animals from the database.")
         except sqlite3.Error as e:
             print(f"Error retrieving all animals: {e}")
             traceback.print_exc()
