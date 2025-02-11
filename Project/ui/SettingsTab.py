@@ -11,6 +11,7 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import datetime
 import pandas as pd
+from models.animal import Animal
 
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
@@ -272,14 +273,14 @@ class SettingsTab(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
 
     def export_animals(self):
-        """Export animals to CSV with proper error handling and validation."""
+        """Export animals to CSV with proper Excel compatibility."""
         if not self.database_handler:
             QMessageBox.critical(self, "Export Error", "Database handler not initialized")
             return
         
         try:
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "Export Animals", "", "CSV Files (*.csv)"
+                self, "Export Animals", "", "CSV Files (*.csv);;Excel Files (*.xlsx)"
             )
             if not file_path:
                 return
@@ -291,18 +292,31 @@ class SettingsTab(QWidget):
             
             data = []
             for animal in animals:
+                # Format dates in Excel-friendly format
+                last_weighted = (datetime.fromisoformat(animal.last_weighted).strftime('%Y-%m-%d %H:%M:%S') 
+                               if animal.last_weighted else '')
+                last_watering = (datetime.fromisoformat(animal.last_watering).strftime('%Y-%m-%d %H:%M:%S') 
+                               if animal.last_watering else '')
+                
                 data.append({
                     'Lab Animal ID': animal.lab_animal_id,
                     'Name': animal.name,
                     'Gender': animal.gender or '',
-                    'Initial Weight (g)': animal.initial_weight,
-                    'Last Weight (g)': animal.last_weight,
-                    'Last Weighted': animal.last_weighted,
-                    'Last Watering': animal.last_watering
+                    'Initial Weight (g)': f"{animal.initial_weight:.1f}" if animal.initial_weight else '',
+                    'Last Weight (g)': f"{animal.last_weight:.1f}" if animal.last_weight else '',
+                    'Last Weighted': last_weighted,
+                    'Last Watering': last_watering
                 })
             
             df = pd.DataFrame(data)
-            df.to_csv(file_path, index=False)
+            
+            # Export based on file extension
+            if file_path.endswith('.xlsx'):
+                # Export as Excel file
+                df.to_excel(file_path, index=False, engine='openpyxl')
+            else:
+                # Export as CSV with Excel-friendly encoding and separator
+                df.to_csv(file_path, index=False, encoding='utf-8-sig', sep=',')
             
             self.print_to_terminal(f"Successfully exported {len(animals)} animals to {file_path}")
             QMessageBox.information(self, "Success", f"Successfully exported {len(animals)} animals")
@@ -313,7 +327,8 @@ class SettingsTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Error exporting animals: {str(e)}")
             self.print_to_terminal(f"Unexpected error during export: {str(e)}")
-
+            
+    #Check for data formatting w jackson
     def import_animals(self):
         try:
             file_path, _ = QFileDialog.getOpenFileName(
