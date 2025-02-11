@@ -12,30 +12,32 @@ Displaying animals for trainer ID 1
 About to load animals for trainer_id: 1 (type: <class 'int'>)
 Retrieved 2 animals from the database for trainer_id 1
 Loaded 2 animals for trainer ID 1
-save_current_schedule: adding instant deliveries for unit 1
-save_current_schedule: adding instant delivery for animal 1 at 2025-02-11 13:35:32.313000 with volume 1.0
-save_current_schedule: adding instant deliveries for unit 2
-save_current_schedule: adding instant delivery for animal 2 at 2025-02-11 13:35:38.218000 with volume 2.0
-save_current_schedule: adding instant schedule with details:<models.Schedule.Schedule object at 0x7f9c03f950>
+
+DEBUG - RunStopSection run_program:
+self.system_controller type: <class 'controllers.system_controller.SystemController'>
 
 DEBUG INFO:
-Schedule: {'schedule_id': 13, 'name': 'raaaaaaaaaaaaah', 'water_volume': 3.0, 'start_time': '2025-02-11T13:35:32.313000', 'end_time': '2025-02-11T13:35:38.218000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'instant', 'cycles_per_day': 1, 'animals': [1, 2], 'desired_water_outputs': {}, 'window_data': {}, 'instant_deliveries': [{'animal_id': 1, 'datetime': datetime.datetime(2025, 2, 11, 13, 35, 32, 313000), 'volume': 1.0, 'relay_unit_id': 1}, {'animal_id': 2, 'datetime': datetime.datetime(2025, 2, 11, 13, 35, 38, 218000), 'volume': 2.0, 'relay_unit_id': 2}], 'relay_unit_assignments': {'1': 1, '2': 2}, 'status': 'pending', 'delivered_volumes': {}, 'last_delivery': {}}
+Schedule: {'schedule_id': 4, 'name': 'terreeee', 'water_volume': 3.0, 'start_time': '2025-02-02T12:43:37.650000', 'end_time': '2025-02-02T12:43:38.258000', 'created_by': 1, 'is_super_user': 0, 'delivery_mode': 'instant', 'cycles_per_day': 1, 'animals': [1, 2], 'desired_water_outputs': {}, 'window_data': {}, 'instant_deliveries': [{'animal_id': 1, 'datetime': datetime.datetime(2025, 2, 2, 12, 43, 37, 650000), 'volume': 1.0, 'relay_unit_id': 1}, {'animal_id': 2, 'datetime': datetime.datetime(2025, 2, 2, 12, 43, 38, 258000), 'volume': 2.0, 'relay_unit_id': 2}], 'relay_unit_assignments': {'1': 1, '2': 2}, 'status': 'pending', 'delivered_volumes': {}, 'last_delivery': {}}
 Mode: Instant
 
 Schedule Debug Info:
 Desired water outputs: {}
 Relay assignments: {'1': 1, '2': 2}
 
-Settings Debug Info:
-Settings desired water outputs: {}
-Settings relay assignments: {'1': 1, '2': 2}
-Running program with schedule: raaaaaaaaaaaaah, mode: Instant
+DEBUG - run_program:
+system_controller type: <class 'controllers.system_controller.SystemController'>
+Running program with schedule: terreeee, mode: Instant
 
 Worker Settings Debug:
 Mode: Instant
 Desired outputs: None
 Relay assignments: None
 
+
+DEBUG - RelayWorker Initialization:
+system_controller type: <class 'controllers.system_controller.SystemController'>
+settings type: <class 'dict'>
+self.system_controller type after assignment: <class 'controllers.system_controller.SystemController'>
 Failed to run program: 'dict' object has no attribute 'settings'
-2025-02-11 13:33:52.088662 - Failed to send Slack message: not_authed
-Logged pump trigger: {'timestamp': '2025-02-11T13:33:52.089360', 'relay_info': "Program error: 'dict' object has no attribute 'settings'"}
+2025-02-11 14:20:38.668496 - Failed to send Slack message: not_authed
+Logged pump trigger: {'timestamp': '2025-02-11T14:20:38.669335', 'relay_info': "Program error: 'dict' object has no attribute 'settings'"}
