@@ -20,6 +20,10 @@ class SettingsTab(QWidget):
                  run_stop_section=None, login_system=None,
                  print_to_terminal=None, database_handler=None):
         super().__init__()
+        
+        if not system_controller:
+            raise ValueError("system_controller is required")
+        
         self.system_controller = system_controller
         self.settings = system_controller.settings
         self.suggest_callback = suggest_callback
@@ -27,8 +31,13 @@ class SettingsTab(QWidget):
         self.save_slack_callback = save_slack_callback
         self.run_stop_section = run_stop_section
         self.login_system = login_system
-        self.print_to_terminal = print_to_terminal
-        self.database_handler = database_handler
+        self.print_to_terminal = print_to_terminal or (lambda x: None)
+        
+        # Get database handler from system controller if not provided
+        self.database_handler = database_handler or system_controller.database_handler
+        
+        if not self.database_handler:
+            raise ValueError("database_handler must be provided either directly or through system_controller")
         
         self.init_ui()
         
@@ -263,30 +272,47 @@ class SettingsTab(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
 
     def export_animals(self):
+        """Export animals to CSV with proper error handling and validation."""
+        if not self.database_handler:
+            QMessageBox.critical(self, "Export Error", "Database handler not initialized")
+            return
+        
         try:
             file_path, _ = QFileDialog.getSaveFileName(
                 self, "Export Animals", "", "CSV Files (*.csv)"
             )
-            if file_path:
-                animals = self.database_handler.get_all_animals()
-                data = []
-                for animal in animals:
-                    data.append({
-                        'Lab Animal ID': animal.lab_animal_id,
-                        'Name': animal.name,
-                        'Gender': animal.gender or '',
-                        'Initial Weight (g)': animal.initial_weight,
-                        'Last Weight (g)': animal.last_weight,
-                        'Last Weighted': animal.last_weighted,
-                        'Last Watering': animal.last_watering
-                    })
-                
-                df = pd.DataFrame(data)
-                df.to_csv(file_path, index=False)
-                self.print_to_terminal(f"Animals exported to {file_path}")
-                
+            if not file_path:
+                return
+            
+            animals = self.database_handler.get_all_animals()
+            if not animals:
+                QMessageBox.information(self, "Export Info", "No animals found to export")
+                return
+            
+            data = []
+            for animal in animals:
+                data.append({
+                    'Lab Animal ID': animal.lab_animal_id,
+                    'Name': animal.name,
+                    'Gender': animal.gender or '',
+                    'Initial Weight (g)': animal.initial_weight,
+                    'Last Weight (g)': animal.last_weight,
+                    'Last Weighted': animal.last_weighted,
+                    'Last Watering': animal.last_watering
+                })
+            
+            df = pd.DataFrame(data)
+            df.to_csv(file_path, index=False)
+            
+            self.print_to_terminal(f"Successfully exported {len(animals)} animals to {file_path}")
+            QMessageBox.information(self, "Success", f"Successfully exported {len(animals)} animals")
+            
+        except AttributeError as e:
+            QMessageBox.critical(self, "Export Error", "Database connection error. Please check system configuration.")
+            self.print_to_terminal(f"Database error during export: {str(e)}")
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Error exporting animals: {e}")
+            QMessageBox.critical(self, "Export Error", f"Error exporting animals: {str(e)}")
+            self.print_to_terminal(f"Unexpected error during export: {str(e)}")
 
     def import_animals(self):
         try:
