@@ -731,7 +731,10 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    'SELECT animal_id, lab_animal_id, name, initial_weight, last_weight, last_weighted, last_watering FROM animals WHERE trainer_id = ?',
+                    '''SELECT animal_id, lab_animal_id, name, initial_weight, 
+                              last_weight, last_weighted, last_watering, gender 
+                       FROM animals 
+                       WHERE trainer_id = ?''',
                     (int(trainer_id),)
                 )
                 rows = cursor.fetchall()
@@ -744,7 +747,8 @@ class DatabaseHandler:
                         initial_weight=row[3],
                         last_weight=row[4],
                         last_weighted=row[5],
-                        last_watering=row[6]  # Added last_watering
+                        last_watering=row[6],
+                        gender=row[7]
                     )
                     animals.append(animal)
         except sqlite3.Error as e:
