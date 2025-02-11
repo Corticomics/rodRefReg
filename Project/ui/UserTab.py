@@ -289,82 +289,131 @@ class UserTab(QWidget):
         """Handle the profile creation process with improved form."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Create New Profile")
-        dialog.setMinimumWidth(300)
+        dialog.setMinimumWidth(350)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: white;
+                border-radius: 6px;
+            }
+            QLabel {
+                color: #202124;
+                font-size: 11px;
+            }
+            QLineEdit {
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
+                padding: 6px 12px;
+                background: white;
+                font-size: 11px;
+                min-height: 24px;
+            }
+            QLineEdit:hover {
+                border-color: #1a73e8;
+            }
+            QLineEdit:focus {
+                border-color: #1a73e8;
+                background: white;
+            }
+        """)
         
         # Create layout
         layout = QVBoxLayout()
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        # Form layout
         form_layout = QFormLayout()
+        form_layout.setSpacing(12)
         
         # Username field
         username_input = QLineEdit()
         username_input.setPlaceholderText("Choose a username")
-        username_input.setStyleSheet(self._get_input_style())
         
-        # Password fields
+        # Password fields container
+        password_container = QVBoxLayout()
+        password_container.setSpacing(4)
+        
+        # Password input with show/hide link
         password_input = QLineEdit()
         password_input.setPlaceholderText("Choose a password")
         password_input.setEchoMode(QLineEdit.Password)
-        password_input.setStyleSheet(self._get_input_style())
         
         confirm_password_input = QLineEdit()
         confirm_password_input.setPlaceholderText("Confirm password")
         confirm_password_input.setEchoMode(QLineEdit.Password)
-        confirm_password_input.setStyleSheet(self._get_input_style())
         
-        # Add fields to form
-        form_layout.addRow("Username:", username_input)
-        form_layout.addRow("Password:", password_input)
-        form_layout.addRow("Confirm Password:", confirm_password_input)
-        
-        # Add form to main layout
-        layout.addLayout(form_layout)
-        
-        # Create bottom container for buttons
-        bottom_container = QHBoxLayout()
-        
-        # Password visibility toggle button with unicode fallback
-        password_toggle = QPushButton("👁")  # Unicode eye symbol as fallback
-        password_toggle.setFixedSize(24, 24)
-        password_toggle.setStyleSheet("""
-            QPushButton {
-                border: none;
-                background: transparent;
-                padding: 0px;
-                font-size: 16px;
-                color: #666;
+        # Show password link
+        show_password_label = QLabel("Show password")
+        show_password_label.setStyleSheet("""
+            QLabel {
+                color: #1a73e8;
+                font-size: 10px;
             }
-            QPushButton:hover {
-                background-color: #f5f5f5;
-                border-radius: 12px;
-                color: #333;
+            QLabel:hover {
+                color: #174ea6;
+                text-decoration: underline;
             }
         """)
+        show_password_label.setCursor(Qt.PointingHandCursor)
         
-        # Toggle password visibility function
-        def toggle_password_visibility():
+        def toggle_password_visibility(event):
             current_mode = password_input.echoMode()
             new_mode = QLineEdit.Normal if current_mode == QLineEdit.Password else QLineEdit.Password
             password_input.setEchoMode(new_mode)
             confirm_password_input.setEchoMode(new_mode)
-            # Update button text based on state
-            password_toggle.setText("👁" if new_mode == QLineEdit.Password else "🔒")
+            show_password_label.setText("Hide password" if new_mode == QLineEdit.Normal else "Show password")
         
-        password_toggle.clicked.connect(toggle_password_visibility)
+        show_password_label.mousePressEvent = toggle_password_visibility
         
-        # Add buttons to bottom container
-        bottom_container.addWidget(password_toggle)
-        bottom_container.addStretch()
+        # Add fields to layouts
+        form_layout.addRow("Username:", username_input)
+        form_layout.addRow("Password:", password_input)
+        form_layout.addRow("Confirm Password:", confirm_password_input)
+        form_layout.addRow("", show_password_label)
+        
+        layout.addLayout(form_layout)
         
         # Dialog buttons
         button_box = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
+        button_box.button(QDialogButtonBox.Ok).setText("Create Profile")
+        button_box.button(QDialogButtonBox.Ok).setStyleSheet("""
+            QPushButton {
+                background-color: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #174ea6;
+            }
+            QPushButton:pressed {
+                background-color: #143c7c;
+            }
+        """)
+        button_box.button(QDialogButtonBox.Cancel).setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #1a73e8;
+                border: 1px solid #1a73e8;
+                border-radius: 4px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #f6fafe;
+            }
+            QPushButton:pressed {
+                background-color: #e8f1fc;
+            }
+        """)
+        
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
-        bottom_container.addWidget(button_box)
-        
-        # Add bottom container to layout
-        layout.addLayout(bottom_container)
+        layout.addWidget(button_box)
         
         dialog.setLayout(layout)
         
