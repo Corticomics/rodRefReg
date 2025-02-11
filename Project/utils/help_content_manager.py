@@ -54,7 +54,7 @@ class HelpContentManager:
     <li>Fill in the following fields:
       <ul>
         <li><strong>Lab Animal ID:</strong> A unique identifier (e.g., "A001").</li>
-        <li><strong>Name:</strong> The animal’s name or code.</li>
+        <li><strong>Name:</strong> The animal's name or code.</li>
         <li><strong>Initial Weight:</strong> The weight when first registered (in grams).</li>
         <li><strong>Last Weight:</strong> The most recent weight, if available.</li>
         <li><strong>Time Stamps:</strong> Record when the animal was last weighed and watered.</li>
@@ -63,7 +63,7 @@ class HelpContentManager:
     <li>Click <strong>Save</strong> to add the animal to the system.</li>
   </ol>
   <h2>Editing and Monitoring</h2>
-  <p>To update an animal’s data, select the animal and click <strong>Edit</strong>. Make sure to update weights daily for accurate water delivery calculations.</p>
+  <p>To update an animal's data, select the animal and click <strong>Edit</strong>. Make sure to update weights daily for accurate water delivery calculations.</p>
   <div class='help-warning'>
     <strong>Important:</strong> Inaccurate weight entries can lead to improper water volumes.
   </div>
@@ -89,7 +89,7 @@ class HelpContentManager:
     <li>Enter a descriptive schedule name and specify the total water volume.</li>
     <li>For <strong>Instant Delivery</strong>: Choose specific delivery times for each animal.</li>
     <li>For <strong>Staggered Delivery</strong>: Set the start and end times for the water delivery window.</li>
-    <li>Assign animals to relay units; the system will calculate the number of pump triggers needed based on each animal’s weight and calibration settings.</li>
+    <li>Assign animals to relay units; the system will calculate the number of pump triggers needed based on each animal's weight and calibration settings.</li>
     <li>Review your settings and click <strong>Save</strong>.</li>
   </ol>
   <h2>Best Practices</h2>
@@ -124,7 +124,7 @@ class HelpContentManager:
   <h2>How It Works</h2>
   <p>The system calculates the number of pump triggers needed for each animal based on its weight and your chosen water volume. It then schedules these triggers according to the selected delivery mode, ensuring safe and accurate delivery.</p>
   <div class='help-note'>
-    <strong>Tip for New Users:</strong> Familiarize yourself with each component to fully utilize the system’s capabilities.
+    <strong>Tip for New Users:</strong> Familiarize yourself with each component to fully utilize the system's capabilities.
   </div>
 </div>
                 """,
@@ -145,8 +145,8 @@ class HelpContentManager:
     <li>Enter the required details:
       <ul>
         <li><strong>Lab Animal ID:</strong> A unique identifier.</li>
-        <li><strong>Name:</strong> The animal’s name.</li>
-        <li><strong>Initial Weight:</strong> The animal’s weight at registration (in grams).</li>
+        <li><strong>Name:</strong> The animal's name.</li>
+        <li><strong>Initial Weight:</strong> The animal's weight at registration (in grams).</li>
         <li><strong>Last Weight:</strong> The most recent weight (if available).</li>
         <li><strong>Date/Time:</strong> When the animal was last weighed and watered.</li>
       </ul>
@@ -154,7 +154,7 @@ class HelpContentManager:
     <li>Click <strong>Save</strong> to register the animal.</li>
   </ol>
   <h2>Editing Animal Records</h2>
-  <p>To update an animal’s data, select it from the table and click <strong>Edit</strong>. Regular updates ensure the system calculates water volumes accurately.</p>
+  <p>To update an animal's data, select it from the table and click <strong>Edit</strong>. Regular updates ensure the system calculates water volumes accurately.</p>
   <div class='help-warning'>
     <strong>Important:</strong> Consistent and accurate measurements are critical for animal health and experimental reliability.
   </div>
@@ -210,7 +210,7 @@ class HelpContentManager:
     </li>
     <li><strong>User Account Setup:</strong>
       <ul>
-        <li>Create an administrator account if you haven’t already.</li>
+        <li>Create an administrator account if you haven't already.</li>
         <li>Configure user roles to control access and permissions.</li>
       </ul>
     </li>
@@ -362,8 +362,6 @@ class HelpContentManager:
             )
         }
         
-        # Merge existing and new content
-        existing_content.update(additional_content)
         return existing_content
 
     def get_content(self, topic: str) -> str:
