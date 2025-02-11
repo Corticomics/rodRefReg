@@ -132,6 +132,8 @@ class RunStopSection(QWidget):
 
     def run_program(self):
         try:
+            print("\nDEBUG - RunStopSection run_program:")
+            print(f"self.system_controller type: {type(self.system_controller)}")
             if self.job_in_progress:
                 return
             

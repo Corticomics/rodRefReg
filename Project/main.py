@@ -81,18 +81,25 @@ def run_program(schedule, mode, window_start, window_end):
     global thread, worker, notification_handler, controller, system_controller
 
     try:
+        print("\nDEBUG - run_program:")
+        print(f"system_controller type: {type(system_controller)}")
         print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
-        # Create base worker settings using system_controller
-        worker_settings = {
+        # Create base worker settings using system_controller's settings
+        worker_settings = {}  # Initialize empty dict first
+        if hasattr(system_controller, 'settings'):
+            worker_settings = system_controller.settings.copy()
+        
+        # Update with schedule-specific settings
+        worker_settings.update({
             'mode': mode,
             'window_start': window_start,
             'window_end': window_end,
-            'min_trigger_interval_ms': system_controller.settings.get('min_trigger_interval_ms', 500),
+            'min_trigger_interval_ms': worker_settings.get('min_trigger_interval_ms', 500),
             'database_handler': database_handler,
             'pump_controller': controller.pump_controller,
             'schedule_id': schedule.schedule_id
-        }
+        })
         
         if mode.lower() == "instant":
             worker_settings['delivery_instants'] = []
@@ -105,8 +112,8 @@ def run_program(schedule, mode, window_start, window_end):
                 })
         else:
             worker_settings.update({
-                'cycle_interval': system_controller.settings.get('cycle_interval', 3600),
-                'stagger_interval': system_controller.settings.get('stagger_interval', 0.5),
+                'cycle_interval': worker_settings.get('cycle_interval', 3600),
+                'stagger_interval': worker_settings.get('stagger_interval', 0.5),
                 'water_volume': schedule.water_volume,
                 'relay_unit_assignments': schedule.relay_unit_assignments,
                 'desired_water_outputs': schedule.desired_water_outputs
@@ -117,16 +124,23 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
         
+        # Reinitialize the thread and worker
         if thread is not None:
             thread.quit()
             thread.wait()
         thread = QThread()
 
+        # Create worker with explicit system_controller instance
+        if not isinstance(system_controller, QObject):
+            print("WARNING: system_controller is not a QObject instance!")
+            print(f"system_controller type: {type(system_controller)}")
+            raise TypeError("system_controller must be a SystemController instance")
+
         worker = RelayWorker(
             worker_settings, 
             relay_handler, 
             notification_handler,
-            system_controller
+            system_controller  # Pass the actual SystemController instance
         )
         worker.moveToThread(thread)
 

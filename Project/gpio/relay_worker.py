@@ -39,10 +39,16 @@ class RelayWorker(QObject):
 
     def __init__(self, settings, relay_handler, notification_handler, system_controller):
         super().__init__()
+        print("\nDEBUG - RelayWorker Initialization:")
+        print(f"system_controller type: {type(system_controller)}")
+        print(f"settings type: {type(settings)}")
+        
         # DEBUG: Verify that system_controller is indeed an instance (not a dict)
         if isinstance(system_controller, dict):
             raise TypeError("Expected system_controller to be a SystemController instance, got dict.")
+        
         self.system_controller = system_controller
+        print(f"self.system_controller type after assignment: {type(self.system_controller)}")
         self.settings = settings  # Worker settings (a dict)
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
