@@ -46,45 +46,35 @@ thread = QThread()
 worker = None
 
 def setup():
-    global relay_handler, settings, gui, notification_handler, controller, database_handler, login_system, system_controller
+    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
 
-    # Initialize database handler first
     database_handler = DatabaseHandler()
-    
-    # Initialize system controller
     system_controller = SystemController(database_handler)
     
-    # Get settings
-    settings = system_controller.settings
+    # Use a different name for the plain dictionary so that system_controller remains distinct.
+    app_settings = system_controller.settings
     
-    # Initialize relay unit manager
-    relay_unit_manager = RelayUnitManager(settings)
+    relay_unit_manager = RelayUnitManager(app_settings)
+    relay_handler = RelayHandler(relay_unit_manager, app_settings['num_hats'])
     
-    # Initialize relay handler
-    relay_handler = RelayHandler(relay_unit_manager, settings['num_hats'])
-    
-    # Initialize the ProjectsController with dependencies
     controller = ProjectsController()
-    # Create and assign pump controller with proper dependencies
     pump_controller = PumpController(relay_handler, database_handler)
     controller.pump_controller = pump_controller
     
-    # Initialize other components
     notification_handler = NotificationHandler(
-        settings.get('slack_token'), 
-        settings.get('channel_id')
+        app_settings.get('slack_token'),
+        app_settings.get('channel_id')
     )
     
     login_system = LoginSystem(database_handler)
     if not login_system.is_logged_in():
         login_system.set_guest_mode()
-
-    # Initialize GUI last, after all dependencies are ready
+    
     gui = RodentRefreshmentGUI(
         run_program,
         stop_program,
         change_relay_hats,
-        system_controller=system_controller,
+        system_controller=system_controller,  # still pass the SystemController instance
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
