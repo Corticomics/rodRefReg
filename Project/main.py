@@ -105,7 +105,7 @@ def run_program(schedule, mode, window_start, window_end):
             'mode': mode,
             'window_start': window_start,
             'window_end': window_end,
-            'min_trigger_interval_ms': settings.get('min_trigger_interval_ms', 500),
+            'min_trigger_interval_ms': settings['min_trigger_interval_ms'] if 'min_trigger_interval_ms' in settings else 500,
             'database_handler': database_handler,
             'pump_controller': controller.pump_controller,
             'schedule_id': schedule.schedule_id
