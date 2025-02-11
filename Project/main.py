@@ -251,20 +251,20 @@ def stop_program():
         return False
 
 def change_relay_hats():
-    global relay_handler, settings
+    global relay_handler, app_settings  # use app_settings instead of settings
 
     # Prompt user for the number of relay hats
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
-                                     "Enter the number of relay hats:", min=1, max=8)
+                                        "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
 
-    # Update settings
-    settings['num_hats'] = num_hats
-    settings['relay_pairs'] = create_relay_pairs(num_hats)
+    # Update app_settings
+    app_settings['num_hats'] = num_hats
+    app_settings['relay_pairs'] = create_relay_pairs(num_hats)
     
-    # Create new relay unit manager with updated settings
-    relay_unit_manager = RelayUnitManager(settings)
+    # Create new relay unit manager with updated app_settings
+    relay_unit_manager = RelayUnitManager(app_settings)
     
     # Update relay handler
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
@@ -273,8 +273,8 @@ def change_relay_hats():
     relay_units = relay_unit_manager.get_all_relay_units()
     _update_gui_relay_units(relay_units)
 
-    # Save settings
-    save_settings(settings)
+    # Save app_settings
+    save_settings(app_settings)
     
     # Reset UI
     cleanup()
@@ -282,6 +282,7 @@ def change_relay_hats():
     # Confirm update
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
+    
 def create_relay_pairs(num_hats):
     relay_units = []
     for hat in range(num_hats):
