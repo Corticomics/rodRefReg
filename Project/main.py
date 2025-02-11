@@ -164,6 +164,7 @@ def cleanup():
     global thread, worker
     print("[DEBUG] Starting cleanup process")
     
+    # If the worker is still running, wait for it to finish.
     if worker and worker._is_running:
         print("[DEBUG] Worker still running, waiting for completion")
         return
@@ -173,21 +174,17 @@ def cleanup():
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
             
+        # Assume worker.stop() (or similar) has already been called.
         if worker:
-            worker._is_running = False
-            for timer in worker.timers:
-                timer.stop()
-            worker.main_timer.stop()
-            print("[DEBUG] All timers stopped")
-            
-        if worker is not None:
-            try:
-                worker.finished.disconnect()
-                worker.progress.disconnect()
-            except TypeError as e:
-                print(f"[DEBUG] Error disconnecting signals: {e}")
-            except RuntimeError as e:
-                print(f"[DEBUG] Worker already deleted: {e}")
+            # Do not iterate over worker.timers if they are already cleared.
+            if worker.timers:
+                for timer in worker.timers:
+                    try:
+                        timer.stop()
+                        timer.deleteLater()
+                    except RuntimeError as ex:
+                        print(f"[DEBUG] Timer already deleted: {ex}")
+                worker.timers.clear()
             worker = None
 
         if thread is not None and thread.isRunning():
@@ -196,13 +193,13 @@ def cleanup():
                 thread.wait()
             except Exception as e:
                 print(f"[ERROR] Error stopping thread: {e}")
-
         thread = None
+
         gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
         print(f"[ERROR] Unexpected error during cleanup: {e}")
-
+        
 def stop_program():
     global thread, worker, relay_handler
     try:
