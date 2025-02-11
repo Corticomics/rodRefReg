@@ -8,6 +8,7 @@ from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
 from .edit_animal_dialog import EditAnimalDialog
 import traceback
+from datetime import datetime
 
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
@@ -120,6 +121,29 @@ class AnimalsTab(QWidget):
         # Initial load
         self.load_animals()
 
+    def calculate_days_ago(self, timestamp_str):
+        """Convert timestamp to 'X days ago' format"""
+        if not timestamp_str:
+            return "Never"
+        try:
+            timestamp = datetime.fromisoformat(timestamp_str)
+            now = datetime.now()
+            delta = now - timestamp
+            
+            if delta.days == 0:
+                if delta.seconds < 3600:  # Less than an hour
+                    minutes = delta.seconds // 60
+                    return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+                else:
+                    hours = delta.seconds // 3600
+                    return f"{hours} hour{'s' if hours != 1 else ''} ago"
+            elif delta.days == 1:
+                return "Yesterday"
+            else:
+                return f"{delta.days} days ago"
+        except (ValueError, TypeError):
+            return "Invalid date"
+
     def populate_animal_table(self, animals):
         """Populate the animals_table widget with the given animals."""
         self.animals_table.setRowCount(0)  # Clear existing rows
@@ -128,21 +152,19 @@ class AnimalsTab(QWidget):
             row_position = self.animals_table.rowCount()
             self.animals_table.insertRow(row_position)
 
-            # Populate each cell with animal data
+            # Convert timestamps to "X days ago" format
+            last_weighted_text = self.calculate_days_ago(animal.last_weighted)
+            last_watering_text = self.calculate_days_ago(animal.last_watering)
+
             lab_animal_id_item = QTableWidgetItem(animal.lab_animal_id)
             name_item = QTableWidgetItem(animal.name)
             gender_item = QTableWidgetItem(animal.gender if animal.gender else "N/A")
-            initial_weight_item = QTableWidgetItem(str(animal.initial_weight))
-            last_weight_item = QTableWidgetItem(str(animal.last_weight) if animal.last_weight is not None else "N/A")
-            last_weighted_item = QTableWidgetItem(animal.last_weighted if animal.last_weighted else "N/A")
-            last_watering_item = QTableWidgetItem(animal.last_watering if animal.last_watering else "N/A")
+            initial_weight_item = QTableWidgetItem(f"{animal.initial_weight:.1f}" if animal.initial_weight else "N/A")
+            last_weight_item = QTableWidgetItem(f"{animal.last_weight:.1f}" if animal.last_weight else "N/A")
+            last_weighted_item = QTableWidgetItem(last_weighted_text)
+            last_watering_item = QTableWidgetItem(last_watering_text)
             
-
-            # Align text to center for better readability
-            for item in [lab_animal_id_item, name_item, gender_item, initial_weight_item, last_weight_item, last_weighted_item, last_watering_item]:
-                item.setTextAlignment(Qt.AlignCenter)
-
-            # Insert items into the table
+            # Set items in table
             self.animals_table.setItem(row_position, 0, lab_animal_id_item)
             self.animals_table.setItem(row_position, 1, name_item)
             self.animals_table.setItem(row_position, 2, gender_item)
@@ -151,7 +173,10 @@ class AnimalsTab(QWidget):
             self.animals_table.setItem(row_position, 5, last_weighted_item)
             self.animals_table.setItem(row_position, 6, last_watering_item)
 
-            # Store the Animal object in the first column's item using Qt.UserRole
+            # Store the original timestamp in the item's data for sorting
+            last_weighted_item.setData(Qt.UserRole, animal.last_weighted or "")
+            last_watering_item.setData(Qt.UserRole, animal.last_watering or "")
+
             lab_animal_id_item.setData(Qt.UserRole, animal)
 
             # Optional: Set row height
