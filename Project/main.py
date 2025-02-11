@@ -16,7 +16,7 @@ from controllers.pump_controller import PumpController
 from models.relay_unit_manager import RelayUnitManager
 
 # =============================================================================
-# Global exception and stream redirection
+# Global exception hook and stream redirection (unchanged)
 # =============================================================================
 def exception_hook(exctype, value, tb):
     print("".join(traceback.format_exception(exctype, value, tb)))
@@ -40,14 +40,14 @@ thread = None
 worker = None
 
 # =============================================================================
-# Setup Function
+# setup() – create our global objects and UI
 # =============================================================================
 def setup():
     global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
 
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
-    # Use a distinct global name for the settings dictionary.
+    # Use a distinct global settings dictionary.
     app_settings = system_controller.settings
 
     relay_unit_manager = RelayUnitManager(app_settings)
@@ -87,7 +87,7 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"system_controller type: {type(system_controller)}")
         print(f"Running program with schedule: {schedule.name}, mode: {mode}")
 
-        # Create base worker settings using system_controller’s settings.
+        # Build a settings dictionary from the system controller.
         worker_settings = {}
         if hasattr(system_controller, 'settings'):
             worker_settings = system_controller.settings.copy()
@@ -126,7 +126,7 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
 
-        # If a previous thread exists, quit and wait.
+        # If a previous thread exists, quit it.
         global thread, worker
         if thread is not None:
             thread.quit()
@@ -136,7 +136,7 @@ def run_program(schedule, mode, window_start, window_end):
         if not isinstance(system_controller, QObject):
             raise TypeError("system_controller must be a SystemController instance")
 
-        # Create the worker.
+        # Create a new RelayWorker instance.
         worker = RelayWorker(
             worker_settings,
             relay_handler,
@@ -145,15 +145,16 @@ def run_program(schedule, mode, window_start, window_end):
         )
         worker.moveToThread(thread)
 
-        # Connect signals:
+        # Connect the worker's finished signal to:
+        #   • thread.quit() – so the thread stops,
+        #   • worker.deleteLater() – so the worker cleans itself up,
+        #   • cleanup() – our centralized cleanup function (only once).
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        # IMPORTANT: Connect finished to cleanup() so that cleanup is called once the worker is done.
         worker.finished.connect(cleanup)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
-        # Start the worker.
         thread.started.connect(worker.run_cycle)
         thread.start()
 
@@ -164,7 +165,7 @@ def run_program(schedule, mode, window_start, window_end):
             notification_handler.send_slack_notification(f"Program error: {e}")
 
 # =============================================================================
-# Centralized cleanup() – called once after the worker finishes.
+# Centralized cleanup() – called once when the worker finishes.
 # =============================================================================
 def cleanup():
     global thread, worker
@@ -177,14 +178,13 @@ def cleanup():
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        if worker:
-            worker.stop()  # This stops timers and emits finished.
-            worker = None
+        # Do not call worker.stop() again if it has already been stopped.
+        worker = None
         if thread is not None and thread.isRunning():
             thread.quit()
             thread.wait()
         thread = None
-        # Reset the UI state once.
+        # Reset the UI (only once)
         gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
@@ -198,8 +198,8 @@ def stop_program():
     try:
         print("[DEBUG] Starting stop sequence")
         if worker:
-            worker.stop()  # Stop the worker (this will eventually trigger the finished signal and cleanup).
-            print("[DEBUG] Worker stopped")
+            worker.stop()  # This will cause the worker to emit finished, triggering cleanup().
+            print("[DEBUG] Worker stop() called")
         if thread and thread.isRunning():
             if not thread.wait(2000):
                 print("[DEBUG] Thread timeout - forcing termination")
@@ -209,8 +209,7 @@ def stop_program():
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        worker = None
-        thread = None
+        # We do not explicitly call cleanup() here; it will be called by worker.finished.
         print("[DEBUG] Stop sequence completed successfully")
         return True
     except Exception as e:
@@ -218,11 +217,32 @@ def stop_program():
         return False
 
 # =============================================================================
-# change_relay_hats() and helper functions
+# RelayWorker.stop() – part of the worker; called only once.
+# =============================================================================
+# (Inside RelayWorker class, use the following stop() method implementation)
+#
+#     def stop(self):
+#         with QMutexLocker(self.mutex):
+#             self._is_running = False
+#         self.monitor_timer.stop()
+#         self.main_timer.stop()
+#         for timer in self.timers:
+#             try:
+#                 timer.stop()  # No need to call deleteLater() since timers are parented.
+#             except RuntimeError as ex:
+#                 self.progress.emit(f"Timer already deleted: {ex}")
+#         self.timers.clear()
+#         self.progress.emit("RelayWorker stopped")
+#         self.finished.emit()
+#
+# This method is only called once (either by stop_program() or when the job completes naturally).
+
+# =============================================================================
+# change_relay_hats() and helper functions (unchanged)
 # =============================================================================
 def change_relay_hats():
     global relay_handler, app_settings
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
                                         "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
@@ -264,7 +284,7 @@ def _update_gui_relay_units(relay_units):
     gui.projects_section.schedules_tab.layout.addLayout(gui.projects_section.schedules_tab.relay_layout)
 
 # =============================================================================
-# Main Application Entry Point
+# Main entry point
 # =============================================================================
 def main():
     app = QApplication(sys.argv)

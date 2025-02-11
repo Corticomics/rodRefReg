@@ -462,16 +462,13 @@ class RelayWorker(QObject):
             self.stop()
 
     def stop(self):
-        """Stop all timers and clean up."""
         with QMutexLocker(self.mutex):
             self._is_running = False
         self.monitor_timer.stop()
         self.main_timer.stop()
-        # Since timers are parented to self, they will be deleted automatically.
-        # We only stop them and clear the list.
         for timer in self.timers:
             try:
-                timer.stop()
+                timer.stop()  # No need to call deleteLater() since timers are parented.
             except RuntimeError as ex:
                 self.progress.emit(f"Timer already deleted: {ex}")
         self.timers.clear()
