@@ -202,6 +202,16 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Add gender column to animals table if it doesn't exist
+                cursor.execute("PRAGMA table_info(animals)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'gender' not in columns:
+                    cursor.execute('''
+                        ALTER TABLE animals
+                        ADD COLUMN gender TEXT CHECK(gender IN ('male', 'female')) DEFAULT NULL
+                    ''')
+
                 conn.commit()
                 print("Database schema created/updated successfully.")
                 
