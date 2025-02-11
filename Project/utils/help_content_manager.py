@@ -359,6 +359,78 @@ class HelpContentManager:
                 keywords=["troubleshooting", "errors", "issues", "problem solving"],
                 related_topics=["Safety Features", "Basic Operations"],
                 video_tutorials={"Troubleshooting Tutorial": "troubleshooting.mp4"}
+            ),
+            "Hardware Details": HelpContent(
+                title="Hardware Specifications and Setup",
+                content="""
+<div class='help-section'>
+    <h1>Hardware Configuration</h1>
+    <p>The RRR system is built around specific hardware components chosen for their reliability and precision in laboratory settings.</p>
+    
+    <h2>Core Components</h2>
+    <ul>
+        <li><strong>Computer:</strong> Raspberry Pi 4B (or newer)
+            <ul>
+                <li>Recommended: 4GB RAM or higher</li>
+                <li>Running Raspberry Pi OS (formerly Raspbian)</li>
+            </ul>
+        </li>
+        <li><strong>Relay Control:</strong> Sequent Microsystems 8-Layer Stackable HAT
+            <ul>
+                <li>Up to 8 layers per Pi</li>
+                <li>16 relays per layer</li>
+                <li>Operating voltage: 3.3V (logic) / 12V (pump control)</li>
+            </ul>
+        </li>
+        <li><strong>Pumps:</strong> LeeCo 50µL Precision Pumps
+            <ul>
+                <li>Model: LPMX Series</li>
+                <li>Calibrated volume: 50µL per trigger</li>
+                <li>Operating voltage: 12V DC</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h2>Custom Hardware</h2>
+    <ul>
+        <li><strong>3D Printed Components:</strong>
+            <ul>
+                <li>Pump mounting brackets</li>
+                <li>Water delivery cup holders</li>
+                <li>Cable management systems</li>
+                <li>Reservoir support structures</li>
+            </ul>
+        </li>
+        <li><strong>Water Delivery System:</strong>
+            <ul>
+                <li>2mm internal diameter tubing</li>
+                <li>Custom water delivery cups</li>
+                <li>20L main reservoir</li>
+            </ul>
+        </li>
+    </ul>
+
+    <div class='help-note'>
+        <strong>Note:</strong> 3D printing files for custom components are available in the project repository.
+    </div>
+
+    <h2>Laboratory Setup</h2>
+    <p>The system is designed for standard laboratory rack systems with the following configuration:</p>
+    <ul>
+        <li>Rack-mounted pump arrays</li>
+        <li>Gravity-fed water distribution</li>
+        <li>Individual cage mounting brackets</li>
+        <li>Central control cabinet</li>
+    </ul>
+
+    <div class='help-warning'>
+        <strong>Important:</strong> Always ensure proper grounding and water-tight connections before operation.
+    </div>
+</div>
+    """,
+                keywords=["hardware", "raspberry pi", "pumps", "relay", "setup", "3D printing"],
+                related_topics=["Getting Started", "Safety Features", "Troubleshooting"],
+                video_tutorials={"Hardware Setup Guide": "hardware_setup.mp4"}
             )
         }
         
