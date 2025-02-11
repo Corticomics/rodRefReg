@@ -60,7 +60,7 @@ class SettingsTab(QWidget):
         #self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
         #self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
-        self.tab_widget.addTab(self.data_import_export, "Data Import/Export")
+        self.tab_widget.addTab(self.data_import_export, "Import/Export")
         
         layout.addWidget(self.tab_widget)
         
@@ -256,6 +256,10 @@ class SettingsTab(QWidget):
         self.log_level.setValue(self.settings.get('log_level', 2))
 
     def _save_all_settings(self):
+        if not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Access Denied", "You must be logged in to modify settings.")
+            return
+        
         try:
             self.settings.update({
                 'pump_volume_ul': self.pump_volume.value(),
@@ -273,7 +277,10 @@ class SettingsTab(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
 
     def export_animals(self):
-        """Export animals to CSV with proper Excel compatibility for Mac."""
+        if not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Access Denied", "You must be logged in to export animals.")
+            return
+        
         if not self.database_handler:
             QMessageBox.critical(self, "Export Error", "Database handler not initialized")
             return
@@ -348,8 +355,11 @@ class SettingsTab(QWidget):
             QMessageBox.critical(self, "Export Error", f"Error exporting animals: {str(e)}")
             self.print_to_terminal(f"Unexpected error during export: {str(e)}")
             
-    #Check for data formatting w jackson
     def import_animals(self):
+        if not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Access Denied", "You must be logged in to import animals.")
+            return
+        
         try:
             file_path, _ = QFileDialog.getOpenFileName(
                 self, "Import Animals", "", "CSV Files (*.csv)"

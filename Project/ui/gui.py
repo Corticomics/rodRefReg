@@ -271,7 +271,9 @@ class RodentRefreshmentGUI(QWidget):
             push_callback=self.push_settings_callback,
             save_slack_callback=self.save_slack_credentials_callback,
             run_stop_section=self.run_stop_section,
-            login_system=self.login_system
+            login_system=self.login_system,
+            print_to_terminal=self.print_to_terminal,
+            database_handler=self.database_handler
         )
         
         # Profile Tab
@@ -284,8 +286,11 @@ class RodentRefreshmentGUI(QWidget):
         
         # Add tabs in desired order
         self.main_tab_widget.addTab(self.user_tab, "Profile")  # Profile tab first
-        self.main_tab_widget.addTab(self.settings_tab, "Settings")
-        self.main_tab_widget.addTab(self.help_tab, "Help")
+        self.settings_tab_index = self.main_tab_widget.addTab(self.settings_tab, "Settings")
+        self.help_tab_index = self.main_tab_widget.addTab(self.help_tab, "Help")
+        
+        # Initially disable restricted tabs
+        self._update_tab_access()
         
         # Set the initial tab to Profile
         self.main_tab_widget.setCurrentWidget(self.user_tab)
@@ -360,7 +365,8 @@ class RodentRefreshmentGUI(QWidget):
             self.projects_section.animals_tab.trainer_id = trainer_id
             self.load_animals_tab(trainer_id=trainer_id)
             
-            # Login gate will automatically update due to login_system signal
+            # Update tab access
+            self._update_tab_access()
             
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
@@ -401,7 +407,8 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
             
-            # Login gate will automatically update due to login_system signal
+            # Update tab access
+            self._update_tab_access()
             
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")
@@ -500,3 +507,15 @@ class RodentRefreshmentGUI(QWidget):
     def _update_ui_from_settings(self):
         # Implement the logic to update the UI based on the new settings
         pass
+
+    def _update_tab_access(self):
+        """Update tab accessibility based on login status"""
+        is_logged_in = self.login_system.is_logged_in()
+        
+        # Disable/enable tabs
+        self.main_tab_widget.setTabEnabled(self.settings_tab_index, is_logged_in)
+        self.main_tab_widget.setTabEnabled(self.help_tab_index, is_logged_in)
+        
+        # If on a restricted tab while logging out, switch to profile tab
+        if not is_logged_in and self.main_tab_widget.currentIndex() in [self.settings_tab_index, self.help_tab_index]:
+            self.main_tab_widget.setCurrentWidget(self.user_tab)
