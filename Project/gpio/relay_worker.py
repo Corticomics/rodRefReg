@@ -31,17 +31,19 @@ Methods:
         Updates the worker's settings when the system's settings change.
 """
 
-
 class RelayWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
     volume_updated = pyqtSignal(str, float)  # animal_id, total_volume
-    window_progress = pyqtSignal(dict)  # window progress info
+    window_progress = pyqtSignal(dict)        # window progress info
 
     def __init__(self, settings, relay_handler, notification_handler, system_controller):
         super().__init__()
+        # DEBUG: Verify that system_controller is indeed an instance (not a dict)
+        if isinstance(system_controller, dict):
+            raise TypeError("Expected system_controller to be a SystemController instance, got dict.")
         self.system_controller = system_controller
-        self.settings = settings
+        self.settings = settings  # Worker settings (a dict)
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
         self.database_handler = settings.get('database_handler')
@@ -51,35 +53,35 @@ class RelayWorker(QObject):
         self._is_running = False
         self.timers = []
         
-        # Add main_timer initialization
+        # Initialize main_timer
         self.main_timer = QTimer(self)
         
-        # Store mode and delivery instants from settings
+        # Retrieve mode and delivery instants from worker settings
         self.mode = settings.get('mode', 'instant').lower()
         self.delivery_instants = settings.get('delivery_instants', [])
         
-        # Initialize tracking
+        # Initialize tracking variables
         self.delivered_volumes = {}
         self.failed_deliveries = {}
         self.window_start = datetime.fromtimestamp(settings['window_start'])
         self.window_end = datetime.fromtimestamp(settings['window_end'])
         
-        # Initialize volume calculator
+        # Create a VolumeCalculator instance using worker settings
         self.volume_calculator = VolumeCalculator(settings)
         
-        # Progress monitoring
+        # Start progress monitoring timer
         self.monitor_timer = QTimer()
         self.monitor_timer.timeout.connect(self.update_window_progress)
-        self.monitor_timer.start(10000)  # Update every 10 seconds
+        self.monitor_timer.start(10000)  # every 10 seconds
         
         self.progress.emit(f"Initialized RelayWorker with settings: {settings}")
         
-        # Add schedule_id to instance variables
+        # Ensure a schedule_id is provided in the settings
         self.schedule_id = settings.get('schedule_id')
         if not self.schedule_id:
             raise ValueError("schedule_id is required in settings")
         
-        # Get system settings
+        # Get system-wide settings from system_controller (which is expected to have a .settings attribute)
         system_settings = self.system_controller.settings
         self.min_trigger_interval = system_settings.get('min_trigger_interval_ms', 500)
         self.cycle_interval = system_settings.get('cycle_interval', 3600)
