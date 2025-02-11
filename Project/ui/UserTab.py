@@ -322,19 +322,21 @@ class UserTab(QWidget):
         # Create bottom container for buttons
         bottom_container = QHBoxLayout()
         
-        # Password visibility toggle button
-        password_toggle = QPushButton()
-        password_toggle.setIcon(QIcon.fromTheme("eye", QIcon(":/icons/eye.png")))
+        # Password visibility toggle button with unicode fallback
+        password_toggle = QPushButton("👁")  # Unicode eye symbol as fallback
         password_toggle.setFixedSize(24, 24)
         password_toggle.setStyleSheet("""
             QPushButton {
                 border: none;
                 background: transparent;
-                padding: 4px;
+                padding: 0px;
+                font-size: 16px;
+                color: #666;
             }
             QPushButton:hover {
                 background-color: #f5f5f5;
                 border-radius: 12px;
+                color: #333;
             }
         """)
         
@@ -344,10 +346,8 @@ class UserTab(QWidget):
             new_mode = QLineEdit.Normal if current_mode == QLineEdit.Password else QLineEdit.Password
             password_input.setEchoMode(new_mode)
             confirm_password_input.setEchoMode(new_mode)
-            password_toggle.setIcon(QIcon.fromTheme(
-                "eye-off" if new_mode == QLineEdit.Password else "eye",
-                QIcon(":/icons/eye.png")
-            ))
+            # Update button text based on state
+            password_toggle.setText("👁" if new_mode == QLineEdit.Password else "🔒")
         
         password_toggle.clicked.connect(toggle_password_visibility)
         
