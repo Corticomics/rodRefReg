@@ -273,14 +273,15 @@ class SettingsTab(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
 
     def export_animals(self):
-        """Export animals to CSV with proper Excel compatibility."""
+        """Export animals to CSV with proper Excel compatibility for Mac."""
         if not self.database_handler:
             QMessageBox.critical(self, "Export Error", "Database handler not initialized")
             return
         
         try:
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "Export Animals", "", "CSV Files (*.csv);;Excel Files (*.xlsx)"
+            file_path, file_type = QFileDialog.getSaveFileName(
+                self, "Export Animals", "", 
+                "Excel Files (*.xlsx);;CSV Files (*.csv)"  # Make Excel default
             )
             if not file_path:
                 return
@@ -310,13 +311,32 @@ class SettingsTab(QWidget):
             
             df = pd.DataFrame(data)
             
-            # Export based on file extension
+            # Ensure file has correct extension
+            if not file_path.endswith(('.xlsx', '.csv')):
+                file_path += '.xlsx' if 'Excel' in file_type else '.csv'
+            
             if file_path.endswith('.xlsx'):
-                # Export as Excel file
-                df.to_excel(file_path, index=False, engine='openpyxl')
+                # Excel-specific export settings for Mac compatibility
+                writer = pd.ExcelWriter(file_path, engine='openpyxl')
+                df.to_excel(writer, sheet_name='Animals', index=False)
+                
+                # Auto-adjust column widths
+                worksheet = writer.sheets['Animals']
+                for idx, col in enumerate(df.columns):
+                    max_length = max(
+                        df[col].astype(str).apply(len).max(),
+                        len(col)
+                    ) + 2
+                    worksheet.column_dimensions[chr(65 + idx)].width = max_length
+                
+                writer.close()
             else:
-                # Export as CSV with Excel-friendly encoding and separator
-                df.to_csv(file_path, index=False, encoding='utf-8-sig', sep=',')
+                # Mac-friendly CSV settings
+                df.to_csv(file_path, 
+                         index=False, 
+                         encoding='utf-8-sig',  # BOM for Excel Mac
+                         sep=',',
+                         date_format='%Y-%m-%d %H:%M:%S')
             
             self.print_to_terminal(f"Successfully exported {len(animals)} animals to {file_path}")
             QMessageBox.information(self, "Success", f"Successfully exported {len(animals)} animals")
