@@ -79,10 +79,14 @@ def setup():
     )
 
     gui.settings_tab = SettingsTab(
-        app_settings,
-        gui.print_to_terminal,
-        database_handler,
-        login_system
+        system_controller=system_controller,
+        suggest_callback=gui.suggest_settings_callback,
+        push_callback=gui.push_settings_callback,
+        save_slack_callback=gui.save_slack_credentials_callback,
+        run_stop_section=gui.run_stop_section,
+        login_system=login_system,
+        print_to_terminal=gui.print_to_terminal,
+        database_handler=database_handler
     )
 
 # =============================================================================
