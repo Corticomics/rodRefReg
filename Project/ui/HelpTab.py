@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, 
     QTreeWidget, QTreeWidgetItem, QTextBrowser, 
-    QPushButton, QSplitter, QLabel, QScrollArea, QListWidget
+    QSplitter, QLabel
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QIcon, QTextCharFormat, QColor
@@ -41,14 +41,6 @@ class HelpTab(QWidget):
         path_text = " > ".join(self.current_path)
         self.breadcrumb.setText(path_text)
         self.breadcrumb.setToolTip(path_text)
-
-    def update_related_topics(self, topic):
-        """Update related topics list"""
-        self.related_list.clear()
-        if topic in self.help_manager.content:
-            related_topics = self.help_manager.content[topic].related_topics
-            for related_topic in related_topics:
-                self.related_list.addItem(related_topic)
 
     def perform_search(self):
         """Perform search with highlighting"""
@@ -97,9 +89,6 @@ class HelpTab(QWidget):
         content = self.help_manager.get_content(topic)
         self.current_content = content
         self.content_browser.setHtml(content)
-        
-        # Update related topics
-        self.update_related_topics(topic)
         
         self.help_topic_selected.emit(topic)
 
@@ -203,7 +192,7 @@ class HelpTab(QWidget):
                 margin-bottom: 8px;
             }
         """)
-        right_layout.insertWidget(0, self.breadcrumb)
+        right_layout.addWidget(self.breadcrumb)
         
         # Content browser
         self.content_browser = QTextBrowser()
@@ -216,38 +205,6 @@ class HelpTab(QWidget):
             }
         """)
         right_layout.addWidget(self.content_browser)
-        
-        # Quick links bar
-        quick_links = QHBoxLayout()
-        quick_link_style = """
-            QPushButton {
-                background-color: #f8f9fa;
-                border: 1px solid #dadce0;
-                border-radius: 4px;
-                padding: 8px 16px;
-                color: #1a73e8;
-            }
-            QPushButton:hover {
-                background-color: #e8f0fe;
-            }
-        """
-        for text in ["Getting Started", "Troubleshooting", "FAQ"]:
-            btn = QPushButton(text)
-            btn.setStyleSheet(quick_link_style)
-            btn.clicked.connect(lambda checked, t=text: self.show_quick_topic(t))
-            quick_links.addWidget(btn)
-        right_layout.addLayout(quick_links)
-        
-        # Add related topics section
-        self.related_topics = QWidget()
-        related_layout = QVBoxLayout(self.related_topics)
-        related_label = QLabel("Related Topics")
-        related_label.setStyleSheet("font-weight: bold; color: #202124;")
-        related_layout.addWidget(related_label)
-        self.related_list = QListWidget()
-        self.related_list.itemClicked.connect(self.on_related_topic_clicked)
-        related_layout.addWidget(self.related_list)
-        right_layout.addWidget(self.related_topics)
         
         # Add widgets to splitter
         splitter.addWidget(left_widget)
@@ -282,11 +239,6 @@ class HelpTab(QWidget):
                 "Hardware Setup",
                 "User Management",
                 "Notifications"
-            ],
-            "Troubleshooting": [
-                "Common Issues",
-                "Error Messages",
-                "Emergency Procedures"
             ]
         }
         
@@ -299,18 +251,6 @@ class HelpTab(QWidget):
                 category_item.addChild(topic_item)
         
         self.topic_tree.expandAll()
-
-    def show_quick_topic(self, topic):
-        """Show content for quick link topics"""
-        content = self.help_manager.get_content(topic)
-        self.content_browser.setHtml(content)
-
-    def on_related_topic_clicked(self, item):
-        """Handle related topic selection"""
-        topic = item.text(0)
-        content = self.help_manager.get_content(topic)
-        self.content_browser.setHtml(content)
-        self.help_topic_selected.emit(topic)
 
     def focus_topic_tree(self):
         """Move focus to the topic tree when enter is pressed in search bar"""

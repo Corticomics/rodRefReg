@@ -481,7 +481,7 @@ class RelayWorker(QObject):
             self.delivered_volumes = {}
             window_start = datetime.fromisoformat(schedule['start_time']).timestamp()
             window_end = datetime.fromisoformat(schedule['end_time']).timestamp()
-            print(f"Setting up schedule with {len(schedule.get('animal_ids', []))} animals")
+            prinat(f"Setting up schedule with {len(schedule.get('animal_ids', []))} animals")
             print(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
             animal_ids = schedule.get('animal_ids', [])
             relay_assignments = schedule.get('relay_unit_assignments', {})

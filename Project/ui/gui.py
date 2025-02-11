@@ -264,7 +264,7 @@ class RodentRefreshmentGUI(QWidget):
         # Tab widget
         self.main_tab_widget = QTabWidget()
         
-        # Now create Settings Tab after run_stop_section exists
+        # Create tabs
         self.settings_tab = SettingsTab(
             system_controller=self.system_controller,
             suggest_callback=self.suggest_settings_callback,
@@ -273,17 +273,22 @@ class RodentRefreshmentGUI(QWidget):
             run_stop_section=self.run_stop_section,
             login_system=self.login_system
         )
-        self.main_tab_widget.addTab(self.settings_tab, "Settings")
         
         # Profile Tab
         self.user_tab = UserTab(self.login_system)
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
-        self.main_tab_widget.addTab(self.user_tab, "Profile")
         
         # Help Tab
         self.help_tab = HelpTab()
+        
+        # Add tabs in desired order
+        self.main_tab_widget.addTab(self.user_tab, "Profile")  # Profile tab first
+        self.main_tab_widget.addTab(self.settings_tab, "Settings")
         self.main_tab_widget.addTab(self.help_tab, "Help")
+        
+        # Set the initial tab to Profile
+        self.main_tab_widget.setCurrentWidget(self.user_tab)
         
         right_layout.addWidget(self.main_tab_widget)
         right_layout.addWidget(self.run_stop_section)
