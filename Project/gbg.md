@@ -23,8 +23,10 @@ Traceback (most recent call last):
           ^^^^^^^^^^^^^^^^^^^^^
   File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/ui/gui.py", line 51, in __init__
     self.init_ui()
-  File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/ui/gui.py", line 264, in init_ui
-    self.run_stop_section,
-    ^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'RodentRefreshmentGUI' object has no attribute 'run_stop_section'
+  File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/ui/gui.py", line 254, in init_ui
+    self.run_stop_section = RunStopSection(
+                            ^^^^^^^^^^^^^^^
+  File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/ui/run_stop_section.py", line 23, in __init__
+    raise ValueError("database_handler cannot be None")
+ValueError: database_handler cannot be None
 
