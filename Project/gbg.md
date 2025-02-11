@@ -29,4 +29,3 @@ Traceback (most recent call last):
   File "/home/mouseuser/Documents/GitHub/rodRefReg/Project/ui/run_stop_section.py", line 23, in __init__
     raise ValueError("database_handler cannot be None")
 ValueError: database_handler cannot be None
-

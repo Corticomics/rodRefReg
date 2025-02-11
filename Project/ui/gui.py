@@ -255,7 +255,10 @@ class RodentRefreshmentGUI(QWidget):
             self.run_program,
             self.stop_program,
             self.change_relay_hats,
-            self.system_controller
+            self.system_controller,
+            database_handler=self.database_handler,
+            relay_handler=self.relay_handler,
+            notification_handler=self.notification_handler
         )
         
         # Tab widget
