@@ -462,23 +462,21 @@ class RelayWorker(QObject):
             self.stop()
 
     def stop(self):
-        """Stop all timers and clean up"""
+        """Stop all timers and clean up."""
         with QMutexLocker(self.mutex):
             self._is_running = False
         self.monitor_timer.stop()
         self.main_timer.stop()
-        # Since all timers were created with 'self' as parent,
-        # they will be deleted automatically; you can still call stop()
+        # Since timers are parented to self, they will be deleted automatically.
+        # We only stop them and clear the list.
         for timer in self.timers:
             try:
                 timer.stop()
-                # Do not call deleteLater() if the timer’s parent will delete it
             except RuntimeError as ex:
                 self.progress.emit(f"Timer already deleted: {ex}")
         self.timers.clear()
         self.progress.emit("RelayWorker stopped")
         self.finished.emit()
-
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
         try:

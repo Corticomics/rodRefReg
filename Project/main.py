@@ -147,7 +147,6 @@ def run_program(schedule, mode, window_start, window_end):
         # Connect finished signal to thread and cleanup:
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        worker.finished.connect(cleanup)    # NEW: call cleanup when finished is emitted
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
@@ -163,18 +162,16 @@ def run_program(schedule, mode, window_start, window_end):
 def cleanup():
     global thread, worker
     print("[DEBUG] Starting cleanup process")
-    
-    # Only proceed if the worker is not running.
+    # Only clean up if the worker is not running.
     if worker and worker._is_running:
         print("[DEBUG] Worker still running, waiting for completion")
         return
-        
+
     try:
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        
-        # Call the worker’s own stop() method if it exists.
+
         if worker:
             worker.stop()
             worker = None
@@ -187,7 +184,7 @@ def cleanup():
                 print(f"[ERROR] Error stopping thread: {e}")
         thread = None
 
-        # Reset UI state once.
+        # Reset the UI state once.
         gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
@@ -198,7 +195,7 @@ def stop_program():
     try:
         print("[DEBUG] Starting stop sequence")
         if worker:
-            # Simply call the worker's stop() method; no need to manually iterate timers.
+            # Simply call the worker's stop() method.
             worker.stop()
             print("[DEBUG] Worker stopped")
         if thread and thread.isRunning():
