@@ -40,21 +40,16 @@ wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/mai
 #### First-Time Login
 
 1. Start the RRR application by clicking the desktop icon or running `./start_rrr.sh`
-2. You'll see a login screen - if you don't have an account, click "Guest Mode" to continue
+2. You'll see a login screen - if you don't have an account, click "Create Account" to continue
 3. The main screen will appear with several tabs
 
 #### Adding Your Animals
 
 1. Go to the **Animals** tab
 2. Click **Add Animal**
-3. Enter the animal's:
-   - ID number
-   - Name
-   - Weight (in grams)
+3. Enter the animal's infomation as requested.
 4. Click **Save**
 5. Repeat for each animal
-
-![Adding Animals](https://github.com/Corticomics/rodRefReg/assets/161750793/f99ebd3d-7b86-44a6-b370-95083e91e388)
 
 #### Creating a Water Delivery Schedule
 
@@ -62,53 +57,51 @@ wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/mai
 2. Click **Create New Schedule**
 3. Enter a name for your schedule
 4. Choose between:
-   - **Instant Delivery**: All animals get water at the same time
-   - **Staggered Delivery**: Animals get water one after another
-5. Set your water delivery times
-6. Drag animals from the list to assign them to water pumps
+   - **Instant Delivery**: All animals get the selected water volumes at once on the selected time, if time is conflicting the sorting algorithm will create a queue.
+   - **Staggered Delivery**: Animals get the selected volume uniformly divided in the time window selected
+5. Drag animals from the list to assign them to water pumps
+6. Set your water delivery times 
 7. Click **Save Schedule**
 
 #### Starting Water Delivery
 
-1. Select your saved schedule from the dropdown menu
+1. Drag across the screen the desired schedule from the "Saved Schedules" section under the "Schedules" tab and drop it in the drop area labeled "Drop schedule here"
 2. Click **Run Program**
 3. The system will begin delivering water according to your schedule
 4. Monitor the terminal window for real-time updates
 
-![Run Program](https://github.com/Corticomics/rodRefReg/assets/161750793/f99ebd3d-7b86-44a6-b370-95083e91e388)
 
 #### Stopping the Program
 
 1. Click **Stop Program** to halt water delivery
-2. The system will complete any delivery in progress before stopping completely
+2. The system will stop immediately
 
 ## Daily Use Guide
 
-### Morning Routine
+### Routine
 
-1. **Check System Status**: Open the RRR application and verify it's running correctly
+1. **Check System Status**: Open the RRR application and verify it's running/Ran correctly
 2. **Update Animal Weights**: Record new animal weights in the Animals tab
 3. **Inspect Water Lines**: Check for any leaks or blockages
 4. **Water Reservoir**: Ensure the water reservoir has sufficient clean water
 
-### End of Day
 
-1. **Check Delivery Log**: Review the delivery history in the terminal
-2. **Verify Schedules**: Confirm schedules for the next day
-3. **Backup Data** (optional): Export animal data if needed
+5. **Check Delivery Log**: Review the delivery history in the terminal
+6. **Verify Schedules**: Confirm schedules for the next day
+7. **Backup Data** (optional): Export/Import animal data if needed
 
 ## Common Questions
 
 ### What if the system isn't delivering water?
 
 1. Check that the **Run Program** button has been clicked
-2. Verify that your time window settings are correct (24-hour format)
-3. Inspect the water tubes for air bubbles or blockages
+2. Verify that your time window settings are correct (is a future time if start time has passed but end time not, the system will NOT start)
+3. Inspect the water tubes for air bubbles or blockages (make sure to prime the tubes and pumpos prior to first use)
 4. Check that the water reservoir has enough water
 
 ### How do I know how much water each animal received?
 
-The system keeps a log of all water deliveries. You can view this in the terminal window or export the data for your records.
+The system keeps a log of all water deliveries. You can view this in the terminal window or export the data for your records from the database table called "logs".
 
 ### What if I need to change a schedule mid-experiment?
 
@@ -116,7 +109,7 @@ You can create a new schedule at any time. Stop the current program, create your
 
 ### How do I calibrate the system for accurate water delivery?
 
-Go to the **Settings** tab and follow the calibration instructions. This should be done before starting a new experiment and periodically to ensure accuracy.
+Go to the **Settings** tab and input the correct pump settings that you are using. This should be done before starting a new experiment and periodically to ensure accuracy.
 
 ## Getting Help
 
@@ -125,12 +118,12 @@ If you need assistance with the RRR system:
 1. Click the **Help** tab in the application for detailed guides
 2. Use the search bar to find specific help topics
 3. Contact your laboratory manager or IT support
-4. For urgent issues, contact [support@example.com](mailto:support@example.com)
+4. For urgent issues, contact [zepaulojr2@gmail.com](mailto:support@example.com)
 
 ## Important Safety Notes
 
 - Always monitor the system during the first few days of a new setup
-- Check animals regularly to ensure they are receiving adequate hydration
+- Check animals regularly to ensure they are receiving adequate hydration and to check if the hardware setup was made correctly do not leave the subjects by themselves for the first few uses to ensure correct software and hardware setup and safety 
 - Keep water lines and pumps clean to prevent contamination
 - Never modify the hardware without consulting technical staff
 
