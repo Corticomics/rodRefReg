@@ -2,33 +2,40 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy
+    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy, QTabWidget
 )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import traceback
 from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
-from .suggest_settings import SuggestSettingsSection
 from .projects_section import ProjectsSection
 from .UserTab import UserTab
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
 from .login_gate_widget import LoginGateWidget
+from .SettingsTab import SettingsTab
+from .HelpTab import HelpTab
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
-    def __init__(self, run_program, stop_program, change_relay_hats,
-                 settings, database_handler, login_system, style='bitlearns',
-                 relay_handler=None, notification_handler=None):
+    def __init__(self, run_callback, stop_callback, change_relay_callback, 
+                 system_controller, database_handler, login_system, 
+                 relay_handler, notification_handler):
         super().__init__()
-
+        self.system_controller = system_controller
+        
+        # Connect to system settings updates
+        self.system_controller.settings_updated.connect(self._handle_settings_update)
+        
+        # Initialize with current settings
+        self.settings = system_controller.settings
+        
         # Store callbacks with correct signatures
-        self.run_program = lambda schedule, mode, window_start, window_end: run_program(schedule, mode, window_start, window_end)
-        self.stop_program = stop_program
-        self.change_relay_hats = change_relay_hats
-        self.settings = settings
+        self.run_program = lambda schedule, mode, window_start, window_end: run_callback(schedule, mode, window_start, window_end)
+        self.stop_program = stop_callback
+        self.change_relay_hats = change_relay_callback
         self.database_handler = database_handler
         self.login_system = login_system
         self.relay_handler = relay_handler
@@ -41,9 +48,9 @@ class RodentRefreshmentGUI(QWidget):
         self.system_message_signal.connect(self.print_to_terminal)
 
         # Initialize the UI with the selected style
-        self.init_ui(style)
+        self.init_ui()
 
-    def init_ui(self, style):
+    def init_ui(self):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
@@ -197,122 +204,119 @@ class RodentRefreshmentGUI(QWidget):
         # Apply the styles in order
         self.setStyleSheet(base_style + modern_style)
 
-        # Initialize main layout first
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_layout.setSpacing(10)
+        # Main layout
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
 
-        # Welcome section
+        # Welcome section at top
         self.welcome_section = WelcomeSection()
         self.welcome_scroll_area = QScrollArea()
         self.welcome_scroll_area.setWidgetResizable(True)
         self.welcome_scroll_area.setWidget(self.welcome_section)
-        self.main_layout.addWidget(self.welcome_scroll_area)
-
+        
         # Toggle welcome button
         self.toggle_welcome_button = QPushButton("Hide Welcome Message")
         self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
-        self.main_layout.addWidget(self.toggle_welcome_button)
+        
+        main_layout.addWidget(self.welcome_scroll_area)
+        main_layout.addWidget(self.toggle_welcome_button)
 
-        # Main content area (upper layout)
-        self.upper_layout = QHBoxLayout()
-        self.upper_layout.setContentsMargins(0, 0, 0, 0)
-        self.upper_layout.setSpacing(10)
-
-        # Left side setup
+        # Content area
+        content_layout = QHBoxLayout()
+        
+        # Left side
         left_widget = QWidget()
-        self.left_layout = QVBoxLayout(left_widget)
+        left_layout = QVBoxLayout(left_widget)
         
         # Terminal output
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
-        self.terminal_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.terminal_output.setMinimumHeight(200)
+        self.terminal_output.setMinimumHeight(150)
+        left_layout.addWidget(self.terminal_output)
         
         # Projects section with login gate
-        self.projects_section = ProjectsSection(self.settings, self.print_to_terminal, self.database_handler, self.login_system)
-        self.projects_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Wrap projects section in login gate
+        self.projects_section = ProjectsSection(
+            self.settings,
+            self.print_to_terminal,
+            self.database_handler,
+            self.login_system
+        )
         self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
-        self.login_gate.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Add widgets to left layout with stretch
-        self.left_layout.addWidget(self.terminal_output, 1)
-        self.left_layout.addWidget(self.login_gate, 3)  # Replace projects_section with login_gate
+        left_layout.addWidget(self.login_gate)
         
-        # Create left scroll area
-        self.left_scroll = QScrollArea()
-        self.left_scroll.setWidget(left_widget)
-        self.left_scroll.setWidgetResizable(True)
-        self.left_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Right side setup
+        # Right side
         right_widget = QWidget()
-        self.right_layout = QVBoxLayout(right_widget)
+        right_layout = QVBoxLayout(right_widget)
         
-        # Create sections
+        # Create Run/Stop section first
         self.run_stop_section = RunStopSection(
             self.run_program,
             self.stop_program,
             self.change_relay_hats,
-            self.settings,
-            self.database_handler,
-            self.relay_handler,
-            self.notification_handler
+            self.system_controller,
+            database_handler=self.database_handler,
+            relay_handler=self.relay_handler,
+            notification_handler=self.notification_handler
         )
-        self.suggest_settings_section = SuggestSettingsSection(
-            self.settings,
-            self.suggest_settings_callback,
-            self.push_settings_callback,
-            self.save_slack_credentials_callback,
+        
+        # Tab widget
+        self.main_tab_widget = QTabWidget()
+        
+        # Create tabs
+        self.settings_tab = SettingsTab(
+            system_controller=self.system_controller,
+            suggest_callback=self.suggest_settings_callback,
+            push_callback=self.push_settings_callback,
+            save_slack_callback=self.save_slack_credentials_callback,
             run_stop_section=self.run_stop_section,
-            login_system=self.login_system
+            login_system=self.login_system,
+            print_to_terminal=self.print_to_terminal,
+            database_handler=self.database_handler
         )
         
-        # Add widgets to right layout with stretch
-        self.right_layout.addWidget(self.suggest_settings_section, 2)
-        self.right_layout.addWidget(self.run_stop_section, 1)
-        
-        # Create right scroll area
-        self.right_scroll = QScrollArea()
-        self.right_scroll.setWidget(right_widget)
-        self.right_scroll.setWidgetResizable(True)
-        self.right_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Add scroll areas to upper layout with proportion
-        self.upper_layout.addWidget(self.left_scroll, 3)
-        self.upper_layout.addWidget(self.right_scroll, 2)
-
-        # Add upper layout to main layout
-        self.main_layout.addLayout(self.upper_layout)
-
-        # Connect user tab related signals
-        self.user_tab = self.suggest_settings_section.user_tab
+        # Profile Tab
+        self.user_tab = UserTab(self.login_system)
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
-        self.user_tab.size_changed_signal.connect(self.adjust_window_size)
-
-        # Add mode toggle button
+        
+        # Help Tab
+        self.help_tab = HelpTab()
+        
+        # Add tabs in desired order
+        self.main_tab_widget.addTab(self.user_tab, "Profile")  # Profile tab first
+        self.settings_tab_index = self.main_tab_widget.addTab(self.settings_tab, "Settings")
+        self.help_tab_index = self.main_tab_widget.addTab(self.help_tab, "Help")
+        
+        # Initially disable restricted tabs
+        self._update_tab_access()
+        
+        # Set the initial tab to Profile
+        self.main_tab_widget.setCurrentWidget(self.user_tab)
+        
+        right_layout.addWidget(self.main_tab_widget)
+        right_layout.addWidget(self.run_stop_section)
+        
+        # Add to content layout
+        content_layout.addWidget(left_widget, 3)
+        content_layout.addWidget(right_widget, 2)
+        
+        # Add content layout to main layout
+        main_layout.addLayout(content_layout)
+        
+        # Mode toggle button at bottom
         self.mode_toggle_button = QPushButton("Switch to Super Mode")
         self.mode_toggle_button.clicked.connect(self.toggle_mode)
-        self.main_layout.addWidget(self.mode_toggle_button)
-
-        # Connect the mode_changed signal from SchedulesTab to RunStopSection
-        self.projects_section.schedules_tab.mode_changed.connect(self.run_stop_section._on_mode_changed)
-
-        # Connect the schedules tab with run_stop_section's schedule drop area
-        self.projects_section.schedules_tab.schedule_list.itemDoubleClicked.connect(
-            lambda item: self.run_stop_section.schedule_drop_area.handle_schedule_drop(
-                item.data(Qt.UserRole)
-            )
+        main_layout.addWidget(self.mode_toggle_button)
+        
+        # Connect signals
+        self.projects_section.schedules_tab.mode_changed.connect(
+            self.run_stop_section._on_mode_changed
         )
-
-        # Load initial data
+        
+        # Initialize
         self.load_animals_tab()
-
-        # Maximize window on startup
         self.showMaximized()
     
     def toggle_mode(self):
@@ -329,7 +333,9 @@ class RodentRefreshmentGUI(QWidget):
             QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
 
     def print_to_terminal(self, message):
-        self.terminal_output.appendPlainText(message)
+        """Print message to terminal output"""
+        if hasattr(self, 'terminal_output'):
+            self.terminal_output.appendPlainText(str(message))
 
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()
@@ -359,7 +365,8 @@ class RodentRefreshmentGUI(QWidget):
             self.projects_section.animals_tab.trainer_id = trainer_id
             self.load_animals_tab(trainer_id=trainer_id)
             
-            # Login gate will automatically update due to login_system signal
+            # Update tab access
+            self._update_tab_access()
             
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
@@ -400,7 +407,8 @@ class RodentRefreshmentGUI(QWidget):
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
             
-            # Login gate will automatically update due to login_system signal
+            # Update tab access
+            self._update_tab_access()
             
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")
@@ -408,7 +416,7 @@ class RodentRefreshmentGUI(QWidget):
 
     def suggest_settings_callback(self):
         """Callback for suggesting settings based on user input."""
-        values = self.suggest_settings_section.suggest_tab.entries
+        values = self.settings_section.entries
         try:
             # Parse relay pairs and volumes, frequency, duration
             relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]
@@ -452,8 +460,8 @@ class RodentRefreshmentGUI(QWidget):
 
     def save_slack_credentials_callback(self):
         """Save Slack credentials and reinitialize NotificationHandler."""
-        self.settings['slack_token'] = self.suggest_settings_section.slack_tab.slack_token_input.text()
-        self.settings['channel_id'] = self.suggest_settings_section.slack_tab.slack_channel_input.text()
+        self.settings['slack_token'] = self.settings_section.slack_token_input.text()
+        self.settings['channel_id'] = self.settings_section.slack_channel_input.text()
         save_settings(self.settings)
 
         # Update NotificationHandler
@@ -470,3 +478,44 @@ class RodentRefreshmentGUI(QWidget):
         
         # Update the button states to reflect the new configuration
         self.update_button_states()
+
+    @pyqtSlot(dict)
+    def on_settings_updated(self, updated_settings):
+        """Handle settings updates from SettingsTab"""
+        try:
+            # Update notification handler if Slack credentials changed
+            if ('slack_token' in updated_settings or 'channel_id' in updated_settings):
+                self.notification_handler = NotificationHandler(
+                    updated_settings['slack_token'],
+                    updated_settings['channel_id']
+                )
+            
+            # Update any components that depend on settings
+            self.run_stop_section.update_settings(updated_settings)
+            self.print_to_terminal("Settings updated successfully")
+            
+        except Exception as e:
+            self.print_to_terminal(f"Error applying settings updates: {e}")
+            QMessageBox.critical(self, "Settings Update Error", 
+                               f"Failed to apply settings updates: {str(e)}")
+
+    def _handle_settings_update(self, settings):
+        """Handle system settings updates"""
+        self.settings = settings
+        self._update_ui_from_settings()
+
+    def _update_ui_from_settings(self):
+        # Implement the logic to update the UI based on the new settings
+        pass
+
+    def _update_tab_access(self):
+        """Update tab accessibility based on login status"""
+        is_logged_in = self.login_system.is_logged_in()
+        
+        # Disable/enable tabs
+        self.main_tab_widget.setTabEnabled(self.settings_tab_index, is_logged_in)
+        self.main_tab_widget.setTabEnabled(self.help_tab_index, is_logged_in)
+        
+        # If on a restricted tab while logging out, switch to profile tab
+        if not is_logged_in and self.main_tab_widget.currentIndex() in [self.settings_tab_index, self.help_tab_index]:
+            self.main_tab_widget.setCurrentWidget(self.user_tab)

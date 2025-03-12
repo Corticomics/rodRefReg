@@ -2,18 +2,19 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
-    QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView
+    QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView, QComboBox
 )
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
 from .edit_animal_dialog import EditAnimalDialog
 import traceback
+from datetime import datetime
 
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
         self.settings = settings
-        self.print_to_terminal = print_to_terminal
+        self.print_to_terminal = print_to_terminal or (lambda x: None)  # Fallback if not provided
         self.database_handler = database_handler
         self.login_system = login_system  # Store login_system for permission checks
         self.trainer_id = None  # Add this line back
@@ -53,10 +54,10 @@ class AnimalsTab(QWidget):
 
         # Setup the table with modern styling
         self.animals_table = QTableWidget()
-        self.animals_table.setColumnCount(6)
+        self.animals_table.setColumnCount(7)
         
         # Set headers with proper styling
-        headers = ["Lab Animal ID", "Name", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
+        headers = ["Lab Animal ID", "Name", "Gender", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
         self.animals_table.setHorizontalHeaderLabels(headers)
         
         # Configure table properties
@@ -120,6 +121,29 @@ class AnimalsTab(QWidget):
         # Initial load
         self.load_animals()
 
+    def calculate_days_ago(self, timestamp_str):
+        """Convert timestamp to 'X days ago' format"""
+        if not timestamp_str:
+            return "Never"
+        try:
+            timestamp = datetime.fromisoformat(timestamp_str)
+            now = datetime.now()
+            delta = now - timestamp
+            
+            if delta.days == 0:
+                if delta.seconds < 3600:  # Less than an hour
+                    minutes = delta.seconds // 60
+                    return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+                else:
+                    hours = delta.seconds // 3600
+                    return f"{hours} hour{'s' if hours != 1 else ''} ago"
+            elif delta.days == 1:
+                return "Yesterday"
+            else:
+                return f"{delta.days} days ago"
+        except (ValueError, TypeError):
+            return "Invalid date"
+
     def populate_animal_table(self, animals):
         """Populate the animals_table widget with the given animals."""
         self.animals_table.setRowCount(0)  # Clear existing rows
@@ -128,28 +152,31 @@ class AnimalsTab(QWidget):
             row_position = self.animals_table.rowCount()
             self.animals_table.insertRow(row_position)
 
-            # Populate each cell with animal data
+            # Convert timestamps to "X days ago" format
+            last_weighted_text = self.calculate_days_ago(animal.last_weighted)
+            last_watering_text = self.calculate_days_ago(animal.last_watering)
+
             lab_animal_id_item = QTableWidgetItem(animal.lab_animal_id)
             name_item = QTableWidgetItem(animal.name)
-            initial_weight_item = QTableWidgetItem(str(animal.initial_weight))
-            last_weight_item = QTableWidgetItem(str(animal.last_weight) if animal.last_weight is not None else "N/A")
-            last_weighted_item = QTableWidgetItem(animal.last_weighted if animal.last_weighted else "N/A")
-            last_watering_item = QTableWidgetItem(animal.last_watering if animal.last_watering else "N/A")
+            gender_item = QTableWidgetItem(animal.gender if animal.gender else "N/A")
+            initial_weight_item = QTableWidgetItem(f"{animal.initial_weight:.1f}" if animal.initial_weight else "N/A")
+            last_weight_item = QTableWidgetItem(f"{animal.last_weight:.1f}" if animal.last_weight else "N/A")
+            last_weighted_item = QTableWidgetItem(last_weighted_text)
+            last_watering_item = QTableWidgetItem(last_watering_text)
             
-
-            # Align text to center for better readability
-            for item in [lab_animal_id_item, name_item, initial_weight_item, last_weight_item, last_weighted_item, last_watering_item]:
-                item.setTextAlignment(Qt.AlignCenter)
-
-            # Insert items into the table
+            # Set items in table
             self.animals_table.setItem(row_position, 0, lab_animal_id_item)
             self.animals_table.setItem(row_position, 1, name_item)
-            self.animals_table.setItem(row_position, 2, initial_weight_item)
-            self.animals_table.setItem(row_position, 3, last_weight_item)
-            self.animals_table.setItem(row_position, 4, last_weighted_item)
-            self.animals_table.setItem(row_position, 5, last_watering_item)
+            self.animals_table.setItem(row_position, 2, gender_item)
+            self.animals_table.setItem(row_position, 3, initial_weight_item)
+            self.animals_table.setItem(row_position, 4, last_weight_item)
+            self.animals_table.setItem(row_position, 5, last_weighted_item)
+            self.animals_table.setItem(row_position, 6, last_watering_item)
 
-            # Store the Animal object in the first column's item using Qt.UserRole
+            # Store the original timestamp in the item's data for sorting
+            last_weighted_item.setData(Qt.UserRole, animal.last_weighted or "")
+            last_watering_item.setData(Qt.UserRole, animal.last_watering or "")
+
             lab_animal_id_item.setData(Qt.UserRole, animal)
 
             # Optional: Set row height
@@ -163,14 +190,17 @@ class AnimalsTab(QWidget):
                 trainer_id = current_trainer['trainer_id']
                 role = current_trainer['role']
                 animals = self.database_handler.get_animals(trainer_id, role)
-                self.print_to_terminal(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
+                if self.print_to_terminal:
+                    self.print_to_terminal(f"Loaded {len(animals)} animals for trainer ID {trainer_id}")
             else:
                 animals = self.database_handler.get_all_animals()
-                self.print_to_terminal(f"Loaded {len(animals)} animals for all trainers (guest mode)")
+                if self.print_to_terminal:
+                    self.print_to_terminal(f"Loaded {len(animals)} animals for all trainers (guest mode)")
             # Populate the UI with the animals table
             self.populate_animal_table(animals)
         except Exception as e:
-            print(f"Exception in AnimalsTab.load_animals: {e}")
+            if self.print_to_terminal:
+                self.print_to_terminal(f"Error loading animals: {str(e)}")
             traceback.print_exc()
             QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
 
@@ -203,12 +233,18 @@ class AnimalsTab(QWidget):
         last_watering_input.setCalendarPopup(True)
         last_watering_input.setDateTime(QDateTime.currentDateTime())
 
+        # Add gender selection combo box
+        gender_combo = QComboBox()
+        gender_combo.addItems(["Select Gender", "male", "female"])
+        gender_combo.setCurrentText("Select Gender")
+
         form_layout.addRow("Lab Animal ID:", lab_animal_id_input)
         form_layout.addRow("Name:", name_input)
         form_layout.addRow("Initial Weight (g):", initial_weight_input)
         form_layout.addRow("Last Weight (g):", last_weight_input)
         form_layout.addRow("Last Time Weighted:", last_weighted_input)
         form_layout.addRow("Last Watering:", last_watering_input)
+        form_layout.addRow("Gender:", gender_combo)
         layout.addLayout(form_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -225,6 +261,9 @@ class AnimalsTab(QWidget):
                 last_weight_text = last_weight_input.text().strip()
                 last_weighted = last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm")
                 last_watering = last_watering_input.dateTime().toString("yyyy-MM-dd HH:mm")
+                gender = gender_combo.currentText()
+                if gender == "Select Gender":
+                    gender = None
 
                 # Validate inputs
                 if not lab_animal_id or not name:
@@ -241,7 +280,8 @@ class AnimalsTab(QWidget):
                     initial_weight,
                     last_weight,
                     last_weighted,
-                    last_watering
+                    last_watering,
+                    gender
                 )
                 current_trainer = self.login_system.get_current_trainer()
                 trainer_id = current_trainer['trainer_id'] if current_trainer else None
@@ -311,7 +351,8 @@ class AnimalsTab(QWidget):
                     initial_weight=updated_info['initial_weight'],
                     last_weight=updated_info['last_weight'],
                     last_weighted=updated_info['last_weighted'],
-                    last_watering=updated_info['last_watering']
+                    last_watering=updated_info['last_watering'],
+                    gender=updated_info['gender']
                 )
 
                 # Update the animal in the database

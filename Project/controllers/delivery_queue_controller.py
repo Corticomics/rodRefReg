@@ -9,13 +9,14 @@ class DeliveryQueueController(QObject):
     queue_updated = pyqtSignal()
     cycle_complete = pyqtSignal(dict)  # New signal for cycle completion
     
-    def __init__(self, pump_controller, database_handler, relay_handler, volume_calculator, timing_calculator):
+    def __init__(self, pump_controller, database_handler, relay_handler, volume_calculator, timing_calculator, system_controller):
         super().__init__()
         self.pump_controller = pump_controller
         self.database_handler = database_handler
         self.relay_handler = relay_handler
         self.volume_calculator = volume_calculator
         self.timing_calculator = timing_calculator
+        self.system_controller = system_controller
         
         self.delivery_queue = []  # Priority queue
         self.active_deliveries = set()  # Track active relay units
@@ -325,3 +326,12 @@ class DeliveryQueueController(QObject):
                     self.delivery_queue,
                     (self.sort_queue_entry(instant_entry), instant_entry)
                 )
+
+    def _get_settings(self):
+        """Get current system settings"""
+        settings = self.system_controller.settings
+        return {
+            'min_trigger_interval_ms': settings.get('min_trigger_interval_ms', 500),
+            'cycle_interval': settings.get('cycle_interval', 3600),
+            'stagger_interval': settings.get('stagger_interval', 0.5)
+        }

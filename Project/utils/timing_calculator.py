@@ -2,13 +2,21 @@ from datetime import datetime, timedelta
 import math
 
 class TimingCalculator:
-    def __init__(self, settings):
+    def __init__(self, system_controller):
+        self.system_controller = system_controller
+        self.settings = system_controller.settings
+        self.system_controller.settings_updated.connect(self.update_settings)
+        
         # Hardware constraints
-        self.min_trigger_interval_ms = settings.get('min_trigger_interval_ms', 500)
-        self.pump_volume_ul = settings.get('pump_volume_ul', 50)
-        self.calibration_factor = settings.get('calibration_factor', 1.0)
-        self.max_triggers_per_cycle = settings.get('max_triggers_per_cycle', 5)
-        self.min_cycle_spacing_minutes = settings.get('min_cycle_spacing_minutes', 30)
+        self.min_trigger_interval_ms = self.settings.get('min_trigger_interval_ms', 500)
+        self.pump_volume_ul = self.settings.get('pump_volume_ul', 50)
+        self.calibration_factor = self.settings.get('calibration_factor', 1.0)
+        self.max_triggers_per_cycle = self.settings.get('max_triggers_per_cycle', 5)
+        self.min_cycle_spacing_minutes = self.settings.get('min_cycle_spacing_minutes', 30)
+        
+    def update_settings(self, settings):
+        """Update calculator settings"""
+        self.settings = settings
         
     def calculate_staggered_timing(self, window_start, window_end, animals_data):
         """Calculate optimal staggered delivery timing with actual delivery instants"""

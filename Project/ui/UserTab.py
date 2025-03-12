@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton, 
-    QMessageBox, QFrame, QGridLayout, QSizePolicy, QInputDialog, QFormLayout, QHBoxLayout
+    QMessageBox, QFrame, QGridLayout, QSizePolicy, QInputDialog, QFormLayout, QHBoxLayout, QDialog, QDialogButtonBox
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDateTime
 from PyQt5.QtGui import QFont, QIcon
@@ -286,26 +286,169 @@ class UserTab(QWidget):
             QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout:\n{str(e)}")
 
     def handle_create_profile(self):
-        """Handle the profile creation process with error handling."""
-        try:
-            username, ok = QInputDialog.getText(self, "Create Profile", "Choose a username:")
-            if not ok or not username:
-                QMessageBox.warning(self, "Invalid Username", "Username cannot be empty.")
-                return
-
-            password, ok = QInputDialog.getText(self, "Create Profile", "Choose a password:", QLineEdit.Password)
-            if not ok or not password:
-                QMessageBox.warning(self, "Invalid Password", "Password cannot be empty.")
-                return
-
-            success = self.login_system.create_user(username, password)
-            if success:
-                QMessageBox.information(self, "Profile Created", f"Profile for '{username}' created successfully.")
-            else:
-                QMessageBox.warning(self, "Creation Failed", f"Username '{username}' is already taken.")
-        except Exception as e:
-            QMessageBox.critical(self, "Profile Creation Error", f"An unexpected error occurred during profile creation: {str(e)}")
-
+        """Handle the profile creation process with improved form."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Create New Profile")
+        dialog.setMinimumWidth(350)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: white;
+                border-radius: 6px;
+            }
+            QLabel {
+                color: #202124;
+                font-size: 11px;
+            }
+            QLineEdit {
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
+                padding: 6px 12px;
+                background: white;
+                font-size: 11px;
+                min-height: 24px;
+            }
+            QLineEdit:hover {
+                border-color: #1a73e8;
+            }
+            QLineEdit:focus {
+                border-color: #1a73e8;
+                background: white;
+            }
+        """)
+        
+        # Create layout
+        layout = QVBoxLayout()
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 24, 24, 24)
+        
+        # Form layout
+        form_layout = QFormLayout()
+        form_layout.setSpacing(12)
+        
+        # Username field
+        username_input = QLineEdit()
+        username_input.setPlaceholderText("Choose a username")
+        
+        # Password fields container
+        password_container = QVBoxLayout()
+        password_container.setSpacing(4)
+        
+        # Password input with show/hide link
+        password_input = QLineEdit()
+        password_input.setPlaceholderText("Choose a password")
+        password_input.setEchoMode(QLineEdit.Password)
+        
+        confirm_password_input = QLineEdit()
+        confirm_password_input.setPlaceholderText("Confirm password")
+        confirm_password_input.setEchoMode(QLineEdit.Password)
+        
+        # Show password link
+        show_password_label = QLabel("Show password")
+        show_password_label.setStyleSheet("""
+            QLabel {
+                color: #1a73e8;
+                font-size: 10px;
+            }
+            QLabel:hover {
+                color: #174ea6;
+                text-decoration: underline;
+            }
+        """)
+        show_password_label.setCursor(Qt.PointingHandCursor)
+        
+        def toggle_password_visibility(event):
+            current_mode = password_input.echoMode()
+            new_mode = QLineEdit.Normal if current_mode == QLineEdit.Password else QLineEdit.Password
+            password_input.setEchoMode(new_mode)
+            confirm_password_input.setEchoMode(new_mode)
+            show_password_label.setText("Hide password" if new_mode == QLineEdit.Normal else "Show password")
+        
+        show_password_label.mousePressEvent = toggle_password_visibility
+        
+        # Add fields to layouts
+        form_layout.addRow("Username:", username_input)
+        form_layout.addRow("Password:", password_input)
+        form_layout.addRow("Confirm Password:", confirm_password_input)
+        form_layout.addRow("", show_password_label)
+        
+        layout.addLayout(form_layout)
+        
+        # Dialog buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        button_box.button(QDialogButtonBox.Ok).setText("Create Profile")
+        button_box.button(QDialogButtonBox.Ok).setStyleSheet("""
+            QPushButton {
+                background-color: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #174ea6;
+            }
+            QPushButton:pressed {
+                background-color: #143c7c;
+            }
+        """)
+        button_box.button(QDialogButtonBox.Cancel).setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #1a73e8;
+                border: 1px solid #1a73e8;
+                border-radius: 4px;
+                padding: 6px 16px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #f6fafe;
+            }
+            QPushButton:pressed {
+                background-color: #e8f1fc;
+            }
+        """)
+        
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        dialog.setLayout(layout)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            try:
+                username = username_input.text().strip()
+                password = password_input.text()
+                confirm_password = confirm_password_input.text()
+                
+                # Validate inputs
+                if not username:
+                    raise ValueError("Username cannot be empty.")
+                if not password:
+                    raise ValueError("Password cannot be empty.")
+                if password != confirm_password:
+                    raise ValueError("Passwords do not match.")
+                
+                success = self.login_system.create_user(username, password)
+                if success:
+                    QMessageBox.information(
+                        self, "Profile Created", 
+                        f"Profile for '{username}' created successfully."
+                    )
+                else:
+                    QMessageBox.warning(
+                        self, "Creation Failed", 
+                        f"Username '{username}' is already taken."
+                    )
+            except ValueError as ve:
+                QMessageBox.warning(self, "Invalid Input", str(ve))
+            except Exception as e:
+                QMessageBox.critical(
+                    self, "Profile Creation Error", 
+                    f"An unexpected error occurred: {str(e)}"
+                )
 
     def set_guest_view(self):
         """Resets the view for guest mode with error handling."""
