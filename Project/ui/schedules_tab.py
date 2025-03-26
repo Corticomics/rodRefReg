@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
@@ -24,113 +24,169 @@ class SchedulesTab(QWidget):
         self.database_handler = database_handler
         self.login_system = login_system
         self.pump_controller = settings.get('pump_controller')
+        self.relay_units = {}  # Dictionary to store relay unit widgets by ID
 
-        # Main layout: Horizontal box layout for three columns
-        self.layout = QHBoxLayout()
-        self.setLayout(self.layout)
-
-        # Left Column: Available Animals - make narrower
-        self.available_animals_widget = QWidget()
-        self.available_animals_layout = QVBoxLayout()
-        self.available_animals_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
-        self.available_animals_widget.setLayout(self.available_animals_layout)
-        self.available_animals_widget.setMaximumWidth(180)  # Limit width
-
-        # Add delivery mode selector at the top
+        # Main layout
+        main_layout = QHBoxLayout()
+        main_layout.setContentsMargins(10, 10, 10, 10)  # Restore reasonable margins
+        
+        # Available animals section (left column)
+        self.available_animals_list = AvailableAnimalsList(self.database_handler)
+        available_animals_group = QGroupBox("Available Animals")
+        available_animals_layout = QVBoxLayout()
+        
+        # Add mode selector at the top
         mode_layout = QHBoxLayout()
-        self.mode_label = QLabel("Mode:")  # Shorter label text
-        self.mode_label.setMaximumWidth(40)  # Limit label width
+        mode_label = QLabel("Delivery Mode:")
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
-        mode_layout.addWidget(self.mode_label)
+        self.mode_selector.setStyleSheet("""
+            QComboBox {
+                background-color: #1a73e8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                min-width: 120px;
+                font-size: 12px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+        """)
+        mode_layout.addWidget(mode_label)
         mode_layout.addWidget(self.mode_selector)
-        mode_layout.setSpacing(2)  # Reduce spacing
-        self.available_animals_layout.insertLayout(0, mode_layout)
-
-        reset_button = QPushButton("Reset All")
-        reset_button.clicked.connect(self.reset_all)
-        reset_button.setStyleSheet("""
+        available_animals_layout.addLayout(mode_layout)
+        
+        available_animals_layout.addWidget(self.available_animals_list)
+        available_animals_group.setLayout(available_animals_layout)
+        
+        # Relay units section (middle column)
+        self.relay_units_container = QScrollArea()
+        self.relay_units_container.setWidgetResizable(True)
+        relay_units_widget = QWidget()
+        self.relay_units_layout = QVBoxLayout(relay_units_widget)
+        self.relay_units_layout.setAlignment(Qt.AlignTop)
+        self.relay_units_layout.setSpacing(15)  # More spacing between relay units
+        self.relay_units_container.setWidget(relay_units_widget)
+        
+        relay_units_group = QGroupBox("Relay Units")
+        relay_units_group_layout = QVBoxLayout()
+        relay_units_group_layout.addWidget(self.relay_units_container)
+        relay_units_group.setLayout(relay_units_group_layout)
+        
+        # Schedule actions section (right column)
+        actions_group = QGroupBox("Schedule Actions")
+        actions_layout = QVBoxLayout()
+        
+        # Apply Schedule button
+        self.apply_button = QPushButton("Apply Schedule")
+        self.apply_button.setMinimumHeight(40)
+        self.apply_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0069d9;
+            }
+            QPushButton:pressed {
+                background-color: #0062cc;
+            }
+        """)
+        self.apply_button.clicked.connect(self.apply_schedule)
+        
+        # Clear All button
+        self.clear_button = QPushButton("Clear All")
+        self.clear_button.setMinimumHeight(40)
+        self.clear_button.setStyleSheet("""
             QPushButton {
                 background-color: #dc3545;
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-                min-width: 80px;
-                max-height: 24px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #c82333;
             }
-        """)
-        self.available_animals_layout.addWidget(reset_button)
-
-        self.animal_list = AvailableAnimalsList()
-        self.animal_list.setStyleSheet("""
-            QListWidget {
-                font-size: 10px;
-            }
-            QListWidget::item {
-                padding: 2px;
+            QPushButton:pressed {
+                background-color: #bd2130;
             }
         """)
-
-        self.available_animals_layout.addWidget(QLabel("Available Animals"))
-        self.available_animals_layout.addWidget(self.animal_list)
-
-        # Center Column: Relay Units - give it more space
-        self.relay_units_widget = QWidget()
-        self.relay_units_layout = QVBoxLayout()
-        self.relay_units_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
-        self.relay_units_widget.setLayout(self.relay_units_layout)
-
-        # Scroll area for relay units to handle scalability
-        self.relay_units_scroll = QScrollArea()
-        self.relay_units_scroll.setWidgetResizable(True)
-        self.relay_units_container = QWidget()
-        self.relay_units_container_layout = QVBoxLayout()
-        self.relay_units_container_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
-        self.relay_units_container_layout.setSpacing(5)  # Reduce spacing
-        self.relay_units_container.setLayout(self.relay_units_container_layout)
-        self.relay_units_scroll.setWidget(self.relay_units_container)
-
-        self.relay_units_layout.addWidget(QLabel("Relay Units"))
-        self.relay_units_layout.addWidget(self.relay_units_scroll)
-
-        # Dictionary to hold RelayUnitWidgets
-        self.relay_unit_widgets = {}
-        self.load_relay_units()
-
-        # Right Column: Saved Schedules - make narrower
-        self.saved_schedules_widget = QWidget()
-        self.saved_schedules_layout = QVBoxLayout()
-        self.saved_schedules_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
-        self.saved_schedules_widget.setLayout(self.saved_schedules_layout)
-        self.saved_schedules_widget.setMaximumWidth(180)  # Limit width
-
-        self.schedule_list = QListWidget()
-        self.schedule_list.setDragEnabled(True)
-        self.schedule_list.setDefaultDropAction(Qt.MoveAction)
-        self.schedule_list.itemClicked.connect(self.load_selected_schedule)
-        self.schedule_list.mousePressEvent = self.schedule_list_mouse_press
-        self.schedule_list.setStyleSheet("""
-            QListWidget {
-                font-size: 10px;
+        self.clear_button.clicked.connect(self.clear_all)
+        
+        # Export Schedule button
+        self.export_button = QPushButton("Export Schedule")
+        self.export_button.setMinimumHeight(40)
+        self.export_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
             }
-            QListWidget::item {
-                padding: 2px;
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
         """)
-
-        self.saved_schedules_layout.addWidget(QLabel("Saved Schedules"))
-        self.saved_schedules_layout.addWidget(self.schedule_list)
-
-        # Add columns to main layout with stretch factors - give center column more space
-        self.layout.addWidget(self.available_animals_widget, stretch=2)
-        self.layout.addWidget(self.relay_units_widget, stretch=6)  # Increase stretch for Relay Units
-        self.layout.addWidget(self.saved_schedules_widget, stretch=2)
+        self.export_button.clicked.connect(self.export_schedule)
+        
+        # Import Schedule button
+        self.import_button = QPushButton("Import Schedule")
+        self.import_button.setMinimumHeight(40)
+        self.import_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+            QPushButton:pressed {
+                background-color: #545b62;
+            }
+        """)
+        self.import_button.clicked.connect(self.import_schedule)
+        
+        # Add buttons to actions layout
+        actions_layout.addWidget(self.apply_button)
+        actions_layout.addWidget(self.clear_button)
+        actions_layout.addWidget(self.export_button)
+        actions_layout.addWidget(self.import_button)
+        actions_layout.addStretch()
+        
+        actions_group.setLayout(actions_layout)
+        
+        # Set column proportions (1:2:1 ratio)
+        main_layout.addWidget(available_animals_group, 1)  # Left column - 25%
+        main_layout.addWidget(relay_units_group, 2)        # Middle column - 50% 
+        main_layout.addWidget(actions_group, 1)           # Right column - 25%
+        
+        self.setLayout(main_layout)
+        
+        # Initialize relay units
+        self.initialize_relay_units()
 
         # Load animals and schedules
         self.load_animals()
@@ -192,38 +248,124 @@ class SchedulesTab(QWidget):
             }
         """)
 
-
-
-    def load_relay_units(self):
-        """Load relay units and create RelayUnitWidgets."""
-        self.relay_units_container_layout.addStretch()
-        self.relay_units_container_layout.setSpacing(10)
-
-        self.relay_units = self.database_handler.get_all_relay_units()
-        if not self.relay_units:
-            self.initialize_relay_units()
-
-        for relay_unit in self.relay_units:
-            relay_widget = RelayUnitWidget(
-                relay_unit, 
-                self.database_handler, 
-                self.animal_list,
+    def initialize_relay_units(self):
+        """Initialize the relay unit widgets based on the database configuration."""
+        # Clear existing relay units
+        self.clear_relay_units_layout()
+        
+        # Get relay units from database or use defaults if not configured
+        relay_units = self.database_handler.get_relay_units()
+        
+        if not relay_units or len(relay_units) == 0:
+            # Default setup: 6 relay units with 2 relays each
+            relay_units = []
+            for i in range(1, 7):
+                relay_ids = (i * 2 - 1, i * 2)
+                relay_unit = RelayUnit(i, relay_ids)
+                relay_units.append(relay_unit)
+        
+        # Create widgets for each relay unit
+        for relay_unit in relay_units:
+            widget = RelayUnitWidget(
+                relay_unit,
+                self.database_handler,
+                self.available_animals_list,
                 self.pump_controller
             )
-            # Set initial mode from the mode selector
-            relay_widget.set_mode(self.mode_selector.currentText())
-            self.relay_unit_widgets[relay_unit.unit_id] = relay_widget
-            self.relay_units_container_layout.addWidget(relay_widget)
-
-    def initialize_relay_units(self):
-        """Create relay units based on settings."""
-        relay_pairs = self.settings.get('relay_pairs', [])
-        unit_id = 1
-        for pair in relay_pairs:
-            relay_unit = RelayUnit(unit_id=unit_id, relay_ids=pair)
-            self.database_handler.add_relay_unit(relay_unit)
-            self.relay_units.append(relay_unit)
-            unit_id += 1
+            # Set initial mode from mode selector
+            widget.set_mode(self.mode_selector.currentText())
+            self.relay_units[relay_unit.unit_id] = widget
+            self.relay_units_layout.addWidget(widget)
+        
+    def clear_relay_units_layout(self):
+        """Clear all relay unit widgets from the layout."""
+        # Remove all widgets from the layout
+        for i in reversed(range(self.relay_units_layout.count())):
+            item = self.relay_units_layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+        
+        # Clear the relay units dictionary
+        self.relay_units.clear()
+        
+    def apply_schedule(self):
+        """Apply the current water delivery schedule."""
+        # Gather schedule data from all relay units
+        schedule_data = {}
+        
+        for unit_id, relay_widget in self.relay_units.items():
+            # Skip relay units with no animal assigned
+            if not relay_widget.assigned_animal:
+                continue
+            
+            animal_id = relay_widget.assigned_animal.id
+            delivery_slots = []
+            
+            # Get all water delivery slots for this relay unit
+            if relay_widget.current_mode == "Instant":
+                # For instant mode, gather individual delivery slots
+                for slot_widget in relay_widget.delivery_slots:
+                    if not slot_widget.is_deleted:
+                        delivery_time = slot_widget.datetime_picker.dateTime().toPython()
+                        volume = float(slot_widget.volume_input.text() or 0)
+                        delivery_slots.append({
+                            "time": delivery_time,
+                            "volume": volume
+                        })
+            elif relay_widget.current_mode == "Staggered":
+                # For staggered mode, gather start and end time ranges
+                # Implementation depends on your UI design
+                # This is a placeholder - adjust according to your UI
+                pass
+            
+            # Add to schedule data
+            if delivery_slots:
+                schedule_data[animal_id] = {
+                    "relay_unit_id": unit_id,
+                    "relay_ids": relay_widget.relay_unit.relay_ids,
+                    "delivery_slots": delivery_slots,
+                    "mode": relay_widget.current_mode
+                }
+        
+        # Save schedule to database
+        if schedule_data:
+            success = self.database_handler.save_water_schedule(schedule_data)
+            if success:
+                QMessageBox.information(self, "Schedule Applied", 
+                                       "The water delivery schedule has been successfully applied.")
+            else:
+                QMessageBox.warning(self, "Schedule Error", 
+                                  "There was an error applying the water delivery schedule.")
+        else:
+            QMessageBox.information(self, "No Schedule", 
+                                   "No water delivery schedule to apply. Please assign animals and set delivery times.")
+    
+    def clear_all(self):
+        """Clear all assignments and schedules."""
+        reply = QMessageBox.question(self, "Clear All", 
+                                   "Are you sure you want to clear all animal assignments and schedules?",
+                                   QMessageBox.Yes | QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            # Reinitialize all relay unit widgets
+            self.initialize_relay_units()
+            
+            QMessageBox.information(self, "Cleared", 
+                                   "All animal assignments and schedules have been cleared.")
+    
+    def export_schedule(self):
+        """Export the current schedule to a file."""
+        # Implement export functionality
+        # This is a placeholder
+        QMessageBox.information(self, "Export Schedule", 
+                               "Schedule export functionality will be implemented here.")
+    
+    def import_schedule(self):
+        """Import a schedule from a file."""
+        # Implement import functionality
+        # This is a placeholder
+        QMessageBox.information(self, "Import Schedule", 
+                               "Schedule import functionality will be implemented here.")
 
     def load_animals(self):
         try:
@@ -242,12 +384,12 @@ class SchedulesTab(QWidget):
                 animals = self.database_handler.get_animals(trainer_id, role)
                 self.print_to_terminal(f"Loaded {len(animals)} animals for trainer {trainer_id}")
             
-            self.animal_list.clear()
+            self.available_animals_list.clear()
             for animal in animals:
                 item_text = f"{animal.lab_animal_id} - {animal.name}"
                 item = QListWidgetItem(item_text)
                 item.setData(Qt.UserRole, animal)
-                self.animal_list.addItem(item)
+                self.available_animals_list.addItem(item)
                 
         except Exception as e:
             self.print_to_terminal(f"Error loading animals: {e}")
@@ -270,8 +412,10 @@ class SchedulesTab(QWidget):
 
     def on_mode_changed(self, mode):
         """Update all relay units to use the selected mode"""
-        for widget in self.relay_unit_widgets.values():
+        for widget in self.relay_units.values():
             widget.set_mode(mode)
+        # Emit signal to inform other components
+        self.mode_changed.emit(mode)
 
     def save_current_schedule(self):
         """Save the current assignments and settings as a new schedule."""
@@ -295,7 +439,7 @@ class SchedulesTab(QWidget):
             total_volume = 0
             
             # Calculate schedule window based on delivery slots
-            for unit_id, relay_widget in self.relay_unit_widgets.items():
+            for unit_id, relay_widget in self.relay_units.items():
                 relay_data = relay_widget.get_data()
                 if not relay_data['animals']:
                     continue
@@ -341,7 +485,7 @@ class SchedulesTab(QWidget):
             all_animals = set()
 
             # Add delivery data with correct relay unit assignments
-            for unit_id, relay_widget in self.relay_unit_widgets.items():
+            for unit_id, relay_widget in self.relay_units.items():
                 relay_data = relay_widget.get_data()
                 if not relay_data['animals']:
                     continue
@@ -399,7 +543,7 @@ class SchedulesTab(QWidget):
             return
 
         # Clear current assignments
-        for relay_widget in self.relay_unit_widgets.values():
+        for relay_widget in self.relay_units.values():
             relay_widget.clear_assignments()
 
         # Load schedule data
@@ -407,8 +551,8 @@ class SchedulesTab(QWidget):
 
         for schedule_detail in schedule_details:
             relay_unit_id = schedule_detail['relay_unit_id']
-            if relay_unit_id in self.relay_unit_widgets:
-                relay_widget = self.relay_unit_widgets[relay_unit_id]
+            if relay_unit_id in self.relay_units:
+                relay_widget = self.relay_units[relay_unit_id]
                 
                 # Set delivery mode
                 mode = schedule_detail.get('delivery_mode', 'staggered').capitalize()
@@ -435,11 +579,11 @@ class SchedulesTab(QWidget):
 
     def refresh(self):
         """Refresh the UI components."""
-        self.animal_list.clear()  # Clear the list first
+        self.available_animals_list.clear()  # Clear the list first
         self.load_animals()  # Reload animals
         self.load_schedules()
         # Clear relay unit assignments
-        for relay_widget in self.relay_unit_widgets.values():
+        for relay_widget in self.relay_units.values():
             relay_widget.clear_assignments()
 
     def startDrag(self, event):
@@ -490,7 +634,7 @@ class SchedulesTab(QWidget):
     def set_delivery_mode(self, mode):
         """Set the delivery mode for all relay units"""
         self.mode_selector.setCurrentText(mode)
-        for widget in self.relay_unit_widgets.values():
+        for widget in self.relay_units.values():
             widget.set_mode(mode)
 
     def schedule_list_mouse_press(self, event):
@@ -535,7 +679,7 @@ class SchedulesTab(QWidget):
     def get_relay_assignments(self):
         """Get current relay unit assignments for all animals"""
         assignments = {}
-        for unit_id, relay_widget in self.relay_unit_widgets.items():
+        for unit_id, relay_widget in self.relay_units.items():
             if relay_widget.assigned_animal:
                 assignments[str(relay_widget.assigned_animal.animal_id)] = unit_id
         return assignments
@@ -547,11 +691,11 @@ class SchedulesTab(QWidget):
             self.mode_selector.setCurrentText("Staggered")
             
             # Clear animal list and reload
-            self.animal_list.clear()
+            self.available_animals_list.clear()
             self.load_animals()
             
             # Reset all relay units
-            for relay_widget in self.relay_unit_widgets.values():
+            for relay_widget in self.relay_units.values():
                 relay_widget.clear_assignments()
             
             # Deselect any selected schedule
