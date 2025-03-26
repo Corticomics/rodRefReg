@@ -254,7 +254,18 @@ class SchedulesTab(QWidget):
         self.clear_relay_units_layout()
         
         # Get relay units from database or use defaults if not configured
-        relay_units = self.database_handler.get_relay_units()
+        try:
+            # Try to use get_relay_units first
+            relay_units = self.database_handler.get_relay_units()
+        except AttributeError:
+            try:
+                # Fall back to get_all_relay_units if available
+                print("Falling back to get_all_relay_units")
+                relay_units = self.database_handler.get_all_relay_units()
+            except AttributeError:
+                # No relay unit retrieval method available, use defaults
+                print("No relay unit retrieval method available, using defaults")
+                relay_units = []
         
         if not relay_units or len(relay_units) == 0:
             # Default setup: 6 relay units with 2 relays each
