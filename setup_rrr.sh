@@ -23,7 +23,40 @@ sudo apt-get install -y python3 python3-pip python3-venv
 
 # Install required system packages - using system packages for PyQt5, RPi.GPIO, and data science libraries
 echo "=== Installing system dependencies ==="
-sudo apt-get install -y git i2c-tools python3-smbus python3-dev python3-pyqt5 python3-rpi.gpio python3-gpiozero python3-pandas python3-numpy
+sudo apt-get install -y git i2c-tools python3-smbus python3-dev python3-pyqt5 python3-rpi.gpio python3-gpiozero python3-pandas python3-numpy build-essential
+
+# Install Sequent Microsystems 16-relay HAT driver
+echo "=== Installing Sequent Microsystems 16-relay HAT driver ==="
+if [ ! -d "/tmp/16relind-rpi" ]; then
+    echo "Cloning 16relind-rpi repository..."
+    git clone https://github.com/SequentMicrosystems/16relind-rpi.git /tmp/16relind-rpi
+    cd /tmp/16relind-rpi
+    echo "Installing relay HAT driver..."
+    sudo make install
+    cd - > /dev/null
+else
+    echo "16relind-rpi repository already exists, updating..."
+    cd /tmp/16relind-rpi
+    git pull
+    echo "Reinstalling relay HAT driver..."
+    sudo make install
+    cd - > /dev/null
+fi
+
+# Verify 16relind command is available
+if command -v 16relind > /dev/null; then
+    echo "16relind command installed successfully."
+else
+    echo "Warning: 16relind command not found after installation."
+fi
+
+# Install Python library for SM16relind if available
+if [ -d "/tmp/16relind-rpi/python" ]; then
+    echo "Installing Python library for SM16relind..."
+    cd /tmp/16relind-rpi/python
+    sudo python3 setup.py install
+    cd - > /dev/null
+fi
 
 # Enable I2C interface (needed for relay HATs)
 echo "=== Enabling I2C interface ==="
@@ -173,6 +206,23 @@ python3 -c "import pandas; print('pandas version:', pandas.__version__)" || {
     python3 -c "import pandas" || pip install pandas --break-system-packages
 }
 
+# Verify SM16relind Python module can be imported (if it exists)
+echo "=== Verifying SM16relind module is accessible ==="
+python3 -c "try: import SM16relind; print('SM16relind module found'); except ImportError: print('SM16relind module not found, but command line tool should work')" || {
+    echo "Note: SM16relind Python module not found. This is normal if the module uses command line tools instead."
+    # Try symlink if the lib directory exists but install didn't work
+    if [ -d "/usr/local/lib/python3*/dist-packages/SM16relind" ]; then
+        echo "Found SM16relind module in system packages, creating symlink to virtual environment..."
+        SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
+        if [ -n "$SM_PATH" ]; then
+            PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+            mkdir -p ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+            ln -sf $SM_PATH ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+            echo "Symlink created."
+        fi
+    fi
+}
+
 # Create a desktop shortcut
 echo "=== Creating desktop shortcut ==="
 mkdir -p ~/Desktop
@@ -286,8 +336,32 @@ python3 -c "import pandas" || pip install pandas --break-system-packages
 echo "Checking if pandas is now available..."
 python3 -c "import pandas; print('pandas version:', pandas.__version__)" && echo "pandas installed successfully!"
 
+echo "Installing Sequent Microsystems 16-relay HAT driver..."
+if [ ! -d "/tmp/16relind-rpi" ]; then
+    git clone https://github.com/SequentMicrosystems/16relind-rpi.git /tmp/16relind-rpi
+fi
+cd /tmp/16relind-rpi
+git pull
+sudo make install
+cd - > /dev/null
+
+# Install Python library if available
+if [ -d "/tmp/16relind-rpi/python" ]; then
+    echo "Installing Python library for SM16relind..."
+    cd /tmp/16relind-rpi/python
+    sudo python3 setup.py install
+    # Create symlink to virtual environment
+    PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
+    if [ -n "$SM_PATH" ]; then
+        mkdir -p ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+        ln -sf $SM_PATH ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+    fi
+    cd - > /dev/null
+fi
+
 echo "Installing any other potential missing packages..."
-pip install -y numpy matplotlib seaborn scipy scikit-learn statsmodels --break-system-packages
+pip install numpy matplotlib seaborn scipy scikit-learn statsmodels --break-system-packages
 
 echo "All dependencies should now be installed. Try running the application again."
 EOF
