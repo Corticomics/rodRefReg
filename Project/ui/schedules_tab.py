@@ -81,6 +81,33 @@ class SchedulesTab(QWidget):
         actions_group = QGroupBox("Schedule Actions")
         actions_layout = QVBoxLayout()
         
+        # Add Schedule List widget
+        schedule_list_label = QLabel("Saved Schedules:")
+        schedule_list_label.setStyleSheet("font-weight: bold; margin-bottom: 5px;")
+        actions_layout.addWidget(schedule_list_label)
+        
+        self.schedule_list = QListWidget()
+        self.schedule_list.setSelectionMode(QListWidget.SingleSelection)
+        self.schedule_list.itemClicked.connect(self.load_selected_schedule)
+        self.schedule_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
+                padding: 5px;
+                margin-bottom: 10px;
+                background-color: #f8f9fa;
+            }
+            QListWidget::item {
+                border-bottom: 1px solid #f0f0f0;
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #1a73e8;
+            }
+        """)
+        actions_layout.addWidget(self.schedule_list)
+        
         # Apply Schedule button
         self.apply_button = QPushButton("Apply Schedule")
         self.apply_button.setMinimumHeight(40)
@@ -407,6 +434,11 @@ class SchedulesTab(QWidget):
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""
+        # Safety check in case schedule_list hasn't been initialized yet
+        if not hasattr(self, 'schedule_list'):
+            self.print_to_terminal("Warning: schedule_list not initialized. Skipping schedule loading.")
+            return
+            
         self.schedule_list.clear()
         current_trainer = self.login_system.get_current_trainer()
         if current_trainer:
@@ -592,7 +624,11 @@ class SchedulesTab(QWidget):
         """Refresh the UI components."""
         self.available_animals_list.clear()  # Clear the list first
         self.load_animals()  # Reload animals
-        self.load_schedules()
+        
+        # Only try to load schedules if schedule_list exists
+        if hasattr(self, 'schedule_list'):
+            self.load_schedules()
+            
         # Clear relay unit assignments
         for relay_widget in self.relay_units.values():
             relay_widget.clear_assignments()
