@@ -5,8 +5,16 @@ from PyQt5.QtGui import QDrag
 from PyQt5.QtCore import Qt, QMimeData, QByteArray, QDataStream, QIODevice
 
 class AvailableAnimalsList(QListWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, database_handler, parent=None):
+        """
+        Initialize the AvailableAnimalsList widget.
+        
+        Args:
+            database_handler (DatabaseHandler): Reference to the database handler
+            parent (QWidget, optional): Parent widget
+        """
+        super().__init__(parent)  # Pass only parent to QListWidget
+        self.database_handler = database_handler  # Store database_handler as an instance attribute
         self.setDragEnabled(True)
         self.setSelectionMode(QListWidget.SingleSelection)
         self.setDefaultDropAction(Qt.MoveAction)

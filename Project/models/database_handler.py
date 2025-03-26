@@ -263,8 +263,34 @@ class DatabaseHandler:
             return []
     
     def get_relay_units(self):
-        """Alias for get_all_relay_units for compatibility."""
-        return self.get_all_relay_units()
+        """Get all relay units from the database.
+        This method is an alias for get_all_relay_units for compatibility reasons.
+        """
+        try:
+            return self.get_all_relay_units()
+        except Exception as e:
+            print(f"Error in get_relay_units: {e}")
+            # Default implementation in case get_all_relay_units is not found
+            try:
+                with self.connect() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        SELECT relay_unit_id, relay_ids
+                        FROM relay_units
+                    ''')
+                    
+                    relay_units = []
+                    for row in cursor.fetchall():
+                        relay_unit_id, relay_ids_str = row
+                        relay_ids = tuple(map(int, relay_ids_str.split(',')))
+                        from models.relay_unit import RelayUnit
+                        relay_unit = RelayUnit(relay_unit_id, relay_ids)
+                        relay_units.append(relay_unit)
+                    
+                    return relay_units
+            except Exception as e2:
+                print(f"Fallback error in get_relay_units: {e2}")
+                return []
 
     def add_schedule(self, schedule):
         try:
