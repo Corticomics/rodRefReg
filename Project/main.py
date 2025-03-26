@@ -305,6 +305,14 @@ def main():
     redirector.message_signal.connect(gui.system_message_signal)
     sys.stdout = redirector
     sys.stderr = redirector
+    
+    # Check for UI updates
+    try:
+        from ui.update_notifier import UpdateNotifier
+        UpdateNotifier.check_for_updates()
+    except Exception as e:
+        print(f"Error checking for UI updates: {e}")
+    
     gui.show()
     sys.exit(app.exec_())
 

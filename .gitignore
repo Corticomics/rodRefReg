@@ -1,2 +1,5 @@
-
 pump_log.json
+Project/rrr_database.db
+*.db
+*.sqlite
+*.sqlite3

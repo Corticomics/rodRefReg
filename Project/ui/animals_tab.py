@@ -60,8 +60,22 @@ class AnimalsTab(QWidget):
         headers = ["Lab Animal ID", "Name", "Gender", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
         self.animals_table.setHorizontalHeaderLabels(headers)
         
-        # Configure table properties
-        self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # Configure table properties - adjust column stretch behavior
+        # Use Custom width instead of Stretch for better control
+        self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        
+        # Set specific column widths to ensure all information is visible
+        self.animals_table.setColumnWidth(0, 100)  # Lab Animal ID
+        self.animals_table.setColumnWidth(1, 100)  # Name
+        self.animals_table.setColumnWidth(2, 70)   # Gender
+        self.animals_table.setColumnWidth(3, 110)  # Initial Weight
+        self.animals_table.setColumnWidth(4, 90)   # Last Weight
+        self.animals_table.setColumnWidth(5, 140)  # Last Weighted
+        self.animals_table.setColumnWidth(6, 140)  # Last Watering
+        
+        # Enable horizontal scrolling if needed
+        self.animals_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
         self.animals_table.setAlternatingRowColors(True)
         self.animals_table.setShowGrid(False)
         self.animals_table.setStyleSheet("""
@@ -78,6 +92,15 @@ class AnimalsTab(QWidget):
             QTableWidget::item:selected {
                 background-color: #e8f0fe;
                 color: #1a73e8;
+            }
+            QHeaderView::section {
+                background-color: #f8f9fa;
+                color: #5f6368;
+                padding: 8px;
+                border: none;
+                border-bottom: 1px solid #e0e4e8;
+                font-weight: 500;
+                font-size: 12px;
             }
         """)
 
@@ -173,6 +196,12 @@ class AnimalsTab(QWidget):
             self.animals_table.setItem(row_position, 5, last_weighted_item)
             self.animals_table.setItem(row_position, 6, last_watering_item)
 
+            # Center-align text for better readability
+            for col in range(7):
+                item = self.animals_table.item(row_position, col)
+                if item:
+                    item.setTextAlignment(Qt.AlignCenter)
+
             # Store the original timestamp in the item's data for sorting
             last_weighted_item.setData(Qt.UserRole, animal.last_weighted or "")
             last_watering_item.setData(Qt.UserRole, animal.last_watering or "")
@@ -181,6 +210,9 @@ class AnimalsTab(QWidget):
 
             # Optional: Set row height
             self.animals_table.setRowHeight(row_position, 30)
+
+        # Resize rows and make sure all data is visible after populating
+        self.animals_table.resizeRowsToContents()
 
     def load_animals(self):
         """Load animals from the database, filtered by trainer_id if available."""
