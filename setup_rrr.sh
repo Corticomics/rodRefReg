@@ -82,13 +82,14 @@ echo "=== Setting up application directory ==="
 mkdir -p ~/rodent-refreshment-regulator
 cd ~/rodent-refreshment-regulator
 
+# Set repository URL
+REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+
 # Clone the repository if not already done
 if [ ! -d ".git" ]; then
     echo "=== Cloning the repository ==="
-    # Replace with actual repository URL if available
-    read -p "Enter the repository URL (default: https://github.com/Corticomics/rodRefReg.git): " repo_url
-    repo_url=${repo_url:-https://github.com/Corticomics/rodRefReg.git}
-    git clone "$repo_url" .
+    echo "Using repository: $REPO_URL"
+    git clone "$REPO_URL" .
     echo "Repository cloned successfully."
 else
     echo "Repository already exists. Updating..."
