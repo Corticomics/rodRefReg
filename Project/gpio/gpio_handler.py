@@ -1,10 +1,46 @@
 # gpio/relay_handler.py
 
-import SM16relind
+import logging
 import time
 import datetime
-import logging
 from models.relay_unit import RelayUnit
+
+# Try to import our custom module first
+try:
+    from .custom_SM16relind import SM16relind, find_available_i2c_buses
+    USING_CUSTOM_MODULE = True
+    print("Using custom SM16relind module with multi-bus support")
+except ImportError:
+    # Fall back to standard module
+    try:
+        import SM16relind
+        USING_CUSTOM_MODULE = False
+        print("Using standard SM16relind module")
+    except ImportError:
+        # Try alternate casing
+        try:
+            import sm_16relind as SM16relind
+            USING_CUSTOM_MODULE = False
+            print("Using standard sm_16relind module")
+        except ImportError:
+            print("WARNING: SM16relind module not found. Hardware control will not work.")
+            # Create a mock module for testing
+            class MockSM16relind:
+                def __init__(self, stack=0, bus_id=None):
+                    self.stack = stack
+                    self.bus_id = bus_id
+                    print(f"MOCK: Initialized MockSM16relind (stack={stack}, bus_id={bus_id})")
+                
+                def set(self, relay, state):
+                    print(f"MOCK: Setting relay {relay} to state {state}")
+                    return True
+                
+                def set_all(self, state):
+                    print(f"MOCK: Setting all relays to state {state}")
+                    return True
+            
+            SM16relind = MockSM16relind
+            USING_CUSTOM_MODULE = False
 
 class RelayHandler:
     def __init__(self, relay_unit_manager, num_hats=1):
@@ -30,18 +66,76 @@ class RelayHandler:
         # Initialize relay hats
         self._initialize_hats()
 
+    def _find_available_i2c_buses(self):
+        """Find available I2C buses on the system"""
+        if USING_CUSTOM_MODULE:
+            # Use the implementation from custom module
+            return find_available_i2c_buses()
+        
+        # Fallback implementation
+        available_buses = []
+        try:
+            import os
+            # Check the common I2C device paths
+            for i in range(0, 20):  # Check a reasonable range of I2C devices
+                if os.path.exists(f"/dev/i2c-{i}"):
+                    available_buses.append(i)
+            
+            if available_buses:
+                print(f"Found I2C buses: {available_buses}")
+            else:
+                print("No I2C buses found. Make sure I2C is enabled.")
+                
+            return available_buses
+        except Exception as e:
+            print(f"Error finding I2C buses: {e}")
+            return [0, 1]  # Default fallback
+
     def _initialize_hats(self):
         """Initialize relay hat hardware"""
         self.relay_hats = []
-        for i in range(self.num_hats):
+        
+        # Find available I2C buses
+        available_buses = self._find_available_i2c_buses()
+        
+        # Try to initialize hats
+        success = False
+        
+        # First try the specific buses found
+        for bus in available_buses:
             try:
-                hat = SM16relind.SM16relind(i)
+                if USING_CUSTOM_MODULE:
+                    hat = SM16relind(stack=0, bus_id=bus)
+                else:
+                    # For standard module, we'll try each bus as the stack address
+                    # This is a workaround since standard module doesn't support bus_id
+                    hat = SM16relind.SM16relind(bus)
+                
                 hat.set_all(0)  # Initialize all relays to OFF
                 self.relay_hats.append(hat)
-                print(f"Initialized relay hat {i}")
+                print(f"Initialized relay hat on I2C bus {bus}")
+                success = True
+                break  # Exit once we successfully initialize a hat
             except Exception as e:
-                print(f"Failed to initialize hat {i}: {e}")
-                logging.error(f"Hat initialization error: {str(e)}")
+                print(f"Failed to initialize hat on I2C bus {bus}: {e}")
+        
+        # If no success yet, try the traditional way with address only
+        if not success:
+            for i in range(self.num_hats):
+                try:
+                    hat = SM16relind.SM16relind(i)
+                    hat.set_all(0)  # Initialize all relays to OFF
+                    self.relay_hats.append(hat)
+                    print(f"Initialized relay hat {i}")
+                    success = True
+                except Exception as e:
+                    print(f"Failed to initialize hat {i}: {e}")
+                    logging.error(f"Hat initialization error: {str(e)}")
+        
+        if not success:
+            error_msg = "Failed to initialize any relay hats. Check I2C configuration and connections."
+            print(error_msg)
+            logging.error(error_msg)
 
     def set_all_relays(self, state):
         """Set all relays to given state (0 or 1)"""
