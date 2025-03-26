@@ -240,22 +240,31 @@ class DatabaseHandler:
             return None
 
     def get_all_relay_units(self):
-        relay_units = []
+        """Retrieve all relay units from the database."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT relay_unit_id, relay_ids FROM relay_units')
-                rows = cursor.fetchall()
-                for row in rows:
-                    relay_ids = tuple(map(int, row[1].split(',')))
-                    relay_unit = RelayUnit(unit_id=row[0], relay_ids=relay_ids)
+                cursor.execute('''
+                    SELECT relay_unit_id, relay_ids
+                    FROM relay_units
+                ''')
+                
+                relay_units = []
+                for row in cursor.fetchall():
+                    relay_unit_id, relay_ids_str = row
+                    relay_ids = tuple(map(int, relay_ids_str.split(',')))
+                    relay_unit = RelayUnit(relay_unit_id, relay_ids)
                     relay_units.append(relay_unit)
-            return relay_units
-        except sqlite3.Error as e:
+                
+                return relay_units
+        except Exception as e:
             print(f"Error retrieving relay units: {e}")
             traceback.print_exc()
             return []
-
+    
+    def get_relay_units(self):
+        """Alias for get_all_relay_units for compatibility."""
+        return self.get_all_relay_units()
 
     def add_schedule(self, schedule):
         try:

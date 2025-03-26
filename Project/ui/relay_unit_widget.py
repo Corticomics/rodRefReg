@@ -18,45 +18,29 @@ class WaterDeliverySlot(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)  # Reduce margins
+        layout.setContentsMargins(2, 2, 2, 2)  # Less aggressive margin reduction
         
-        # DateTime picker with calendar popup - reduce size
+        # DateTime picker with calendar popup - less aggressive size reduction
         self.datetime_picker = QDateTimeEdit()
         self.datetime_picker.setCalendarPopup(True)
         self.datetime_picker.setDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setDisplayFormat("yyyy-MM-dd hh:mm AP")
-        # Make calendar widget smaller
+        # Make calendar widget smaller but still usable
         self.datetime_picker.setStyleSheet("""
             QDateTimeEdit {
-                max-width: 180px;
+                min-width: 180px;
             }
             QCalendarWidget {
-                max-width: 250px;
-                max-height: 180px;
-            }
-            QCalendarWidget QWidget {
-                font-size: 10px;
-            }
-            QCalendarWidget QToolButton {
-                height: 20px;
-                width: 80px;
-                font-size: 10px;
-            }
-            QCalendarWidget QMenu {
-                font-size: 10px;
-            }
-            QCalendarWidget QSpinBox {
-                font-size: 10px;
-                max-height: 20px;
-                max-width: 60px;
+                min-width: 300px;
+                min-height: 300px;
             }
         """)
         
         # Volume input
         self.volume_input = QLineEdit()
         self.volume_input.setPlaceholderText("Water volume (mL)")
-        self.volume_input.setFixedWidth(100)
+        self.volume_input.setFixedWidth(120)  # Slightly wider than before
         
         # Delete button with refined styling
         self.delete_button = QPushButton("×")
@@ -67,8 +51,8 @@ class WaterDeliverySlot(QWidget):
                 border: none;
                 border-radius: 4px;
                 padding: 2px;
-                max-width: 20px;
-                max-height: 20px;
+                max-width: 24px;
+                max-height: 24px;
                 font-size: 16px;
                 font-weight: bold;
                 margin: 0px;
@@ -113,32 +97,33 @@ class RelayUnitWidget(QWidget):
         self.pump_controller = pump_controller
         self.current_mode = "Staggered"
 
-        # Main layout - reduce margins
+        # Main layout - less aggressive margin reduction
         self.layout = QVBoxLayout()
-        self.layout.setContentsMargins(5, 5, 5, 5)  # Smaller margins
-        self.layout.setSpacing(5)  # Reduced spacing
+        self.layout.setContentsMargins(8, 8, 8, 8)  # Less aggressive
+        self.layout.setSpacing(8)  # Less aggressive spacing
         self.setLayout(self.layout)
 
         # Title Label
         self.title_label = QLabel(f"Relay Unit {relay_unit.unit_id}")
         self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("font-weight: bold;")  # Make title visible
         self.layout.addWidget(self.title_label)
 
-        # Drag-and-Drop Area - smaller height
+        # Drag-and-Drop Area - keep visible
         self.drag_area_label = QLabel("Drop Animal Here")
         self.drag_area_label.setAlignment(Qt.AlignCenter)
         self.drag_area_label.setStyleSheet("""
             background-color: #f8f9fa; 
             border: 2px dashed #e0e0e0; 
             font-size: 14px;
+            min-height: 40px;
         """)
-        self.drag_area_label.setFixedHeight(40)  # Reduced height
         self.layout.addWidget(self.drag_area_label)
 
         # Enable drag-and-drop
         self.setAcceptDrops(True)
 
-        # Animal Information Table - more compact
+        # Animal Information Table - more reasonable constraints
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
         self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
@@ -146,21 +131,22 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
         self.animal_table.verticalHeader().setVisible(False)
-        self.animal_table.setMaximumHeight(60)  # Limit height
+        self.animal_table.setMinimumHeight(60)  # Ensure it has minimum height
+        self.animal_table.setMaximumHeight(80)  # Limit height but not too small
         self.animal_table.setStyleSheet("""
             QTableWidget {
-                font-size: 10px;
+                font-size: 12px;
             }
             QHeaderView::section {
-                font-size: 10px;
-                padding: 2px;
+                font-size: 12px;
+                padding: 3px;
             }
         """)
         self.layout.addWidget(self.animal_table)
 
         # Water Volume Display
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
-        self.recommended_water_label.setStyleSheet("font-size: 10px;")
+        self.recommended_water_label.setStyleSheet("font-size: 12px;")
         self.layout.addWidget(self.recommended_water_label)
 
         # Instant Delivery Components
@@ -178,20 +164,50 @@ class RelayUnitWidget(QWidget):
         # Container for instant delivery slots
         self.instant_delivery_container = QWidget()
         self.instant_delivery_layout = QVBoxLayout(self.instant_delivery_container)
+        self.instant_delivery_layout.setContentsMargins(3, 3, 3, 3)
+        self.instant_delivery_layout.setSpacing(5)
         self.layout.addWidget(self.instant_delivery_container)
         
         # Add delivery slot button for instant mode
         self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
+        self.add_instant_slot_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
         self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
         self.layout.addWidget(self.add_instant_slot_button)
         
         # Container for staggered delivery slots
         self.staggered_delivery_container = QWidget()
         self.staggered_delivery_layout = QVBoxLayout(self.staggered_delivery_container)
+        self.staggered_delivery_layout.setContentsMargins(3, 3, 3, 3)
+        self.staggered_delivery_layout.setSpacing(5)
         self.layout.addWidget(self.staggered_delivery_container)
         
         # Add delivery slot button for staggered mode
         self.add_staggered_slot_button = QPushButton("+ Add Time Window")
+        self.add_staggered_slot_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 5px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
         self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
         self.layout.addWidget(self.add_staggered_slot_button)
         
