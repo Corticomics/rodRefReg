@@ -31,7 +31,7 @@ class SchedulesTab(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)  # Restore reasonable margins
         
         # Available animals section (left column)
-        self.available_animals_list = AvailableAnimalsList(self.database_handler)
+        self.available_animals_list = AvailableAnimalsList(self.database_handler, self)
         available_animals_group = QGroupBox("Available Animals")
         available_animals_layout = QVBoxLayout()
         
