@@ -4,9 +4,15 @@ Checking for UI updates...
 Current branch: main
 Current commit: 6bcdfc3c1babf6f51d6ff90a101c4beddb5c55e9
 Fetching latest updates...
+remote: Enumerating objects: 14, done.
+remote: Counting objects: 100% (14/14), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 8 (delta 7), reused 6 (delta 6), pack-reused 0 (from 0)
+Unpacking objects: 100% (8/8), 1.85 KiB | 316.00 KiB/s, done.
 From https://github.com/Corticomics/rodRefReg
  * branch            main       -> FETCH_HEAD
-Latest remote commit: f54acc8c1a6d5c1cdda07225b634d50b2f9a8e0f
+   2b27eeb..a119858  main       -> origin/main
+Latest remote commit: a119858bbf1c806aac231b59094dd13d8dcc2b7c
 Updates available. Backing up important files...
 Backing up database...
 Backing up settings...
@@ -27,10 +33,11 @@ Initialized relay unit 5 with relays (9, 10)
 Initialized relay unit 6 with relays (11, 12)
 Initialized relay unit 7 with relays (13, 14)
 Initialized relay unit 8 with relays (15, 16)
-Failed to initialize hat 0: [Errno 2] No such file or directory: '/dev/i2c-1'
-ERROR:root:Hat initialization error: [Errno 2] No such file or directory: '/dev/i2c-1'
+Failed to initialize hat 0: Fail to init the card with exception [Errno 11] Resource temporarily unavailable
+ERROR:root:Hat initialization error: Fail to init the card with exception [Errno 11] Resource temporarily unavailable
 Database schema created/updated successfully.
 Running in Guest mode. Displaying all data.
+Falling back to get_all_relay_units
 Traceback (most recent call last):
   File "/home/rrrinstaller/rodent-refreshment-regulator/Project/main.py", line 320, in <module>
     main()
@@ -47,9 +54,9 @@ Traceback (most recent call last):
   File "/home/rrrinstaller/rodent-refreshment-regulator/Project/ui/projects_section.py", line 23, in __init__
     self.schedules_tab = SchedulesTab(
                          ^^^^^^^^^^^^^
-  File "/home/rrrinstaller/rodent-refreshment-regulator/Project/ui/schedules_tab.py", line 34, in __init__
-    self.available_animals_list = AvailableAnimalsList(self.database_handler)
-                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/rrrinstaller/rodent-refreshment-regulator/Project/ui/available_animals_list.py", line 9, in __init__
-    super().__init__(parent)
-TypeError: QListWidget(parent: typing.Optional[QWidget] = None): argument 1 has unexpected type 'DatabaseHandler'
+  File "/home/rrrinstaller/rodent-refreshment-regulator/Project/ui/schedules_tab.py", line 193, in __init__
+    self.load_schedules()
+  File "/home/rrrinstaller/rodent-refreshment-regulator/Project/ui/schedules_tab.py", line 410, in load_schedules
+    self.schedule_list.clear()
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: 'SchedulesTab' object has no attribute 'schedule_list'
