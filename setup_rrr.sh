@@ -21,9 +21,9 @@ sudo apt-get update
 echo "=== Installing Python and pip ==="
 sudo apt-get install -y python3 python3-pip python3-venv
 
-# Install required system packages
+# Install required system packages including PyQt5 (using apt instead of pip)
 echo "=== Installing system dependencies ==="
-sudo apt-get install -y git i2c-tools python3-smbus python3-dev
+sudo apt-get install -y git i2c-tools python3-smbus python3-dev python3-pyqt5
 
 # Enable I2C interface (needed for relay HATs)
 echo "=== Enabling I2C interface ==="
@@ -101,17 +101,31 @@ echo "=== Creating Python virtual environment ==="
 python3 -m venv venv
 source venv/bin/activate
 
+# Create a modified requirements file without PyQt5 (since we installed it via apt)
+echo "=== Creating modified requirements file ==="
+if [ -f "installer/requirements.txt" ]; then
+    grep -v "PyQt5" installer/requirements.txt > /tmp/requirements_modified.txt
+    REQUIREMENTS_PATH="/tmp/requirements_modified.txt"
+elif [ -f "requirements.txt" ]; then
+    grep -v "PyQt5" requirements.txt > /tmp/requirements_modified.txt
+    REQUIREMENTS_PATH="/tmp/requirements_modified.txt"
+else
+    echo "No requirements.txt found, will install packages individually."
+    REQUIREMENTS_PATH=""
+fi
+
 # Install Python dependencies
 echo "=== Installing Python dependencies ==="
 pip install --upgrade pip
-echo "Installing dependencies from requirements.txt..."
-if [ -f "installer/requirements.txt" ]; then
-    pip install -r installer/requirements.txt
-elif [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
+
+# If we have a modified requirements file, use it
+if [ -n "$REQUIREMENTS_PATH" ]; then
+    echo "Installing dependencies from modified requirements file..."
+    pip install -r "$REQUIREMENTS_PATH"
 else
-    echo "No requirements.txt found, installing essential packages..."
-    pip install PyQt5==5.15.4 gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 RPi.GPIO==0.7.0 gpiozero==2.0.1 lgpio==0.2.2.0 smbus2==0.4.1 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7
+    echo "Installing essential packages individually..."
+    # Install everything except PyQt5
+    pip install gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 RPi.GPIO==0.7.0 gpiozero==2.0.1 lgpio==0.2.2.0 smbus2==0.4.1 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7
 fi
 
 # Verify slack_sdk installation
@@ -121,6 +135,19 @@ if pip show slack_sdk > /dev/null; then
 else
     echo "Installing slack_sdk separately..."
     pip install slack_sdk==3.21.3
+fi
+
+# Verify PyQt5 is accessible from the virtual environment
+echo "=== Verifying PyQt5 is accessible ==="
+python3 -c "import PyQt5; print('PyQt5 version:', PyQt5.QtCore.PYQT_VERSION_STR)"
+if [ $? -ne 0 ]; then
+    echo "Warning: PyQt5 test failed. Installing system site packages..."
+    deactivate
+    rm -rf venv
+    python3 -m venv venv --system-site-packages
+    source venv/bin/activate
+    echo "Retesting PyQt5 access..."
+    python3 -c "import PyQt5; print('PyQt5 version:', PyQt5.QtCore.PYQT_VERSION_STR)" || echo "PyQt5 still not accessible. Please install manually after setup."
 fi
 
 # Create a desktop shortcut
