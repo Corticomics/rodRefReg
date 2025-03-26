@@ -18,13 +18,40 @@ class WaterDeliverySlot(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)  # Reduce margins
         
-        # DateTime picker with calendar popup
+        # DateTime picker with calendar popup - reduce size
         self.datetime_picker = QDateTimeEdit()
         self.datetime_picker.setCalendarPopup(True)
         self.datetime_picker.setDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setDisplayFormat("yyyy-MM-dd hh:mm AP")
+        # Make calendar widget smaller
+        self.datetime_picker.setStyleSheet("""
+            QDateTimeEdit {
+                max-width: 180px;
+            }
+            QCalendarWidget {
+                max-width: 250px;
+                max-height: 180px;
+            }
+            QCalendarWidget QWidget {
+                font-size: 10px;
+            }
+            QCalendarWidget QToolButton {
+                height: 20px;
+                width: 80px;
+                font-size: 10px;
+            }
+            QCalendarWidget QMenu {
+                font-size: 10px;
+            }
+            QCalendarWidget QSpinBox {
+                font-size: 10px;
+                max-height: 20px;
+                max-width: 60px;
+            }
+        """)
         
         # Volume input
         self.volume_input = QLineEdit()
@@ -86,8 +113,10 @@ class RelayUnitWidget(QWidget):
         self.pump_controller = pump_controller
         self.current_mode = "Staggered"
 
-        # Main layout
+        # Main layout - reduce margins
         self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(5, 5, 5, 5)  # Smaller margins
+        self.layout.setSpacing(5)  # Reduced spacing
         self.setLayout(self.layout)
 
         # Title Label
@@ -95,7 +124,7 @@ class RelayUnitWidget(QWidget):
         self.title_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.title_label)
 
-        # Drag-and-Drop Area
+        # Drag-and-Drop Area - smaller height
         self.drag_area_label = QLabel("Drop Animal Here")
         self.drag_area_label.setAlignment(Qt.AlignCenter)
         self.drag_area_label.setStyleSheet("""
@@ -103,13 +132,13 @@ class RelayUnitWidget(QWidget):
             border: 2px dashed #e0e0e0; 
             font-size: 14px;
         """)
-        self.drag_area_label.setFixedHeight(50)
+        self.drag_area_label.setFixedHeight(40)  # Reduced height
         self.layout.addWidget(self.drag_area_label)
 
         # Enable drag-and-drop
         self.setAcceptDrops(True)
 
-        # Animal Information Table
+        # Animal Information Table - more compact
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
         self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
@@ -117,10 +146,21 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
         self.animal_table.verticalHeader().setVisible(False)
+        self.animal_table.setMaximumHeight(60)  # Limit height
+        self.animal_table.setStyleSheet("""
+            QTableWidget {
+                font-size: 10px;
+            }
+            QHeaderView::section {
+                font-size: 10px;
+                padding: 2px;
+            }
+        """)
         self.layout.addWidget(self.animal_table)
 
         # Water Volume Display
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
+        self.recommended_water_label.setStyleSheet("font-size: 10px;")
         self.layout.addWidget(self.recommended_water_label)
 
         # Instant Delivery Components
