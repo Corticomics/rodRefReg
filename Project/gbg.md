@@ -6,119 +6,115 @@ Ideas for RRR
 
    wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh && chmod +x setup_rrr.sh && ./setup_rrr.sh
 
-Building wheels for collected packages: RPi.GPIO
-  Building wheel for RPi.GPIO (pyproject.toml) ... error
-  error: subprocess-exited-with-error
-  
-  × Building wheel for RPi.GPIO (pyproject.toml) did not run successfully.
-  │ exit code: 1
-  ╰─> [91 lines of output]
-      /tmp/pip-build-env-4s7_8kkp/overlay/lib/python3.11/site-packages/setuptools/dist.py:759: SetuptoolsDeprecationWarning: License classifiers are deprecated.
-      !!
-      
-              ********************************************************************************
-              Please consider removing the following classifiers in favor of a SPDX license expression:
-      
-              License :: OSI Approved :: MIT License
-      
-              See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
-              ********************************************************************************
-      
-      !!
-        self._finalize_license_expression()
-      source/c_gpio.c: In function ‘setup’:
-      source/c_gpio.c:130:9: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
-        130 |     if ((uint32_t)gpio_mem % PAGE_SIZE)
-            |         ^
-      source/c_gpio.c:131:34: warning: cast from pointer to integer of different size [-Wpointer-to-int-cast]
-        131 |         gpio_mem += PAGE_SIZE - ((uint32_t)gpio_mem % PAGE_SIZE);
-            |                                  ^
-      source/cpuinfo.c: In function ‘get_rpi_info’:
-      source/cpuinfo.c:139:28: warning: format ‘%llx’ expects argument of type ‘long long unsigned int *’, but argument 3 has type ‘uint64_t *’ {aka ‘long unsigned int *’} [-Wformat=]
-        139 |       sscanf(revision, "%llx", &rev);
-            |                         ~~~^   ~~~~
-            |                            |   |
-            |                            |   uint64_t * {aka long unsigned int *}
-            |                            long long unsigned int *
-            |                         %lx
-      source/py_gpio.c: In function ‘PyInit__GPIO’:
-      source/py_gpio.c:1046:4: warning: ‘PyEval_ThreadsInitialized’ is deprecated [-Wdeprecated-declarations]
-       1046 |    if (!PyEval_ThreadsInitialized())
-            |    ^~
-      In file included from /usr/include/python3.11/Python.h:95,
-                       from source/py_gpio.c:23:
-      /usr/include/python3.11/ceval.h:131:36: note: declared here
-        131 | Py_DEPRECATED(3.9) PyAPI_FUNC(int) PyEval_ThreadsInitialized(void);
-            |                                    ^~~~~~~~~~~~~~~~~~~~~~~~~
-      source/py_gpio.c:1047:7: warning: ‘PyEval_InitThreads’ is deprecated [-Wdeprecated-declarations]
-       1047 |       PyEval_InitThreads();
-            |       ^~~~~~~~~~~~~~~~~~
-      /usr/include/python3.11/ceval.h:132:37: note: declared here
-        132 | Py_DEPRECATED(3.9) PyAPI_FUNC(void) PyEval_InitThreads(void);
-            |                                     ^~~~~~~~~~~~~~~~~~
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:41: multiple definition of `module_setup'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:41: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:40: multiple definition of `setup_error'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:40: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:39: multiple definition of `rpiinfo'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:39: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:38: multiple definition of `gpio_direction'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:38: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:37: multiple definition of `pin_to_gpio'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:37: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:36: multiple definition of `pin_to_gpio_rev3'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:36: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:35: multiple definition of `pin_to_gpio_rev2'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:35: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:34: multiple definition of `pin_to_gpio_rev1'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:34: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:33: multiple definition of `gpio_mode'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:33: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:40: multiple definition of `setup_error'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:40: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:33: multiple definition of `gpio_mode'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:33: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:39: multiple definition of `rpiinfo'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:39: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:41: multiple definition of `module_setup'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:41: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:38: multiple definition of `gpio_direction'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:38: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:37: multiple definition of `pin_to_gpio'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:37: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:35: multiple definition of `pin_to_gpio_rev2'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:35: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:36: multiple definition of `pin_to_gpio_rev3'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:36: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:34: multiple definition of `pin_to_gpio_rev1'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:34: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:42: multiple definition of `both_edge'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:42: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:41: multiple definition of `falling_edge'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:41: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:40: multiple definition of `rising_edge'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:40: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:39: multiple definition of `pud_down'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:39: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:38: multiple definition of `pud_up'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:38: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:37: multiple definition of `pud_off'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:37: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:36: multiple definition of `bcm'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:36: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:35: multiple definition of `board'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:35: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:34: multiple definition of `unknown'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:34: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:33: multiple definition of `spi'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:33: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:32: multiple definition of `i2c'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:32: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:31: multiple definition of `serial'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:31: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:30: multiple definition of `pwm'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:30: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:29: multiple definition of `output'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:29: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:28: multiple definition of `input'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:28: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:27: multiple definition of `low'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:27: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:26: multiple definition of `high'; build/temp.linux-aarch64-cpython-311/source/constants.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/constants.h:26: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:38: multiple definition of `gpio_direction'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:38: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/py_pwm.h:23: multiple definition of `PWMType'; build/temp.linux-aarch64-cpython-311/source/py_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/py_pwm.h:23: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:41: multiple definition of `module_setup'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:41: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:40: multiple definition of `setup_error'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:40: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:39: multiple definition of `rpiinfo'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:39: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:37: multiple definition of `pin_to_gpio'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:37: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:36: multiple definition of `pin_to_gpio_rev3'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:36: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:35: multiple definition of `pin_to_gpio_rev2'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:35: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:34: multiple definition of `pin_to_gpio_rev1'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:34: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/py_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:33: multiple definition of `gpio_mode'; build/temp.linux-aarch64-cpython-311/source/common.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/common.h:33: first defined here
-      /usr/bin/ld: build/temp.linux-aarch64-cpython-311/source/soft_pwm.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/soft_pwm.c:28: multiple definition of `threads'; build/temp.linux-aarch64-cpython-311/source/event_gpio.o:/tmp/pip-install-6l7cmiux/rpi-gpio_e136dd1b9ba04e1bb511f44b1f3fb7bd/source/event_gpio.c:60: first defined here
-      collect2: error: ld returned 1 exit status
-      error: command '/usr/bin/aarch64-linux-gnu-gcc' failed with exit code 1
-      [end of output]
-  
-  note: This error originates from a subprocess, and is likely not a problem with pip.
-  ERROR: Failed building wheel for RPi.GPIO
-Failed to build RPi.GPIO
-ERROR: Failed to build installable wheels for some pyproject.toml based projects (RPi.GPIO)
+Installing collected packages: pip
+  Attempting uninstall: pip
+    Found existing installation: pip 23.0.1
+    Uninstalling pip-23.0.1:
+      Successfully uninstalled pip-23.0.1
+Successfully installed pip-25.0.1
+Installing dependencies from modified requirements file...
+Looking in indexes: https://pypi.org/simple, https://www.piwheels.org/simple
+Collecting gitpython==3.1.31 (from -r /tmp/requirements_modified.txt (line 3))
+  Using cached https://www.piwheels.org/simple/gitpython/GitPython-3.1.31-py3-none-any.whl (184 kB)
+Collecting requests==2.31.0 (from -r /tmp/requirements_modified.txt (line 6))
+  Using cached https://www.piwheels.org/simple/requests/requests-2.31.0-py3-none-any.whl (62 kB)
+Collecting slack_sdk==3.21.3 (from -r /tmp/requirements_modified.txt (line 9))
+  Using cached https://www.piwheels.org/simple/slack-sdk/slack_sdk-3.21.3-py3-none-any.whl (276 kB)
+Collecting virtualenv==20.24.3 (from -r /tmp/requirements_modified.txt (line 14))
+  Using cached https://www.piwheels.org/simple/virtualenv/virtualenv-20.24.3-py3-none-any.whl (3.0 MB)
+Requirement already satisfied: lgpio==0.2.2.0 in /usr/lib/python3/dist-packages (from -r /tmp/requirements_modified.txt (line 17)) (0.2.2.0)
+Collecting smbus2==0.4.1 (from -r /tmp/requirements_modified.txt (line 18))
+  Using cached https://www.piwheels.org/simple/smbus2/smbus2-0.4.1-py2.py3-none-any.whl (11 kB)
+Requirement already satisfied: Flask==2.2.2 in /usr/lib/python3/dist-packages (from -r /tmp/requirements_modified.txt (line 21)) (2.2.2)
+Requirement already satisfied: Jinja2==3.1.2 in /usr/lib/python3/dist-packages (from -r /tmp/requirements_modified.txt (line 22)) (3.1.2)
+Collecting jsonschema==4.23.0 (from -r /tmp/requirements_modified.txt (line 25))
+  Using cached https://www.piwheels.org/simple/jsonschema/jsonschema-4.23.0-py3-none-any.whl (88 kB)
+Collecting attrs==24.2.0 (from -r /tmp/requirements_modified.txt (line 26))
+  Using cached https://www.piwheels.org/simple/attrs/attrs-24.2.0-py3-none-any.whl (63 kB)
+Collecting certifi==2024.8.30 (from -r /tmp/requirements_modified.txt (line 29))
+  Using cached https://www.piwheels.org/simple/certifi/certifi-2024.8.30-py3-none-any.whl (167 kB)
+Collecting idna==3.10 (from -r /tmp/requirements_modified.txt (line 30))
+  Using cached https://www.piwheels.org/simple/idna/idna-3.10-py3-none-any.whl (70 kB)
+Requirement already satisfied: chardet==5.1.0 in /usr/lib/python3/dist-packages (from -r /tmp/requirements_modified.txt (line 31)) (5.1.0)
+Requirement already satisfied: cryptography==38.0.4 in /usr/lib/python3/dist-packages (from -r /tmp/requirements_modified.txt (line 32)) (38.0.4)
+Collecting matplotlib-inline==0.1.7 (from -r /tmp/requirements_modified.txt (line 35))
+  Using cached https://www.piwheels.org/simple/matplotlib-inline/matplotlib_inline-0.1.7-py3-none-any.whl (9.9 kB)
+Collecting gitdb<5,>=4.0.1 (from gitpython==3.1.31->-r /tmp/requirements_modified.txt (line 3))
+  Using cached https://www.piwheels.org/simple/gitdb/gitdb-4.0.12-py3-none-any.whl (62 kB)
+Requirement already satisfied: charset-normalizer<4,>=2 in /usr/lib/python3/dist-packages (from requests==2.31.0->-r /tmp/requirements_modified.txt (line 6)) (3.0.1)
+Requirement already satisfied: urllib3<3,>=1.21.1 in /usr/lib/python3/dist-packages (from requests==2.31.0->-r /tmp/requirements_modified.txt (line 6)) (1.26.12)
+Collecting distlib<1,>=0.3.7 (from virtualenv==20.24.3->-r /tmp/requirements_modified.txt (line 14))
+  Using cached https://www.piwheels.org/simple/distlib/distlib-0.3.9-py2.py3-none-any.whl (468 kB)
+Collecting filelock<4,>=3.12.2 (from virtualenv==20.24.3->-r /tmp/requirements_modified.txt (line 14))
+  Using cached https://www.piwheels.org/simple/filelock/filelock-3.18.0-py3-none-any.whl (16 kB)
+Collecting platformdirs<4,>=3.9.1 (from virtualenv==20.24.3->-r /tmp/requirements_modified.txt (line 14))
+  Using cached https://www.piwheels.org/simple/platformdirs/platformdirs-3.11.0-py3-none-any.whl (17 kB)
+Collecting jsonschema-specifications>=2023.03.6 (from jsonschema==4.23.0->-r /tmp/requirements_modified.txt (line 25))
+  Using cached https://www.piwheels.org/simple/jsonschema-specifications/jsonschema_specifications-2024.10.1-py3-none-any.whl (18 kB)
+Collecting referencing>=0.28.4 (from jsonschema==4.23.0->-r /tmp/requirements_modified.txt (line 25))
+  Using cached https://www.piwheels.org/simple/referencing/referencing-0.36.2-py3-none-any.whl (26 kB)
+Collecting rpds-py>=0.7.1 (from jsonschema==4.23.0->-r /tmp/requirements_modified.txt (line 25))
+  Using cached rpds_py-0.24.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.1 kB)
+Collecting traitlets (from matplotlib-inline==0.1.7->-r /tmp/requirements_modified.txt (line 35))
+  Using cached https://www.piwheels.org/simple/traitlets/traitlets-5.14.3-py3-none-any.whl (85 kB)
+Collecting smmap<6,>=3.0.1 (from gitdb<5,>=4.0.1->gitpython==3.1.31->-r /tmp/requirements_modified.txt (line 3))
+  Using cached https://www.piwheels.org/simple/smmap/smmap-5.0.2-py3-none-any.whl (24 kB)
+Requirement already satisfied: typing-extensions>=4.4.0 in /usr/lib/python3/dist-packages (from referencing>=0.28.4->jsonschema==4.23.0->-r /tmp/requirements_modified.txt (line 25)) (4.4.0)
+Using cached rpds_py-0.24.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (388 kB)
+WARNING: Error parsing dependencies of send2trash: Expected matching RIGHT_PARENTHESIS for LEFT_PARENTHESIS, after version specifier
+    sys-platform (=="darwin") ; extra == 'objc'
+                 ~^
+Installing collected packages: smbus2, distlib, traitlets, smmap, slack_sdk, rpds-py, platformdirs, idna, filelock, certifi, attrs, virtualenv, requests, referencing, matplotlib-inline, gitdb, jsonschema-specifications, gitpython, jsonschema
+  Attempting uninstall: smbus2
+    Found existing installation: smbus2 0.4.2
+    Not uninstalling smbus2 at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'smbus2'. No files were found to uninstall.
+  Attempting uninstall: platformdirs
+    Found existing installation: platformdirs 2.6.0
+    Not uninstalling platformdirs at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'platformdirs'. No files were found to uninstall.
+  Attempting uninstall: idna
+    Found existing installation: idna 3.3
+    Not uninstalling idna at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'idna'. No files were found to uninstall.
+  Attempting uninstall: certifi
+    Found existing installation: certifi 2022.9.24
+    Not uninstalling certifi at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'certifi'. No files were found to uninstall.
+  Attempting uninstall: attrs
+    Found existing installation: attrs 22.2.0
+    Not uninstalling attrs at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'attrs'. No files were found to uninstall.
+  Attempting uninstall: requests
+    Found existing installation: requests 2.28.1
+    Not uninstalling requests at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'requests'. No files were found to uninstall.
+  Attempting uninstall: jsonschema
+    Found existing installation: jsonschema 4.10.3
+    Not uninstalling jsonschema at /usr/lib/python3/dist-packages, outside environment /home/rrrinstaller/rodent-refreshment-regulator/venv
+    Can't uninstall 'jsonschema'. No files were found to uninstall.
+Successfully installed attrs-24.2.0 certifi-2024.8.30 distlib-0.3.9 filelock-3.18.0 gitdb-4.0.12 gitpython-3.1.31 idna-3.10 jsonschema-4.23.0 jsonschema-specifications-2024.10.1 matplotlib-inline-0.1.7 platformdirs-3.11.0 referencing-0.36.2 requests-2.31.0 rpds-py-0.24.0 slack_sdk-3.21.3 smbus2-0.4.1 smmap-5.0.2 traitlets-5.14.3 virtualenv-20.24.3
+Dependencies installed successfully.
 === Verifying slack_sdk installation ===
 slack_sdk is installed correctly.
 === Verifying PyQt5 is accessible ===
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-ModuleNotFoundError: No module named 'PyQt5'
-Warning: PyQt5 test failed. Installing system site packages...
-Retesting PyQt5 access...
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-AttributeError: module 'PyQt5' has no attribute 'QtCore'
-PyQt5 still not accessible. Please install manually after setup.
+PyQt5 version: 5.15.9
+=== Verifying RPi.GPIO is accessible ===
+RPi.GPIO version: 0.7.1a4
+=== Creating desktop shortcut ===
+=== Creating startup script ===
+=== Creating hardware test script ===
+
+=== Installation complete! ===
+To run the application, you can:
+1. Double-click the desktop shortcut
+2. Run the startup script: ~/rodent-refreshment-regulator/start_rrr.sh
+3. Manually navigate to the Project directory and run: python3 main.py
+
+To test hardware connectivity:
+Run: ~/rodent-refreshment-regulator/test_hardware.sh
+
+Note: A system reboot may be required for I2C changes to take effect.
+Would you like to reboot now? (y/n)
+
+
