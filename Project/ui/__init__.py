@@ -11,3 +11,23 @@ from .UserTab import UserTab
 from .create_schedule_dialog import CreateScheduleDialog
 from .relay_unit_widget import RelayUnitWidget
 from .animal_entry_widget import AnimalEntryWidget
+
+from .SettingsTab import SettingsTab
+from .HelpTab import HelpTab
+from .advanced_settings import AdvancedSettingsDialog
+from .SuggestSettingsTab import SuggestSettingsTab
+from .SlackCredentialsTab import SlackCredentialsTab
+from .update_notifier import UpdateNotifier
+
+__all__ = [
+    'RodentRefreshmentGUI',
+    'SettingsTab',
+    'UserTab',
+    'HelpTab',
+    'AdvancedSettingsDialog',
+    'SuggestSettingsTab',
+    'SlackCredentialsTab',
+    'AnimalsTab',
+    'SchedulesTab',
+    'UpdateNotifier'
+]

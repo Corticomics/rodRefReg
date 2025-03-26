@@ -29,20 +29,23 @@ class SchedulesTab(QWidget):
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
 
-        # Left Column: Available Animals
+        # Left Column: Available Animals - make narrower
         self.available_animals_widget = QWidget()
         self.available_animals_layout = QVBoxLayout()
+        self.available_animals_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
         self.available_animals_widget.setLayout(self.available_animals_layout)
+        self.available_animals_widget.setMaximumWidth(180)  # Limit width
 
         # Add delivery mode selector at the top
         mode_layout = QHBoxLayout()
-        self.mode_label = QLabel("Delivery Mode:")
+        self.mode_label = QLabel("Mode:")  # Shorter label text
+        self.mode_label.setMaximumWidth(40)  # Limit label width
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
         mode_layout.addWidget(self.mode_label)
         mode_layout.addWidget(self.mode_selector)
-        mode_layout.addStretch()
+        mode_layout.setSpacing(2)  # Reduce spacing
         self.available_animals_layout.insertLayout(0, mode_layout)
 
         reset_button = QPushButton("Reset All")
@@ -62,17 +65,25 @@ class SchedulesTab(QWidget):
                 background-color: #c82333;
             }
         """)
-        mode_layout.addWidget(reset_button)
+        self.available_animals_layout.addWidget(reset_button)
 
         self.animal_list = AvailableAnimalsList()
-        self.animal_list.setMinimumWidth(200)
+        self.animal_list.setStyleSheet("""
+            QListWidget {
+                font-size: 10px;
+            }
+            QListWidget::item {
+                padding: 2px;
+            }
+        """)
 
         self.available_animals_layout.addWidget(QLabel("Available Animals"))
         self.available_animals_layout.addWidget(self.animal_list)
 
-        # Center Column: Relay Units
+        # Center Column: Relay Units - give it more space
         self.relay_units_widget = QWidget()
         self.relay_units_layout = QVBoxLayout()
+        self.relay_units_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
         self.relay_units_widget.setLayout(self.relay_units_layout)
 
         # Scroll area for relay units to handle scalability
@@ -80,6 +91,8 @@ class SchedulesTab(QWidget):
         self.relay_units_scroll.setWidgetResizable(True)
         self.relay_units_container = QWidget()
         self.relay_units_container_layout = QVBoxLayout()
+        self.relay_units_container_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
+        self.relay_units_container_layout.setSpacing(5)  # Reduce spacing
         self.relay_units_container.setLayout(self.relay_units_container_layout)
         self.relay_units_scroll.setWidget(self.relay_units_container)
 
@@ -90,24 +103,34 @@ class SchedulesTab(QWidget):
         self.relay_unit_widgets = {}
         self.load_relay_units()
 
-        # Right Column: Saved Schedules
+        # Right Column: Saved Schedules - make narrower
         self.saved_schedules_widget = QWidget()
         self.saved_schedules_layout = QVBoxLayout()
+        self.saved_schedules_layout.setContentsMargins(5, 5, 5, 5)  # Reduce margins
         self.saved_schedules_widget.setLayout(self.saved_schedules_layout)
+        self.saved_schedules_widget.setMaximumWidth(180)  # Limit width
 
         self.schedule_list = QListWidget()
         self.schedule_list.setDragEnabled(True)
         self.schedule_list.setDefaultDropAction(Qt.MoveAction)
         self.schedule_list.itemClicked.connect(self.load_selected_schedule)
         self.schedule_list.mousePressEvent = self.schedule_list_mouse_press
+        self.schedule_list.setStyleSheet("""
+            QListWidget {
+                font-size: 10px;
+            }
+            QListWidget::item {
+                padding: 2px;
+            }
+        """)
 
         self.saved_schedules_layout.addWidget(QLabel("Saved Schedules"))
         self.saved_schedules_layout.addWidget(self.schedule_list)
 
-        # Add columns to main layout with stretch factors
-        self.layout.addWidget(self.available_animals_widget, stretch=1)
-        self.layout.addWidget(self.relay_units_widget, stretch=2)  # Increase stretch for Relay Units
-        self.layout.addWidget(self.saved_schedules_widget, stretch=1)
+        # Add columns to main layout with stretch factors - give center column more space
+        self.layout.addWidget(self.available_animals_widget, stretch=2)
+        self.layout.addWidget(self.relay_units_widget, stretch=6)  # Increase stretch for Relay Units
+        self.layout.addWidget(self.saved_schedules_widget, stretch=2)
 
         # Load animals and schedules
         self.load_animals()
