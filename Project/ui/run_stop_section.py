@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, 
                              QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, 
                              QHBoxLayout, QMessageBox, QComboBox, QDialog, QListWidget)
-from PyQt5.QtCore import QDateTime, QTimer, Qt, pyqtSignal
+from PyQt5.QtCore import QDateTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
 from gpio.relay_worker import RelayWorker
@@ -35,6 +35,7 @@ class RunStopSection(QWidget):
             self.load_settings(system_controller.settings)
 
         self.setAcceptDrops(True)
+        print("RunStopSection initialized")
 
     def init_ui(self):
         self.layout = QVBoxLayout()
@@ -80,7 +81,9 @@ class RunStopSection(QWidget):
         self.button_layout.addWidget(self.relay_hats_button)
 
         self.schedule_drop_area = ScheduleDropArea()
+        # Connect to the schedule_dropped signal explicitly using the pyqtSlot decorator
         self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
+        print("Connected schedule_dropped signal to on_schedule_dropped slot")
         
         self.layout.addLayout(self.button_layout)
         self.layout.addWidget(self.schedule_drop_area)
@@ -314,7 +317,9 @@ class RunStopSection(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to edit schedule: {str(e)}")
 
+    @pyqtSlot(object)
     def on_schedule_dropped(self, schedule):
+        print(f"Schedule dropped: {schedule.name if schedule else 'None'}")
         self.current_schedule = schedule
         self.edit_button.setEnabled(True)
         self.edit_button.setStyleSheet("""
@@ -332,7 +337,6 @@ class RunStopSection(QWidget):
                 background-color: #138496;
             }
         """)
-        self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
 
     def on_schedule_updated(self, updated_schedule):
         self.current_schedule = updated_schedule
