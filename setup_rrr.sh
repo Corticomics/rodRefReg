@@ -334,7 +334,7 @@ else
     # Create update notification for the app
     echo "Creating update notification..."
     UPDATE_DATE=$(date "+%Y-%m-%d %H:%M:%S")
-    cat > Project/ui_updated.json << EOF
+    cat > Project/ui_updated.json << EOJ
 {
     "updated": true,
     "date": "$UPDATE_DATE",
@@ -347,7 +347,7 @@ else
     "previous_commit": "$CURRENT_HASH",
     "new_commit": "$REMOTE_HASH"
 }
-EOF
+EOJ
     echo "Update notification created. User will be informed on next launch."
 fi
 
