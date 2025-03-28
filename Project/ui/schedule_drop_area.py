@@ -58,15 +58,30 @@ class ScheduleDropArea(QWidget):
         
     def dragEnterEvent(self, event):
         mime_data = event.mimeData()
-        if mime_data.hasFormat('application/x-schedule') or mime_data.hasText():
+        formats = mime_data.formats()
+        print(f"Drag enter event with formats: {formats}")
+        
+        if mime_data.hasFormat('application/x-schedule'):
+            print(f"Accepting drag with schedule data")
             event.acceptProposedAction()
+        elif mime_data.hasText():
+            print(f"Accepting drag with text: {mime_data.text()}")
+            event.acceptProposedAction()
+        else:
+            print(f"Rejecting drag - no recognized format")
             
     def dropEvent(self, event):
+        print(f"Drop event received")
         data = event.mimeData()
+        formats = data.formats()
+        print(f"Available formats: {formats}")
+        
         if data.hasFormat('application/x-schedule'):
             try:
+                print(f"Processing schedule data")
                 schedule_data = data.data('application/x-schedule')
                 schedule_dict = eval(bytes(schedule_data).decode())
+                print(f"Schedule dict: {schedule_dict}")
                 
                 # Get schedule details from database
                 schedule_details = self.database_handler.get_schedule_details(schedule_dict['schedule_id'])
@@ -74,6 +89,7 @@ class ScheduleDropArea(QWidget):
                     raise Exception("Schedule details not found in database")
                 
                 schedule_detail = schedule_details[0]
+                print(f"Retrieved schedule details: {schedule_detail}")
                 
                 # Create Schedule instance without relay_unit_id
                 self.current_schedule = Schedule(
@@ -109,7 +125,12 @@ class ScheduleDropArea(QWidget):
                 self.schedule_table.show()
                 self.update_table(self.current_schedule)
                 
+                # Emit the schedule_dropped signal
+                print(f"Emitting schedule_dropped signal with schedule: {self.current_schedule.name}")
+                self.schedule_dropped.emit(self.current_schedule)
+                
                 event.acceptProposedAction()
+                print(f"Drop event processing completed successfully")
                 
             except Exception as e:
                 print(f"Error processing schedule data: {e}")
@@ -117,8 +138,11 @@ class ScheduleDropArea(QWidget):
                 self.placeholder.setText("Error loading schedule")
         elif data.hasText():
             schedule_name = data.text()
+            print(f"Processing text drop: {schedule_name}")
             self.placeholder.setText(f"Schedule: {schedule_name}")
             event.acceptProposedAction()
+        else:
+            print(f"No recognized format in drop event")
     
     def clear(self):
         self.current_schedule = None

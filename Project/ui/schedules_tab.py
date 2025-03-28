@@ -81,6 +81,36 @@ class SchedulesTab(QWidget):
         actions_group = QGroupBox("Schedule Actions")
         actions_layout = QVBoxLayout()
         
+        # Add Schedule List widget
+        schedule_list_label = QLabel("Saved Schedules:")
+        schedule_list_label.setStyleSheet("font-weight: bold; margin-bottom: 5px;")
+        actions_layout.addWidget(schedule_list_label)
+        
+        self.schedule_list = QListWidget()
+        self.schedule_list.setSelectionMode(QListWidget.SingleSelection)
+        self.schedule_list.itemClicked.connect(self.load_selected_schedule)
+        # Connect mousePressEvent to handle dragging schedules
+        self.schedule_list.mousePressEvent = self.schedule_list_mouse_press
+        self.schedule_list.setDragEnabled(True)  # Enable dragging from the list
+        self.schedule_list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
+                padding: 5px;
+                margin-bottom: 10px;
+                background-color: #f8f9fa;
+            }
+            QListWidget::item {
+                border-bottom: 1px solid #f0f0f0;
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #1a73e8;
+            }
+        """)
+        actions_layout.addWidget(self.schedule_list)
+        
         # Apply Schedule button
         self.apply_button = QPushButton("Apply Schedule")
         self.apply_button.setMinimumHeight(40)
@@ -169,7 +199,30 @@ class SchedulesTab(QWidget):
         """)
         self.import_button.clicked.connect(self.import_schedule)
         
+        # Add Save Schedule button
+        self.save_button = QPushButton("Save Schedule")
+        self.save_button.setMinimumHeight(40)
+        self.save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:pressed {
+                background-color: #0f6674;
+            }
+        """)
+        self.save_button.clicked.connect(self.save_current_schedule)
+        
         # Add buttons to actions layout
+        actions_layout.addWidget(self.save_button)  # Add Save Schedule button
         actions_layout.addWidget(self.apply_button)
         actions_layout.addWidget(self.clear_button)
         actions_layout.addWidget(self.export_button)
@@ -407,6 +460,11 @@ class SchedulesTab(QWidget):
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""
+        # Safety check in case schedule_list hasn't been initialized yet
+        if not hasattr(self, 'schedule_list'):
+            self.print_to_terminal("Warning: schedule_list not initialized. Skipping schedule loading.")
+            return
+            
         self.schedule_list.clear()
         current_trainer = self.login_system.get_current_trainer()
         if current_trainer:
@@ -592,7 +650,11 @@ class SchedulesTab(QWidget):
         """Refresh the UI components."""
         self.available_animals_list.clear()  # Clear the list first
         self.load_animals()  # Reload animals
-        self.load_schedules()
+        
+        # Only try to load schedules if schedule_list exists
+        if hasattr(self, 'schedule_list'):
+            self.load_schedules()
+            
         # Clear relay unit assignments
         for relay_widget in self.relay_units.values():
             relay_widget.clear_assignments()
@@ -653,6 +715,7 @@ class SchedulesTab(QWidget):
         if event.button() == Qt.LeftButton:
             item = self.schedule_list.itemAt(event.pos())
             if item:
+                print(f"Starting drag for schedule: {item.text()}")
                 # Clear previous selection
                 self.schedule_list.clearSelection()
                 # Select the new item
@@ -682,7 +745,13 @@ class SchedulesTab(QWidget):
                     
                     mime_data.setData('application/x-schedule', str(schedule_data).encode())
                     drag.setMimeData(mime_data)
+                    print(f"Starting drag operation with mime type: application/x-schedule")
                     drag.exec_(Qt.CopyAction)
+                    print(f"Drag operation completed")
+                else:
+                    print(f"Could not find schedule details for ID: {schedule.schedule_id}")
+            else:
+                print(f"No item found at position: {event.pos()}")
         
         # Call the parent's mouse press event
         super(QListWidget, self.schedule_list).mousePressEvent(event)
