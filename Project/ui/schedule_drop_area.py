@@ -108,18 +108,59 @@ class ScheduleDropArea(QWidget):
         
         if mime_data.hasFormat('application/x-schedule'):
             print(f"Accepting drag with schedule data")
+            # Change the appearance to indicate a valid drop target
+            self.drop_widget.setStyleSheet("""
+                QWidget {
+                    background-color: #e8f0fe; 
+                    border: 3px solid #1a73e8;
+                    border-radius: 4px;
+                    min-height: 80px;
+                }
+            """)
             event.acceptProposedAction()
         elif mime_data.hasText():
             print(f"Accepting drag with text: {mime_data.text()}")
+            # Change the appearance to indicate a valid drop target
+            self.drop_widget.setStyleSheet("""
+                QWidget {
+                    background-color: #e8f0fe; 
+                    border: 3px solid #1a73e8;
+                    border-radius: 4px;
+                    min-height: 80px;
+                }
+            """)
             event.acceptProposedAction()
         else:
             print(f"Rejecting drag - no recognized format")
+            
+    def dragLeaveEvent(self, event):
+        """Reset appearance when drag leaves the area"""
+        print("Drag left the drop area")
+        # Reset the appearance
+        self.drop_widget.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa; 
+                border: 2px dashed #1a73e8;
+                border-radius: 4px;
+                min-height: 80px;
+            }
+        """)
             
     def dropEvent(self, event):
         print(f"Drop event received")
         data = event.mimeData()
         formats = data.formats()
         print(f"Available formats: {formats}")
+        
+        # Reset the appearance
+        self.drop_widget.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa; 
+                border: 2px dashed #1a73e8;
+                border-radius: 4px;
+                min-height: 80px;
+            }
+        """)
         
         if data.hasFormat('application/x-schedule'):
             try:

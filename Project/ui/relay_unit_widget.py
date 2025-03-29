@@ -328,9 +328,38 @@ class RelayUnitWidget(QWidget):
             event (QDragEnterEvent): The drag enter event.
         """
         if event.mimeData().hasFormat('application/x-animal-id'):
+            # Change the appearance to indicate a valid drop target
+            self.drag_area_label.setStyleSheet("""
+                background-color: #e8f0fe; 
+                border: 3px solid #1a73e8; 
+                font-size: 14px;
+                color: #1a73e8;
+                font-weight: bold;
+                min-height: 50px;
+                border-radius: 4px;
+                padding: 8px;
+            """)
             event.acceptProposedAction()
         else:
             event.ignore()
+            
+    def dragLeaveEvent(self, event):
+        """
+        Handle the drag leave event.
+        
+        Args:
+            event (QDragLeaveEvent): The drag leave event.
+        """
+        # Reset the appearance
+        self.drag_area_label.setStyleSheet("""
+            background-color: #f8f9fa; 
+            border: 2px dashed #1a73e8; 
+            font-size: 14px;
+            color: #5f6368;
+            min-height: 50px;
+            border-radius: 4px;
+            padding: 8px;
+        """)
 
     def dropEvent(self, event):
         """
@@ -339,6 +368,17 @@ class RelayUnitWidget(QWidget):
         Args:
             event (QDropEvent): The drop event.
         """
+        # Reset the appearance
+        self.drag_area_label.setStyleSheet("""
+            background-color: #f8f9fa; 
+            border: 2px dashed #1a73e8; 
+            font-size: 14px;
+            color: #5f6368;
+            min-height: 50px;
+            border-radius: 4px;
+            padding: 8px;
+        """)
+        
         source_widget = event.source()
         if isinstance(source_widget, AvailableAnimalsList):  # Ensure source is the custom list
             mime = event.mimeData()
@@ -370,6 +410,7 @@ class RelayUnitWidget(QWidget):
                             break
                 else:
                     QMessageBox.warning(self, "Drag Error", "Failed to retrieve animal data.")
+        
         event.acceptProposedAction()
 
     def add_animal(self, animal):
