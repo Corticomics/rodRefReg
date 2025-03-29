@@ -38,16 +38,3 @@ class ProjectsSection(QWidget):
         self.tab_widget.addTab(self.animals_tab, "Animals")
 
         self.layout.addWidget(self.tab_widget)
-
-        # Add the "Save Current Schedule" button back
-        self.save_schedule_button = QPushButton("Save Current Schedule")
-        self.save_schedule_button.clicked.connect(self.save_current_schedule)
-        self.layout.addWidget(self.save_schedule_button)
-
-    def save_current_schedule(self):
-        # Call the save_current_schedule method of the schedules_tab
-        try:
-            self.schedules_tab.save_current_schedule()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"An error occurred while saving the schedule: {e}")
-            self.print_to_terminal(f"Error saving schedule: {e}")

@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
-    QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView, QComboBox
+    QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView, QComboBox, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QDateTime
 from models.animal import Animal
@@ -61,28 +61,37 @@ class AnimalsTab(QWidget):
         self.animals_table.setHorizontalHeaderLabels(headers)
         
         # Configure table properties with improved sizing
-        # Switch to Interactive to allow manual adjustment but fix initial widths
-        self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        # Use Fixed mode for all columns except the last one
+        for i in range(7):
+            self.animals_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.Fixed)
         
         # Set specific column widths to ensure all information is visible
-        self.animals_table.setColumnWidth(0, 120)  # Lab Animal ID - wider
-        self.animals_table.setColumnWidth(1, 120)  # Name - wider
-        self.animals_table.setColumnWidth(2, 80)   # Sex - wider
-        self.animals_table.setColumnWidth(3, 130)  # Initial Weight - wider
-        self.animals_table.setColumnWidth(4, 110)  # Last Weight - wider
-        self.animals_table.setColumnWidth(5, 160)  # Last Weighted - wider
-        self.animals_table.setColumnWidth(6, 160)  # Last Watering - wider
+        self.animals_table.setColumnWidth(0, 120)  # Lab Animal ID
+        self.animals_table.setColumnWidth(1, 120)  # Name
+        self.animals_table.setColumnWidth(2, 80)   # Sex
+        self.animals_table.setColumnWidth(3, 130)  # Initial Weight
+        self.animals_table.setColumnWidth(4, 110)  # Last Weight
+        self.animals_table.setColumnWidth(5, 160)  # Last Weighted
+        self.animals_table.setColumnWidth(6, 160)  # Last Watering
+        
+        # Make the last column stretch to fill available space
+        self.animals_table.horizontalHeader().setStretchLastSection(True)
+        
+        # Set size policy to expand horizontally
+        self.animals_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         # Set row height and hide vertical headers for cleaner look
         self.animals_table.verticalHeader().setDefaultSectionSize(40) # Taller rows
         self.animals_table.verticalHeader().setVisible(False)  # Hide row numbers
         
-        # Set size policies for better display
+        # Dynamic height based on content
         self.animals_table.setSizeAdjustPolicy(QTableWidget.AdjustToContents)
-        self.animals_table.setMinimumHeight(300)  # Ensure table has enough height
+        self.animals_table.setMinimumHeight(150)  # More conservative minimum height
+        self.animals_table.setMaximumHeight(400)  # Add maximum height to prevent excessive space
         
-        # Enable horizontal scrolling if needed
+        # Enable horizontal scrolling if needed but make it fill container width
         self.animals_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.animals_table.setMinimumWidth(self.width())  # Make table full width of container
         
         # Improve table appearance with alternating colors and grid
         self.animals_table.setAlternatingRowColors(True)
@@ -90,33 +99,75 @@ class AnimalsTab(QWidget):
         self.animals_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
-                border: 1px solid #e0e4e8;
+                border: 1px solid #1a73e8;      /* Blue border to match theme */
                 border-radius: 8px;
-                padding: 8px;
-                gridline-color: #e0e4e8;  /* Lighter grid lines */
+                padding: 4px;
+                gridline-color: #d0d0d0;        /* Darker grid lines */
             }
             QTableWidget::item {
                 padding: 8px;
                 border-bottom: 1px solid #e0e4e8;
+                color: #333333;                  /* Darker text for readability */
+                font-weight: 500;                /* Semi-bold text */
             }
             QTableWidget::item:selected {
-                background-color: #e8f0fe;
-                color: #1a73e8;
+                background-color: #e8f0fe;       /* Light blue selection */
+                color: #1a73e8;                  /* Blue text on selection */
             }
             QHeaderView::section {
-                background-color: #f8f9fa;
-                color: #5f6368;
-                padding: 10px 8px;  /* More vertical padding */
-                border: 1px solid #e0e4e8;
-                border-bottom: 2px solid #d0d0d0;  /* Emphasize bottom border */
-                font-weight: 600;  /* Bolder headers */
-                font-size: 13px;  /* Larger font size */
+                background-color: #e8f0fe;       /* Light blue headers */
+                color: #1a73e8;                  /* Blue text for headers */
+                padding: 10px 8px;               /* More vertical padding */
+                border: 1px solid #1a73e8;       /* Blue border */
+                border-bottom: 2px solid #1a73e8;/* Emphasize bottom border */
+                font-weight: 600;                /* Bolder headers */
+                font-size: 13px;                 /* Larger font size */
+            }
+            /* When table is empty, show a nicer message */
+            QTableWidget[empty="true"]::item {
+                border: none;
+                padding: 20px;
+                text-align: center;
+            }
+            /* Scrollbar styling - appear only on hover */
+            QScrollBar:horizontal {
+                height: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
+                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
+            }
+            /* Hide scrollbar when not needed */
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0px;
+                height: 0px;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: transparent;
+            }
+            /* Hide scrollbar until hover */
+            QTableWidget:hover QScrollBar::handle:horizontal, 
+            QTableWidget:hover QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.5);  /* Show on table hover */
             }
         """)
 
         # Add table to layout with a title
         table_container = QWidget()
         table_layout = QVBoxLayout(table_container)
+        table_layout.setContentsMargins(0, 0, 0, 0)  # Reduce container margins
         table_label = QLabel("Animals")
         table_label.setStyleSheet("""
             QLabel {
@@ -423,3 +474,19 @@ class AnimalsTab(QWidget):
         except Exception as e:
             self.print_to_terminal(f"Error refreshing schedules tab: {e}")
             traceback.print_exc()
+
+    def resizeEvent(self, event):
+        """Handle resize events to adjust table width to match container"""
+        super().resizeEvent(event)
+        # Update table width to match container width
+        if hasattr(self, 'animals_table'):
+            available_width = self.width() - 20  # Account for layout margins
+            self.animals_table.setMinimumWidth(available_width)
+            
+            # Redistribute column widths based on available space
+            if available_width > 800:  # For wide screens, give more space to timestamps
+                self.animals_table.setColumnWidth(5, 180)  # Last Weighted
+                self.animals_table.setColumnWidth(6, 180)  # Last Watering
+            
+            # Force update
+            self.animals_table.updateGeometry()

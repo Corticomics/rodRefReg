@@ -4,8 +4,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
     QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt5.QtGui import QDrag
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize
+from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
@@ -216,6 +216,44 @@ class SchedulesTab(QWidget):
             QTableWidget::item {
                 padding: 4px 8px;
                 border-bottom: 1px solid #f0f0f0;
+            }
+            
+            /* Scrollbar styling - appear only on hover */
+            QScrollBar:horizontal {
+                height: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
+                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
+            }
+            /* Hide scrollbar when not needed */
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0px;
+                height: 0px;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: transparent;
+            }
+            /* Hide scrollbar until hover */
+            QScrollArea:hover QScrollBar::handle:horizontal, 
+            QScrollArea:hover QScrollBar::handle:vertical,
+            QListWidget:hover QScrollBar::handle:horizontal,
+            QListWidget:hover QScrollBar::handle:vertical,
+            QTableWidget:hover QScrollBar::handle:horizontal, 
+            QTableWidget:hover QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.5);  /* Show on hover */
             }
         """)
 
@@ -552,10 +590,11 @@ class SchedulesTab(QWidget):
                     if animal:
                         animals.append(animal)
                 
-                # Set data based on mode
+                # Set data based on mode - update to use new parameter names
                 if schedule_detail.get('delivery_mode') == 'instant':
                     relay_widget.set_data(
                         animals=animals,
+                        desired_water_output=schedule_detail.get('desired_water_outputs', {}),
                         delivery_schedule=schedule_detail.get('delivery_schedule', [])
                     )
                 else:
@@ -610,6 +649,51 @@ class SchedulesTab(QWidget):
                 drag = QDrag(self.schedule_list)
                 drag.setMimeData(mime_data)
                 
+                # Create a visual representation for dragging
+                pixmap = QPixmap(320, 80)  # Fixed size for the drag image
+                pixmap.fill(Qt.transparent)  # Start with transparent background
+                
+                painter = QPainter(pixmap)
+                painter.setRenderHint(QPainter.Antialiasing)
+                
+                # Draw rounded rectangle background with gradient
+                gradient = QLinearGradient(0, 0, 0, 80)
+                gradient.setColorAt(0, QColor("#e8f0fe"))
+                gradient.setColorAt(1, QColor("#c2d9fc"))
+                
+                painter.setBrush(gradient)
+                painter.setPen(QPen(QColor("#1a73e8"), 2))  # Blue border
+                painter.drawRoundedRect(0, 0, pixmap.width(), pixmap.height(), 10, 10)
+                
+                # Draw schedule information
+                painter.setFont(QFont("Arial", 12, QFont.Bold))
+                painter.setPen(QColor("#1a73e8"))  # Blue text
+                painter.drawText(QRect(15, 10, pixmap.width() - 30, 25), 
+                                 Qt.AlignLeft | Qt.AlignVCenter, 
+                                 f"Schedule: {schedule.name}")
+                
+                # Draw additional schedule details
+                painter.setFont(QFont("Arial", 9))
+                painter.setPen(QColor("#5f6368"))  # Gray text
+                
+                # Get count of animals in this schedule
+                animal_count = len(schedule_detail['animal_ids'])
+                delivery_mode = schedule_detail['delivery_mode'].capitalize()
+                
+                painter.drawText(QRect(15, 35, pixmap.width() - 30, 20), 
+                                 Qt.AlignLeft | Qt.AlignVCenter, 
+                                 f"Mode: {delivery_mode} • Animals: {animal_count}")
+                
+                painter.drawText(QRect(15, 55, pixmap.width() - 30, 20), 
+                                 Qt.AlignLeft | Qt.AlignVCenter, 
+                                 f"Drag to Run/Stop section to execute...")
+                
+                painter.end()
+                
+                # Apply the pixmap to the drag object
+                drag.setPixmap(pixmap)
+                drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))  # Center the pixmap
+                
                 # Clear selection after drag completes
                 drag.finished.connect(lambda: self.schedule_list.clearSelection())
                 
@@ -663,6 +747,52 @@ class SchedulesTab(QWidget):
                     
                     mime_data.setData('application/x-schedule', str(schedule_data).encode())
                     drag.setMimeData(mime_data)
+                    
+                    # Create a visual representation for dragging
+                    pixmap = QPixmap(320, 80)  # Fixed size for the drag image
+                    pixmap.fill(Qt.transparent)  # Start with transparent background
+                    
+                    painter = QPainter(pixmap)
+                    painter.setRenderHint(QPainter.Antialiasing)
+                    
+                    # Draw rounded rectangle background with gradient
+                    gradient = QLinearGradient(0, 0, 0, 80)
+                    gradient.setColorAt(0, QColor("#e8f0fe"))
+                    gradient.setColorAt(1, QColor("#c2d9fc"))
+                    
+                    painter.setBrush(gradient)
+                    painter.setPen(QPen(QColor("#1a73e8"), 2))  # Blue border
+                    painter.drawRoundedRect(0, 0, pixmap.width(), pixmap.height(), 10, 10)
+                    
+                    # Draw schedule information
+                    painter.setFont(QFont("Arial", 12, QFont.Bold))
+                    painter.setPen(QColor("#1a73e8"))  # Blue text
+                    painter.drawText(QRect(15, 10, pixmap.width() - 30, 25), 
+                                     Qt.AlignLeft | Qt.AlignVCenter, 
+                                     f"Schedule: {schedule.name}")
+                    
+                    # Draw additional schedule details
+                    painter.setFont(QFont("Arial", 9))
+                    painter.setPen(QColor("#5f6368"))  # Gray text
+                    
+                    # Get count of animals in this schedule
+                    animal_count = len(schedule_detail['animal_ids'])
+                    delivery_mode = schedule_detail['delivery_mode'].capitalize()
+                    
+                    painter.drawText(QRect(15, 35, pixmap.width() - 30, 20), 
+                                     Qt.AlignLeft | Qt.AlignVCenter, 
+                                     f"Mode: {delivery_mode} • Animals: {animal_count}")
+                    
+                    painter.drawText(QRect(15, 55, pixmap.width() - 30, 20), 
+                                     Qt.AlignLeft | Qt.AlignVCenter, 
+                                     f"Drag to Run/Stop section to execute...")
+                    
+                    painter.end()
+                    
+                    # Apply the pixmap to the drag object
+                    drag.setPixmap(pixmap)
+                    drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))  # Center the pixmap
+                    
                     print(f"Starting drag operation with mime type: application/x-schedule")
                     drag.exec_(Qt.CopyAction)
                     print(f"Drag operation completed")

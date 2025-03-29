@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QMessageBox, QLineEdit, QHBoxLayout, QPushButton, QDateTimeEdit,
-    QScrollArea, QComboBox
+    QScrollArea, QComboBox, QHeaderView, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
 from models.animal import Animal
@@ -137,45 +137,97 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
         
         # Set fixed row height and improved visual appearance
-        self.animal_table.verticalHeader().setDefaultSectionSize(40)
+        self.animal_table.verticalHeader().setDefaultSectionSize(50)  # Taller rows for better text display
         self.animal_table.verticalHeader().setVisible(False)  # Hide row numbers
         
-        # Set specific column widths for better visibility
-        self.animal_table.setColumnWidth(0, 80)   # Lab ID
-        self.animal_table.setColumnWidth(1, 100)  # Name
-        self.animal_table.setColumnWidth(2, 100)  # Last Weight
-        self.animal_table.setColumnWidth(3, 120)  # Last Watering
+        # Set absolute minimum column widths to ensure data visibility
+        self.animal_table.setColumnWidth(0, 90)   # Lab ID: minimum 90px
+        self.animal_table.setColumnWidth(1, 110)  # Name: minimum 110px
+        self.animal_table.setColumnWidth(2, 110)  # Last Weight: minimum 110px
+        self.animal_table.setColumnWidth(3, 140)  # Last Watering: minimum 140px
+        
+        # Set size policy to expand and fill available space
+        self.animal_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         # Fix table size and appearance
+        # Make the last column stretch to fill remaining space
         self.animal_table.horizontalHeader().setStretchLastSection(True)
+        
+        # Allow word wrap for better text display
+        self.animal_table.setWordWrap(True)
+        
+        # Fix specific settings for better appearance
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
-        self.animal_table.setMinimumHeight(70)  # Ensure it has minimum height
-        self.animal_table.setMaximumHeight(90)  # Limit height but not too small
-        self.animal_table.setShowGrid(True)  # Show grid for better visibility
+        self.animal_table.setMinimumHeight(100)   # Increase minimum height for better text display
+        self.animal_table.setMaximumHeight(120)   # Increase maximum height
+        self.animal_table.setShowGrid(True)       # Show grid for better visibility
         self.animal_table.setAlternatingRowColors(True)  # Alternate row colors
         
-        # Enhanced table styling
+        # Enhanced table styling with better contrast and readability
         self.animal_table.setStyleSheet("""
             QTableWidget {
-                font-size: 12px;
-                border: 1px solid #c0c0c0;
+                font-size: 13px;              /* Larger font size for readability */
+                border: 1px solid #1a73e8;    /* Blue border to match application theme */
                 border-radius: 4px;
-                gridline-color: #e0e4e8;
+                gridline-color: #d0d0d0;      /* Darker grid lines for visibility */
                 background-color: white;
             }
             QHeaderView::section {
-                font-size: 12px;
+                font-size: 13px;              /* Larger font */
                 font-weight: bold;
-                padding: 6px;
-                background-color: #f0f2f5;
-                border: 1px solid #c0c0c0;
-                border-bottom: 2px solid #a0a0a0;
-                color: #333;
+                padding: 8px;                 /* More padding */
+                background-color: #e8f0fe;    /* Light blue header background */
+                border: 1px solid #1a73e8;    /* Blue border to match theme */
+                border-bottom: 2px solid #1a73e8;
+                color: #1a73e8;               /* Blue text for headers */
             }
             QTableWidget::item {
-                padding: 6px;
+                padding: 8px;                 /* More padding in cells */
                 border-bottom: 1px solid #e0e4e8;
+                color: #333333;               /* Darker text for better readability */
+                font-weight: 500;             /* Slightly bolder text */
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f0fe;    /* Light blue selection */
+                color: #1a73e8;               /* Blue text on selection */
+            }
+            /* Scrollbar styling - appear only on hover */
+            QScrollBar:horizontal {
+                height: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
+                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
+            }
+            /* Hide scrollbar when not needed */
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0px;
+                height: 0px;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: transparent;
+            }
+            /* Hide scrollbar until hover */
+            QTableWidget {
+                /* Start with transparent scrollbars */
+                scrollbar-width: thin;
+            }
+            QTableWidget:hover QScrollBar::handle:horizontal, 
+            QTableWidget:hover QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.5);  /* Show on table hover */
             }
         """)
         self.layout.addWidget(self.animal_table)
@@ -184,11 +236,13 @@ class RelayUnitWidget(QWidget):
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.recommended_water_label.setStyleSheet("""
             font-size: 13px;
-            padding: 6px;
-            background-color: #f5f5f5;
+            padding: 8px;
+            background-color: #e8f0fe;         /* Light blue background */
+            border: 1px solid #1a73e8;         /* Blue border */
             border-radius: 4px;
-            color: #333;
+            color: #1a73e8;                    /* Blue text to match theme */
             font-weight: 500;
+            margin-top: 4px;
         """)
         self.layout.addWidget(self.recommended_water_label)
 
@@ -274,9 +328,38 @@ class RelayUnitWidget(QWidget):
             event (QDragEnterEvent): The drag enter event.
         """
         if event.mimeData().hasFormat('application/x-animal-id'):
+            # Change the appearance to indicate a valid drop target
+            self.drag_area_label.setStyleSheet("""
+                background-color: #e8f0fe; 
+                border: 3px solid #1a73e8; 
+                font-size: 14px;
+                color: #1a73e8;
+                font-weight: bold;
+                min-height: 50px;
+                border-radius: 4px;
+                padding: 8px;
+            """)
             event.acceptProposedAction()
         else:
             event.ignore()
+            
+    def dragLeaveEvent(self, event):
+        """
+        Handle the drag leave event.
+        
+        Args:
+            event (QDragLeaveEvent): The drag leave event.
+        """
+        # Reset the appearance
+        self.drag_area_label.setStyleSheet("""
+            background-color: #f8f9fa; 
+            border: 2px dashed #1a73e8; 
+            font-size: 14px;
+            color: #5f6368;
+            min-height: 50px;
+            border-radius: 4px;
+            padding: 8px;
+        """)
 
     def dropEvent(self, event):
         """
@@ -285,6 +368,17 @@ class RelayUnitWidget(QWidget):
         Args:
             event (QDropEvent): The drop event.
         """
+        # Reset the appearance
+        self.drag_area_label.setStyleSheet("""
+            background-color: #f8f9fa; 
+            border: 2px dashed #1a73e8; 
+            font-size: 14px;
+            color: #5f6368;
+            min-height: 50px;
+            border-radius: 4px;
+            padding: 8px;
+        """)
+        
         source_widget = event.source()
         if isinstance(source_widget, AvailableAnimalsList):  # Ensure source is the custom list
             mime = event.mimeData()
@@ -316,6 +410,7 @@ class RelayUnitWidget(QWidget):
                             break
                 else:
                     QMessageBox.warning(self, "Drag Error", "Failed to retrieve animal data.")
+        
         event.acceptProposedAction()
 
     def add_animal(self, animal):
@@ -329,10 +424,34 @@ class RelayUnitWidget(QWidget):
 
         # Update the animal information table
         self.animal_table.setRowCount(1)
-        self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
-        self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
-        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
-        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
+        
+        # Format the weight and last watering data properly with clear formatting
+        last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
+        
+        # Format last watering with better readability
+        if animal.last_watering:
+            try:
+                # Parse the datetime string
+                watering_date = datetime.fromisoformat(animal.last_watering)
+                # Format it in a readable way
+                last_watering_text = watering_date.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                # Fallback if parsing fails
+                last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+        else:
+            last_watering_text = "Never"
+        
+        # Create table items with formatted data
+        lab_id_item = QTableWidgetItem(animal.lab_animal_id)
+        name_item = QTableWidgetItem(animal.name)
+        weight_item = QTableWidgetItem(last_weight_text)
+        watering_item = QTableWidgetItem(last_watering_text)
+        
+        # Set items in table
+        self.animal_table.setItem(0, 0, lab_id_item)
+        self.animal_table.setItem(0, 1, name_item)
+        self.animal_table.setItem(0, 2, weight_item)
+        self.animal_table.setItem(0, 3, watering_item)
 
         # Align text to center for better readability
         for column in range(4):
@@ -348,6 +467,15 @@ class RelayUnitWidget(QWidget):
 
         # Hide the drag area since an animal is now assigned
         self.drag_area_label.hide()
+        
+        # Force table to resize rows based on content
+        self.animal_table.resizeRowsToContents()
+        
+        # Update minimum width to ensure all content is visible
+        self.ensure_table_width()
+        
+        # Force layout update
+        self.update()
 
     def calculate_recommended_water(self, animal):
         """
@@ -360,6 +488,8 @@ class RelayUnitWidget(QWidget):
             float: Recommended water volume in milliliters.
         """
         weight = animal.last_weight if animal.last_weight is not None else animal.initial_weight
+        if weight is None:
+            return 0.0
         recommended_water = round(weight * 0.1, 2)  # Example: 10% of body weight
         return recommended_water
 
@@ -436,18 +566,89 @@ class RelayUnitWidget(QWidget):
         
         return data
 
-    def set_data(self, animals, desired_water_output):
+    def set_data(self, animals, desired_water_output=None, delivery_schedule=None):
         """
         Set the data for the relay unit.
 
         Args:
             animals (list): A list of Animal instances to assign.
-            desired_water_output (dict): Desired water output per animal_id.
+            desired_water_output (dict, optional): Desired water output per animal_id.
+            delivery_schedule (list, optional): Schedule for instant delivery mode.
         """
         self.clear_assignments()
         if animals:
             animal = animals[0]  # Assuming only one animal per relay unit
-            self.add_animal(animal)
+            self.assigned_animal = animal  # Set the assigned animal
+            
+            # Update the animal table with proper formatting
+            self.animal_table.setRowCount(1)
+            
+            # Format the weight and last watering data properly with clear formatting
+            last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
+            
+            # Format last watering with better readability
+            if animal.last_watering:
+                try:
+                    # Parse the datetime string
+                    watering_date = datetime.fromisoformat(animal.last_watering)
+                    # Format it in a readable way
+                    last_watering_text = watering_date.strftime("%Y-%m-%d")
+                except (ValueError, TypeError):
+                    # Fallback if parsing fails
+                    last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+            else:
+                last_watering_text = "Never"
+            
+            # Create table items with formatted data
+            lab_id_item = QTableWidgetItem(animal.lab_animal_id)
+            name_item = QTableWidgetItem(animal.name)
+            weight_item = QTableWidgetItem(last_weight_text)
+            watering_item = QTableWidgetItem(last_watering_text)
+            
+            # Set items in table with center alignment
+            for i, item in enumerate([lab_id_item, name_item, weight_item, watering_item]):
+                item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                self.animal_table.setItem(0, i, item)
+            
+            # Calculate and display recommended water volume
+            recommended_volume = self.calculate_recommended_water(animal)
+            self.recommended_water_label.setText(f"Recommended water volume: {recommended_volume:.2f} mL")
+            
+            # Hide the drag area since an animal is now assigned
+            self.drag_area_label.hide()
+            
+            # Force table to resize rows based on content
+            self.animal_table.resizeRowsToContents()
+            
+            # Update minimum width to ensure all content is visible
+            self.ensure_table_width()
+            
+            # If delivery schedule is provided (for instant mode)
+            if delivery_schedule and isinstance(delivery_schedule, list):
+                self.set_mode("Instant")
+                # Clear any existing slots
+                self.clear_instant_slots()
+                
+                # Add delivery slots
+                for delivery in delivery_schedule:
+                    self.add_instant_slot_button.click()  # Create new slot
+                    # Find the last added slot
+                    if self.delivery_slots:
+                        slot = self.delivery_slots[-1]
+                        # Set slot data if possible
+                        if hasattr(slot, 'volume_input') and hasattr(slot, 'datetime_picker'):
+                            try:
+                                slot.volume_input.setText(str(delivery.get('volume', 0)))
+                                # Handle datetime if present
+                                if 'datetime' in delivery:
+                                    dt = delivery['datetime']
+                                    if hasattr(slot.datetime_picker, 'setDateTime'):
+                                        slot.datetime_picker.setDateTime(dt)
+                            except (AttributeError, TypeError) as e:
+                                print(f"Error setting delivery slot data: {e}")
+            
+            # Force update to ensure proper display
+            self.update()
 
     def clear_assignments(self):
         """
@@ -571,17 +772,46 @@ class RelayUnitWidget(QWidget):
     def update_animal_info(self, animal):
         """Update the animal information display"""
         self.animal_table.setRowCount(1)
-        self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
-        self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
-        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
-        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
+        
+        # Format the data properly with clear formatting
+        last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
+        
+        # Format last watering with better readability
+        if animal.last_watering:
+            try:
+                # Parse the datetime string
+                watering_date = datetime.fromisoformat(animal.last_watering)
+                # Format it in a readable way
+                last_watering_text = watering_date.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                # Fallback if parsing fails
+                last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+        else:
+            last_watering_text = "Never"
+            
+        # Create table items with formatted data
+        lab_id_item = QTableWidgetItem(animal.lab_animal_id)
+        name_item = QTableWidgetItem(animal.name)
+        weight_item = QTableWidgetItem(last_weight_text)
+        watering_item = QTableWidgetItem(last_watering_text)
+        
+        # Set items in table with center alignment
+        for i, item in enumerate([lab_id_item, name_item, weight_item, watering_item]):
+            item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            self.animal_table.setItem(0, i, item)
         
         # Update recommended water label if weight is available
         if animal.last_weight:
-            recommended = self.calculate_recommended_water(animal.last_weight)
+            recommended = self.calculate_recommended_water(animal)
             self.recommended_water_label.setText(f"Recommended water volume: {recommended:.2f} mL")
         else:
             self.recommended_water_label.setText("Recommended water volume: N/A")
+            
+        # Force table to resize rows based on content
+        self.animal_table.resizeRowsToContents()
+        
+        # Update minimum width
+        self.ensure_table_width()
 
     def clear_animal_info(self):
         """Clear all animal information from the display"""
@@ -593,3 +823,31 @@ class RelayUnitWidget(QWidget):
         for slot in self.delivery_slots:
             slot.deleteLater()
         self.delivery_slots.clear()
+
+    def resizeEvent(self, event):
+        """Handle resize events to adjust table to fit container"""
+        super().resizeEvent(event)
+        self.ensure_table_width()
+    
+    def ensure_table_width(self):
+        """Make sure table width is sufficient to display all content"""
+        if hasattr(self, 'animal_table') and self.animal_table.isVisible():
+            # Get available width (accounting for layout margins)
+            available_width = self.width() - 20
+            
+            # Set minimum table width to available width
+            self.animal_table.setMinimumWidth(available_width)
+            
+            # Set column widths proportionally
+            col_widths = [0.20, 0.25, 0.25, 0.30]  # Proportions for each column
+            
+            for i, proportion in enumerate(col_widths):
+                min_width = [90, 110, 110, 140][i]  # Minimum widths by column
+                width = max(min_width, int(available_width * proportion))
+                
+                # Don't set width for the last column if stretch is enabled
+                if i < len(col_widths) - 1 or not self.animal_table.horizontalHeader().stretchLastSection():
+                    self.animal_table.setColumnWidth(i, width)
+            
+            # Force table to update its layout
+            self.animal_table.updateGeometry()
