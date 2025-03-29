@@ -60,38 +60,44 @@ class AnimalsTab(QWidget):
         headers = ["Lab Animal ID", "Name", "Sex", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
         self.animals_table.setHorizontalHeaderLabels(headers)
         
-        # Configure table properties - Fix the sizing issue
+        # Configure table properties with improved sizing
+        # Switch to Interactive to allow manual adjustment but fix initial widths
         self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         
         # Set specific column widths to ensure all information is visible
-        self.animals_table.setColumnWidth(0, 100)  # Lab Animal ID
-        self.animals_table.setColumnWidth(1, 100)  # Name
-        self.animals_table.setColumnWidth(2, 70)   # Sex
-        self.animals_table.setColumnWidth(3, 110)  # Initial Weight
-        self.animals_table.setColumnWidth(4, 90)   # Last Weight
-        self.animals_table.setColumnWidth(5, 140)  # Last Weighted
-        self.animals_table.setColumnWidth(6, 140)  # Last Watering
+        self.animals_table.setColumnWidth(0, 120)  # Lab Animal ID - wider
+        self.animals_table.setColumnWidth(1, 120)  # Name - wider
+        self.animals_table.setColumnWidth(2, 80)   # Sex - wider
+        self.animals_table.setColumnWidth(3, 130)  # Initial Weight - wider
+        self.animals_table.setColumnWidth(4, 110)  # Last Weight - wider
+        self.animals_table.setColumnWidth(5, 160)  # Last Weighted - wider
+        self.animals_table.setColumnWidth(6, 160)  # Last Watering - wider
         
-        # Set height per row and size policy
-        self.animals_table.verticalHeader().setDefaultSectionSize(30)
+        # Set row height and hide vertical headers for cleaner look
+        self.animals_table.verticalHeader().setDefaultSectionSize(40) # Taller rows
         self.animals_table.verticalHeader().setVisible(False)  # Hide row numbers
+        
+        # Set size policies for better display
         self.animals_table.setSizeAdjustPolicy(QTableWidget.AdjustToContents)
+        self.animals_table.setMinimumHeight(300)  # Ensure table has enough height
         
         # Enable horizontal scrolling if needed
         self.animals_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
+        # Improve table appearance with alternating colors and grid
         self.animals_table.setAlternatingRowColors(True)
-        self.animals_table.setShowGrid(False)
+        self.animals_table.setShowGrid(True)  # Show grid lines for better visibility
         self.animals_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
                 border: 1px solid #e0e4e8;
                 border-radius: 8px;
                 padding: 8px;
+                gridline-color: #e0e4e8;  /* Lighter grid lines */
             }
             QTableWidget::item {
                 padding: 8px;
-                border-bottom: 1px solid #f0f0f0;
+                border-bottom: 1px solid #e0e4e8;
             }
             QTableWidget::item:selected {
                 background-color: #e8f0fe;
@@ -100,11 +106,11 @@ class AnimalsTab(QWidget):
             QHeaderView::section {
                 background-color: #f8f9fa;
                 color: #5f6368;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #e0e4e8;
-                font-weight: 500;
-                font-size: 12px;
+                padding: 10px 8px;  /* More vertical padding */
+                border: 1px solid #e0e4e8;
+                border-bottom: 2px solid #d0d0d0;  /* Emphasize bottom border */
+                font-weight: 600;  /* Bolder headers */
+                font-size: 13px;  /* Larger font size */
             }
         """)
 
@@ -204,7 +210,7 @@ class AnimalsTab(QWidget):
             for col in range(7):
                 item = self.animals_table.item(row_position, col)
                 if item:
-                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
 
             # Store the original timestamp in the item's data for sorting
             last_weighted_item.setData(Qt.UserRole, animal.last_weighted or "")
@@ -212,11 +218,11 @@ class AnimalsTab(QWidget):
 
             lab_animal_id_item.setData(Qt.UserRole, animal)
 
-            # Optional: Set row height
-            self.animals_table.setRowHeight(row_position, 30)
+            # Set fixed row height for better appearance
+            self.animals_table.setRowHeight(row_position, 40)
 
         # Resize rows and make sure all data is visible after populating
-        self.animals_table.resizeRowsToContents()
+        self.animals_table.resizeColumnsToContents()  # Ensure columns fit content
 
     def load_animals(self):
         """Load animals from the database, filtered by trainer_id if available."""
