@@ -106,7 +106,12 @@ class RelayUnitWidget(QWidget):
         # Title Label
         self.title_label = QLabel(f"Relay Unit {relay_unit.unit_id}")
         self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet("font-weight: bold;")  # Make title visible
+        self.title_label.setStyleSheet("""
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            padding: 4px;
+        """)
         self.layout.addWidget(self.title_label)
 
         # Drag-and-Drop Area - keep visible
@@ -114,39 +119,77 @@ class RelayUnitWidget(QWidget):
         self.drag_area_label.setAlignment(Qt.AlignCenter)
         self.drag_area_label.setStyleSheet("""
             background-color: #f8f9fa; 
-            border: 2px dashed #e0e0e0; 
+            border: 2px dashed #1a73e8; 
             font-size: 14px;
-            min-height: 40px;
+            color: #5f6368;
+            min-height: 50px;
+            border-radius: 4px;
+            padding: 8px;
         """)
         self.layout.addWidget(self.drag_area_label)
 
         # Enable drag-and-drop
         self.setAcceptDrops(True)
 
-        # Animal Information Table - more reasonable constraints
+        # Animal Information Table - improved sizing and formatting
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
         self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
+        
+        # Set fixed row height and improved visual appearance
+        self.animal_table.verticalHeader().setDefaultSectionSize(40)
+        self.animal_table.verticalHeader().setVisible(False)  # Hide row numbers
+        
+        # Set specific column widths for better visibility
+        self.animal_table.setColumnWidth(0, 80)   # Lab ID
+        self.animal_table.setColumnWidth(1, 100)  # Name
+        self.animal_table.setColumnWidth(2, 100)  # Last Weight
+        self.animal_table.setColumnWidth(3, 120)  # Last Watering
+        
+        # Fix table size and appearance
         self.animal_table.horizontalHeader().setStretchLastSection(True)
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
-        self.animal_table.verticalHeader().setVisible(False)
-        self.animal_table.setMinimumHeight(60)  # Ensure it has minimum height
-        self.animal_table.setMaximumHeight(80)  # Limit height but not too small
+        self.animal_table.setMinimumHeight(70)  # Ensure it has minimum height
+        self.animal_table.setMaximumHeight(90)  # Limit height but not too small
+        self.animal_table.setShowGrid(True)  # Show grid for better visibility
+        self.animal_table.setAlternatingRowColors(True)  # Alternate row colors
+        
+        # Enhanced table styling
         self.animal_table.setStyleSheet("""
             QTableWidget {
                 font-size: 12px;
+                border: 1px solid #c0c0c0;
+                border-radius: 4px;
+                gridline-color: #e0e4e8;
+                background-color: white;
             }
             QHeaderView::section {
                 font-size: 12px;
-                padding: 3px;
+                font-weight: bold;
+                padding: 6px;
+                background-color: #f0f2f5;
+                border: 1px solid #c0c0c0;
+                border-bottom: 2px solid #a0a0a0;
+                color: #333;
+            }
+            QTableWidget::item {
+                padding: 6px;
+                border-bottom: 1px solid #e0e4e8;
             }
         """)
         self.layout.addWidget(self.animal_table)
 
-        # Water Volume Display
+        # Water Volume Display - improved styling
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
-        self.recommended_water_label.setStyleSheet("font-size: 12px;")
+        self.recommended_water_label.setStyleSheet("""
+            font-size: 13px;
+            padding: 6px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            color: #333;
+            font-weight: 500;
+        """)
         self.layout.addWidget(self.recommended_water_label)
 
         # Instant Delivery Components
@@ -172,7 +215,7 @@ class RelayUnitWidget(QWidget):
         self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
         self.add_instant_slot_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
@@ -180,7 +223,10 @@ class RelayUnitWidget(QWidget):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #1666d4;
+            }
+            QPushButton:pressed {
+                background-color: #125bbf;
             }
         """)
         self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
@@ -197,7 +243,7 @@ class RelayUnitWidget(QWidget):
         self.add_staggered_slot_button = QPushButton("+ Add Time Window")
         self.add_staggered_slot_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
@@ -205,7 +251,10 @@ class RelayUnitWidget(QWidget):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #1666d4;
+            }
+            QPushButton:pressed {
+                background-color: #125bbf;
             }
         """)
         self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
@@ -287,7 +336,11 @@ class RelayUnitWidget(QWidget):
 
         # Align text to center for better readability
         for column in range(4):
-            self.animal_table.item(0, column).setTextAlignment(Qt.AlignCenter)
+            item = self.animal_table.item(0, column)
+            if item:
+                item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                # Set a light background color for better readability
+                item.setBackground(Qt.white)
 
         # Calculate and display recommended water volume
         recommended_volume = self.calculate_recommended_water(animal)

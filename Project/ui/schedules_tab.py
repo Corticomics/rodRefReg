@@ -30,9 +30,27 @@ class SchedulesTab(QWidget):
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(10, 10, 10, 10)  # Restore reasonable margins
         
+        # Common GroupBox style for all columns
+        groupbox_style = """
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #e0e4e8;
+                border-radius: 8px;
+                margin-top: 1.5ex;
+                background-color: white;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 5px;
+                background-color: white;
+            }
+        """
+        
         # Available animals section (left column)
         self.available_animals_list = AvailableAnimalsList(self.database_handler, self)
         available_animals_group = QGroupBox("Available Animals")
+        available_animals_group.setStyleSheet(groupbox_style)
         available_animals_layout = QVBoxLayout()
         
         # Add mode selector at the top
@@ -73,19 +91,39 @@ class SchedulesTab(QWidget):
         self.relay_units_container.setWidget(relay_units_widget)
         
         relay_units_group = QGroupBox("Relay Units")
+        relay_units_group.setStyleSheet(groupbox_style)
         relay_units_group_layout = QVBoxLayout()
+        
+        # Add Clear All Assignments button at the top
+        self.clear_assignments_button = QPushButton("Clear All Assignments")
+        self.clear_assignments_button.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
+        self.clear_assignments_button.clicked.connect(self.clear_all)
+        relay_units_group_layout.addWidget(self.clear_assignments_button)
         relay_units_group_layout.addWidget(self.relay_units_container)
         relay_units_group.setLayout(relay_units_group_layout)
         
-        # Schedule actions section (right column)
-        actions_group = QGroupBox("Schedule Actions")
-        actions_layout = QVBoxLayout()
+        # Saved schedules section (right column)
+        schedules_group = QGroupBox("Saved Schedules")
+        schedules_group.setStyleSheet(groupbox_style)
+        schedules_layout = QVBoxLayout()
         
-        # Add Schedule List widget
-        schedule_list_label = QLabel("Saved Schedules:")
-        schedule_list_label.setStyleSheet("font-weight: bold; margin-bottom: 5px;")
-        actions_layout.addWidget(schedule_list_label)
-        
+        # Schedule list widget with improved styling
         self.schedule_list = QListWidget()
         self.schedule_list.setSelectionMode(QListWidget.SingleSelection)
         self.schedule_list.itemClicked.connect(self.load_selected_schedule)
@@ -109,102 +147,14 @@ class SchedulesTab(QWidget):
                 color: #1a73e8;
             }
         """)
-        actions_layout.addWidget(self.schedule_list)
+        schedules_layout.addWidget(self.schedule_list)
         
-        # Apply Schedule button
-        self.apply_button = QPushButton("Apply Schedule")
-        self.apply_button.setMinimumHeight(40)
-        self.apply_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0069d9;
-            }
-            QPushButton:pressed {
-                background-color: #0062cc;
-            }
-        """)
-        self.apply_button.clicked.connect(self.apply_schedule)
-        
-        # Clear All button
-        self.clear_button = QPushButton("Clear All")
-        self.clear_button.setMinimumHeight(40)
-        self.clear_button.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
-        self.clear_button.clicked.connect(self.clear_all)
-        
-        # Export Schedule button
-        self.export_button = QPushButton("Export Schedule")
-        self.export_button.setMinimumHeight(40)
-        self.export_button.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
-        """)
-        self.export_button.clicked.connect(self.export_schedule)
-        
-        # Import Schedule button
-        self.import_button = QPushButton("Import Schedule")
-        self.import_button.setMinimumHeight(40)
-        self.import_button.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5a6268;
-            }
-            QPushButton:pressed {
-                background-color: #545b62;
-            }
-        """)
-        self.import_button.clicked.connect(self.import_schedule)
-        
-        # Add Save Schedule button
+        # Save Schedule button - the only button we'll keep
         self.save_button = QPushButton("Save Schedule")
         self.save_button.setMinimumHeight(40)
         self.save_button.setStyleSheet("""
             QPushButton {
-                background-color: #17a2b8;
+                background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
@@ -213,28 +163,22 @@ class SchedulesTab(QWidget):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #138496;
+                background-color: #1666d4;
             }
             QPushButton:pressed {
-                background-color: #0f6674;
+                background-color: #125bbf;
             }
         """)
         self.save_button.clicked.connect(self.save_current_schedule)
+        schedules_layout.addWidget(self.save_button)
         
-        # Add buttons to actions layout
-        actions_layout.addWidget(self.save_button)  # Add Save Schedule button
-        actions_layout.addWidget(self.apply_button)
-        actions_layout.addWidget(self.clear_button)
-        actions_layout.addWidget(self.export_button)
-        actions_layout.addWidget(self.import_button)
-        actions_layout.addStretch()
-        
-        actions_group.setLayout(actions_layout)
+        schedules_layout.addStretch()
+        schedules_group.setLayout(schedules_layout)
         
         # Set column proportions (1:2:1 ratio)
         main_layout.addWidget(available_animals_group, 1)  # Left column - 25%
         main_layout.addWidget(relay_units_group, 2)        # Middle column - 50% 
-        main_layout.addWidget(actions_group, 1)           # Right column - 25%
+        main_layout.addWidget(schedules_group, 1)          # Right column - 25%
         
         self.setLayout(main_layout)
         
@@ -250,32 +194,6 @@ class SchedulesTab(QWidget):
 
         # Connect refresh to login system changes
         self.login_system.login_status_changed.connect(self.refresh)
-
-        # After creating mode_selector
-        self.mode_selector.setStyleSheet("""
-            QComboBox {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 120px;
-                font-size: 12px;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox::down-arrow {
-                image: url(:/icons/down-arrow.png);
-            }
-            QComboBox QAbstractItemView {
-                background-color: #1a73e8;
-                color: #202124;
-                selection-background-color: #f8f9fa;
-                selection-color: white;
-            }
-        """)
 
         # Refine table headers styling
         self.setStyleSheet("""

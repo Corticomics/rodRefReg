@@ -57,37 +57,47 @@ class AnimalsTab(QWidget):
         self.animals_table.setColumnCount(7)
         
         # Set headers with proper styling
-        headers = ["Lab Animal ID", "Name", "Gender", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
+        headers = ["Lab Animal ID", "Name", "Sex", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
         self.animals_table.setHorizontalHeaderLabels(headers)
         
-        # Configure table properties - adjust column stretch behavior
-        # Use Custom width instead of Stretch for better control
+        # Configure table properties with improved sizing
+        # Switch to Interactive to allow manual adjustment but fix initial widths
         self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         
         # Set specific column widths to ensure all information is visible
-        self.animals_table.setColumnWidth(0, 100)  # Lab Animal ID
-        self.animals_table.setColumnWidth(1, 100)  # Name
-        self.animals_table.setColumnWidth(2, 70)   # Gender
-        self.animals_table.setColumnWidth(3, 110)  # Initial Weight
-        self.animals_table.setColumnWidth(4, 90)   # Last Weight
-        self.animals_table.setColumnWidth(5, 140)  # Last Weighted
-        self.animals_table.setColumnWidth(6, 140)  # Last Watering
+        self.animals_table.setColumnWidth(0, 120)  # Lab Animal ID - wider
+        self.animals_table.setColumnWidth(1, 120)  # Name - wider
+        self.animals_table.setColumnWidth(2, 80)   # Sex - wider
+        self.animals_table.setColumnWidth(3, 130)  # Initial Weight - wider
+        self.animals_table.setColumnWidth(4, 110)  # Last Weight - wider
+        self.animals_table.setColumnWidth(5, 160)  # Last Weighted - wider
+        self.animals_table.setColumnWidth(6, 160)  # Last Watering - wider
+        
+        # Set row height and hide vertical headers for cleaner look
+        self.animals_table.verticalHeader().setDefaultSectionSize(40) # Taller rows
+        self.animals_table.verticalHeader().setVisible(False)  # Hide row numbers
+        
+        # Set size policies for better display
+        self.animals_table.setSizeAdjustPolicy(QTableWidget.AdjustToContents)
+        self.animals_table.setMinimumHeight(300)  # Ensure table has enough height
         
         # Enable horizontal scrolling if needed
         self.animals_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         
+        # Improve table appearance with alternating colors and grid
         self.animals_table.setAlternatingRowColors(True)
-        self.animals_table.setShowGrid(False)
+        self.animals_table.setShowGrid(True)  # Show grid lines for better visibility
         self.animals_table.setStyleSheet("""
             QTableWidget {
                 background-color: white;
                 border: 1px solid #e0e4e8;
                 border-radius: 8px;
                 padding: 8px;
+                gridline-color: #e0e4e8;  /* Lighter grid lines */
             }
             QTableWidget::item {
-                padding: 12px;
-                border-bottom: 1px solid #f0f0f0;
+                padding: 8px;
+                border-bottom: 1px solid #e0e4e8;
             }
             QTableWidget::item:selected {
                 background-color: #e8f0fe;
@@ -96,11 +106,11 @@ class AnimalsTab(QWidget):
             QHeaderView::section {
                 background-color: #f8f9fa;
                 color: #5f6368;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #e0e4e8;
-                font-weight: 500;
-                font-size: 12px;
+                padding: 10px 8px;  /* More vertical padding */
+                border: 1px solid #e0e4e8;
+                border-bottom: 2px solid #d0d0d0;  /* Emphasize bottom border */
+                font-weight: 600;  /* Bolder headers */
+                font-size: 13px;  /* Larger font size */
             }
         """)
 
@@ -181,7 +191,7 @@ class AnimalsTab(QWidget):
 
             lab_animal_id_item = QTableWidgetItem(animal.lab_animal_id)
             name_item = QTableWidgetItem(animal.name)
-            gender_item = QTableWidgetItem(animal.gender if animal.gender else "N/A")
+            sex_item = QTableWidgetItem(animal.sex if animal.sex else "N/A")
             initial_weight_item = QTableWidgetItem(f"{animal.initial_weight:.1f}" if animal.initial_weight else "N/A")
             last_weight_item = QTableWidgetItem(f"{animal.last_weight:.1f}" if animal.last_weight else "N/A")
             last_weighted_item = QTableWidgetItem(last_weighted_text)
@@ -190,7 +200,7 @@ class AnimalsTab(QWidget):
             # Set items in table
             self.animals_table.setItem(row_position, 0, lab_animal_id_item)
             self.animals_table.setItem(row_position, 1, name_item)
-            self.animals_table.setItem(row_position, 2, gender_item)
+            self.animals_table.setItem(row_position, 2, sex_item)
             self.animals_table.setItem(row_position, 3, initial_weight_item)
             self.animals_table.setItem(row_position, 4, last_weight_item)
             self.animals_table.setItem(row_position, 5, last_weighted_item)
@@ -200,7 +210,7 @@ class AnimalsTab(QWidget):
             for col in range(7):
                 item = self.animals_table.item(row_position, col)
                 if item:
-                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
 
             # Store the original timestamp in the item's data for sorting
             last_weighted_item.setData(Qt.UserRole, animal.last_weighted or "")
@@ -208,11 +218,11 @@ class AnimalsTab(QWidget):
 
             lab_animal_id_item.setData(Qt.UserRole, animal)
 
-            # Optional: Set row height
-            self.animals_table.setRowHeight(row_position, 30)
+            # Set fixed row height for better appearance
+            self.animals_table.setRowHeight(row_position, 40)
 
         # Resize rows and make sure all data is visible after populating
-        self.animals_table.resizeRowsToContents()
+        self.animals_table.resizeColumnsToContents()  # Ensure columns fit content
 
     def load_animals(self):
         """Load animals from the database, filtered by trainer_id if available."""
@@ -265,10 +275,10 @@ class AnimalsTab(QWidget):
         last_watering_input.setCalendarPopup(True)
         last_watering_input.setDateTime(QDateTime.currentDateTime())
 
-        # Add gender selection combo box
-        gender_combo = QComboBox()
-        gender_combo.addItems(["Select Gender", "male", "female"])
-        gender_combo.setCurrentText("Select Gender")
+        # Add sex selection combo box
+        sex_combo = QComboBox()
+        sex_combo.addItems(["Select Sex", "male", "female"])
+        sex_combo.setCurrentText("Select Sex")
 
         form_layout.addRow("Lab Animal ID:", lab_animal_id_input)
         form_layout.addRow("Name:", name_input)
@@ -276,7 +286,7 @@ class AnimalsTab(QWidget):
         form_layout.addRow("Last Weight (g):", last_weight_input)
         form_layout.addRow("Last Time Weighted:", last_weighted_input)
         form_layout.addRow("Last Watering:", last_watering_input)
-        form_layout.addRow("Gender:", gender_combo)
+        form_layout.addRow("Sex:", sex_combo)
         layout.addLayout(form_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -293,9 +303,9 @@ class AnimalsTab(QWidget):
                 last_weight_text = last_weight_input.text().strip()
                 last_weighted = last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm")
                 last_watering = last_watering_input.dateTime().toString("yyyy-MM-dd HH:mm")
-                gender = gender_combo.currentText()
-                if gender == "Select Gender":
-                    gender = None
+                sex = sex_combo.currentText()
+                if sex == "Select Sex":
+                    sex = None
 
                 # Validate inputs
                 if not lab_animal_id or not name:
@@ -313,7 +323,7 @@ class AnimalsTab(QWidget):
                     last_weight,
                     last_weighted,
                     last_watering,
-                    gender
+                    sex
                 )
                 current_trainer = self.login_system.get_current_trainer()
                 trainer_id = current_trainer['trainer_id'] if current_trainer else None
@@ -323,6 +333,7 @@ class AnimalsTab(QWidget):
                 if animal_id:
                     self.print_to_terminal(f"Animal '{name}' added with ID: {lab_animal_id}.")
                     self.load_animals()
+                    self.notify_schedules_tab()  # Notify schedules tab of the change
                 else:
                     QMessageBox.warning(self, "Add Error", "Failed to add animal. ID might already exist.")
 
@@ -384,7 +395,7 @@ class AnimalsTab(QWidget):
                     last_weight=updated_info['last_weight'],
                     last_weighted=updated_info['last_weighted'],
                     last_watering=updated_info['last_watering'],
-                    gender=updated_info['gender']
+                    sex=updated_info['sex']
                 )
 
                 # Update the animal in the database
@@ -393,6 +404,22 @@ class AnimalsTab(QWidget):
                 # Notify and refresh
                 self.print_to_terminal(f"Updated animal '{updated_animal.name}' (Lab ID: {updated_animal.lab_animal_id}).")
                 self.load_animals()
+                self.notify_schedules_tab()  # Notify schedules tab of the change
         except Exception as e:
             QMessageBox.critical(self, "Edit Error", f"Error updating animal: {e}")
             self.print_to_terminal(f"Unhandled exception in edit_animal: {e}")
+
+    def notify_schedules_tab(self):
+        """Notify the schedules tab that animals have been updated"""
+        try:
+            # Find the parent widget and access the schedules_tab
+            parent = self.parent()
+            while parent and not hasattr(parent, 'schedules_tab'):
+                parent = parent.parent()
+                
+            if parent and hasattr(parent, 'schedules_tab'):
+                parent.schedules_tab.refresh()
+                self.print_to_terminal("Refreshed schedules tab after animal update")
+        except Exception as e:
+            self.print_to_terminal(f"Error refreshing schedules tab: {e}")
+            traceback.print_exc()

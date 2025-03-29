@@ -75,7 +75,7 @@ class DatabaseHandler:
                         last_watering TEXT,
                         last_water_volume REAL,
                         trainer_id INTEGER,
-                        gender TEXT CHECK(gender IN ('male', 'female')) DEFAULT NULL,
+                        sex TEXT CHECK(sex IN ('male', 'female')) DEFAULT NULL,
                         FOREIGN KEY(trainer_id) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -203,14 +203,14 @@ class DatabaseHandler:
                     )
                 ''')
 
-                # Add gender column to animals table if it doesn't exist
+                # Add sex column to animals table if it doesn't exist
                 cursor.execute("PRAGMA table_info(animals)")
                 columns = [col[1] for col in cursor.fetchall()]
                 
-                if 'gender' not in columns:
+                if 'sex' not in columns:
                     cursor.execute('''
                         ALTER TABLE animals
-                        ADD COLUMN gender TEXT CHECK(gender IN ('male', 'female')) DEFAULT NULL
+                        ADD COLUMN sex TEXT CHECK(sex IN ('male', 'female')) DEFAULT NULL
                     ''')
 
                 conn.commit()
@@ -665,20 +665,20 @@ class DatabaseHandler:
             return False
         
     def add_animal(self, animal, trainer_id):
-        """Add a new animal with lab_animal_id, gender, and trainer association."""
+        """Add a new animal with lab_animal_id, sex, and trainer association."""
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO animals (
                         lab_animal_id, name, initial_weight, last_weight, 
-                        last_weighted, last_watering, trainer_id, gender
+                        last_weighted, last_watering, trainer_id, sex
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     animal.lab_animal_id, animal.name, animal.initial_weight, 
                     animal.last_weight, animal.last_weighted, animal.last_watering, 
-                    trainer_id, animal.gender
+                    trainer_id, animal.sex
                 ))
                 conn.commit()
                 return cursor.lastrowid
@@ -699,12 +699,12 @@ class DatabaseHandler:
                     UPDATE animals
                     SET lab_animal_id = ?, name = ?, initial_weight = ?, 
                         last_weight = ?, last_weighted = ?, last_watering = ?,
-                        gender = ?
+                        sex = ?
                     WHERE animal_id = ?
                 ''', (
                     animal.lab_animal_id, animal.name, animal.initial_weight,
                     animal.last_weight, animal.last_weighted, animal.last_watering,
-                    animal.gender, animal.animal_id
+                    animal.sex, animal.animal_id
                 ))
                 conn.commit()
                 if cursor.rowcount > 0:
@@ -738,7 +738,7 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT animal_id, lab_animal_id, name, initial_weight, 
-                           last_weight, last_weighted, last_watering, gender 
+                           last_weight, last_weighted, last_watering, sex 
                     FROM animals
                 ''')
                 rows = cursor.fetchall()
@@ -751,7 +751,7 @@ class DatabaseHandler:
                         last_weight=row[4],
                         last_weighted=row[5],
                         last_watering=row[6],
-                        gender=row[7]
+                        sex=row[7]
                     )
                     animals.append(animal)
         except sqlite3.Error as e:
@@ -767,7 +767,7 @@ class DatabaseHandler:
                 cursor = conn.cursor()
                 cursor.execute(
                     '''SELECT animal_id, lab_animal_id, name, initial_weight, 
-                              last_weight, last_weighted, last_watering, gender 
+                              last_weight, last_weighted, last_watering, sex 
                        FROM animals 
                        WHERE trainer_id = ?''',
                     (int(trainer_id),)
@@ -783,7 +783,7 @@ class DatabaseHandler:
                         last_weight=row[4],
                         last_weighted=row[5],
                         last_watering=row[6],
-                        gender=row[7]
+                        sex=row[7]
                     )
                     animals.append(animal)
         except sqlite3.Error as e:
