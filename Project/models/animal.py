@@ -2,7 +2,7 @@
 
 class Animal:
     def __init__(self, animal_id=None, lab_animal_id=None, name=None, initial_weight=None, 
-                 last_weight=None, last_weighted=None, last_watering=None, gender=None):
+                 last_weight=None, last_weighted=None, last_watering=None, sex=None):
         self.animal_id = animal_id
         self.lab_animal_id = lab_animal_id
         self.name = name
@@ -10,7 +10,7 @@ class Animal:
         self.last_weight = last_weight
         self.last_weighted = last_weighted
         self.last_watering = last_watering
-        self.gender = gender
+        self.sex = sex
         self.water_history = []
         self.recommended_volume = None
 
@@ -23,7 +23,7 @@ class Animal:
             'last_weight': self.last_weight,
             'last_weighted': self.last_weighted,
             'last_watering': self.last_watering,
-            'gender': self.gender
+            'sex': self.sex
         }
 
     @staticmethod

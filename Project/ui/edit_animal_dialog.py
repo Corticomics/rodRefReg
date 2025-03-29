@@ -16,11 +16,11 @@ class EditAnimalDialog(QDialog):
         layout = QVBoxLayout()
         form_layout = QFormLayout()
 
-        # Add gender selection
-        self.gender_combo = QComboBox()
-        self.gender_combo.addItems(["Select Gender", "male", "female"])
-        current_gender = animal_data.get('gender', "Select Gender")
-        self.gender_combo.setCurrentText(current_gender if current_gender else "Select Gender")
+        # Add sex selection
+        self.sex_combo = QComboBox()
+        self.sex_combo.addItems(["Select Sex", "male", "female"])
+        current_sex = animal_data.get('sex', "Select Sex")
+        self.sex_combo.setCurrentText(current_sex if current_sex else "Select Sex")
 
         self.name_input = QLineEdit(animal_data['name'])
         self.initial_weight_input = QLineEdit(str(animal_data['initial_weight']))
@@ -48,7 +48,7 @@ class EditAnimalDialog(QDialog):
             self.last_watering_input.setDateTime(QDateTime.currentDateTime())
 
         form_layout.addRow("Name:", self.name_input)
-        form_layout.addRow("Gender:", self.gender_combo)
+        form_layout.addRow("Sex:", self.sex_combo)
         form_layout.addRow("Initial Weight (g):", self.initial_weight_input)
         form_layout.addRow("Last Weight (g):", self.last_weight_input)
         form_layout.addRow("Last Time Weighted:", self.last_weighted_input)
@@ -63,13 +63,13 @@ class EditAnimalDialog(QDialog):
 
     def accept(self):
         try:
-            gender = self.gender_combo.currentText()
-            if gender == "Select Gender":
-                gender = None
+            sex = self.sex_combo.currentText()
+            if sex == "Select Sex":
+                sex = None
 
             self.updated_info = {
                 'name': self.name_input.text().strip(),
-                'gender': gender,
+                'sex': sex,
                 'initial_weight': float(self.initial_weight_input.text().strip()),
                 'last_weight': float(self.last_weight_input.text().strip()) if self.last_weight_input.text().strip() else None,
                 'last_weighted': self.last_weighted_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss.zzz"),

@@ -57,7 +57,7 @@ class AnimalsTab(QWidget):
         self.animals_table.setColumnCount(7)
         
         # Set headers with proper styling
-        headers = ["Lab Animal ID", "Name", "Gender", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
+        headers = ["Lab Animal ID", "Name", "Sex", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
         self.animals_table.setHorizontalHeaderLabels(headers)
         
         # Configure table properties - adjust column stretch behavior
@@ -67,7 +67,7 @@ class AnimalsTab(QWidget):
         # Set specific column widths to ensure all information is visible
         self.animals_table.setColumnWidth(0, 100)  # Lab Animal ID
         self.animals_table.setColumnWidth(1, 100)  # Name
-        self.animals_table.setColumnWidth(2, 70)   # Gender
+        self.animals_table.setColumnWidth(2, 70)   # Sex
         self.animals_table.setColumnWidth(3, 110)  # Initial Weight
         self.animals_table.setColumnWidth(4, 90)   # Last Weight
         self.animals_table.setColumnWidth(5, 140)  # Last Weighted
@@ -181,7 +181,7 @@ class AnimalsTab(QWidget):
 
             lab_animal_id_item = QTableWidgetItem(animal.lab_animal_id)
             name_item = QTableWidgetItem(animal.name)
-            gender_item = QTableWidgetItem(animal.gender if animal.gender else "N/A")
+            sex_item = QTableWidgetItem(animal.sex if animal.sex else "N/A")
             initial_weight_item = QTableWidgetItem(f"{animal.initial_weight:.1f}" if animal.initial_weight else "N/A")
             last_weight_item = QTableWidgetItem(f"{animal.last_weight:.1f}" if animal.last_weight else "N/A")
             last_weighted_item = QTableWidgetItem(last_weighted_text)
@@ -190,7 +190,7 @@ class AnimalsTab(QWidget):
             # Set items in table
             self.animals_table.setItem(row_position, 0, lab_animal_id_item)
             self.animals_table.setItem(row_position, 1, name_item)
-            self.animals_table.setItem(row_position, 2, gender_item)
+            self.animals_table.setItem(row_position, 2, sex_item)
             self.animals_table.setItem(row_position, 3, initial_weight_item)
             self.animals_table.setItem(row_position, 4, last_weight_item)
             self.animals_table.setItem(row_position, 5, last_weighted_item)
@@ -265,10 +265,10 @@ class AnimalsTab(QWidget):
         last_watering_input.setCalendarPopup(True)
         last_watering_input.setDateTime(QDateTime.currentDateTime())
 
-        # Add gender selection combo box
-        gender_combo = QComboBox()
-        gender_combo.addItems(["Select Gender", "male", "female"])
-        gender_combo.setCurrentText("Select Gender")
+        # Add sex selection combo box
+        sex_combo = QComboBox()
+        sex_combo.addItems(["Select Sex", "male", "female"])
+        sex_combo.setCurrentText("Select Sex")
 
         form_layout.addRow("Lab Animal ID:", lab_animal_id_input)
         form_layout.addRow("Name:", name_input)
@@ -276,7 +276,7 @@ class AnimalsTab(QWidget):
         form_layout.addRow("Last Weight (g):", last_weight_input)
         form_layout.addRow("Last Time Weighted:", last_weighted_input)
         form_layout.addRow("Last Watering:", last_watering_input)
-        form_layout.addRow("Gender:", gender_combo)
+        form_layout.addRow("Sex:", sex_combo)
         layout.addLayout(form_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
@@ -293,9 +293,9 @@ class AnimalsTab(QWidget):
                 last_weight_text = last_weight_input.text().strip()
                 last_weighted = last_weighted_input.dateTime().toString("yyyy-MM-dd HH:mm")
                 last_watering = last_watering_input.dateTime().toString("yyyy-MM-dd HH:mm")
-                gender = gender_combo.currentText()
-                if gender == "Select Gender":
-                    gender = None
+                sex = sex_combo.currentText()
+                if sex == "Select Sex":
+                    sex = None
 
                 # Validate inputs
                 if not lab_animal_id or not name:
@@ -313,7 +313,7 @@ class AnimalsTab(QWidget):
                     last_weight,
                     last_weighted,
                     last_watering,
-                    gender
+                    sex
                 )
                 current_trainer = self.login_system.get_current_trainer()
                 trainer_id = current_trainer['trainer_id'] if current_trainer else None
@@ -384,7 +384,7 @@ class AnimalsTab(QWidget):
                     last_weight=updated_info['last_weight'],
                     last_weighted=updated_info['last_weighted'],
                     last_watering=updated_info['last_watering'],
-                    gender=updated_info['gender']
+                    sex=updated_info['sex']
                 )
 
                 # Update the animal in the database
