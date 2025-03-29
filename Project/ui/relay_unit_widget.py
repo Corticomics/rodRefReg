@@ -123,10 +123,17 @@ class RelayUnitWidget(QWidget):
         # Enable drag-and-drop
         self.setAcceptDrops(True)
 
-        # Animal Information Table - more reasonable constraints
+        # Animal Information Table - improved sizing and formatting
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
         self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
+        
+        # Set specific column widths for better visibility
+        self.animal_table.setColumnWidth(0, 80)   # Lab ID
+        self.animal_table.setColumnWidth(1, 100)  # Name
+        self.animal_table.setColumnWidth(2, 90)   # Last Weight
+        self.animal_table.setColumnWidth(3, 110)  # Last Watering
+        
         self.animal_table.horizontalHeader().setStretchLastSection(True)
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
@@ -136,10 +143,18 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setStyleSheet("""
             QTableWidget {
                 font-size: 12px;
+                border: 1px solid #e0e4e8;
+                border-radius: 4px;
             }
             QHeaderView::section {
                 font-size: 12px;
                 padding: 3px;
+                background-color: #f8f9fa;
+                border: none;
+                border-bottom: 1px solid #e0e4e8;
+            }
+            QTableWidget::item {
+                padding: 2px 4px;
             }
         """)
         self.layout.addWidget(self.animal_table)
@@ -172,7 +187,7 @@ class RelayUnitWidget(QWidget):
         self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
         self.add_instant_slot_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
@@ -180,7 +195,10 @@ class RelayUnitWidget(QWidget):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #1666d4;
+            }
+            QPushButton:pressed {
+                background-color: #125bbf;
             }
         """)
         self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
@@ -197,7 +215,7 @@ class RelayUnitWidget(QWidget):
         self.add_staggered_slot_button = QPushButton("+ Add Time Window")
         self.add_staggered_slot_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
@@ -205,7 +223,10 @@ class RelayUnitWidget(QWidget):
                 font-size: 12px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #1666d4;
+            }
+            QPushButton:pressed {
+                background-color: #125bbf;
             }
         """)
         self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
