@@ -53,6 +53,43 @@ class ScheduleDropArea(QWidget):
         self.schedule_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.schedule_table.hide()
         
+        # Apply custom scrollbar style to the entire widget
+        self.setStyleSheet("""
+            /* Scrollbar styling - appear only on hover */
+            QScrollBar:horizontal {
+                height: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
+                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
+            }
+            /* Hide scrollbar when not needed */
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0px;
+                height: 0px;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: transparent;
+            }
+            /* Hide scrollbar until hover */
+            QWidget:hover QScrollBar::handle:horizontal, 
+            QWidget:hover QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.5);  /* Show on widget hover */
+            }
+        """)
+        
         self.layout.addWidget(self.drop_widget)
         self.layout.addWidget(self.schedule_table)
         
