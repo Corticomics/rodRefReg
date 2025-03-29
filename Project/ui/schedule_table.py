@@ -64,6 +64,39 @@ class ScheduleTable(QTableWidget):
                 padding: 20px;
                 text-align: center;
             }
+            /* Scrollbar styling - appear only on hover */
+            QScrollBar:horizontal {
+                height: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
+                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
+            }
+            /* Hide scrollbar when not needed */
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0px;
+                height: 0px;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: transparent;
+            }
+            /* Hide scrollbar until hover */
+            QTableWidget:hover QScrollBar::handle:horizontal, 
+            QTableWidget:hover QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.5);  /* Show on table hover */
+            }
         """)
         
         # Set minimum height for better visibility
