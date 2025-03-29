@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, QComboBox, 
-                           QTableWidgetItem, QTableWidget, QHBoxLayout, QPushButton)
+                           QTableWidgetItem, QTableWidget, QHBoxLayout, QPushButton, QSizePolicy)
 from PyQt5.QtCore import Qt, pyqtSignal, QDateTime
 from models.Schedule import Schedule
 from .schedule_table import ScheduleTable
@@ -15,6 +15,7 @@ class ScheduleDropArea(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)  # Remove margins to maximize space
         self.setLayout(self.layout)
         
         # Initialize database handler
@@ -25,16 +26,22 @@ class ScheduleDropArea(QWidget):
         self.drop_widget.setStyleSheet("""
             QWidget {
                 background-color: #f8f9fa; 
-                border: 2px dashed #e0e0e0;
+                border: 2px dashed #1a73e8;
                 border-radius: 4px;
                 min-height: 80px;
             }
         """)
+        self.drop_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         # Placeholder label
         self.placeholder = QLabel("Drop Schedule Here")
         self.placeholder.setAlignment(Qt.AlignCenter)
-        self.placeholder.setStyleSheet("border: none; background: none;")
+        self.placeholder.setStyleSheet("""
+            border: none; 
+            background: none;
+            font-size: 14px;
+            color: #5f6368;
+        """)
         
         drop_layout = QVBoxLayout()
         drop_layout.addWidget(self.placeholder)
@@ -43,6 +50,7 @@ class ScheduleDropArea(QWidget):
         # Schedule table (initially hidden)
         self.schedule_table = ScheduleTable()
         self.schedule_table.setEditTriggers(QTableWidget.NoEditTriggers)  # Make read-only
+        self.schedule_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.schedule_table.hide()
         
         self.layout.addWidget(self.drop_widget)
@@ -173,8 +181,18 @@ class ScheduleDropArea(QWidget):
         self.schedule_table.setRowCount(0)  # Clear existing rows
         
         try:
+            # First check if there's any data to display
+            has_data = False
+            
             if schedule.delivery_mode.lower() == 'instant':
                 deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
+                has_data = len(deliveries) > 0
+                
+                if not has_data:
+                    self.schedule_table.setEmptyMessage(True)
+                    return
+                    
+                self.schedule_table.setEmptyMessage(False)
                 
                 # Group deliveries by animal
                 animal_deliveries = {}
@@ -201,40 +219,84 @@ class ScheduleDropArea(QWidget):
                     row = self.schedule_table.rowCount()
                     self.schedule_table.insertRow(row)
                     
-                    self.schedule_table.setItem(row, 0, QTableWidgetItem(data['lab_id']))
-                    self.schedule_table.setItem(row, 1, QTableWidgetItem(data['name']))
-                    self.schedule_table.setItem(row, 2, QTableWidgetItem(f"{data['total_volume']:.1f}"))
+                    lab_id_item = QTableWidgetItem(data['lab_id'])
+                    name_item = QTableWidgetItem(data['name'])
+                    vol_item = QTableWidgetItem(f"{data['total_volume']:.1f}")
+                    
+                    # Center-align items for better readability
+                    lab_id_item.setTextAlignment(Qt.AlignCenter)
+                    name_item.setTextAlignment(Qt.AlignCenter)
+                    vol_item.setTextAlignment(Qt.AlignCenter)
+                    
+                    self.schedule_table.setItem(row, 0, lab_id_item)
+                    self.schedule_table.setItem(row, 1, name_item)
+                    self.schedule_table.setItem(row, 2, vol_item)
                     
                     if data['deliveries']:
                         first_time = min(d['datetime'] for d in data['deliveries'])
                         last_time = max(d['datetime'] for d in data['deliveries'])
-                        self.schedule_table.setItem(row, 3, QTableWidgetItem(first_time.strftime("%Y-%m-%d %H:%M:%S")))
-                        self.schedule_table.setItem(row, 4, QTableWidgetItem(last_time.strftime("%Y-%m-%d %H:%M:%S")))
+                        
+                        start_item = QTableWidgetItem(first_time.strftime("%Y-%m-%d %H:%M:%S"))
+                        end_item = QTableWidgetItem(last_time.strftime("%Y-%m-%d %H:%M:%S"))
+                        
+                        start_item.setTextAlignment(Qt.AlignCenter)
+                        end_item.setTextAlignment(Qt.AlignCenter)
+                        
+                        self.schedule_table.setItem(row, 3, start_item)
+                        self.schedule_table.setItem(row, 4, end_item)
             
             else:
                 # Handle staggered mode
                 schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
-                for animal_id in schedule_details['animal_ids']:
+                animal_ids = schedule_details.get('animal_ids', [])
+                
+                has_data = len(animal_ids) > 0
+                
+                if not has_data:
+                    self.schedule_table.setEmptyMessage(True)
+                    return
+                    
+                self.schedule_table.setEmptyMessage(False)
+                
+                for animal_id in animal_ids:
                     animal = self.database_handler.get_animal_by_id(animal_id)
                     if animal:
                         row = self.schedule_table.rowCount()
                         self.schedule_table.insertRow(row)
                         
-                        self.schedule_table.setItem(row, 0, QTableWidgetItem(animal.lab_animal_id))
-                        self.schedule_table.setItem(row, 1, QTableWidgetItem(animal.name))
+                        lab_id_item = QTableWidgetItem(animal.lab_animal_id)
+                        name_item = QTableWidgetItem(animal.name)
                         
                         desired_output = schedule_details['desired_water_outputs'].get(str(animal_id), 0)
-                        self.schedule_table.setItem(row, 2, QTableWidgetItem(f"{desired_output:.1f}"))
+                        vol_item = QTableWidgetItem(f"{desired_output:.1f}")
                         
-                        # Use schedule start/end times for staggered mode
-                        self.schedule_table.setItem(row, 3, QTableWidgetItem(
-                            QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss")
+                        # Center-align items
+                        lab_id_item.setTextAlignment(Qt.AlignCenter)
+                        name_item.setTextAlignment(Qt.AlignCenter)
+                        vol_item.setTextAlignment(Qt.AlignCenter)
+                        
+                        self.schedule_table.setItem(row, 0, lab_id_item)
+                        self.schedule_table.setItem(row, 1, name_item)
+                        self.schedule_table.setItem(row, 2, vol_item)
+                        
+                        # Format start/end times
+                        start_time = QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss") \
                             .toString("yyyy-MM-dd HH:mm:ss")
-                        ))
-                        self.schedule_table.setItem(row, 4, QTableWidgetItem(
-                            QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss")
+                        end_time = QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss") \
                             .toString("yyyy-MM-dd HH:mm:ss")
-                        ))
+                            
+                        start_item = QTableWidgetItem(start_time)
+                        end_item = QTableWidgetItem(end_time)
+                        
+                        start_item.setTextAlignment(Qt.AlignCenter)
+                        end_item.setTextAlignment(Qt.AlignCenter)
+                        
+                        self.schedule_table.setItem(row, 3, start_item)
+                        self.schedule_table.setItem(row, 4, end_item)
+            
+            # Force layout update to ensure proper display
+            self.schedule_table.resizeRowsToContents()
+            self.schedule_table.updateGeometry()
         
         except Exception as e:
             print(f"Error updating table: {e}")
@@ -250,4 +312,12 @@ class ScheduleDropArea(QWidget):
         if self.current_schedule:
             self.clear()
     
+    def resizeEvent(self, event):
+        """Handle resize events to update table dimensions"""
+        super().resizeEvent(event)
+        if hasattr(self, 'schedule_table') and self.schedule_table.isVisible():
+            # Ensure table uses full width
+            self.schedule_table.setMinimumWidth(self.width() - 20)  # Account for margins
+            self.schedule_table.updateGeometry()
+
 
