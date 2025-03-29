@@ -4,8 +4,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
     QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont, QRect, QPoint
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize
+from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
