@@ -34,26 +34,35 @@ class ScheduleTable(QTableWidget):
             QTableWidget {
                 background-color: #ffffff;
                 alternate-background-color: #f5f5f5;
-                border: 1px solid #c0c0c0;
+                border: 1px solid #1a73e8;
                 border-radius: 6px;
-                gridline-color: #e0e4e8;
+                gridline-color: #d0d0d0;
+                font-size: 13px;
             }
             QHeaderView::section {
-                background-color: #f0f2f5;
-                color: #333;
-                padding: 8px;
-                border: 1px solid #c0c0c0;
-                border-bottom: 2px solid #a0a0a0;
-                font-weight: bold;
+                background-color: #e8f0fe;
+                color: #1a73e8;
+                padding: 10px 8px;
+                border: 1px solid #1a73e8;
+                border-bottom: 2px solid #1a73e8;
+                font-weight: 600;
                 font-size: 13px;
             }
             QTableWidget::item {
-                padding: 6px;
+                padding: 8px;
                 border-bottom: 1px solid #e0e4e8;
+                color: #333333;
+                font-weight: 500;
             }
             QTableWidget::item:selected {
                 background-color: #e8f0fe;
                 color: #1a73e8;
+            }
+            /* Empty table styling */
+            QTableWidget[empty="true"]::item {
+                border: none;
+                padding: 20px;
+                text-align: center;
             }
         """)
         
@@ -72,4 +81,19 @@ class ScheduleTable(QTableWidget):
         self.setColumnWidth(1, int(width * 0.15))  # Name: 15%
         self.setColumnWidth(2, int(width * 0.15))  # Volume: 15%
         self.setColumnWidth(3, int(width * 0.25))  # Start Time: 25% 
-        # Last column will stretch automatically 
+        # Last column will stretch automatically
+        
+    def setEmptyMessage(self, is_empty=True):
+        """Set empty state styling and message"""
+        if is_empty:
+            self.setProperty("empty", True)
+            self.setRowCount(1)
+            self.setSpan(0, 0, 1, 5)  # Merge all cells in first row
+            no_data_item = QTableWidgetItem("No schedule data available")
+            no_data_item.setTextAlignment(Qt.AlignCenter)
+            self.setItem(0, 0, no_data_item)
+        else:
+            self.setProperty("empty", False)
+            # Style update to force the table to refresh
+            self.style().unpolish(self)
+            self.style().polish(self) 

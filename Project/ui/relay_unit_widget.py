@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QMessageBox, QLineEdit, QHBoxLayout, QPushButton, QDateTimeEdit,
-    QScrollArea, QComboBox
+    QScrollArea, QComboBox, QHeaderView, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
 from models.animal import Animal
@@ -140,42 +140,55 @@ class RelayUnitWidget(QWidget):
         self.animal_table.verticalHeader().setDefaultSectionSize(40)
         self.animal_table.verticalHeader().setVisible(False)  # Hide row numbers
         
-        # Set specific column widths for better visibility
-        self.animal_table.setColumnWidth(0, 80)   # Lab ID
-        self.animal_table.setColumnWidth(1, 100)  # Name
-        self.animal_table.setColumnWidth(2, 100)  # Last Weight
-        self.animal_table.setColumnWidth(3, 120)  # Last Watering
+        # Set proportional column widths for better distribution
+        total_width = 450  # Base total width estimate
+        self.animal_table.setColumnWidth(0, int(total_width * 0.20))  # Lab ID: 20%
+        self.animal_table.setColumnWidth(1, int(total_width * 0.25))  # Name: 25%
+        self.animal_table.setColumnWidth(2, int(total_width * 0.25))  # Last Weight: 25%
+        self.animal_table.setColumnWidth(3, int(total_width * 0.30))  # Last Watering: 30%
+        
+        # Set size policy to expand and fill available space
+        self.animal_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         # Fix table size and appearance
+        # Make the last column stretch to fill remaining space
         self.animal_table.horizontalHeader().setStretchLastSection(True)
+        
+        # Fix specific settings for better appearance
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
-        self.animal_table.setMinimumHeight(70)  # Ensure it has minimum height
-        self.animal_table.setMaximumHeight(90)  # Limit height but not too small
-        self.animal_table.setShowGrid(True)  # Show grid for better visibility
+        self.animal_table.setMinimumHeight(80)    # Increase minimum height
+        self.animal_table.setMaximumHeight(100)   # Increase maximum height
+        self.animal_table.setShowGrid(True)       # Show grid for better visibility
         self.animal_table.setAlternatingRowColors(True)  # Alternate row colors
         
-        # Enhanced table styling
+        # Enhanced table styling with better contrast and readability
         self.animal_table.setStyleSheet("""
             QTableWidget {
-                font-size: 12px;
-                border: 1px solid #c0c0c0;
+                font-size: 13px;              /* Larger font size for readability */
+                border: 1px solid #1a73e8;    /* Blue border to match application theme */
                 border-radius: 4px;
-                gridline-color: #e0e4e8;
+                gridline-color: #d0d0d0;      /* Darker grid lines for visibility */
                 background-color: white;
             }
             QHeaderView::section {
-                font-size: 12px;
+                font-size: 13px;              /* Larger font */
                 font-weight: bold;
-                padding: 6px;
-                background-color: #f0f2f5;
-                border: 1px solid #c0c0c0;
-                border-bottom: 2px solid #a0a0a0;
-                color: #333;
+                padding: 8px;                 /* More padding */
+                background-color: #e8f0fe;    /* Light blue header background */
+                border: 1px solid #1a73e8;    /* Blue border to match theme */
+                border-bottom: 2px solid #1a73e8;
+                color: #1a73e8;               /* Blue text for headers */
             }
             QTableWidget::item {
-                padding: 6px;
+                padding: 8px;                 /* More padding in cells */
                 border-bottom: 1px solid #e0e4e8;
+                color: #333333;               /* Darker text for better readability */
+                font-weight: 500;             /* Slightly bolder text */
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f0fe;    /* Light blue selection */
+                color: #1a73e8;               /* Blue text on selection */
             }
         """)
         self.layout.addWidget(self.animal_table)
@@ -184,11 +197,13 @@ class RelayUnitWidget(QWidget):
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
         self.recommended_water_label.setStyleSheet("""
             font-size: 13px;
-            padding: 6px;
-            background-color: #f5f5f5;
+            padding: 8px;
+            background-color: #e8f0fe;         /* Light blue background */
+            border: 1px solid #1a73e8;         /* Blue border */
             border-radius: 4px;
-            color: #333;
+            color: #1a73e8;                    /* Blue text to match theme */
             font-weight: 500;
+            margin-top: 4px;
         """)
         self.layout.addWidget(self.recommended_water_label)
 
@@ -329,10 +344,16 @@ class RelayUnitWidget(QWidget):
 
         # Update the animal information table
         self.animal_table.setRowCount(1)
+        
+        # Format the weight and last watering data properly
+        last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
+        last_watering_text = animal.last_watering.split()[0] if animal.last_watering else "Never"
+        
+        # Create table items with formatted data
         self.animal_table.setItem(0, 0, QTableWidgetItem(animal.lab_animal_id))
         self.animal_table.setItem(0, 1, QTableWidgetItem(animal.name))
-        self.animal_table.setItem(0, 2, QTableWidgetItem(str(animal.last_weight)))
-        self.animal_table.setItem(0, 3, QTableWidgetItem(str(animal.last_watering)))
+        self.animal_table.setItem(0, 2, QTableWidgetItem(last_weight_text))
+        self.animal_table.setItem(0, 3, QTableWidgetItem(last_watering_text))
 
         # Align text to center for better readability
         for column in range(4):
@@ -348,6 +369,10 @@ class RelayUnitWidget(QWidget):
 
         # Hide the drag area since an animal is now assigned
         self.drag_area_label.hide()
+        
+        # Force layout update to ensure proper display
+        self.animal_table.resizeRowsToContents()
+        self.update()
 
     def calculate_recommended_water(self, animal):
         """
@@ -593,3 +618,17 @@ class RelayUnitWidget(QWidget):
         for slot in self.delivery_slots:
             slot.deleteLater()
         self.delivery_slots.clear()
+
+    def resizeEvent(self, event):
+        """Handle resize events to adjust table to fit container"""
+        super().resizeEvent(event)
+        # Only proceed if table exists and is visible
+        if hasattr(self, 'animal_table') and self.animal_table.isVisible():
+            # Get available width (accounting for layout margins)
+            available_width = self.width() - 20
+            
+            # Set proportional column widths
+            self.animal_table.setColumnWidth(0, int(available_width * 0.20))  # Lab ID: 20%
+            self.animal_table.setColumnWidth(1, int(available_width * 0.25))  # Name: 25%
+            self.animal_table.setColumnWidth(2, int(available_width * 0.25))  # Last Weight: 25%
+            # Last column will stretch automatically
