@@ -309,7 +309,7 @@ class SettingsTab(QWidget):
                 data.append({
                     'Lab Animal ID': animal.lab_animal_id,
                     'Name': animal.name,
-                    'Gender': animal.gender or '',
+                    'Sex': animal.sex or '',
                     'Initial Weight (g)': f"{animal.initial_weight:.1f}" if animal.initial_weight else '',
                     'Last Weight (g)': f"{animal.last_weight:.1f}" if animal.last_weight else '',
                     'Last Weighted': last_weighted,
@@ -375,7 +375,7 @@ class SettingsTab(QWidget):
                 for _, row in df.iterrows():
                     try:
                         # Map lab document format to our database format
-                        gender = 'female' if row['# Females'] == 1 else 'male' if row['# Males'] == 1 else None
+                        sex = 'female' if row['# Females'] == 1 else 'male' if row['# Males'] == 1 else None
                         
                         # Convert birthdate to our datetime format
                         birthdate = datetime.strptime(str(row['Birthdate']), '%y%m%d')
@@ -388,7 +388,7 @@ class SettingsTab(QWidget):
                             last_weight=None,
                             last_weighted=None,
                             last_watering=None,
-                            gender=gender
+                            sex=sex
                         )
                         
                         if self.database_handler.add_animal(animal, trainer_id):
