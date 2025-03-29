@@ -60,8 +60,7 @@ class AnimalsTab(QWidget):
         headers = ["Lab Animal ID", "Name", "Sex", "Initial Weight (g)", "Last Weight", "Last Weighted", "Last Watering"]
         self.animals_table.setHorizontalHeaderLabels(headers)
         
-        # Configure table properties - adjust column stretch behavior
-        # Use Custom width instead of Stretch for better control
+        # Configure table properties - Fix the sizing issue
         self.animals_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         
         # Set specific column widths to ensure all information is visible
@@ -72,6 +71,11 @@ class AnimalsTab(QWidget):
         self.animals_table.setColumnWidth(4, 90)   # Last Weight
         self.animals_table.setColumnWidth(5, 140)  # Last Weighted
         self.animals_table.setColumnWidth(6, 140)  # Last Watering
+        
+        # Set height per row and size policy
+        self.animals_table.verticalHeader().setDefaultSectionSize(30)
+        self.animals_table.verticalHeader().setVisible(False)  # Hide row numbers
+        self.animals_table.setSizeAdjustPolicy(QTableWidget.AdjustToContents)
         
         # Enable horizontal scrolling if needed
         self.animals_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -86,7 +90,7 @@ class AnimalsTab(QWidget):
                 padding: 8px;
             }
             QTableWidget::item {
-                padding: 12px;
+                padding: 8px;
                 border-bottom: 1px solid #f0f0f0;
             }
             QTableWidget::item:selected {
@@ -323,6 +327,7 @@ class AnimalsTab(QWidget):
                 if animal_id:
                     self.print_to_terminal(f"Animal '{name}' added with ID: {lab_animal_id}.")
                     self.load_animals()
+                    self.notify_schedules_tab()  # Notify schedules tab of the change
                 else:
                     QMessageBox.warning(self, "Add Error", "Failed to add animal. ID might already exist.")
 
@@ -393,6 +398,22 @@ class AnimalsTab(QWidget):
                 # Notify and refresh
                 self.print_to_terminal(f"Updated animal '{updated_animal.name}' (Lab ID: {updated_animal.lab_animal_id}).")
                 self.load_animals()
+                self.notify_schedules_tab()  # Notify schedules tab of the change
         except Exception as e:
             QMessageBox.critical(self, "Edit Error", f"Error updating animal: {e}")
             self.print_to_terminal(f"Unhandled exception in edit_animal: {e}")
+
+    def notify_schedules_tab(self):
+        """Notify the schedules tab that animals have been updated"""
+        try:
+            # Find the parent widget and access the schedules_tab
+            parent = self.parent()
+            while parent and not hasattr(parent, 'schedules_tab'):
+                parent = parent.parent()
+                
+            if parent and hasattr(parent, 'schedules_tab'):
+                parent.schedules_tab.refresh()
+                self.print_to_terminal("Refreshed schedules tab after animal update")
+        except Exception as e:
+            self.print_to_terminal(f"Error refreshing schedules tab: {e}")
+            traceback.print_exc()
