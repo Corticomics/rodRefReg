@@ -552,10 +552,11 @@ class SchedulesTab(QWidget):
                     if animal:
                         animals.append(animal)
                 
-                # Set data based on mode
+                # Set data based on mode - update to use new parameter names
                 if schedule_detail.get('delivery_mode') == 'instant':
                     relay_widget.set_data(
                         animals=animals,
+                        desired_water_output=schedule_detail.get('desired_water_outputs', {}),
                         delivery_schedule=schedule_detail.get('delivery_schedule', [])
                     )
                 else:
