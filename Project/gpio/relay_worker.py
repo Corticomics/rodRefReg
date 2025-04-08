@@ -219,30 +219,25 @@ class RelayWorker(QObject):
             
             active_animals = {}
             print(f"Checking active animals at {current_time}")
-            print(f"GLOBAL Window start: {self.window_start}, Window end: {self.window_end}")
+            print(f"Window start: {self.window_start}, Window end: {self.window_end}")
             print(f"Animal windows: {self.animal_windows.items()}")
             
-            # Global window check - entire system is inactive outside this window
             if current_time < self.window_start:
-                print(f"Current time ({current_time}) is before GLOBAL window start ({self.window_start})")
-                self.progress.emit("System inactive: Before global schedule window")
+                print(f"Current time ({current_time}) is before window start ({self.window_start})")
                 delay_ms = int((self.window_start - current_time).total_seconds() * 1000)
                 self.main_timer.singleShot(delay_ms, self.run_staggered_cycle)
                 return
             
-            # Global window check - entire system is inactive outside this window
             if current_time > self.window_end:
-                print(f"Current time ({current_time}) is after GLOBAL window end ({self.window_end})")
-                self.progress.emit("System inactive: After global schedule window")
+                print(f"Current time ({current_time}) is after window end ({self.window_end})")
                 self.check_window_completion()
                 return
             
             for animal_id, window in self.animal_windows.items():
-                # Individual animal window check
                 if window['start'] <= current_time <= window['end']:
                     delivered = self.delivered_volumes.get(animal_id, 0)
                     target = window['target_volume']
-                    print(f"Animal {animal_id}: IN WINDOW, delivered={delivered}, target={target}")
+                    print(f"Animal {animal_id}: delivered={delivered}, target={target}")
                     
                     if delivered < target:
                         active_animals[animal_id] = {
@@ -250,11 +245,9 @@ class RelayWorker(QObject):
                             'last_delivery': window['last_delivery'],
                             'relay_unit': window['relay_unit']
                         }
-                        print(f"Animal {animal_id} is ACTIVE with {target-delivered}mL remaining")
-                else:
-                    print(f"Animal {animal_id}: OUTSIDE WINDOW ({window['start']} to {window['end']})")
+                        print(f"Animal {animal_id} is active with {target-delivered}mL remaining")
             
-            print(f"Active animals for this cycle: {active_animals.items()}")
+            print(f"Active animals: {active_animals.items()}")
             if not active_animals:
                 self.progress.emit("No active animals in current time window")
                 self.check_window_completion()
@@ -266,12 +259,7 @@ class RelayWorker(QObject):
                 return
                 
             next_cycle = int(cycle_interval * 1000)
-            next_cycle_time = datetime.now() + timedelta(milliseconds=next_cycle)
-            self.progress.emit(f"Next staggered cycle scheduled at {next_cycle_time.strftime('%H:%M:%S')}")
             self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
-            
-            # Log summary of this cycle
-            self.progress.emit(f"Cycle complete. Scheduled {len(active_animals)} animals for water delivery")
             
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
@@ -342,26 +330,16 @@ class RelayWorker(QObject):
 
     def schedule_retry(self, delivery_data):
         """Schedule a retry for failed delivery"""
-        animal_id = delivery_data['animal_id']
-        
-        # Use the animal's specific window end time
-        animal_window_end = self.animal_windows.get(animal_id, {}).get('end')
-        if not animal_window_end:
-            self.progress.emit(f"Cannot retry delivery - no valid window for animal {animal_id}")
-            return
-            
         retry_delay = 30  # seconds
         retry_time = datetime.now() + timedelta(seconds=retry_delay)
-        
-        # Check against animal's window end, not global window
-        if retry_time >= animal_window_end:
-            self.progress.emit(f"Cannot retry delivery for animal {animal_id} - outside its window")
+        window_end = datetime.fromtimestamp(self.settings['window_end'])
+        if retry_time >= window_end:
+            self.progress.emit("Cannot retry delivery - outside window")
             return
-            
         delivery_data['instant_time'] = retry_time
         timer = QTimer(self)
         timer.setSingleShot(True)
-        timer.timeout.connect(lambda d=delivery_data: self._handle_delivery(d))
+        timer.timeout.connect(lambda d=delivery_data: self.execute_delivery(d))
         timer.start(retry_delay * 1000)
         self.timers.append(timer)
         self.progress.emit(f"Scheduled retry for animal {delivery_data['animal_id']} in {retry_delay} seconds")
@@ -496,7 +474,6 @@ class RelayWorker(QObject):
         self.timers.clear()
         self.progress.emit("RelayWorker stopped")
         self.finished.emit()
-
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
         try:
@@ -610,21 +587,11 @@ class RelayWorker(QObject):
             )
             base_time = datetime.now()
             cumulative_delay = 0
-            scheduled_count = 0
-            
-            # Only schedule animals that are currently within their time window
             for animal_id, data in sorted_animals:
-                # Double-check that the animal is within its time window
-                window = self.animal_windows[animal_id]
-                if not (window['start'] <= base_time <= window['end']):
-                    print(f"Animal {animal_id} is not within its time window, skipping")
-                    continue
-                    
-                volume_per_cycle = window['volume_per_cycle']
+                volume_per_cycle = self.animal_windows[animal_id]['volume_per_cycle']
                 cycle_volume = min(data['remaining'], volume_per_cycle)
                 if cycle_volume <= 0:
                     continue
-                    
                 triggers = self.volume_calculator.calculate_triggers(cycle_volume)
                 trigger_time = triggers * 0.5
                 delivery_data = {
@@ -642,11 +609,6 @@ class RelayWorker(QObject):
                 self.timers.append(timer)
                 print(f"Scheduled delivery for animal {animal_id}: {cycle_volume}mL in {cumulative_delay}s")
                 cumulative_delay += trigger_time + 0.1
-                scheduled_count += 1
-                
-            if scheduled_count == 0:
-                self.progress.emit("No deliveries scheduled in this cycle")
-                
             return True
         except Exception as e:
             logging.error(f"Error scheduling deliveries: {str(e)}")
@@ -657,21 +619,11 @@ class RelayWorker(QObject):
         try:
             if 'schedule_id' not in delivery_data:
                 delivery_data['schedule_id'] = self.schedule_id
-            
             animal_id = delivery_data['animal_id']
-            
-            # Check if animal is still within its time window
-            current_time = datetime.now()
-            animal_window = self.animal_windows.get(animal_id, {})
-            if not (animal_window.get('start') <= current_time <= animal_window.get('end')):
-                self.progress.emit(f"Animal {animal_id} is now outside its time window, skipping delivery")
-                return True
-            
             current_delivered = self.delivered_volumes.get(animal_id, 0)
             target_volume = self.animal_windows[animal_id]['target_volume']
             if current_delivered >= target_volume:
                 return True
-                
             failed_count = self.failed_deliveries.get(animal_id, 0)
             if failed_count > 0:
                 volume_increase = min(failed_count * 0.05, 0.2)
@@ -680,12 +632,10 @@ class RelayWorker(QObject):
                     adjusted_volume,
                     target_volume - current_delivered
                 )
-                
             success = self.trigger_relay(
                 delivery_data['relay_unit_id'],
                 delivery_data['water_volume']
             )
-            
             if success:
                 with QMutexLocker(self.mutex):
                     actual_volume = delivery_data['water_volume']
