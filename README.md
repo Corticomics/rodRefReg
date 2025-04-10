@@ -76,6 +76,30 @@ wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/mai
 1. Click **Stop Program** to halt water delivery
 2. The system will stop immediately
 
+#### Unattended Operation
+
+The RRR system is designed to run continuously even when you disconnect your display, keyboard, or mouse. For long-term experiments:
+
+1. **Service Mode**: Enable service mode for 24/7 operation
+   ```bash
+   ~/rodent-refreshment-regulator/toggle_service.sh
+   ```
+   
+2. **Power Management**: The installation automatically disables power saving features
+   - HDMI sleep is disabled
+   - Console blanking is turned off
+   - Service keeps running even when you log out
+
+3. **Remote Monitoring**: You can check the service status remotely via SSH
+   ```bash
+   ssh pi@your-pi-ip 'systemctl status rodent-regulator.service'
+   ```
+
+For more details, see the full power management guide at:
+```bash
+~/rodent-refreshment-regulator/Project/power_management.md
+```
+
 ## Daily Use Guide
 
 ### Routine
@@ -110,6 +134,28 @@ You can create a new schedule at any time. Stop the current program, create your
 ### How do I calibrate the system for accurate water delivery?
 
 Go to the **Settings** tab and input the correct pump settings that you are using. This should be done before starting a new experiment and periodically to ensure accuracy.
+
+### How do I resolve "i2c-1 not found" or other I2C errors?
+
+If you encounter I2C-related errors when starting the application:
+
+1. Run the I2C troubleshooting script:
+   ```bash
+   ~/rodent-refreshment-regulator/fix_i2c.sh
+   ```
+
+2. This script will:
+   - Check if I2C is properly enabled in your Raspberry Pi
+   - Test all available I2C buses
+   - Fix permissions issues
+   - Run the I2C fix script that adapts to different Raspberry Pi models
+
+3. After running the script, reboot your system if prompted:
+   ```bash
+   sudo reboot
+   ```
+
+Different Raspberry Pi models use different I2C bus numbering schemes. The RRR system now includes auto-detection to work with any Pi model.
 
 ## Getting Help
 
