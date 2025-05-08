@@ -399,6 +399,24 @@ class DatabaseHandler:
                         str(row[0]): row[1] for row in cursor.fetchall()
                     }
 
+                    # --- Add this section to fetch staggered windows ---
+                    cursor.execute('''
+                        SELECT animal_id, start_time, end_time, target_volume
+                        FROM schedule_staggered_windows
+                        WHERE schedule_id = ?
+                    ''', (schedule_id,))
+                    result['animal_windows'] = {}
+                    for win_row in cursor.fetchall():
+                        animal_id_str = str(win_row[0])
+                        if animal_id_str not in result['animal_windows']:
+                            result['animal_windows'][animal_id_str] = []
+                        result['animal_windows'][animal_id_str].append({
+                            'start': win_row[1],
+                            'end': win_row[2],
+                            'target': win_row[3]
+                        })
+                    # --- End of added section ---
+
                 return [result]
                 
         except sqlite3.Error as e:
@@ -505,6 +523,24 @@ class DatabaseHandler:
                             str(row[0]): row[1] for row in cursor.fetchall()
                         }
                     
+                    # --- Add this section to fetch staggered windows ---
+                    cursor.execute('''
+                        SELECT animal_id, start_time, end_time, target_volume
+                        FROM schedule_staggered_windows
+                        WHERE schedule_id = ?
+                    ''', (schedule.schedule_id,))
+                    schedule.window_data = {}
+                    for win_row in cursor.fetchall():
+                        animal_id_str = str(win_row[0])
+                        if animal_id_str not in schedule.window_data:
+                            schedule.window_data[animal_id_str] = []
+                        schedule.window_data[animal_id_str].append({
+                            'start': win_row[1],
+                            'end': win_row[2],
+                            'target': win_row[3]
+                        })
+                    # --- End of added section ---
+
                     schedules.append(schedule)
                 return schedules
         except sqlite3.Error as e:
@@ -571,6 +607,24 @@ class DatabaseHandler:
                             str(row[0]): row[1] for row in cursor.fetchall()
                         }
                     
+                    # --- Add this section to fetch staggered windows ---
+                    cursor.execute('''
+                        SELECT animal_id, start_time, end_time, target_volume
+                        FROM schedule_staggered_windows
+                        WHERE schedule_id = ?
+                    ''', (schedule.schedule_id,))
+                    schedule.window_data = {}
+                    for win_row in cursor.fetchall():
+                        animal_id_str = str(win_row[0])
+                        if animal_id_str not in schedule.window_data:
+                            schedule.window_data[animal_id_str] = []
+                        schedule.window_data[animal_id_str].append({
+                            'start': win_row[1],
+                            'end': win_row[2],
+                            'target': win_row[3]
+                        })
+                    # --- End of added section ---
+
                     schedules.append(schedule)
                 return schedules
         except sqlite3.Error as e:
@@ -1045,10 +1099,15 @@ class DatabaseHandler:
                         VALUES (?, ?, ?)
                     ''', (schedule_id, animal_id, desired_output))
                     
-                    # Parse datetime strings using strptime
-                    start_time = datetime.strptime(schedule.start_time, "%Y-%m-%dT%H:%M:%S.%f")
-                    end_time = datetime.strptime(schedule.end_time, "%Y-%m-%dT%H:%M:%S.%f")
-                    
+                    # Get specific window for this animal, default to overall if not found
+                    animal_window_data = schedule.window_data.get(str(animal_id), {})
+                    start_time_str = animal_window_data.get('start_time', schedule.start_time)
+                    end_time_str = animal_window_data.get('end_time', schedule.end_time)
+
+                    # Parse datetime strings using appropriate format or handle existing objects
+                    start_time = start_time_str if isinstance(start_time_str, datetime) else datetime.fromisoformat(start_time_str)
+                    end_time = end_time_str if isinstance(end_time_str, datetime) else datetime.fromisoformat(end_time_str)
+
                     cursor.execute('''
                         INSERT INTO schedule_staggered_windows
                         (schedule_id, animal_id, start_time, end_time, target_volume)
