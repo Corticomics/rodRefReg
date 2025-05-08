@@ -17,27 +17,49 @@ class TimingCalculator:
     def update_settings(self, settings):
         """Update calculator settings"""
         self.settings = settings
+        # --- Re-read constraints when settings update ---
+        self.min_trigger_interval_ms = self.settings.get('min_trigger_interval_ms', 500)
+        self.pump_volume_ul = self.settings.get('pump_volume_ul', 50)
+        self.calibration_factor = self.settings.get('calibration_factor', 1.0)
+        self.max_triggers_per_cycle = self.settings.get('max_triggers_per_cycle', 5)
+        self.min_cycle_spacing_minutes = self.settings.get('min_cycle_spacing_minutes', 30)
+        # --- End re-read ---
         
-    def calculate_staggered_timing(self, window_start, window_end, animals_data):
-        """Calculate optimal staggered delivery timing with actual delivery instants"""
-        window_duration = (window_end - window_start).total_seconds()
+    def calculate_staggered_timing(self, window_start, window_end, animals_data, animal_windows=None):
+        """Calculate optimal staggered delivery timing with actual delivery instants,
+           respecting overall window and optional animal-specific windows.
+
+        Args:
+            window_start (datetime): Overall schedule start time.
+            window_end (datetime): Overall schedule end time.
+            animals_data (list): List of dicts, each with 'animal_id', 'volume_ml', 'relay_unit_id'.
+            animal_windows (dict, optional): Dict mapping animal_id to {'start': datetime, 'end': datetime}.
+        """
+        overall_window_duration = (window_end - window_start).total_seconds()
         total_animals = len(animals_data)
+        animal_windows = animal_windows or {}
         
         # Calculate volume and trigger requirements for each animal
         animal_requirements = {}
         max_cycles_needed = 1
         
         for animal in animals_data:
+            # --- Use animal-specific window if available, else overall --- 
+            animal_start = animal_windows.get(animal['animal_id'], {}).get('start', window_start)
+            animal_end = animal_windows.get(animal['animal_id'], {}).get('end', window_end)
+            animal_window_duration = (animal_end - animal_start).total_seconds()
+            # --- End modification ---
+
             volume_calc = self._calculate_volume_requirements(
                 animal['volume_ml'],
-                window_duration
+                animal_window_duration # Use animal-specific duration here
             )
             animal_requirements[animal['animal_id']] = volume_calc
             max_cycles_needed = max(max_cycles_needed, volume_calc['total_cycles'])
         
         # Calculate timing intervals
         cycle_interval = self._calculate_cycle_interval(
-            window_duration, 
+            overall_window_duration, 
             max_cycles_needed,
             total_animals
         )
@@ -54,9 +76,14 @@ class TimingCalculator:
             animal_id = animal['animal_id']
             reqs = animal_requirements[animal_id]
             
+            # --- Use animal-specific window for generation --- 
+            animal_start = animal_windows.get(animal_id, {}).get('start', window_start)
+            animal_end = animal_windows.get(animal_id, {}).get('end', window_end)
+            # --- End modification ---
+
             delivery_instants = self._generate_delivery_instants(
-                window_start,
-                window_end,
+                animal_start, # Use animal-specific start
+                animal_end,   # Use animal-specific end
                 animal,
                 reqs,
                 cycle_interval,

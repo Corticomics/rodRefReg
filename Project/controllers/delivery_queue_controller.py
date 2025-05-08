@@ -75,6 +75,18 @@ class DeliveryQueueController(QObject):
     async def _load_staggered_schedule(self, schedule):
         """Load staggered delivery schedule with cycles"""
         animals_data = []
+        animal_windows_parsed = {}
+        if hasattr(schedule, 'window_data') and schedule.window_data:
+            for animal_id_str, windows in schedule.window_data.items():
+                # Assuming the first window is the relevant one for now
+                if windows:
+                    try:
+                        start_time = datetime.fromisoformat(windows[0]['start'])
+                        end_time = datetime.fromisoformat(windows[0]['end'])
+                        animal_windows_parsed[int(animal_id_str)] = {'start': start_time, 'end': end_time}
+                    except (ValueError, KeyError) as e:
+                        logging.warning(f"Could not parse window data for animal {animal_id_str}: {e}")
+        
         for animal_id in schedule.animals:
             animals_data.append({
                 'animal_id': animal_id,
@@ -87,7 +99,7 @@ class DeliveryQueueController(QObject):
             datetime.fromisoformat(schedule.start_time),
             datetime.fromisoformat(schedule.end_time),
             animals_data,
-            min_interval=timedelta(minutes=0.5)  # Add minimum interval between deliveries
+            animal_windows=animal_windows_parsed
         )
         
         # Initialize cycle tracking

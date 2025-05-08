@@ -540,6 +540,19 @@ class SchedulesTab(QWidget):
                             relay_data['desired_water_output'].get(str(animal.animal_id))
                         )
 
+                        # --- Add this section to populate schedule.window_data ---
+                        animal_id_str = str(animal.animal_id)
+                        if animal_id_str not in schedule.window_data:
+                            schedule.window_data[animal_id_str] = {}
+                        
+                        # Assuming only one window per animal in this widget for now
+                        # If multiple StaggeredDeliverySlots are added, this needs adjustment
+                        if relay_data['delivery_schedule']:
+                            window = relay_data['delivery_schedule'][0] # Get the first window
+                            schedule.window_data[animal_id_str]['start_time'] = window['start_time'].isoformat()
+                            schedule.window_data[animal_id_str]['end_time'] = window['end_time'].isoformat()
+                        # --- End of added section ---
+
             # Ensure animals are added to schedule for both modes
             schedule.animals = list(all_animals)
 
