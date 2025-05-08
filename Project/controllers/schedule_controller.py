@@ -60,13 +60,7 @@ class ScheduleController(QObject):
             }
             
             # Load schedule into delivery queue
-            # --- Fetch full schedule details first --- 
-            schedule_details = await self.database_handler.get_schedule_details(schedule_id)
-            if not schedule_details:
-                raise ValueError(f"Could not retrieve details for schedule {schedule_id}")
-            # Use the detailed schedule object for loading
-            await self.delivery_queue.load_schedule(schedule_details[0]) 
-            # --- End fetch --- 
+            await self.delivery_queue.load_schedule(schedule_id)
             
             self.schedule_status.emit(
                 f"Started {schedule.delivery_mode} schedule {schedule.name} "

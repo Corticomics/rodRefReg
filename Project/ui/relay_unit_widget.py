@@ -554,7 +554,14 @@ class RelayUnitWidget(QWidget):
             
             # Update staggered-specific data with total volume
             if self.assigned_animal:
-                # Update the desired water output with the total volume from all windows for this animal
+                data['staggered_settings'] = {
+                    str(self.assigned_animal.animal_id): {
+                        'total_volume': total_volume,
+                        'windows': schedule,
+                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
+                    }
+                }
+                # Update the desired water output with the total volume
                 desired_water_output[str(self.assigned_animal.animal_id)] = total_volume
         
         return data
