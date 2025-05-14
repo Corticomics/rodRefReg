@@ -66,7 +66,7 @@ class SchedulesTab(QWidget):
         mode_layout.setSpacing(2)
         mode_layout.setContentsMargins(2, 2, 2, 2)
         
-        mode_label = QLabel("Mode:")
+        mode_label = QLabel("DeliveryMode:")
         mode_label.setAlignment(Qt.AlignLeft)
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
@@ -74,7 +74,7 @@ class SchedulesTab(QWidget):
         self.mode_selector.setStyleSheet("""
             QComboBox {
                 background-color: #1a73e8;
-                color: white;
+                color: blue;
                 border: none;
                 border-radius: 4px;
                 padding: 2px 4px;
