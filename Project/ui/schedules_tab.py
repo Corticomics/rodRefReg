@@ -50,13 +50,24 @@ class SchedulesTab(QWidget):
         
         # Available animals section (left column)
         self.available_animals_list = AvailableAnimalsList(self.database_handler, self)
-        available_animals_group = QGroupBox("Available Animals")
-        available_animals_group.setStyleSheet(groupbox_style)
+        available_animals_group = QGroupBox("Animals")
+        available_animals_group.setStyleSheet(groupbox_style + """
+            QGroupBox::title {
+                font-size: 12px;
+                padding: 0 3px;
+            }
+        """)
         available_animals_layout = QVBoxLayout()
+        available_animals_layout.setContentsMargins(4, 8, 4, 4)
+        available_animals_layout.setSpacing(4)
         
-        # Add mode selector at the top
-        mode_layout = QHBoxLayout()
-        mode_label = QLabel("Delivery:")
+        # Add mode selector at the top - stack vertically to save horizontal space
+        mode_layout = QVBoxLayout()
+        mode_layout.setSpacing(2)
+        mode_layout.setContentsMargins(2, 2, 2, 2)
+        
+        mode_label = QLabel("Mode:")
+        mode_label.setAlignment(Qt.AlignLeft)
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
@@ -66,18 +77,20 @@ class SchedulesTab(QWidget):
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 120px;
-                font-size: 12px;
+                padding: 2px 4px;
+                font-size: 11px;
             }
             QComboBox::drop-down {
                 border: none;
-                width: 20px;
+                width: 15px;
             }
         """)
         mode_layout.addWidget(mode_label)
         mode_layout.addWidget(self.mode_selector)
         available_animals_layout.addLayout(mode_layout)
+        
+        # Set a narrow fixed width for the mode selector
+        self.mode_selector.setFixedWidth(130)
         
         available_animals_layout.addWidget(self.available_animals_list)
         available_animals_group.setLayout(available_animals_layout)
@@ -88,9 +101,6 @@ class SchedulesTab(QWidget):
         # Prevent the available animals list from expanding
         self.available_animals_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         self.available_animals_list.setMaximumWidth(170)
-        
-        # Set a maximum width for the mode selector to prevent it expanding
-        self.mode_selector.setMaximumWidth(150)
         
         # Relay units section (middle column)
         self.relay_units_container = QScrollArea()
@@ -130,9 +140,16 @@ class SchedulesTab(QWidget):
         relay_units_group.setLayout(relay_units_group_layout)
         
         # Saved schedules section (right column)
-        schedules_group = QGroupBox("Saved Schedules")
-        schedules_group.setStyleSheet(groupbox_style)
+        schedules_group = QGroupBox("Schedules")
+        schedules_group.setStyleSheet(groupbox_style + """
+            QGroupBox::title {
+                font-size: 12px;
+                padding: 0 3px;
+            }
+        """)
         schedules_layout = QVBoxLayout()
+        schedules_layout.setContentsMargins(4, 8, 4, 4)
+        schedules_layout.setSpacing(4)
         
         # Schedule list widget with improved styling
         self.schedule_list = QListWidget()
@@ -145,13 +162,15 @@ class SchedulesTab(QWidget):
             QListWidget {
                 border: 1px solid #e0e4e8;
                 border-radius: 4px;
-                padding: 5px;
-                margin-bottom: 10px;
+                padding: 2px;
+                margin-bottom: 8px;
                 background-color: #f8f9fa;
+                font-size: 11px;
             }
             QListWidget::item {
+                padding: 3px;
                 border-bottom: 1px solid #f0f0f0;
-                padding: 5px;
+                min-height: 18px;
             }
             QListWidget::item:selected {
                 background-color: #e8f0fe;
@@ -162,15 +181,15 @@ class SchedulesTab(QWidget):
         
         # Save Schedule button - the only button we'll keep
         self.save_button = QPushButton("Save Schedule")
-        self.save_button.setMinimumHeight(40)
+        self.save_button.setMinimumHeight(30)  # Slightly smaller
         self.save_button.setStyleSheet("""
             QPushButton {
                 background-color: #1a73e8;
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 10px;
-                font-size: 14px;
+                padding: 6px;
+                font-size: 12px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -185,6 +204,11 @@ class SchedulesTab(QWidget):
         
         schedules_layout.addStretch()
         schedules_group.setLayout(schedules_layout)
+        
+        # Set fixed width constraints on the schedules group like we did for animals
+        schedules_group.setFixedWidth(180)
+        self.schedule_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.schedule_list.setMaximumWidth(170)
         
         # Set column proportions (2:16:2 ratio) - much narrower side columns, wider center
         main_layout.addWidget(available_animals_group, 3)  # Left column - 10%
