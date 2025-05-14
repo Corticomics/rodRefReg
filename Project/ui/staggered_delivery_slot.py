@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout, 
-    QPushButton, QDateTimeEdit
+    QPushButton, QDateTimeEdit, QGridLayout, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QDateTime, pyqtSignal, QTimer
 from datetime import datetime
@@ -10,44 +10,41 @@ class StaggeredDeliverySlot(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # Use a single main layout
         self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(4, 4, 4, 4)
+        self.layout.setSpacing(6)
         self.setLayout(self.layout)
         
-        # Time window row
-        time_window_layout = QHBoxLayout()
+        # Create a grid layout for better alignment
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(8)  # Consistent spacing
         
         # Start time picker
-        start_time_layout = QVBoxLayout()
         start_label = QLabel("Start Time:")
         self.start_datetime = QDateTimeEdit()
         self.start_datetime.setCalendarPopup(True)
         self.start_datetime.setDateTime(QDateTime.currentDateTime())
         self.start_datetime.setDisplayFormat("yyyy-MM-dd hh:mm AP")
-        start_time_layout.addWidget(start_label)
-        start_time_layout.addWidget(self.start_datetime)
+        self.start_datetime.setMinimumWidth(180)
+        self.start_datetime.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         
         # End time picker
-        end_time_layout = QVBoxLayout()
         end_label = QLabel("End Time:")
         self.end_datetime = QDateTimeEdit()
         self.end_datetime.setCalendarPopup(True)
         self.end_datetime.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default 1 hour window
         self.end_datetime.setDisplayFormat("yyyy-MM-dd hh:mm AP")
-        end_time_layout.addWidget(end_label)
-        end_time_layout.addWidget(self.end_datetime)
-        
-        # Connect datetime changes to validation
-        self.start_datetime.dateTimeChanged.connect(self.validate_times)
-        self.end_datetime.dateTimeChanged.connect(self.validate_times)
+        self.end_datetime.setMinimumWidth(180)
+        self.end_datetime.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         
         # Volume input
-        volume_layout = QVBoxLayout()
         volume_label = QLabel("Volume (mL):")
         self.volume_input = QLineEdit()
         self.volume_input.setPlaceholderText("Water volume")
         self.volume_input.setFixedWidth(100)
-        volume_layout.addWidget(volume_label)
-        volume_layout.addWidget(self.volume_input)
+        self.volume_input.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
         # Delete button
         self.delete_button = QPushButton("×")
@@ -58,8 +55,10 @@ class StaggeredDeliverySlot(QWidget):
                 border: none;
                 border-radius: 4px;
                 padding: 2px;
-                max-width: 20px;
-                max-height: 20px;
+                min-width: 24px;
+                min-height: 24px;
+                max-width: 24px;
+                max-height: 24px;
                 font-size: 16px;
                 font-weight: bold;
                 margin: 0px;
@@ -72,15 +71,32 @@ class StaggeredDeliverySlot(QWidget):
             }
         """)
         self.delete_button.clicked.connect(self.handle_delete)
+        self.delete_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
-        # Add widgets to layouts
-        time_window_layout.addLayout(start_time_layout)
-        time_window_layout.addLayout(end_time_layout)
-        time_window_layout.addLayout(volume_layout)
-        time_window_layout.addWidget(self.delete_button)
-        time_window_layout.addStretch()
+        # Add all widgets to the grid layout with proper alignment
+        # First row - labels
+        grid_layout.addWidget(start_label, 0, 0, Qt.AlignBottom)
+        grid_layout.addWidget(end_label, 0, 1, Qt.AlignBottom)
+        grid_layout.addWidget(volume_label, 0, 2, Qt.AlignBottom)
         
-        self.layout.addLayout(time_window_layout)
+        # Second row - inputs and delete button
+        grid_layout.addWidget(self.start_datetime, 1, 0)
+        grid_layout.addWidget(self.end_datetime, 1, 1)
+        grid_layout.addWidget(self.volume_input, 1, 2)
+        grid_layout.addWidget(self.delete_button, 1, 3, Qt.AlignCenter)
+        
+        # Set column stretch factors to control relative widths
+        grid_layout.setColumnStretch(0, 3)  # Start time - 3 parts
+        grid_layout.setColumnStretch(1, 3)  # End time - 3 parts
+        grid_layout.setColumnStretch(2, 1)  # Volume - 1 part
+        grid_layout.setColumnStretch(3, 0)  # Delete button - fixed width
+        
+        # Connect datetime changes to validation
+        self.start_datetime.dateTimeChanged.connect(self.validate_times)
+        self.end_datetime.dateTimeChanged.connect(self.validate_times)
+        
+        # Add the grid to the main layout
+        self.layout.addLayout(grid_layout)
         self.is_deleted = False
 
     def validate_times(self):

@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
     QMessageBox, QLineEdit, QHBoxLayout, QPushButton, QDateTimeEdit,
-    QScrollArea, QComboBox, QHeaderView, QSizePolicy
+    QScrollArea, QComboBox, QHeaderView, QSizePolicy, QGridLayout
 )
 from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
 from models.animal import Animal
@@ -17,30 +17,33 @@ class WaterDeliverySlot(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        layout = QHBoxLayout()
-        layout.setContentsMargins(2, 2, 2, 2)  # Less aggressive margin reduction
         
-        # DateTime picker with calendar popup - less aggressive size reduction
+        # Main layout with proper margins
+        self.layout = QVBoxLayout()
+        self.layout.setContentsMargins(4, 4, 4, 4)
+        self.layout.setSpacing(6)
+        self.setLayout(self.layout)
+        
+        # Create a grid layout for better alignment
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(8)
+        
+        # DateTime label and picker
+        datetime_label = QLabel("Delivery Time:")
         self.datetime_picker = QDateTimeEdit()
         self.datetime_picker.setCalendarPopup(True)
         self.datetime_picker.setDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setDisplayFormat("yyyy-MM-dd hh:mm AP")
-        # Make calendar widget smaller but still usable
-        self.datetime_picker.setStyleSheet("""
-            QDateTimeEdit {
-                min-width: 180px;
-            }
-            QCalendarWidget {
-                min-width: 300px;
-                min-height: 300px;
-            }
-        """)
+        self.datetime_picker.setMinimumWidth(180)
+        self.datetime_picker.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         
-        # Volume input
+        # Volume label and input
+        volume_label = QLabel("Volume (mL):")
         self.volume_input = QLineEdit()
-        self.volume_input.setPlaceholderText("Water volume (mL)")
-        self.volume_input.setFixedWidth(120)  # Slightly wider than before
+        self.volume_input.setPlaceholderText("Water volume")
+        self.volume_input.setFixedWidth(100)
+        self.volume_input.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
         # Delete button with refined styling
         self.delete_button = QPushButton("×")
@@ -51,6 +54,8 @@ class WaterDeliverySlot(QWidget):
                 border: none;
                 border-radius: 4px;
                 padding: 2px;
+                min-width: 24px;
+                min-height: 24px;
                 max-width: 24px;
                 max-height: 24px;
                 font-size: 16px;
@@ -65,11 +70,25 @@ class WaterDeliverySlot(QWidget):
             }
         """)
         self.delete_button.clicked.connect(self.handle_delete)
+        self.delete_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
-        layout.addWidget(self.datetime_picker)
-        layout.addWidget(self.volume_input)
-        layout.addWidget(self.delete_button)
-        self.setLayout(layout)
+        # Add widgets to the grid layout with proper alignment
+        # First row - labels
+        grid_layout.addWidget(datetime_label, 0, 0, Qt.AlignBottom)
+        grid_layout.addWidget(volume_label, 0, 1, Qt.AlignBottom)
+        
+        # Second row - inputs and delete button
+        grid_layout.addWidget(self.datetime_picker, 1, 0)
+        grid_layout.addWidget(self.volume_input, 1, 1)
+        grid_layout.addWidget(self.delete_button, 1, 2, Qt.AlignCenter)
+        
+        # Set column stretch factors
+        grid_layout.setColumnStretch(0, 4)  # Datetime picker - more space
+        grid_layout.setColumnStretch(1, 1)  # Volume input - less space
+        grid_layout.setColumnStretch(2, 0)  # Delete button - fixed width
+        
+        # Add the grid to the main layout
+        self.layout.addLayout(grid_layout)
         self.is_deleted = False
 
     def handle_delete(self):

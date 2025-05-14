@@ -176,10 +176,10 @@ class SchedulesTab(QWidget):
         schedules_layout.addStretch()
         schedules_group.setLayout(schedules_layout)
         
-        # Set column proportions (4:12:4 ratio) - narrower side columns, wider center
-        main_layout.addWidget(available_animals_group, 4)  # Left column - 20%
-        main_layout.addWidget(relay_units_group, 12)       # Middle column - 60% 
-        main_layout.addWidget(schedules_group, 4)          # Right column - 20%
+        # Set column proportions (3:14:3 ratio) - narrower side columns, wider center
+        main_layout.addWidget(available_animals_group, 3)  # Left column - 15%
+        main_layout.addWidget(relay_units_group, 14)       # Middle column - 70% 
+        main_layout.addWidget(schedules_group, 3)          # Right column - 15%
         
         self.setLayout(main_layout)
         
