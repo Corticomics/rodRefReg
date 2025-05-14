@@ -16,8 +16,17 @@ from controllers.pump_controller import PumpController
 from models.relay_unit_manager import RelayUnitManager
 from ui.SettingsTab import SettingsTab
 
+# Conditionally import IR module integration
+try:
+    from ir_module.integration import IRModuleIntegration
+    from ir_module.config import is_feature_enabled
+    IR_MODULE_AVAILABLE = True
+except ImportError:
+    IR_MODULE_AVAILABLE = False
+    print("IR module not available - IR features will be disabled")
+
 # =============================================================================
-# Global exception hook and stream redirection (unchanged)
+# Global exception hook and stream redirection 
 # =============================================================================
 def exception_hook(exctype, value, tb):
     print("".join(traceback.format_exception(exctype, value, tb)))
@@ -39,12 +48,13 @@ class StreamRedirector(QObject):
 # =============================================================================
 thread = None
 worker = None
+ir_integration = None  # Add global variable for IR module integration
 
 # =============================================================================
 # setup() – create our global objects and UI
 # =============================================================================
 def setup():
-    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
+    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller, ir_integration
 
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
@@ -67,6 +77,19 @@ def setup():
     if not login_system.is_logged_in():
         login_system.set_guest_mode()
 
+    # Conditionally initialize IR module integration if available and enabled
+    ir_integration = None
+    if IR_MODULE_AVAILABLE and is_feature_enabled("ENABLE_INTEGRATION"):
+        try:
+            ir_integration = IRModuleIntegration(
+                app_controller=system_controller,
+                database_handler=database_handler
+            )
+            print("IR module integration initialized")
+        except Exception as e:
+            print(f"Error initializing IR module: {e}")
+            ir_integration = None
+
     gui = RodentRefreshmentGUI(
         run_program,
         stop_program,
@@ -75,7 +98,8 @@ def setup():
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler
+        notification_handler=notification_handler,
+        ir_integration=ir_integration  # Pass IR integration to GUI (will be None if disabled)
     )
 
     gui.settings_tab = SettingsTab(
@@ -299,22 +323,40 @@ def _update_gui_relay_units(relay_units):
 # Main entry point
 # =============================================================================
 def main():
-    app = QApplication(sys.argv)
-    setup()
-    redirector = StreamRedirector()
-    redirector.message_signal.connect(gui.system_message_signal)
-    sys.stdout = redirector
-    sys.stderr = redirector
-    
-    # Check for UI updates
+    global app, gui, ir_integration
     try:
-        from ui.update_notifier import UpdateNotifier
-        UpdateNotifier.check_for_updates()
+        app = QApplication(sys.argv)
+        app.setApplicationName("Rodent Refreshment Regulator")
+        setup()
+        redirector = StreamRedirector()
+        redirector.message_signal.connect(gui.system_message_signal)
+        sys.stdout = redirector
+        sys.stderr = redirector
+        
+        # Check for UI updates
+        try:
+            from ui.update_notifier import UpdateNotifier
+            UpdateNotifier.check_for_updates()
+        except Exception as e:
+            print(f"Error checking for UI updates: {e}")
+        
+        gui.show()
+        exit_code = app.exec_()
+        
+        # Clean shutdown of IR integration if enabled
+        if ir_integration:
+            try:
+                ir_integration.shutdown()
+                print("IR module integration shut down")
+            except Exception as e:
+                print(f"Error shutting down IR module: {e}")
+            
+        sys.exit(exit_code)
     except Exception as e:
-        print(f"Error checking for UI updates: {e}")
-    
-    gui.show()
-    sys.exit(app.exec_())
+        print(f"Application error: {e}")
+        if 'notification_handler' in globals():
+            notification_handler.send_slack_notification(f"Application error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

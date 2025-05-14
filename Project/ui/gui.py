@@ -21,7 +21,7 @@ class RodentRefreshmentGUI(QWidget):
 
     def __init__(self, run_callback, stop_callback, change_relay_callback, 
                  system_controller, database_handler, login_system, 
-                 relay_handler, notification_handler):
+                 relay_handler, notification_handler, ir_integration=None):
         super().__init__()
         self.system_controller = system_controller
         
@@ -39,6 +39,10 @@ class RodentRefreshmentGUI(QWidget):
         self.login_system = login_system
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
+        
+        # Store IR module integration reference if provided
+        self.ir_integration = ir_integration
+        self.drinking_analysis_tab = None  # Will be initialized in init_ui if available
 
         # Default to guest mode
         self.current_user = None
@@ -248,40 +252,43 @@ class RodentRefreshmentGUI(QWidget):
         )
         
         # Tab widget
-        self.main_tab_widget = QTabWidget()
+        self.tab_widget = QTabWidget()
         
-        # Create tabs
-        self.settings_tab = SettingsTab(
-            system_controller=self.system_controller,
-            suggest_callback=self.suggest_settings_callback,
-            push_callback=self.push_settings_callback,
-            save_slack_callback=self.save_slack_credentials_callback,
-            run_stop_section=self.run_stop_section,
-            login_system=self.login_system,
-            print_to_terminal=self.print_to_terminal,
-            database_handler=self.database_handler
-        )
+        # Animals tab (tab0)
+        self.animals_tab = self.create_tab()
+        self.tab_widget.addTab(self.animals_tab, "Animals")
         
-        # Profile Tab
-        self.user_tab = UserTab(self.login_system)
-        self.user_tab.login_signal.connect(self.on_login)
-        self.user_tab.logout_signal.connect(self.on_logout)
+        # Schedules tab (tab1)
+        self.schedules_tab = self.create_tab()
+        self.tab_widget.addTab(self.schedules_tab, "Schedules")
         
-        # Help Tab
-        self.help_tab = HelpTab()
+        # Settings tab (tab2)
+        self.settings_tab = None  # Will be set later
         
-        # Add tabs in desired order
-        self.main_tab_widget.addTab(self.user_tab, "Profile")  # Profile tab first
-        self.settings_tab_index = self.main_tab_widget.addTab(self.settings_tab, "Settings")
-        self.help_tab_index = self.main_tab_widget.addTab(self.help_tab, "Help")
+        # User tab (tab3)
+        self.user_tab = UserTab(self.database_handler, self.login_system, self.print_to_terminal)
+        self.tab_widget.addTab(self.user_tab, "Users")
         
-        # Initially disable restricted tabs
-        self._update_tab_access()
+        # Help tab (tab4)
+        self.help_tab = HelpTab(self.database_handler)
+        self.tab_widget.addTab(self.help_tab, "Help")
         
-        # Set the initial tab to Profile
-        self.main_tab_widget.setCurrentWidget(self.user_tab)
+        # IR Drinking Analysis tab (if enabled)
+        if self.ir_integration:
+            try:
+                # Get the drinking analysis tab from the IR module integration
+                self.drinking_analysis_tab = self.ir_integration.get_data_analysis_tab(parent=self)
+                
+                # Add tab if it was successfully created
+                if self.drinking_analysis_tab:
+                    drinking_tab_index = self.tab_widget.addTab(self.drinking_analysis_tab, "Drinking Analysis")
+                    self.print_to_terminal("IR drinking analysis features enabled")
+                else:
+                    self.print_to_terminal("IR drinking analysis tab not available (disabled in configuration)")
+            except Exception as e:
+                self.print_to_terminal(f"Error adding IR drinking analysis tab: {e}")
         
-        right_layout.addWidget(self.main_tab_widget)
+        right_layout.addWidget(self.tab_widget)
         right_layout.addWidget(self.run_stop_section)
         
         # Add to content layout
@@ -304,6 +311,9 @@ class RodentRefreshmentGUI(QWidget):
         # Initialize
         self.load_animals_tab()
         self.showMaximized()
+        
+        # Continue with existing tab access updates
+        self._update_tab_access()
     
     def toggle_mode(self):
         try:
@@ -495,13 +505,20 @@ class RodentRefreshmentGUI(QWidget):
         pass
 
     def _update_tab_access(self):
-        """Update tab accessibility based on login status"""
-        is_logged_in = self.login_system.is_logged_in()
+        """Update tab access based on user permissions."""
+        current_user = self.login_system.get_current_user()
+        admin_access = current_user and current_user.get('role') == 'admin'
         
-        # Disable/enable tabs
-        self.main_tab_widget.setTabEnabled(self.settings_tab_index, is_logged_in)
-        self.main_tab_widget.setTabEnabled(self.help_tab_index, is_logged_in)
+        # Settings tab is only for admins
+        self.tab_widget.setTabEnabled(2, admin_access)  # Settings tab
         
-        # If on a restricted tab while logging out, switch to profile tab
-        if not is_logged_in and self.main_tab_widget.currentIndex() in [self.settings_tab_index, self.help_tab_index]:
-            self.main_tab_widget.setCurrentWidget(self.user_tab)
+        # User tab is only for admins
+        self.tab_widget.setTabEnabled(3, admin_access)  # User tab
+        
+        # IR Drinking Analysis tab requires appropriate permissions
+        if self.drinking_analysis_tab:
+            drinking_tab_index = self.tab_widget.indexOf(self.drinking_analysis_tab)
+            if drinking_tab_index >= 0:
+                # Set tab access based on user permissions (modify as needed)
+                # Here we're allowing all users to access the drinking analysis tab
+                self.tab_widget.setTabEnabled(drinking_tab_index, True)
