@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize, QThread
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont
@@ -81,6 +81,16 @@ class SchedulesTab(QWidget):
         
         available_animals_layout.addWidget(self.available_animals_list)
         available_animals_group.setLayout(available_animals_layout)
+        
+        # Set fixed width constraints on the available animals group
+        available_animals_group.setFixedWidth(180)
+        
+        # Prevent the available animals list from expanding
+        self.available_animals_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.available_animals_list.setMaximumWidth(170)
+        
+        # Set a maximum width for the mode selector to prevent it expanding
+        self.mode_selector.setMaximumWidth(150)
         
         # Relay units section (middle column)
         self.relay_units_container = QScrollArea()
@@ -176,10 +186,10 @@ class SchedulesTab(QWidget):
         schedules_layout.addStretch()
         schedules_group.setLayout(schedules_layout)
         
-        # Set column proportions (3:14:3 ratio) - narrower side columns, wider center
-        main_layout.addWidget(available_animals_group, 3)  # Left column - 15%
-        main_layout.addWidget(relay_units_group, 14)       # Middle column - 70% 
-        main_layout.addWidget(schedules_group, 3)          # Right column - 15%
+        # Set column proportions (2:16:2 ratio) - much narrower side columns, wider center
+        main_layout.addWidget(available_animals_group, 3)  # Left column - 10%
+        main_layout.addWidget(relay_units_group, 14)       # Middle column - 80% 
+        main_layout.addWidget(schedules_group, 3)          # Right column - 10%
         
         self.setLayout(main_layout)
         
@@ -260,6 +270,9 @@ class SchedulesTab(QWidget):
                 background: rgba(26, 115, 232, 0.5);  /* Show on hover */
             }
         """)
+
+        # Set maximum width on the available animals list to force it to be narrow
+        self.available_animals_list.setMaximumWidth(200)
 
     def initialize_relay_units(self):
         """Initialize the relay unit widgets based on the database configuration."""
@@ -413,9 +426,8 @@ class SchedulesTab(QWidget):
             
             self.available_animals_list.clear()
             for animal in animals:
-                item_text = f"{animal.lab_animal_id} - {animal.name}"
-                item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, animal)
+                # Use the custom create method instead of creating items directly
+                item = self.available_animals_list.create_available_animal_item(animal)
                 self.available_animals_list.addItem(item)
                 
         except Exception as e:
