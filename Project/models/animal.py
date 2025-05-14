@@ -1,8 +1,27 @@
-# models/animal.py
-
 class Animal:
+    """
+    Represents a laboratory animal in the Rodent Refreshment Regulator system.
+    
+    This class stores animal identification, physical characteristics,
+    and watering history data. It also provides methods for calculating
+    recommended water volumes and validating water delivery amounts.
+    """
+    
     def __init__(self, animal_id=None, lab_animal_id=None, name=None, initial_weight=None, 
                  last_weight=None, last_weighted=None, last_watering=None, sex=None):
+        """
+        Initialize an Animal instance.
+        
+        Args:
+            animal_id (int, optional): Database ID for the animal.
+            lab_animal_id (str, optional): Laboratory ID/identifier for the animal.
+            name (str, optional): Name of the animal.
+            initial_weight (float, optional): Initial weight in grams.
+            last_weight (float, optional): Most recent weight in grams.
+            last_weighted (str, optional): Date of last weighing (ISO format).
+            last_watering (str, optional): Date of last watering (ISO format).
+            sex (str, optional): Sex of the animal ('M' or 'F').
+        """
         self.animal_id = animal_id
         self.lab_animal_id = lab_animal_id
         self.name = name

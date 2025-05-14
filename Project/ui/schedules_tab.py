@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
     QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize, QThread
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont
 from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
@@ -15,6 +15,7 @@ import traceback
 
 class SchedulesTab(QWidget):
     mode_changed = pyqtSignal(str)  # Signal to emit mode changes
+    assignments_cleared = pyqtSignal()  # New signal for when assignments are cleared
 
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
@@ -175,10 +176,10 @@ class SchedulesTab(QWidget):
         schedules_layout.addStretch()
         schedules_group.setLayout(schedules_layout)
         
-        # Set column proportions (1:2:1 ratio)
-        main_layout.addWidget(available_animals_group, 1)  # Left column - 25%
-        main_layout.addWidget(relay_units_group, 2)        # Middle column - 50% 
-        main_layout.addWidget(schedules_group, 1)          # Right column - 25%
+        # Set column proportions (4:12:4 ratio) - narrower side columns, wider center
+        main_layout.addWidget(available_animals_group, 4)  # Left column - 20%
+        main_layout.addWidget(relay_units_group, 12)       # Middle column - 60% 
+        main_layout.addWidget(schedules_group, 4)          # Right column - 20%
         
         self.setLayout(main_layout)
         
@@ -194,6 +195,9 @@ class SchedulesTab(QWidget):
 
         # Connect refresh to login system changes
         self.login_system.login_status_changed.connect(self.refresh)
+
+        # Connect assignments_cleared signal to refresh method
+        self.assignments_cleared.connect(self.refresh)
 
         # Refine table headers styling
         self.setStyleSheet("""
@@ -370,6 +374,9 @@ class SchedulesTab(QWidget):
             # Reinitialize all relay unit widgets
             self.initialize_relay_units()
             
+            # Signal that assignments have been cleared to trigger UI refresh
+            self.assignments_cleared.emit()
+            
             QMessageBox.information(self, "Cleared", 
                                    "All animal assignments and schedules have been cleared.")
     
@@ -543,23 +550,23 @@ class SchedulesTab(QWidget):
             # Ensure animals are added to schedule for both modes
             schedule.animals = list(all_animals)
 
-            # Save schedule to database using the appropriate method
-            if delivery_mode == 'staggered':
-                schedule_id = self.database_handler.add_staggered_schedule(schedule)
-                print(f"save_current_schedule: added staggered schedule with details:" + str(schedule))
-            else:
-                print(f"save_current_schedule: adding instant schedule with details:" + str(schedule))
-                schedule_id = self.database_handler.add_schedule(schedule)
-
-            if schedule_id:
-                QMessageBox.information(self, "Success", "Schedule saved successfully!")
-                self.load_schedules()
-            else:
-                raise Exception("Failed to save schedule to database")
+            # Use a QThread worker to handle the database operations
+            self.save_worker = ScheduleSaveWorker(self.database_handler, schedule)
+            self.save_worker.success.connect(self.on_schedule_saved)
+            self.save_worker.error.connect(self.on_schedule_save_error)
+            self.save_worker.start()
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error saving schedule: {str(e)}")
             print(f"Error details: {traceback.format_exc()}")
+
+    def on_schedule_saved(self, schedule_id):
+        QMessageBox.information(self, "Success", "Schedule saved successfully!")
+        self.load_schedules()
+
+    def on_schedule_save_error(self, error_message):
+        QMessageBox.critical(self, "Error", f"Error saving schedule: {error_message}")
+        print(f"Error details: {error_message}")
 
     def load_selected_schedule(self, item):
         """Load the selected schedule and populate the relay units."""
@@ -852,3 +859,27 @@ class SchedulesTab(QWidget):
         """Update schedule time window"""
         self.start_time = start_time
         self.end_time = end_time
+
+class ScheduleSaveWorker(QThread):
+    success = pyqtSignal(int)  # Signal with schedule_id
+    error = pyqtSignal(str)    # Signal with error message
+    
+    def __init__(self, database_handler, schedule):
+        super().__init__()
+        self.database_handler = database_handler
+        self.schedule = schedule
+        self.delivery_mode = schedule.delivery_mode
+        
+    def run(self):
+        try:
+            if self.delivery_mode == 'staggered':
+                schedule_id = self.database_handler.add_staggered_schedule(self.schedule)
+            else:
+                schedule_id = self.database_handler.add_schedule(self.schedule)
+                
+            if schedule_id:
+                self.success.emit(schedule_id)
+            else:
+                self.error.emit("Failed to save schedule to database")
+        except Exception as e:
+            self.error.emit(str(e))

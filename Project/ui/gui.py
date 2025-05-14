@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
 import traceback
-from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
 from .projects_section import ProjectsSection
 from .UserTab import UserTab
@@ -208,19 +207,6 @@ class RodentRefreshmentGUI(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
-
-        # Welcome section at top
-        self.welcome_section = WelcomeSection()
-        self.welcome_scroll_area = QScrollArea()
-        self.welcome_scroll_area.setWidgetResizable(True)
-        self.welcome_scroll_area.setWidget(self.welcome_section)
-        
-        # Toggle welcome button
-        self.toggle_welcome_button = QPushButton("Hide Welcome Message")
-        self.toggle_welcome_button.clicked.connect(self.toggle_welcome_message)
-        
-        main_layout.addWidget(self.welcome_scroll_area)
-        main_layout.addWidget(self.toggle_welcome_button)
 
         # Content area
         content_layout = QHBoxLayout()

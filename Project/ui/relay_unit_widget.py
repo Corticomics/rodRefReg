@@ -625,27 +625,32 @@ class RelayUnitWidget(QWidget):
             
             # If delivery schedule is provided (for instant mode)
             if delivery_schedule and isinstance(delivery_schedule, list):
-                self.set_mode("Instant")
-                # Clear any existing slots
-                self.clear_instant_slots()
-                
-                # Add delivery slots
-                for delivery in delivery_schedule:
-                    self.add_instant_slot_button.click()  # Create new slot
-                    # Find the last added slot
-                    if self.delivery_slots:
-                        slot = self.delivery_slots[-1]
-                        # Set slot data if possible
-                        if hasattr(slot, 'volume_input') and hasattr(slot, 'datetime_picker'):
-                            try:
-                                slot.volume_input.setText(str(delivery.get('volume', 0)))
-                                # Handle datetime if present
-                                if 'datetime' in delivery:
-                                    dt = delivery['datetime']
-                                    if hasattr(slot.datetime_picker, 'setDateTime'):
-                                        slot.datetime_picker.setDateTime(dt)
-                            except (AttributeError, TypeError) as e:
-                                print(f"Error setting delivery slot data: {e}")
+                try:
+                    self.set_mode("Instant")
+                    # Clear any existing slots
+                    self.clear_instant_slots()
+                    
+                    # Add delivery slots
+                    for delivery in delivery_schedule:
+                        self.add_instant_slot_button.click()  # Create new slot
+                        # Find the last added slot
+                        if self.delivery_slots:
+                            slot = self.delivery_slots[-1]
+                            # Set slot data if possible
+                            if hasattr(slot, 'volume_input') and hasattr(slot, 'datetime_picker'):
+                                try:
+                                    slot.volume_input.setText(str(delivery.get('volume', 0)))
+                                    # Handle datetime if present
+                                    if 'datetime' in delivery:
+                                        dt = delivery['datetime']
+                                        if hasattr(slot.datetime_picker, 'setDateTime'):
+                                            slot.datetime_picker.setDateTime(dt)
+                                except (AttributeError, TypeError) as e:
+                                    print(f"Error setting delivery slot data: {e}")
+                except Exception as e:
+                    print(f"Error setting delivery schedule: {e}")
+                    QMessageBox.warning(self, "Schedule Error", 
+                                      f"There was an error setting the delivery schedule: {str(e)}")
             
             # Force update to ensure proper display
             self.update()
@@ -851,3 +856,45 @@ class RelayUnitWidget(QWidget):
             
             # Force table to update its layout
             self.animal_table.updateGeometry()
+
+    def update_animal_table_display(self, animal):
+        """
+        Update the animal information table with formatted data.
+        
+        Args:
+            animal (Animal): The animal object containing data to display.
+        """
+        self.animal_table.setRowCount(1)
+        
+        # Format the weight and last watering data properly
+        last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
+        
+        # Format last watering with better readability
+        if animal.last_watering:
+            try:
+                # Parse the datetime string
+                watering_date = datetime.fromisoformat(animal.last_watering)
+                # Format it in a readable way
+                last_watering_text = watering_date.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                # Fallback if parsing fails
+                last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+        else:
+            last_watering_text = "Never"
+        
+        # Create table items with formatted data
+        lab_id_item = QTableWidgetItem(animal.lab_animal_id)
+        name_item = QTableWidgetItem(animal.name)
+        weight_item = QTableWidgetItem(last_weight_text)
+        watering_item = QTableWidgetItem(last_watering_text)
+        
+        # Set items in table with center alignment
+        for i, item in enumerate([lab_id_item, name_item, weight_item, watering_item]):
+            item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            self.animal_table.setItem(0, i, item)
+        
+        # Force table to resize rows based on content
+        self.animal_table.resizeRowsToContents()
+        
+        # Update minimum width to ensure all content is visible
+        self.ensure_table_width()
