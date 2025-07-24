@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+5.1 Hardware Abstraction
+
+•
+Rule: Abstract all hardware interactions through controller classes
+
+•
+Implementation:
+
+•
+No direct hardware access outside controller classes
+
+•
+Standardized interfaces for similar hardware types
+
+•
+Mock implementations for testing
+
+•
+Cursor IDE should enforce hardware access through controllers
+
+
+
+5.2 Device Configuration
+
+•
+Rule: Externalize all device configurations
+
+•
+Implementation:
+
+•
+Store configurations in JSON/YAML files
+
+•
+Support runtime reconfiguration where possible
+
+•
+Validate configurations against device capabilities
+
+•
+Cursor IDE should identify hardcoded device parameters
+
+
+
+5.3 Error Detection and Recovery
+
+•
+Rule: Implement robust error detection and recovery for hardware
+
+•
+Implementation:
+
+•
+Regular status checking for critical hardware
+
+•
+Graceful degradation for non-critical failures
+
+•
+Clear error reporting with diagnostic information
+
+•
+Cursor IDE should verify hardware error handling
+
+
+
+5.4 Resource Management
+
+•
+Rule: Properly manage hardware resources
+
+•
+Implementation:
+
+•
+Explicit connect/disconnect methods
+
+•
+Resource cleanup in error cases
+
+•
+Timeout handling for unresponsive hardware
+
+•
+Cursor IDE should verify resource cleanup
+
+
+
+5.5 Hardware Simulation
+
+•
+Rule: Support hardware simulation for testing
+
+•
+Implementation:
+
+•
+Mock hardware interfaces with realistic behavior
+
+•
+Configuration flag to enable simulation mode
+
+•
+Simulate common failure scenarios
+
+•
+Cursor IDE should suggest test modes for hardware interfaces
+
+
+
+

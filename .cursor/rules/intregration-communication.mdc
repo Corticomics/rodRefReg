@@ -1,0 +1,115 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+4.1 Message Format Standardization
+
+•
+Rule: All inter-component messages must follow defined schemas
+
+•
+Implementation:
+
+•
+Define message schemas in a central location
+
+•
+Validate messages against schemas before sending/after receiving
+
+•
+Include required fields: timestamp, message type, sender ID
+
+•
+Cursor IDE should validate message structure against schemas
+
+
+
+4.2 Error Handling in Communication
+
+•
+Rule: Implement robust error handling for all communication
+
+•
+Implementation:
+
+•
+Timeout handling for all network operations
+
+•
+Retry logic with exponential backoff
+
+•
+Circuit breaker pattern for recurring failures
+
+•
+Cursor IDE should verify error handling in communication code
+
+
+
+4.3 Asynchronous Communication Patterns
+
+•
+Rule: Use appropriate asynchronous patterns for non-blocking operations
+
+•
+Implementation:
+
+•
+Use async/await for I/O-bound operations
+
+•
+Implement proper cancellation support
+
+•
+Handle exceptions in asynchronous contexts
+
+•
+Cursor IDE should suggest async patterns for I/O operations
+
+
+
+4.4 API Versioning
+
+•
+Rule: Version all APIs to support backward compatibility
+
+•
+Implementation:
+
+•
+Include version in message format
+
+•
+Maintain compatibility layers for older versions
+
+•
+Document breaking changes between versions
+
+•
+Cursor IDE should verify API version handling
+
+
+
+4.5 Service Discovery
+
+•
+Rule: Implement service discovery for dynamic component registration
+
+•
+Implementation:
+
+•
+Central registry for available services
+
+•
+Heartbeat mechanism for liveness checking
+
+•
+Graceful handling of service unavailability
+
+•
+
+
+
+

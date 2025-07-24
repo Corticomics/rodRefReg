@@ -1,0 +1,19 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1.2 Client-Server Communication
+
+•Rule: All Terminal PC to Task Pi communication must follow the defined JSON-based protocol
+
+•Implementation:
+
+•Use protocol constants for command names and status codes
+
+•Validate all messages against schema before sending
+
+•Handle all error responses explicitly
+
+
+•Cursor IDE should validate JSON structure against defined schem

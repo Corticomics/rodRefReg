@@ -1,0 +1,115 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+12.1 Database Performance
+
+•
+Rule: Optimize database operations
+
+•
+Implementation:
+
+•
+Use appropriate indexes
+
+•
+Optimize query patterns
+
+•
+Implement connection pooling
+
+•
+Cursor IDE should suggest database optimizations
+
+
+
+12.2 Memory Management
+
+•
+Rule: Manage memory efficiently
+
+•
+Implementation:
+
+•
+Avoid memory leaks
+
+•
+Use generators for large data sets
+
+•
+Implement pagination for large results
+
+•
+Cursor IDE should identify memory issues
+
+
+
+12.3 Concurrency Management
+
+•
+Rule: Handle concurrency appropriately
+
+•
+Implementation:
+
+•
+Use async/await for I/O-bound operations
+
+•
+Implement proper locking for shared resources
+
+•
+Use thread pools for CPU-bound tasks
+
+•
+Cursor IDE should verify concurrency patterns
+
+
+
+12.4 Caching Strategy
+
+•
+Rule: Implement effective caching
+
+•
+Implementation:
+
+•
+Cache frequently accessed data
+
+•
+Implement cache invalidation
+
+•
+Use appropriate cache scopes
+
+•
+Cursor IDE should suggest caching opportunities
+
+
+
+12.5 Resource Optimization
+
+•
+Rule: Optimize resource usage
+
+•
+Implementation:
+
+•
+Close resources properly
+
+•
+Reuse expensive resources
+
+•
+Monitor resource utilization
+
+•
+
+
+
+

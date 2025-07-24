@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1.5 Dependency Injection
+
+•
+Rule: Use dependency injection for service and repository dependencies
+
+•
+Implementation:
+
+•
+Pass dependencies through constructors
+
+•
+Avoid global state and singletons where possible
+
+•
+Use factory patterns for complex object creation
+
+•
+Cursor IDE should suggest constructor injection for dependencies
+
+
+
+

@@ -1,0 +1,115 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+11.1 Authentication and Authorization
+
+•
+Rule: Implement robust authentication and authorization
+
+•
+Implementation:
+
+•
+Role-based access control
+
+•
+Secure password storage
+
+•
+Session management
+
+•
+Cursor IDE should verify security implementation
+
+
+
+11.2 Input Validation
+
+•
+Rule: Validate all inputs
+
+•
+Implementation:
+
+•
+Validate at API boundaries
+
+•
+Sanitize user inputs
+
+•
+Prevent injection attacks
+
+•
+Cursor IDE should verify input validation
+
+
+
+11.3 Secure Communication
+
+•
+Rule: Secure all communication channels
+
+•
+Implementation:
+
+•
+TLS for sensitive communications
+
+•
+Authentication for all API endpoints
+
+•
+Secure database connections
+
+•
+Cursor IDE should verify secure communication
+
+
+
+11.4 Sensitive Data Handling
+
+•
+Rule: Handle sensitive data securely
+
+•
+Implementation:
+
+•
+Encrypt sensitive data at rest
+
+•
+Minimize sensitive data exposure
+
+•
+Implement data access audit logging
+
+•
+Cursor IDE should identify sensitive data handling
+
+
+
+11.5 Security Testing
+
+•
+Rule: Implement security testing
+
+•
+Implementation:
+
+•
+Vulnerability scanning
+
+•
+Penetration testing
+
+•
+Security code reviews
+
+•
+
+
+
+
