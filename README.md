@@ -27,13 +27,26 @@ If the system is already installed in your lab, skip to [Using the Application](
 To install the software on a new Raspberry Pi:
 
 1. Open a terminal window on your Raspberry Pi
-2. Run the following command to download and start the installation script:
+2. Run the following **secure installation command**:
 
-```
-wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh && chmod +x setup_rrr.sh && ./setup_rrr.sh
+```bash
+curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/verify_and_install.sh | bash
 ```
 
-3. Follow the on-screen prompts to complete the installation
+**Security Features:**
+- ✅ **Cryptographic verification** of downloaded files
+- ✅ **Explicit user consent** for privileged operations  
+- ✅ **Malicious content detection** and prevention
+- ✅ **Comprehensive audit logging** for compliance
+- ✅ **Automatic backup** and rollback capabilities
+- ✅ **Option to review** installer code before execution
+
+3. **Choose your security level:**
+   - **Option 1 (Recommended):** Review installer code before execution
+   - **Option 2:** Proceed with immediate installation  
+   - **Option 3:** Save installer for manual review
+
+4. Follow the on-screen prompts to complete the installation
 
 ### 2. Using the Application
 
@@ -172,6 +185,49 @@ If you need assistance with the RRR system:
 - Check animals regularly to ensure they are receiving adequate hydration and to check if the hardware setup was made correctly do not leave the subjects by themselves for the first few uses to ensure correct software and hardware setup and safety 
 - Keep water lines and pumps clean to prevent contamination
 - Never modify the hardware without consulting technical staff
+
+## Security & Compliance
+
+### Laboratory Security Standards
+
+The RRR system implements **enterprise-grade security** appropriate for laboratory environments:
+
+🔒 **Installation Security:**
+- Cryptographic verification of all downloads
+- Malicious content detection and prevention  
+- Explicit user consent for privileged operations
+- Comprehensive audit logging for regulatory compliance
+- Automatic backup and rollback capabilities
+
+🏥 **Operational Security:**
+- Role-based access control (Admin/Lab User)
+- Secure password storage with encryption
+- Session management and automatic timeouts
+- Comprehensive activity logging
+- Hardware access controls
+
+📋 **Compliance Features:**
+- Complete audit trails for IACUC/AWERB requirements
+- Data integrity verification with checksums
+- Backup and recovery procedures
+- User activity monitoring
+- System configuration validation
+
+### Security Best Practices
+
+**For Laboratory Managers:**
+- Review all installation logs in `~/.rrr_logs/`
+- Implement regular password updates
+- Monitor system access through security logs
+- Maintain offline backups of animal/schedule data
+- Restrict physical access to Raspberry Pi hardware
+
+**For IT Administrators:**
+- Enable firewall rules for network isolation
+- Use SSH key-based authentication for remote access
+- Implement network segmentation for laboratory systems
+- Regular security updates through the built-in update system
+- Monitor for unauthorized software modifications
 
 ---
 

@@ -503,6 +503,7 @@ setup_repository() {
         
         success_message "Repository updated successfully"
         
+        fix_python_executable_permissions
     else
         # Handle directory that may contain files but isn't a git repo
         if [ "$(ls -A "$target_dir" 2>/dev/null | wc -l)" -gt 0 ]; then
@@ -538,6 +539,66 @@ setup_repository() {
         
         success_message "Repository cloned successfully"
     fi
+    
+    # Fix Python executable permissions for both new and updated repositories
+    fix_python_executable_permissions
+}
+
+fix_python_executable_permissions() {
+    log "INFO" "Setting executable permissions for Python scripts..."
+    
+    local python_executables=()
+    local fixed_count=0
+    
+    # Find all Python files with shebang lines that should be executable
+    while IFS= read -r -d '' file; do
+        if [ -f "$file" ] && head -n 1 "$file" 2>/dev/null | grep -q "^#!.*python"; then
+            python_executables+=("$file")
+            
+            # Check if file is already executable
+            if [ ! -x "$file" ]; then
+                log "INFO" "Setting executable permission: $file"
+                chmod +x "$file" || log "WARN" "Failed to set executable permission: $file"
+                ((fixed_count++))
+            else
+                log "INFO" "Already executable: $file"
+            fi
+        fi
+    done < <(find "$APP_DIR/Project" -name "*.py" -type f -print0 2>/dev/null)
+    
+    # Specifically ensure main.py is executable (critical for application startup)
+    if [ -f "$APP_DIR/Project/main.py" ]; then
+        if [ ! -x "$APP_DIR/Project/main.py" ]; then
+            log "INFO" "Ensuring main.py is executable (critical for application startup)"
+            chmod +x "$APP_DIR/Project/main.py" || {
+                log "ERROR" "Failed to make main.py executable - installation will fail"
+                exit 1
+            }
+            ((fixed_count++))
+        fi
+    else
+        log "ERROR" "main.py not found - this will cause application failure"
+        exit 1
+    fi
+    
+    if [ $fixed_count -gt 0 ]; then
+        log "INFO" "Fixed executable permissions for $fixed_count Python files"
+        success_message "Python executable permissions corrected"
+    else
+        log "INFO" "All Python executable permissions were already correct"
+    fi
+    
+    # Verify critical files are now executable
+    local critical_files=("$APP_DIR/Project/main.py")
+    
+    for file in "${critical_files[@]}"; do
+        if [ -f "$file" ] && [ -x "$file" ]; then
+            log "INFO" "✓ Verified executable: $(basename "$file")"
+        else
+            log "ERROR" "✗ Critical file not executable: $file"
+            exit 1
+        fi
+    done
 }
 
 # ====================================================================
@@ -1712,6 +1773,25 @@ validate_installation() {
             validation_errors+=("File not executable: $file")
         else
             log "INFO" "✓ File exists and executable: $(basename "$file")"
+        fi
+    done
+    
+    # Additional check for critical Python files with shebang lines
+    local critical_python_files=(
+        "$APP_DIR/Project/main.py"
+        "$APP_DIR/Project/fix_i2c.py"
+    )
+    
+    for file in "${critical_python_files[@]}"; do
+        if [ -f "$file" ]; then
+            # Check if file has shebang and is executable
+            if head -n 1 "$file" 2>/dev/null | grep -q "^#!.*python"; then
+                if [ -x "$file" ]; then
+                    log "INFO" "✓ Python executable ready: $(basename "$file")"
+                else
+                    validation_errors+=("Python script with shebang not executable: $file")
+                fi
+            fi
         fi
     done
     
