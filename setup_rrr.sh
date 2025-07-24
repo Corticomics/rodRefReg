@@ -224,14 +224,12 @@ install_system_dependencies() {
         "libssl-dev"
     )
     
-    # Install packages with automatic retry on lock
-    local install_cmd="sudo apt-get install -y ${packages[*]}"
-    
-    if ! $install_cmd; then
+    # Install packages with automatic retry on lock - using direct execution
+    if ! sudo apt-get install -y "${packages[@]}"; then
         log "WARN" "Initial package installation failed, trying again..."
         sleep 10
         
-        if ! $install_cmd; then
+        if ! sudo apt-get install -y "${packages[@]}"; then
             log "ERROR" "Failed to install system dependencies"
             exit 1
         fi

@@ -459,9 +459,12 @@ class SchedulesTab(QWidget):
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""
-        # Safety check in case schedule_list hasn't been initialized yet
-        if not hasattr(self, 'schedule_list'):
-            self.print_to_terminal("Warning: schedule_list not initialized. Skipping schedule loading.")
+        # Safety check to ensure UI is fully initialized
+        if not hasattr(self, 'schedule_list') or self.schedule_list is None:
+            self.print_to_terminal("Warning: schedule_list not initialized. Deferring schedule loading.")
+            # Use QTimer to defer loading until UI is fully initialized
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(100, self.load_schedules)
             return
             
         self.schedule_list.clear()
