@@ -1,0 +1,25 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Rule: All database interactions must use the repository pattern
+
+•
+Implementation:
+
+•
+Create specific repositories for each entity type
+
+•
+No direct SQL queries in business logic
+
+•
+Use the BaseRepository for common CRUD operations
+
+•
+Cursor IDE should enforce repository usage for database operations
+
+
+
+

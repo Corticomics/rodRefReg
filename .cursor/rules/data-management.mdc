@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+6.1 NWB File Structure
+
+•
+Rule: Follow NWB 2.0 standard for all experimental data
+
+•
+Implementation:
+
+•
+Use /general/task_parameters group for task settings
+
+•
+Include all required metadata fields
+
+•
+Validate files against NWB schema
+
+•
+Cursor IDE should verify NWB structure compliance
+
+
+
+6.2 Database Schema Management
+
+•
+Rule: Manage database schema changes systematically
+
+•
+Implementation:
+
+•
+Use SQLAlchemy for schema definition
+
+•
+Implement migration scripts for schema changes
+
+•
+Version database schemas
+
+•
+Cursor IDE should track schema changes and suggest migrations
+
+
+
+6.3 Data Validation
+
+•
+Rule: Validate all data before persistence
+
+•
+Implementation:
+
+•
+Use Pydantic models for schema validation
+
+•
+Implement domain-specific validation rules
+
+•
+Validate at both client and server sides
+
+•
+Cursor IDE should verify validation implementation
+
+
+
+6.4 Query Optimization
+
+•
+Rule: Optimize database queries for performance
+
+•
+Implementation:
+
+•
+Use appropriate indexes for frequently queried fields
+
+•
+Implement pagination for large result sets
+
+•
+Monitor query performance
+
+•
+Cursor IDE should suggest query optimizations
+
+
+
+6.5 Data Integrity
+
+•
+Rule: Ensure data integrity across the system
+
+•
+Implementation:
+
+•
+Use transactions for multi-step operations
+
+•
+Implement checksums for file transfers
+
+•
+Validate referential integrity
+
+•
+
+
+
+
+

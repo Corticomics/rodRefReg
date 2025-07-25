@@ -27,6 +27,7 @@ If the system is already installed in your lab, skip to [Using the Application](
 To install the software on a new Raspberry Pi:
 
 1. Open a terminal window on your Raspberry Pi
+
 2. Run the following **one-line installer** (works from any directory):
 
 ```bash
@@ -43,6 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rr
 4. Follow the on-screen prompts to complete the installation
 
 **Note:** The installer is designed to work regardless of where you run it from - it will always result in a properly configured system.
+
 
 ### 2. Using the Application
 
@@ -181,6 +183,49 @@ If you need assistance with the RRR system:
 - Check animals regularly to ensure they are receiving adequate hydration and to check if the hardware setup was made correctly do not leave the subjects by themselves for the first few uses to ensure correct software and hardware setup and safety 
 - Keep water lines and pumps clean to prevent contamination
 - Never modify the hardware without consulting technical staff
+
+## Security & Compliance
+
+### Laboratory Security Standards
+
+The RRR system implements **enterprise-grade security** appropriate for laboratory environments:
+
+🔒 **Installation Security:**
+- Cryptographic verification of all downloads
+- Malicious content detection and prevention  
+- Explicit user consent for privileged operations
+- Comprehensive audit logging for regulatory compliance
+- Automatic backup and rollback capabilities
+
+🏥 **Operational Security:**
+- Role-based access control (Admin/Lab User)
+- Secure password storage with encryption
+- Session management and automatic timeouts
+- Comprehensive activity logging
+- Hardware access controls
+
+📋 **Compliance Features:**
+- Complete audit trails for IACUC/AWERB requirements
+- Data integrity verification with checksums
+- Backup and recovery procedures
+- User activity monitoring
+- System configuration validation
+
+### Security Best Practices
+
+**For Laboratory Managers:**
+- Review all installation logs in `~/.rrr_logs/`
+- Implement regular password updates
+- Monitor system access through security logs
+- Maintain offline backups of animal/schedule data
+- Restrict physical access to Raspberry Pi hardware
+
+**For IT Administrators:**
+- Enable firewall rules for network isolation
+- Use SSH key-based authentication for remote access
+- Implement network segmentation for laboratory systems
+- Regular security updates through the built-in update system
+- Monitor for unauthorized software modifications
 
 ---
 

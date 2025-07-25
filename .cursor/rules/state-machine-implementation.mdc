@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ State Machine Implementation
+
+•Rule: Task execution must follow the state machine pattern
+
+•Implementation:
+
+•New tasks must extend the base Task class
+
+•Custom states must inherit from the State base class
+
+•State transitions must be explicit and documented
+
+•Cursor IDE should verify state class inheritance and method implementation
+
+
+
+
+
+
+
+
+
