@@ -32,9 +32,10 @@ success() {
 
 # Check for internet connection
 log "Checking internet connection..."
-if ! ping -c 1 github.com &> /dev/null; then
-    error_exit "No internet connection. Please check your network and try again."
+if ! ping -c 1 github.com &> /dev/null && ! ping -c 1 8.8.8.8 &> /dev/null; then
+    error_exit "No internet connection detected. Please check your network and try again."
 fi
+log "✓ Internet connection verified"
 
 # Check disk space (need at least 1GB free)
 log "Checking available disk space..."
@@ -250,24 +251,118 @@ EOI
     chmod +x ~/rodent-refreshment-regulator/configure_i2c.sh
 fi
 
-# Create directory for the application if it doesn't exist
+# Smart installation directory setup - handles all execution contexts
 log "=== Setting up application directory ==="
-mkdir -p ~/rodent-refreshment-regulator
-cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application directory"
 
 # Set repository URL
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+TARGET_DIR="$HOME/rodent-refreshment-regulator"
 
-# Clone the repository if not already done
-if [ ! -d ".git" ]; then
-    log "=== Cloning the repository ==="
-    log "Using repository: $REPO_URL"
-    git clone "$REPO_URL" . || error_exit "Failed to clone repository"
-    log "Repository cloned successfully."
-else
-    log "Repository already exists. Updating..."
-    git pull || log "Warning: git pull failed, but continuing with existing code"
+# Function to detect current execution context
+detect_execution_context() {
+    local current_dir=$(pwd)
+    local current_basename=$(basename "$current_dir")
+    
+    # Check if we're already in a git repository
+    if [ -d ".git" ]; then
+        local repo_url=$(git remote get-url origin 2>/dev/null || echo "")
+        if [[ "$repo_url" == *"rodRefReg"* ]] || [[ "$repo_url" == *"rodent-refreshment-regulator"* ]]; then
+            echo "EXISTING_REPO"
+            return
+        fi
+    fi
+    
+    # Check if we're in the target directory
+    if [ "$current_dir" = "$TARGET_DIR" ]; then
+        echo "TARGET_DIR"
+        return
+    fi
+    
+    # Check if target directory exists and is a repo
+    if [ -d "$TARGET_DIR/.git" ]; then
+        echo "TARGET_EXISTS"
+        return
+    fi
+    
+    # Default case - fresh installation
+    echo "FRESH_INSTALL"
+}
+
+# Execute context-aware installation
+CONTEXT=$(detect_execution_context)
+log "Detected execution context: $CONTEXT"
+
+case $CONTEXT in
+    "EXISTING_REPO")
+        log "Running from existing repository - setting up in place"
+        
+        # If we're not in the target directory, copy/move to target
+        if [ "$(pwd)" != "$TARGET_DIR" ]; then
+            log "Moving repository to standard location: $TARGET_DIR"
+            
+            # Create backup if target exists
+            if [ -d "$TARGET_DIR" ]; then
+                backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+                log "Creating backup: $backup_dir"
+                mv "$TARGET_DIR" "$backup_dir"
+            fi
+            
+            # Copy current repo to target location
+            cp -r "$(pwd)" "$TARGET_DIR"
+            cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+        fi
+        
+        # Update the repository
+        log "Updating repository..."
+        git fetch origin || log "Warning: fetch failed, continuing with existing code"
+        git pull origin main || git pull origin master || log "Warning: pull failed, continuing with existing code"
+        ;;
+        
+    "TARGET_DIR")
+        log "Already in target directory - updating repository"
+        if [ -d ".git" ]; then
+            git fetch origin || log "Warning: fetch failed, continuing"
+            git pull origin main || git pull origin master || log "Warning: pull failed, continuing"
+        else
+            log "Warning: In target directory but no git repository found"
+            # Try to initialize from remote
+            git clone "$REPO_URL" temp_clone || error_exit "Failed to clone repository"
+            cp -r temp_clone/* .
+            cp -r temp_clone/.git .
+            rm -rf temp_clone
+        fi
+        ;;
+        
+    "TARGET_EXISTS")
+        log "Target directory exists - updating existing installation"
+        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+        git fetch origin || log "Warning: fetch failed, continuing"
+        git pull origin main || git pull origin master || log "Warning: pull failed, continuing"
+        ;;
+        
+    "FRESH_INSTALL")
+        log "Fresh installation - cloning repository to target directory"
+        
+        # Create parent directory if needed
+        mkdir -p "$(dirname "$TARGET_DIR")"
+        
+        # Clone repository
+        git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+        log "Repository cloned successfully to $TARGET_DIR"
+        ;;
+        
+    *)
+        error_exit "Unknown execution context: $CONTEXT"
+        ;;
+esac
+
+# Verify we're in the correct location with the correct structure
+if [ ! -f "Project/main.py" ]; then
+    error_exit "Installation verification failed - Project/main.py not found in $(pwd)"
 fi
+
+log "✓ Repository setup complete - using directory: $(pwd)"
 
 # Create virtual environment with access to system packages 
 # (this is critical for PyQt5 and RPi.GPIO)
@@ -989,39 +1084,202 @@ EOF
 
 chmod +x ~/rodent-refreshment-regulator/toggle_service.sh
 
-echo ""
-echo "=== Installation complete! ==="
-echo "To run the application, you can:"
-echo "1. Double-click the desktop shortcut"
-echo "2. Run the startup script: ~/rodent-refreshment-regulator/start_rrr.sh"
-echo "3. Manually navigate to the Project directory and run: python3 main.py"
-echo ""
-echo "If you encounter missing package errors:"
-echo "Run: ~/rodent-refreshment-regulator/fix_dependencies.sh"
-echo ""
-echo "To diagnose problems:"
-echo "Run: ~/rodent-refreshment-regulator/diagnose.sh"
-echo ""
-echo "To test hardware connectivity:"
-echo "Run: ~/rodent-refreshment-regulator/test_hardware.sh"
-echo ""
-echo "To troubleshoot I2C issues:"
-echo "Run: ~/rodent-refreshment-regulator/fix_i2c.sh"
-echo ""
-echo "To disable/enable service mode (for unattended operation):"
-echo "Run: ~/rodent-refreshment-regulator/toggle_service.sh"
-echo ""
-echo "Important: Power management has been disabled to prevent sleep during experiments."
-echo "This means your system will not go to sleep while the application is running,"
-echo "ensuring continuous operation even when the display is disconnected."
-echo ""
-echo "Note: A system reboot may be required for power management and I2C changes to take effect."
-echo "Would you like to reboot now? (y/n)"
-read reboot_choice
+# Create installation verification script
+log "=== Creating installation verification script ==="
+cat > ~/rodent-refreshment-regulator/verify_installation.sh << 'EOF'
+#!/bin/bash
+# RRR Installation Verification Script
+# Quickly checks if the installation is working correctly
 
-if [[ $reboot_choice == "y" || $reboot_choice == "Y" ]]; then
-    echo "Rebooting..."
+echo "🔍 RRR Installation Verification"
+echo "================================"
+echo ""
+
+# Check if we're in the right directory
+if [ ! -f "Project/main.py" ]; then
+    echo "❌ Error: Not in RRR installation directory"
+    echo "   Please run this from: ~/rodent-refreshment-regulator/"
+    exit 1
+fi
+
+echo "✅ Installation directory: $(pwd)"
+
+# Check Python environment
+echo "🐍 Checking Python environment..."
+if [ -d "venv" ]; then
+    echo "   ✅ Virtual environment found"
+    
+    if source venv/bin/activate 2>/dev/null; then
+        echo "   ✅ Virtual environment activated"
+        
+        # Test critical imports
+        python3 -c "
+import sys
+try:
+    import PyQt5
+    print('   ✅ PyQt5 available')
+except ImportError:
+    print('   ❌ PyQt5 not available')
+
+try:
+    import RPi.GPIO
+    print('   ✅ RPi.GPIO available')
+except ImportError:
+    print('   ❌ RPi.GPIO not available')
+
+try:
+    import pandas
+    print('   ✅ pandas available')
+except ImportError:
+    print('   ❌ pandas not available')
+" 2>/dev/null
+        
+        deactivate
+    else
+        echo "   ❌ Cannot activate virtual environment"
+    fi
+else
+    echo "   ❌ Virtual environment not found"
+fi
+
+# Check hardware components
+echo ""
+echo "🔧 Checking hardware components..."
+
+# Check I2C
+if command -v i2cdetect >/dev/null 2>&1; then
+    echo "   ✅ I2C tools installed"
+    
+    # List available I2C buses
+    buses=($(ls /dev/i2c-* 2>/dev/null | sed 's/.*i2c-//'))
+    if [ ${#buses[@]} -gt 0 ]; then
+        echo "   ✅ I2C buses available: ${buses[*]}"
+    else
+        echo "   ⚠️  No I2C buses detected (may need reboot)"
+    fi
+else
+    echo "   ❌ I2C tools not installed"
+fi
+
+# Check relay HAT communication
+echo "   🔌 Testing relay HAT communication..."
+if command -v 16relind >/dev/null 2>&1; then
+    echo "   ✅ 16relind command available"
+    
+    # Try to communicate with relay HAT
+    if timeout 5 16relind -h >/dev/null 2>&1; then
+        echo "   ✅ Relay HAT driver responding"
+    else
+        echo "   ⚠️  Relay HAT driver installed but may need hardware connection"
+    fi
+else
+    echo "   ❌ 16relind command not found"
+fi
+
+echo ""
+echo "📊 Summary:"
+echo "==========="
+
+# Overall assessment
+critical_files=("Project/main.py" "Project/ui/gui.py" "Project/gpio/gpio_handler.py")
+missing_files=0
+
+for file in "${critical_files[@]}"; do
+    if [ ! -f "$file" ]; then
+        ((missing_files++))
+    fi
+done
+
+if [ $missing_files -eq 0 ] && [ -d "venv" ]; then
+    echo "🎉 Installation appears to be working correctly!"
+    echo ""
+    echo "Next steps:"
+    echo "1. Reboot your system if you haven't already"
+    echo "2. Run the application: ./start_rrr.sh"
+    echo "3. Check the Help tab in the application for usage guides"
+else
+    echo "⚠️  Installation has some issues that may need attention"
+    echo ""
+    echo "Troubleshooting:"
+    echo "1. Try running: ./fix_dependencies.sh"
+    echo "2. For I2C issues: ./fix_i2c.sh"
+    echo "3. For general diagnosis: ./diagnose.sh"
+fi
+
+echo ""
+echo "For support, check the documentation or contact your system administrator."
+EOF
+
+chmod +x ~/rodent-refreshment-regulator/verify_installation.sh
+
+# Final installation verification
+log "=== Final Installation Verification ==="
+cd "$TARGET_DIR" || error_exit "Target directory not accessible"
+
+# Check critical files
+CRITICAL_FILES=("Project/main.py" "Project/ui/gui.py" "Project/gpio/gpio_handler.py")
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        log "WARNING: Critical file missing: $file"
+    else
+        log "✓ Verified: $file"
+    fi
+done
+
+# Test Python environment
+log "Testing Python environment..."
+if source venv/bin/activate 2>/dev/null; then
+    if python3 -c "import PyQt5; print('✓ PyQt5 available')" 2>/dev/null; then
+        log "✓ Python environment verified"
+    else
+        log "WARNING: PyQt5 may not be properly installed"
+    fi
+    deactivate
+else
+    log "WARNING: Virtual environment activation failed"
+fi
+
+echo ""
+echo "🎉 ===== INSTALLATION COMPLETE! ===== 🎉"
+echo ""
+echo "The Rodent Refreshment Regulator has been successfully installed!"
+echo "Installation directory: $TARGET_DIR"
+echo ""
+echo "🚀 TO START THE APPLICATION:"
+echo "   Option 1: Double-click the desktop shortcut 'RRR'"
+echo "   Option 2: Run: ~/rodent-refreshment-regulator/start_rrr.sh"
+echo "   Option 3: Manual start:"
+echo "            cd ~/rodent-refreshment-regulator"
+echo "            source venv/bin/activate"
+echo "            cd Project && python3 main.py"
+echo ""
+echo "🛠️  TROUBLESHOOTING TOOLS (if needed):"
+echo "   • Installation check: ~/rodent-refreshment-regulator/verify_installation.sh"
+echo "   • Fix dependencies: ~/rodent-refreshment-regulator/fix_dependencies.sh"
+echo "   • System diagnosis: ~/rodent-refreshment-regulator/diagnose.sh"
+echo "   • Hardware test: ~/rodent-refreshment-regulator/test_hardware.sh"
+echo "   • I2C issues: ~/rodent-refreshment-regulator/fix_i2c.sh"
+echo ""
+echo "⚙️  SYSTEM CONFIGURATION:"
+echo "   • Service mode toggle: ~/rodent-refreshment-regulator/toggle_service.sh"
+echo "   • Power management: DISABLED (prevents sleep during experiments)"
+echo "   • I2C buses detected: ${AVAILABLE_BUSES[*]:-"Will be detected on reboot"}"
+echo ""
+echo "⚠️  IMPORTANT: A system reboot is recommended for I2C and power settings."
+echo ""
+read -p "Would you like to reboot now? (y/N): " -r reboot_choice
+echo ""
+
+if [[ $reboot_choice =~ ^[Yy]$ ]]; then
+    echo "🔄 Rebooting system..."
+    log "User chose to reboot - system restarting"
     sudo reboot
 else
-    echo "Please remember to reboot your system later for all changes to take effect."
+    echo "✅ Installation complete! Remember to reboot later."
+    echo ""
+    echo "📖 For detailed usage instructions, see:"
+    echo "   ~/rodent-refreshment-regulator/README.md"
+    echo ""
+    echo "🎯 Quick start: Run the application and check the Help tab for guides."
+    log "Installation completed successfully - user chose not to reboot"
 fi 

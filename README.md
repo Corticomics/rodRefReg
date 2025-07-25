@@ -27,13 +27,22 @@ If the system is already installed in your lab, skip to [Using the Application](
 To install the software on a new Raspberry Pi:
 
 1. Open a terminal window on your Raspberry Pi
-2. Run the following command to download and start the installation script:
+2. Run the following **one-line installer** (works from any directory):
 
-```
-wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh && chmod +x setup_rrr.sh && ./setup_rrr.sh
+```bash
+curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh | sudo bash
 ```
 
-3. Follow the on-screen prompts to complete the installation
+3. The installer will automatically:
+   - Detect your system configuration
+   - Install all dependencies
+   - Set up the application in `~/rodent-refreshment-regulator/`
+   - Configure I2C and hardware drivers
+   - Create desktop shortcuts and startup scripts
+
+4. Follow the on-screen prompts to complete the installation
+
+**Note:** The installer is designed to work regardless of where you run it from - it will always result in a properly configured system.
 
 ### 2. Using the Application
 
