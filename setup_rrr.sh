@@ -259,7 +259,7 @@ PRIMARY_BUS=${AVAILABLE_BUSES[-1]}  # Last (highest) bus
 echo "Will use primary I2C bus: /dev/i2c-$PRIMARY_BUS"
 
 # Run fix_i2c.py if available with virtual environment
-cd "\$(dirname "\$0")"
+cd "$(dirname "$0")"
 if [ -f "Project/fix_i2c.py" ]; then
     echo "Running I2C fix script with proper Python environment..."
     source venv/bin/activate 2>/dev/null || echo "Warning: Could not activate virtual environment"
@@ -694,9 +694,8 @@ if [ $EXIT_CODE -ne 0 ]; then
     read -p "Press Enter to close this window..."
 fi
 
-exit \$EXIT_CODE
+exit $EXIT_CODE
 EOF
-"
 
 run_as_user chmod +x "$TARGET_DIR/launch_rrr.sh"
 
@@ -771,7 +770,7 @@ UPDATE_LOG="$HOME/rrr_update_$(date +%Y%m%d).log"
 echo "=== RRR Update $(date) ===" >> "$UPDATE_LOG"
 
 # Configuration
-RRR_DIR="${RRR_INSTALL_DIR:-$HOME/rodent-refreshment-regulator}"
+RRR_DIR="\$(dirname "\$0")"
 LOG_FILE="$RRR_DIR/update_log.txt"
 DEFAULT_BRANCH="main"
 
