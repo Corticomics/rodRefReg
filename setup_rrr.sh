@@ -529,11 +529,12 @@ log "=== Python dependencies installed successfully ==="
 
 # Verify slack_sdk installation
 log "=== Verifying slack_sdk installation ==="
-if pip show slack_sdk > /dev/null; then
+if run_as_user bash -c "source '$TARGET_DIR/venv/bin/activate' && pip show slack_sdk > /dev/null"; then
     log "slack_sdk is installed correctly."
 else
-    log "Installing slack_sdk separately..."
-    pip install slack_sdk==3.21.3 --break-system-packages || error_exit "Failed to install slack_sdk"
+    log "Installing slack_sdk in venv..."
+    run_as_user bash -c "source '$TARGET_DIR/venv/bin/activate' && pip install slack_sdk==3.21.3" \
+        || error_exit "Failed to install slack_sdk"
 fi
 
 # Verify PyQt5 is accessible from the virtual environment
@@ -567,26 +568,19 @@ python3 -c "import pandas; print('pandas version:', pandas.__version__)" || {
 
 # Verify SM16relind Python module can be imported (if it exists)
 log "=== Verifying SM16relind module is accessible ==="
-python3 -c "
-try:
-    import SM16relind
-    print('SM16relind module found')
-except ImportError:
-    print('SM16relind module not found, but command line tool should work')
-" || {
-    log "Note: SM16relind Python module not found. This is normal if the module uses command line tools instead."
-    # Try symlink if the lib directory exists but install didn't work
-    if [ -d /usr/local/lib/python3*/dist-packages/SM16relind ]; then
-        log "Found SM16relind module in system packages, creating symlink to virtual environment..."
-        SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
-        if [ -n "$SM_PATH" ]; then
-            PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-            run_as_user mkdir -p "$TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/"
-            run_as_user ln -sf "$SM_PATH" "$TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/"
-            log "Symlink created."
-        fi
+if ! python3 -c "import SM16relind" >/dev/null 2>&1; then
+    log "SM16relind Python module not found – linking system installation into venv..."
+    # Find where system installed SM16relind (from setup.py install)
+    SM_PATH=$(find /usr/local/lib/python3*/dist-packages -type d -name "SM16relind" | head -n 1)
+    if [ -n "$SM_PATH" ]; then
+        PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        run_as_user mkdir -p "$TARGET_DIR/venv/lib/python$PY_VERSION/site-packages"
+        run_as_user ln -s "$SM_PATH" "$TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/SM16relind"
+        log "Symlinked SM16relind into the virtual environment."
+    else
+        log "Warning: SM16relind module not found in system packages either."
     fi
-}
+fi
 
 # Test and validate 16relind relay HAT functionality with Raspberry Pi 5 configuration
 log "=== Testing 16relind Relay HAT Functionality ==="
@@ -725,7 +719,7 @@ fi
 
 # Create a startup script
 log "=== Creating startup script ==="
-run_as_user cat > "$TARGET_DIR/start_rrr.sh" << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/start_rrr.sh' << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
 
@@ -745,11 +739,12 @@ source venv/bin/activate
 cd Project
 python3 main.py
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/start_rrr.sh"
 
 # Create the UI update script
 log "=== Creating UI update script ==="
-run_as_user cat > "$TARGET_DIR/update_ui.sh" << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/update_ui.sh' << 'EOF'
 #!/bin/bash
 
 # Rodent Refreshment Regulator Update Script
@@ -912,11 +907,12 @@ fi
 log "Update process completed successfully."
 exit 0
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/update_ui.sh"
 
 # Create a hardware test script
 log "=== Creating hardware test script ==="
-run_as_user cat > "$TARGET_DIR/test_hardware.sh" << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/test_hardware.sh' << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
 source venv/bin/activate
@@ -948,11 +944,12 @@ else
     echo "Relay test script not found."
 fi
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/test_hardware.sh"
 
 # Create a diagnostic script
 log "=== Creating diagnostic script ==="
-run_as_user cat > "$TARGET_DIR/diagnose.sh" << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/diagnose.sh' << 'EOF'
 #!/bin/bash
 echo "=== RRR Diagnostic Script ==="
 echo "Checking environment..."
@@ -996,11 +993,12 @@ else
     ls -la
 fi
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/diagnose.sh"
 
 # Add quick fix script for missing pandas
 log "=== Creating quick fix script for missing packages ==="
-run_as_user cat > "$TARGET_DIR/fix_dependencies.sh" << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/fix_dependencies.sh' << 'EOF'
 #!/bin/bash
 echo "=== RRR Dependency Fix Script ==="
 cd "$(dirname "$0")"
@@ -1042,11 +1040,12 @@ pip install numpy matplotlib seaborn scipy scikit-learn statsmodels --break-syst
 
 echo "All dependencies should now be installed. Try running the application again."
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/fix_dependencies.sh"
 
 # Create an I2C troubleshooting script
 log "=== Creating I2C troubleshooting script ==="
-run_as_user cat > "$TARGET_DIR/fix_i2c.sh" << 'EOF'
+run_as_user bash -c ""cat > '$TARGET_DIR/fix_i2c.sh' << 'EOF'
 #!/bin/bash
 echo "=== RRR I2C Troubleshooting Script ==="
 echo "This script helps diagnose and fix I2C connection issues."
@@ -1193,6 +1192,7 @@ else
     fi
 fi
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/fix_i2c.sh"
 
 # Disable power management and screen blanking
@@ -1252,7 +1252,7 @@ WantedBy=multi-user.target
 EOF
 
 # Create a script to enable/disable service
-run_as_user cat > "$TARGET_DIR/toggle_service.sh" << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/toggle_service.sh' << 'EOF'
 #!/bin/bash
 # Script to toggle between desktop mode and service mode for RRR
 
@@ -1272,6 +1272,7 @@ else
     echo "To switch back to manual mode, run this script again."
 fi
 EOF
+"
 run_as_user chmod +x "$TARGET_DIR/toggle_service.sh"
 
 log "=== Final Installation Verification ==="
@@ -1316,7 +1317,6 @@ echo "            source venv/bin/activate"
 echo "            cd Project && python3 main.py"
 echo ""
 echo "🛠️  TROUBLESHOOTING TOOLS (if needed):"
-echo "   • Installation check: $TARGET_DIR/verify_installation.sh"
 echo "   • Fix dependencies: $TARGET_DIR/fix_dependencies.sh"
 echo "   • System diagnosis: $TARGET_DIR/diagnose.sh"
 echo "   • Hardware test: $TARGET_DIR/test_hardware.sh"
