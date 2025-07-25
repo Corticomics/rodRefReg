@@ -259,8 +259,9 @@ PRIMARY_BUS=${AVAILABLE_BUSES[-1]}  # Last (highest) bus
 echo "Will use primary I2C bus: /dev/i2c-$PRIMARY_BUS"
 
 # Run fix_i2c.py if available with virtual environment
-cd "$(dirname "$0")"
-if [ -f "Project/fix_i2c.py" ]; then
+SCRIPT_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\"
+cd \"\$SCRIPT_DIR\"
+if [ -f \"Project/fix_i2c.py\" ]; then
     echo "Running I2C fix script with proper Python environment..."
     source venv/bin/activate 2>/dev/null || echo "Warning: Could not activate virtual environment"
     cd Project
@@ -653,11 +654,11 @@ fi
 run_as_user bash -c "cat > '$TARGET_DIR/launch_rrr.sh' << 'EOF'
 #!/bin/bash
 # RRR Application Launcher with error handling
-cd \"\$(dirname \"\$0\")\""
+cd \"\$(dirname \"\$0\")\"
 
 # Log file
-LAUNCH_LOG="$HOME/rrr_launch_$(date +%Y%m%d).log"
-echo "=== RRR Launch $(date) ===" >> "$LAUNCH_LOG"
+LAUNCH_LOG=\"\$HOME/rrr_launch_\$(date +%Y%m%d).log\"
+echo \"=== RRR Launch \$(date) ===\" >> \"\$LAUNCH_LOG\"
 
 # Run the update script first
 if [ -f "update_ui.sh" ]; then
@@ -684,17 +685,17 @@ source venv/bin/activate
 # Launch the application
 echo "Starting RRR application..." | tee -a "$LAUNCH_LOG"
 cd Project
-python3 main.py 2>&1 | tee -a "$LAUNCH_LOG"
-EXIT_CODE=$?
+python3 main.py 2>&1 | tee -a \"\$LAUNCH_LOG\"
+EXIT_CODE=\$?
 
-if [ $EXIT_CODE -ne 0 ]; then
-    echo "ERROR: Application exited with code $EXIT_CODE" | tee -a "$LAUNCH_LOG"
-    echo "Check the log file at $LAUNCH_LOG for details"
+if [ \$EXIT_CODE -ne 0 ]; then
+    echo \"ERROR: Application exited with code \$EXIT_CODE\" | tee -a \"\$LAUNCH_LOG\"
+    echo \"Check the log file at \$LAUNCH_LOG for details\"
     # Keep terminal open for error inspection
-    read -p "Press Enter to close this window..."
+    read -p \"Press Enter to close this window...\"
 fi
 
-exit $EXIT_CODE
+exit \$EXIT_CODE
 EOF
 
 run_as_user chmod +x "$TARGET_DIR/launch_rrr.sh"
@@ -770,9 +771,9 @@ UPDATE_LOG="$HOME/rrr_update_$(date +%Y%m%d).log"
 echo "=== RRR Update $(date) ===" >> "$UPDATE_LOG"
 
 # Configuration
-RRR_DIR="\$(dirname "\$0")"
-LOG_FILE="$RRR_DIR/update_log.txt"
-DEFAULT_BRANCH="main"
+RRR_DIR=\"\$(cd \"\$(dirname \"\$0\")\" && pwd)\"
+LOG_FILE=\"\$RRR_DIR/update_log.txt\"
+DEFAULT_BRANCH=\"main\"
 
 # Function for logging
 log() {
