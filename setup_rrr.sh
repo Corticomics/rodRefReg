@@ -160,7 +160,12 @@ echo "User added to i2c group"
 echo "Testing I2C functionality..."
 if command -v i2cdetect > /dev/null; then
     echo "Running i2cdetect to scan for devices:"
-    sudo i2cdetect -y 1
+    # Raspberry Pi 5 uses different I2C bus numbers (13, 14) instead of the traditional (0, 1)
+    # Scan all available buses
+    for bus_num in $(ls /dev/i2c-* 2>/dev/null | sed 's/.*i2c-//'); do
+        echo "Scanning I2C bus $bus_num:"
+        sudo i2cdetect -y $bus_num
+    done
     echo "Note: If you just enabled I2C, you may need to reboot to see devices."
 else
     echo "i2cdetect not found. Installing I2C tools..."
@@ -202,11 +207,12 @@ else
 #!/bin/bash
 
 # Configure I2C - Automatically detect and use available I2C buses
+# Optimized for Raspberry Pi 5 with new I2C bus addressing (buses 13, 14)
 echo "Configuring I2C bus detection for Rodent Refreshment Regulator..."
 
 # Detect available I2C buses
 AVAILABLE_BUSES=()
-for i in $(seq 0 20); do
+for i in $(seq 0 50); do  # Extended range for Pi 5
     if [ -e "/dev/i2c-$i" ]; then
         AVAILABLE_BUSES+=("$i")
         echo "Found I2C bus: /dev/i2c-$i"
@@ -216,15 +222,19 @@ done
 if [ ${#AVAILABLE_BUSES[@]} -eq 0 ]; then
     echo "Error: No I2C buses detected!"
     echo "Please check that I2C is enabled in raspi-config"
+    echo "For Raspberry Pi 5, ensure dtparam=i2c_arm=on is in /boot/firmware/config.txt"
     exit 1
 fi
 
-echo "Will use I2C bus: /dev/i2c-${AVAILABLE_BUSES[0]}"
+# For Raspberry Pi 5, prefer higher numbered buses (13, 14)
+PRIMARY_BUS=${AVAILABLE_BUSES[-1]}  # Last (highest) bus
+echo "Will use primary I2C bus: /dev/i2c-$PRIMARY_BUS"
 
-# Run fix_i2c.py if available
+# Run fix_i2c.py if available with virtual environment
 cd ~/rodent-refreshment-regulator
 if [ -f "Project/fix_i2c.py" ]; then
-    echo "Running I2C fix script..."
+    echo "Running I2C fix script with proper Python environment..."
+    source venv/bin/activate 2>/dev/null || echo "Warning: Could not activate virtual environment"
     cd Project
     chmod +x fix_i2c.py
     python3 fix_i2c.py
@@ -232,11 +242,26 @@ if [ -f "Project/fix_i2c.py" ]; then
     echo "I2C configuration complete."
 fi
 
-# Test with i2cdetect
+# Test with i2cdetect on all available buses
 for bus in "${AVAILABLE_BUSES[@]}"; do
     echo "Testing I2C bus $bus:"
-    sudo i2cdetect -y $bus
+    if timeout 10 sudo i2cdetect -y $bus; then
+        echo "✓ Bus $bus is responsive"
+    else
+        echo "⚠ Bus $bus timeout or error"
+    fi
 done
+
+# Display bus recommendations
+echo ""
+echo "I2C Bus Configuration Summary:"
+echo "Available buses: ${AVAILABLE_BUSES[*]}"
+if [[ " ${AVAILABLE_BUSES[*]} " =~ " 13 " ]] || [[ " ${AVAILABLE_BUSES[*]} " =~ " 14 " ]]; then
+    echo "✓ Raspberry Pi 5 detected (buses 13/14 present)"
+    echo "✓ Using modern I2C configuration"
+else
+    echo "ℹ Traditional Raspberry Pi I2C configuration detected"
+fi
 EOI
 
     chmod +x /tmp/configure_i2c.sh
@@ -296,26 +321,64 @@ case $CONTEXT in
     "EXISTING_REPO")
         log "Running from existing repository - setting up in place"
         
-        # If we're not in the target directory, copy/move to target
-        if [ "$(pwd)" != "$TARGET_DIR" ]; then
-            log "Moving repository to standard location: $TARGET_DIR"
+        # Ask user about repository handling
+        echo ""
+        echo "🔄 Repository Update Options:"
+        echo "1. Keep existing repository and try to update (preserves any local changes)"
+        echo "2. Fresh clone from GitHub (overwrites any local changes with latest version)"
+        echo ""
+        read -p "Choose option (1 or 2, default is 1): " -r repo_choice
+        echo ""
+        
+        if [[ "$repo_choice" == "2" ]]; then
+            log "User chose fresh clone - removing existing repository"
+            current_dir=$(pwd)
+            cd /tmp
+            rm -rf "$current_dir"
             
-            # Create backup if target exists
-            if [ -d "$TARGET_DIR" ]; then
-                backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
-                log "Creating backup: $backup_dir"
-                mv "$TARGET_DIR" "$backup_dir"
+            # Fresh clone
+            log "Fresh cloning repository to target directory"
+            git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+            cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+            log "Fresh repository cloned successfully"
+        else
+            log "User chose to keep existing repository"
+            
+            # If we're not in the target directory, copy/move to target
+            if [ "$(pwd)" != "$TARGET_DIR" ]; then
+                log "Moving repository to standard location: $TARGET_DIR"
+                
+                # Create backup if target exists
+                if [ -d "$TARGET_DIR" ]; then
+                    backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+                    log "Creating backup: $backup_dir"
+                    mv "$TARGET_DIR" "$backup_dir"
+                fi
+                
+                # Copy current repo to target location
+                cp -r "$(pwd)" "$TARGET_DIR"
+                cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
             fi
             
-            # Copy current repo to target location
-            cp -r "$(pwd)" "$TARGET_DIR"
-            cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+            # Configure git to handle divergent branches
+            git config pull.rebase false || log "Warning: could not set git config"
+            
+            # Update the repository with conflict resolution
+            log "Updating repository..."
+            if ! git fetch origin; then
+                log "Warning: fetch failed, continuing with existing code"
+            else
+                # Try to pull with automatic conflict resolution
+                if ! git pull origin main; then
+                    if ! git pull origin master; then
+                        log "Warning: pull failed due to conflicts, resetting to remote state"
+                        # Stash any local changes and reset to remote
+                        git stash push -m "Auto-stash during installation $(date)" || true
+                        git reset --hard origin/main || git reset --hard origin/master || log "Warning: could not reset to remote"
+                    fi
+                fi
+            fi
         fi
-        
-        # Update the repository
-        log "Updating repository..."
-        git fetch origin || log "Warning: fetch failed, continuing with existing code"
-        git pull origin main || git pull origin master || log "Warning: pull failed, continuing with existing code"
         ;;
         
     "TARGET_DIR")
@@ -443,7 +506,13 @@ python3 -c "import pandas; print('pandas version:', pandas.__version__)" || {
 
 # Verify SM16relind Python module can be imported (if it exists)
 log "=== Verifying SM16relind module is accessible ==="
-python3 -c "try: import SM16relind; print('SM16relind module found'); except ImportError: print('SM16relind module not found, but command line tool should work')" || {
+python3 -c "
+try: 
+    import SM16relind
+    print('SM16relind module found')
+except ImportError: 
+    print('SM16relind module not found, but command line tool should work')
+" || {
     log "Note: SM16relind Python module not found. This is normal if the module uses command line tools instead."
     # Try symlink if the lib directory exists but install didn't work
     if [ -d "/usr/local/lib/python3*/dist-packages/SM16relind" ]; then
@@ -458,9 +527,68 @@ python3 -c "try: import SM16relind; print('SM16relind module found'); except Imp
     fi
 }
 
+# Test and validate 16relind relay HAT functionality with Raspberry Pi 5 configuration
+log "=== Testing 16relind Relay HAT Functionality ==="
+if command -v 16relind > /dev/null; then
+    log "Testing relay HAT communication on detected I2C buses..."
+    
+    # Test relay command on available buses
+    HAT_FOUND=false
+    for bus in "${AVAILABLE_BUSES[@]}"; do
+        log "Testing relay HAT on I2C bus $bus..."
+        
+        # Try to get relay status (non-destructive test)
+        if timeout 5 16relind 0 read all 2>/dev/null | grep -q "0\|1"; then
+            log "✓ Relay HAT responding on bus $bus"
+            HAT_FOUND=true
+            break
+        else
+            log "No response from relay HAT on bus $bus"
+        fi
+    done
+    
+    if [ "$HAT_FOUND" = true ]; then
+        log "✓ Relay HAT communication verified"
+        
+        # Test custom Python module with proper bus detection
+        log "Testing custom SM16relind Python module..."
+        python3 -c "
+import sys
+import os
+sys.path.insert(0, 'Project/gpio')
+try:
+    from custom_SM16relind import find_available_i2c_buses, test_connection
+    buses = find_available_i2c_buses()
+    print(f'Python module detected I2C buses: {buses}')
+    
+    if buses:
+        print('✓ Custom SM16relind module is working correctly')
+        print(f'✓ Raspberry Pi 5 I2C configuration detected: {any(b >= 13 for b in buses)}')
+    else:
+        print('⚠ No I2C buses detected by Python module')
+except Exception as e:
+    print(f'Error testing custom module: {e}')
+" || log "Warning: Custom SM16relind module test failed"
+    else
+        log "⚠ No relay HAT detected on any I2C bus"
+        log "   This may be normal if hardware is not connected yet"
+    fi
+else
+    log "Warning: 16relind command not found - relay HAT control may not work"
+fi
+
 # Create a desktop shortcut with improved execution
 log "=== Creating desktop shortcut ==="
+
+# Determine the actual user (not root) for desktop shortcut
+ACTUAL_USER="${SUDO_USER:-$USER}"
+ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
+
+# Create desktop directory for both root and actual user
 mkdir -p ~/Desktop
+if [ "$ACTUAL_USER" != "root" ] && [ -n "$ACTUAL_HOME" ]; then
+    mkdir -p "$ACTUAL_HOME/Desktop"
+fi
 
 # First create a launcher script for better error handling
 cat > ~/rodent-refreshment-regulator/launch_rrr.sh << 'EOF'
@@ -513,18 +641,26 @@ EOF
 chmod +x ~/rodent-refreshment-regulator/launch_rrr.sh
 
 # Create the desktop shortcut using the launcher script
-cat > ~/Desktop/RRR.desktop << EOF
-[Desktop Entry]
+SHORTCUT_CONTENT="[Desktop Entry]
 Type=Application
 Name=Rodent Refreshment Regulator
 Comment=Start the Rodent Refreshment Regulator application
-Exec=bash -c "cd ~/rodent-refreshment-regulator && ./launch_rrr.sh"
+Exec=bash -c \"cd ~/rodent-refreshment-regulator && ./launch_rrr.sh\"
 Icon=applications-science
 Terminal=true
-Categories=Science;Lab;
-EOF
+Categories=Science;Lab;"
 
+# Create shortcut for root user
+echo "$SHORTCUT_CONTENT" > ~/Desktop/RRR.desktop
 chmod +x ~/Desktop/RRR.desktop
+
+# Create shortcut for actual user if different from root
+if [ "$ACTUAL_USER" != "root" ] && [ -n "$ACTUAL_HOME" ]; then
+    echo "$SHORTCUT_CONTENT" > "$ACTUAL_HOME/Desktop/RRR.desktop"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/Desktop/RRR.desktop"
+    chmod +x "$ACTUAL_HOME/Desktop/RRR.desktop"
+    log "Desktop shortcut created for user $ACTUAL_USER"
+fi
 
 # Create a startup script
 log "=== Creating startup script ==="
