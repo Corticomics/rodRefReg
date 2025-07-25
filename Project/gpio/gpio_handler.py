@@ -109,7 +109,7 @@ class RelayHandler:
                 else:
                     # For standard module, we'll try each bus as the stack address
                     # This is a workaround since standard module doesn't support bus_id
-                    hat = SM16relind.SM16relind(bus)
+                    hat = SM16relind(bus)
                 
                 hat.set_all(0)  # Initialize all relays to OFF
                 self.relay_hats.append(hat)
@@ -123,7 +123,7 @@ class RelayHandler:
         if not success:
             for i in range(self.num_hats):
                 try:
-                    hat = SM16relind.SM16relind(i)
+                    hat = SM16relind(i)
                     hat.set_all(0)  # Initialize all relays to OFF
                     self.relay_hats.append(hat)
                     print(f"Initialized relay hat {i}")
