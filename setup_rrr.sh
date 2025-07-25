@@ -256,7 +256,7 @@ mkdir -p ~/rodent-refreshment-regulator
 cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application directory"
 
 # Set repository URL
-REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+REPO_URL="https://github.com/Corticomics/rodRefReg/tree/salvation-0.02"
 
 # Clone the repository if not already done
 if [ ! -d ".git" ]; then
