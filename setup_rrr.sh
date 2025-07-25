@@ -177,6 +177,28 @@ chmod +x /tmp/enable_i2c_temp.sh
 /tmp/enable_i2c_temp.sh || log "Warning: I2C setup encountered issues, but continuing"
 rm /tmp/enable_i2c_temp.sh
 
+
+# Create directory for the application if it doesn't exist
+log "=== Setting up application directory ==="
+mkdir -p ~/rodent-refreshment-regulator
+cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application directory"
+
+# Branch to clone or update
+BRANCH="salvation-0.02"
+# Set repository URL
+REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+
+# Clone or update the repository at the specified branch
+if [ ! -d ".git" ]; then
+    log "=== Cloning the repository (branch $BRANCH) ==="
+    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
+else
+    log "Repository already exists. Checking out branch $BRANCH"
+    git fetch origin "$BRANCH" || log "Warning: Failed to fetch branch $BRANCH"
+    git checkout "$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
+    git pull origin "$BRANCH" || log "Warning: git pull failed, but continuing"
+fi
+
 # Enhanced I2C bus detection and configuration
 log "=== Enhanced I2C Bus Detection ==="
 log "Checking for available I2C buses..."
@@ -253,27 +275,6 @@ EOI
     # Also put a copy in the root directory for compatibility with existing scripts
     cp ~/rodent-refreshment-regulator/tools/configure_i2c.sh ~/rodent-refreshment-regulator/configure_i2c.sh
     chmod +x ~/rodent-refreshment-regulator/configure_i2c.sh
-fi
-
-# Create directory for the application if it doesn't exist
-log "=== Setting up application directory ==="
-mkdir -p ~/rodent-refreshment-regulator
-cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application directory"
-
-# Branch to clone or update
-BRANCH="salvation-0.02"
-# Set repository URL
-REPO_URL="https://github.com/Corticomics/rodRefReg.git"
-
-# Clone or update the repository at the specified branch
-if [ ! -d ".git" ]; then
-    log "=== Cloning the repository (branch $BRANCH) ==="
-    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
-else
-    log "Repository already exists. Checking out branch $BRANCH"
-    git fetch origin "$BRANCH" || log "Warning: Failed to fetch branch $BRANCH"
-    git checkout "$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
-    git pull origin "$BRANCH" || log "Warning: git pull failed, but continuing"
 fi
 
 # Create virtual environment with access to system packages 
