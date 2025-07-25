@@ -309,6 +309,12 @@ detect_execution_context() {
         return
     fi
     
+    # Check if target directory exists (but isn't a git repo)
+    if [ -d "$TARGET_DIR" ]; then
+        echo "TARGET_EXISTS"
+        return
+    fi
+    
     # Default case - fresh installation
     echo "FRESH_INSTALL"
 }
