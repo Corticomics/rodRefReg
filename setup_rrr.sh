@@ -158,8 +158,13 @@ echo "User added to i2c group"
 # Test I2C functionality
 echo "Testing I2C functionality..."
 if command -v i2cdetect > /dev/null; then
-    echo "Running i2cdetect to scan for devices:"
-    sudo i2cdetect -y 1
+    echo "Scanning available I2C buses:"
+    for bus in $(seq 0 20); do
+        if [ -e "/dev/i2c-$bus" ]; then
+            echo "Bus $bus detected:"
+            sudo i2cdetect -y $bus
+        fi
+    done
     echo "Note: If you just enabled I2C, you may need to reboot to see devices."
 else
     echo "i2cdetect not found. Installing I2C tools..."
@@ -255,27 +260,20 @@ log "=== Setting up application directory ==="
 mkdir -p ~/rodent-refreshment-regulator
 cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application directory"
 
+# Branch to clone or update
+BRANCH="salvation-0.02"
 # Set repository URL
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
-BRANCH="salvation-0.02"
 
-# Clone or update the repository
-if [ -d ".git" ]; then
-    log "Repository already exists. Fetching and checking out branch '$BRANCH'"
-    git fetch origin "$BRANCH" || log "Warning: git fetch failed"
-    git checkout "$BRANCH" && git pull origin "$BRANCH" || log "Warning: git pull failed"
+# Clone or update the repository at the specified branch
+if [ ! -d ".git" ]; then
+    log "=== Cloning the repository (branch $BRANCH) ==="
+    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
 else
-    if [ "$(ls -A .)" ]; then
-        log "Non-empty directory without git. Initializing and checking out branch '$BRANCH'"
-        git init || error_exit "Failed to initialize git repository"
-        git remote add origin "$REPO_URL" || error_exit "Failed to add remote origin"
-        git fetch origin "$BRANCH" || error_exit "Failed to fetch branch $BRANCH"
-        git checkout -b "$BRANCH" --track "origin/$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
-    else
-        log "Cloning branch '$BRANCH' from $REPO_URL"
-        git clone --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
-        log "Repository cloned successfully."
-    fi
+    log "Repository already exists. Checking out branch $BRANCH"
+    git fetch origin "$BRANCH" || log "Warning: Failed to fetch branch $BRANCH"
+    git checkout "$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
+    git pull origin "$BRANCH" || log "Warning: git pull failed, but continuing"
 fi
 
 # Create virtual environment with access to system packages 
