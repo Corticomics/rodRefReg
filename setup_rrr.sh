@@ -257,16 +257,25 @@ cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application
 
 # Set repository URL
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+BRANCH="salvation-0.02"
 
-# Clone the repository if not already done
-if [ ! -d ".git" ]; then
-    log "=== Cloning the repository ==="
-    log "Using repository: $REPO_URL"
-    git clone "$REPO_URL" . || error_exit "Failed to clone repository"
-    log "Repository cloned successfully."
+# Clone or update the repository
+if [ -d ".git" ]; then
+    log "Repository already exists. Fetching and checking out branch '$BRANCH'"
+    git fetch origin "$BRANCH" || log "Warning: git fetch failed"
+    git checkout "$BRANCH" && git pull origin "$BRANCH" || log "Warning: git pull failed"
 else
-    log "Repository already exists. Updating..."
-    git pull || log "Warning: git pull failed, but continuing with existing code"
+    if [ "$(ls -A .)" ]; then
+        log "Non-empty directory without git. Initializing and checking out branch '$BRANCH'"
+        git init || error_exit "Failed to initialize git repository"
+        git remote add origin "$REPO_URL" || error_exit "Failed to add remote origin"
+        git fetch origin "$BRANCH" || error_exit "Failed to fetch branch $BRANCH"
+        git checkout -b "$BRANCH" --track "origin/$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
+    else
+        log "Cloning branch '$BRANCH' from $REPO_URL"
+        git clone --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
+        log "Repository cloned successfully."
+    fi
 fi
 
 # Create virtual environment with access to system packages 
