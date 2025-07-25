@@ -267,13 +267,13 @@ EOI
     chmod +x /tmp/configure_i2c.sh
     
     # Create tools directory and properly use it
-    mkdir -p ~/rodent-refreshment-regulator/tools
-    cp /tmp/configure_i2c.sh ~/rodent-refreshment-regulator/tools/configure_i2c.sh
-    chmod +x ~/rodent-refreshment-regulator/tools/configure_i2c.sh
+    run_as_user mkdir -p "$TARGET_DIR/tools"
+    cp /tmp/configure_i2c.sh "$TARGET_DIR/tools/configure_i2c.sh"
+    run_as_user chmod +x "$TARGET_DIR/tools/configure_i2c.sh"
     
-    # Also put a copy in the root directory for compatibility with existing scripts
-    cp ~/rodent-refreshment-regulator/tools/configure_i2c.sh ~/rodent-refreshment-regulator/configure_i2c.sh
-    chmod +x ~/rodent-refreshment-regulator/configure_i2c.sh
+    # Also put a copy in the root directory for compatibility with existing scripts  
+    cp "$TARGET_DIR/tools/configure_i2c.sh" "$TARGET_DIR/configure_i2c.sh"
+    run_as_user chmod +x "$TARGET_DIR/configure_i2c.sh"
 fi
 
 # Smart installation directory setup - handles all execution contexts
@@ -640,10 +640,10 @@ if [ "$ACTUAL_USER" != "root" ] && [ -n "$ACTUAL_HOME" ]; then
 fi
 
 # First create a launcher script for better error handling
-cat > ~/rodent-refreshment-regulator/launch_rrr.sh << 'EOF'
+run_as_user bash -c "cat > '$TARGET_DIR/launch_rrr.sh' << 'EOF'
 #!/bin/bash
 # RRR Application Launcher with error handling
-cd ~/rodent-refreshment-regulator
+cd $TARGET_DIR"
 
 # Log file
 LAUNCH_LOG="$HOME/rrr_launch_$(date +%Y%m%d).log"
@@ -684,17 +684,18 @@ if [ $EXIT_CODE -ne 0 ]; then
     read -p "Press Enter to close this window..."
 fi
 
-exit $EXIT_CODE
+exit \$EXIT_CODE
 EOF
+"
 
-chmod +x ~/rodent-refreshment-regulator/launch_rrr.sh
+run_as_user chmod +x "$TARGET_DIR/launch_rrr.sh"
 
 # Create the desktop shortcut using the launcher script
 SHORTCUT_CONTENT="[Desktop Entry]
 Type=Application
 Name=Rodent Refreshment Regulator
 Comment=Start the Rodent Refreshment Regulator application
-Exec=bash -c \"cd ~/rodent-refreshment-regulator && ./launch_rrr.sh\"
+Exec=bash -c \"cd $TARGET_DIR && ./launch_rrr.sh\"
 Icon=applications-science
 Terminal=true
 Categories=Science;Lab;"
@@ -713,9 +714,9 @@ fi
 
 # Create a startup script
 log "=== Creating startup script ==="
-cat > ~/rodent-refreshment-regulator/start_rrr.sh << EOF
+run_as_user cat > "$TARGET_DIR/start_rrr.sh" << EOF
 #!/bin/bash
-cd ~/rodent-refreshment-regulator
+cd $TARGET_DIR
 
 # Auto-detect and configure I2C buses
 if [ -f "configure_i2c.sh" ]; then
@@ -734,11 +735,11 @@ cd Project
 python3 main.py
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/start_rrr.sh
+run_as_user chmod +x "$TARGET_DIR/start_rrr.sh"
 
 # Copy the UI update script
 log "=== Creating UI update script ==="
-cat > ~/rodent-refreshment-regulator/update_ui.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/update_ui.sh" << 'EOF'
 #!/bin/bash
 
 # Rodent Refreshment Regulator Update Script
@@ -902,13 +903,13 @@ log "Update process completed successfully."
 exit 0
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/update_ui.sh
+run_as_user chmod +x "$TARGET_DIR/update_ui.sh"
 
 # Create a test script with proper quoting for heredoc
 log "=== Creating hardware test script ==="
-cat > ~/rodent-refreshment-regulator/test_hardware.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/test_hardware.sh" << 'EOF'
 #!/bin/bash
-cd ~/rodent-refreshment-regulator
+cd $TARGET_DIR
 source venv/bin/activate
 cd Project
 
@@ -939,15 +940,15 @@ else
 fi
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/test_hardware.sh
+run_as_user chmod +x "$TARGET_DIR/test_hardware.sh"
 
 # Create a diagnostic script to help debug launch issues
 log "=== Creating diagnostic script ==="
-cat > ~/rodent-refreshment-regulator/diagnose.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/diagnose.sh" << 'EOF'
 #!/bin/bash
 echo "=== RRR Diagnostic Script ==="
 echo "Checking environment..."
-cd ~/rodent-refreshment-regulator
+cd $TARGET_DIR
 echo "Current directory: $(pwd)"
 
 echo "Activating virtual environment..."
@@ -988,14 +989,14 @@ else
 fi
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/diagnose.sh
+run_as_user chmod +x "$TARGET_DIR/diagnose.sh"
 
 # Add quick fix script for missing pandas
 log "=== Creating quick fix script for missing packages ==="
-cat > ~/rodent-refreshment-regulator/fix_dependencies.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/fix_dependencies.sh" << 'EOF'
 #!/bin/bash
 echo "=== RRR Dependency Fix Script ==="
-cd ~/rodent-refreshment-regulator
+cd $TARGET_DIR
 source venv/bin/activate
 
 echo "Installing pandas..."
@@ -1023,8 +1024,8 @@ if [ -d "/tmp/16relind-rpi/python" ]; then
     PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
     if [ -n "$SM_PATH" ]; then
-        mkdir -p ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
-        ln -sf $SM_PATH ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+        mkdir -p $TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/
+        ln -sf $SM_PATH $TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/
     fi
     cd - > /dev/null
 fi
@@ -1035,11 +1036,11 @@ pip install numpy matplotlib seaborn scipy scikit-learn statsmodels --break-syst
 echo "All dependencies should now be installed. Try running the application again."
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/fix_dependencies.sh
+run_as_user chmod +x "$TARGET_DIR/fix_dependencies.sh"
 
 # Create an I2C troubleshooting script
 log "=== Creating I2C troubleshooting script ==="
-cat > ~/rodent-refreshment-regulator/fix_i2c.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/fix_i2c.sh" << 'EOF'
 #!/bin/bash
 echo "=== RRR I2C Troubleshooting Script ==="
 echo "This script helps diagnose and fix I2C connection issues."
@@ -1171,7 +1172,7 @@ echo "===== I2C Troubleshooting Summary ====="
 if detect_i2c_buses; then
     echo "✅ I2C buses detected. The system should be ready to use."
     echo "   If you're still having issues, try running the fix_i2c.py script:"
-    echo "   cd ~/rodent-refreshment-regulator/Project && python3 fix_i2c.py"
+    echo "   cd $TARGET_DIR/Project && python3 fix_i2c.py"
 else
     echo "❌ No I2C buses detected."
     
@@ -1187,7 +1188,7 @@ else
 fi
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/fix_i2c.sh
+run_as_user chmod +x "$TARGET_DIR/fix_i2c.sh"
 
 # Disable power management and screen blanking
 log "=== Disabling Power Management ==="
@@ -1246,7 +1247,7 @@ WantedBy=multi-user.target
 EOF
 
 # Create a script to enable/disable service
-cat > ~/rodent-refreshment-regulator/toggle_service.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/toggle_service.sh" << 'EOF'
 #!/bin/bash
 # Script to toggle between desktop mode and service mode for RRR
 
@@ -1267,11 +1268,11 @@ else
 fi
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/toggle_service.sh
+run_as_user chmod +x "$TARGET_DIR/toggle_service.sh"
 
 # Create installation verification script
 log "=== Creating installation verification script ==="
-cat > ~/rodent-refreshment-regulator/verify_installation.sh << 'EOF'
+run_as_user cat > "$TARGET_DIR/verify_installation.sh" << 'EOF'
 #!/bin/bash
 # RRR Installation Verification Script
 # Quickly checks if the installation is working correctly
@@ -1283,7 +1284,7 @@ echo ""
 # Check if we're in the right directory
 if [ ! -f "Project/main.py" ]; then
     echo "❌ Error: Not in RRR installation directory"
-    echo "   Please run this from: ~/rodent-refreshment-regulator/"
+    echo "   Please run this from: $TARGET_DIR/"
     exit 1
 fi
 
@@ -1395,7 +1396,7 @@ echo ""
 echo "For support, check the documentation or contact your system administrator."
 EOF
 
-chmod +x ~/rodent-refreshment-regulator/verify_installation.sh
+run_as_user chmod +x "$TARGET_DIR/verify_installation.sh"
 
 # Final installation verification
 log "=== Final Installation Verification ==="
@@ -1433,21 +1434,21 @@ echo "Installed for user: $REAL_USER"
 echo ""
 echo "🚀 TO START THE APPLICATION:"
 echo "   Option 1: Double-click the desktop shortcut 'RRR'"
-echo "   Option 2: Run: ~/rodent-refreshment-regulator/start_rrr.sh"
+echo "   Option 2: Run: $TARGET_DIR/start_rrr.sh"
 echo "   Option 3: Manual start:"
-echo "            cd ~/rodent-refreshment-regulator"
+echo "            cd $TARGET_DIR"
 echo "            source venv/bin/activate"
 echo "            cd Project && python3 main.py"
 echo ""
 echo "🛠️  TROUBLESHOOTING TOOLS (if needed):"
-echo "   • Installation check: ~/rodent-refreshment-regulator/verify_installation.sh"
-echo "   • Fix dependencies: ~/rodent-refreshment-regulator/fix_dependencies.sh"
-echo "   • System diagnosis: ~/rodent-refreshment-regulator/diagnose.sh"
-echo "   • Hardware test: ~/rodent-refreshment-regulator/test_hardware.sh"
-echo "   • I2C issues: ~/rodent-refreshment-regulator/fix_i2c.sh"
+echo "   • Installation check: $TARGET_DIR/verify_installation.sh"
+echo "   • Fix dependencies: $TARGET_DIR/fix_dependencies.sh"
+echo "   • System diagnosis: $TARGET_DIR/diagnose.sh"
+echo "   • Hardware test: $TARGET_DIR/test_hardware.sh"
+echo "   • I2C issues: $TARGET_DIR/fix_i2c.sh"
 echo ""
 echo "⚙️  SYSTEM CONFIGURATION:"
-echo "   • Service mode toggle: ~/rodent-refreshment-regulator/toggle_service.sh"
+echo "   • Service mode toggle: $TARGET_DIR/toggle_service.sh"
 echo "   • Power management: DISABLED (prevents sleep during experiments)"
 echo "   • I2C buses detected: ${AVAILABLE_BUSES[*]:-"Will be detected on reboot"}"
 echo ""
@@ -1464,7 +1465,7 @@ else
     echo "✅ Installation complete! Remember to reboot later."
     echo ""
     echo "📖 For detailed usage instructions, see:"
-    echo "   ~/rodent-refreshment-regulator/README.md"
+echo "   $TARGET_DIR/README.md"
     echo ""
     echo "🎯 Quick start: Run the application and check the Help tab for guides."
     log "Installation completed successfully - user chose not to reboot"
