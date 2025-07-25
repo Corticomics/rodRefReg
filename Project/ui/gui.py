@@ -254,12 +254,12 @@ class RodentRefreshmentGUI(QWidget):
         # Tab widget
         self.tab_widget = QTabWidget()
         
-        # Animals tab (tab0)
-        self.animals_tab = self.create_tab()
+        # Animals tab (tab0) - Reference from projects_section
+        self.animals_tab = self.projects_section.animals_tab
         self.tab_widget.addTab(self.animals_tab, "Animals")
         
-        # Schedules tab (tab1)
-        self.schedules_tab = self.create_tab()
+        # Schedules tab (tab1) - Reference from projects_section  
+        self.schedules_tab = self.projects_section.schedules_tab
         self.tab_widget.addTab(self.schedules_tab, "Schedules")
         
         # Settings tab (tab2)
