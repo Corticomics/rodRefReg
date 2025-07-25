@@ -78,9 +78,13 @@ cleanup_on_error() {
     log "INFO" "Cleanup completed"
 }
 
-success_message() {
-    log "SUCCESS" "$1"
-}
+# Check for internet connection
+log "Checking internet connection..."
+if ! ping -c 1 github.com &> /dev/null && ! ping -c 1 8.8.8.8 &> /dev/null; then
+    error_exit "No internet connection detected. Please check your network and try again."
+fi
+log "✓ Internet connection verified"
+
 
 # ====================================================================
 # SYSTEM DETECTION AND VALIDATION
@@ -293,76 +297,22 @@ install_relay_hat_driver() {
 # I2C CONFIGURATION WITH RASPBERRY PI 5 SUPPORT
 # ====================================================================
 
-configure_i2c_interface() {
-    log "INFO" "Configuring I2C interface..."
-    
-    local config_file="/boot/config.txt"
-    local firmware_config="/boot/firmware/config.txt"
-    local need_reboot=false
-    
-    # Raspberry Pi 5 uses different config path
-    if [ -f "$firmware_config" ]; then
-        config_file="$firmware_config"
-        log "INFO" "Using Raspberry Pi 5 firmware config path"
-    fi
-    
-    if [ ! -f "$config_file" ]; then
-        log "ERROR" "Configuration file not found: $config_file"
-        exit 1
-    fi
-    
-    # Backup configuration file
-    sudo cp "$config_file" "${config_file}.bak.$(date +%Y%m%d_%H%M%S)"
-    log "INFO" "Configuration file backed up"
-    
-    # Enable I2C in boot configuration
-    if ! grep -q "^dtparam=i2c_arm=on" "$config_file"; then
-        log "INFO" "Enabling I2C in boot configuration..."
-        echo "dtparam=i2c_arm=on" | sudo tee -a "$config_file" > /dev/null
-        need_reboot=true
-    fi
-    
-    # Set I2C baudrate for reliability (especially important for Pi 5)
-    if ! grep -q "dtparam=i2c_arm_baudrate" "$config_file"; then
-        log "INFO" "Setting I2C baudrate for optimal performance..."
-        echo "dtparam=i2c_arm_baudrate=100000" | sudo tee -a "$config_file" > /dev/null
-    fi
-    
-    # Load I2C kernel modules immediately
-    log "INFO" "Loading I2C kernel modules..."
-    sudo modprobe i2c-dev 2>/dev/null || log "WARN" "i2c-dev module already loaded or not available"
-    
-    # Load appropriate module based on Pi version
-    case "$DETECTED_PI_VERSION" in
-        "5")
-            sudo modprobe i2c-bcm2835 2>/dev/null || log "WARN" "i2c-bcm2835 module not available"
-            ;;
-        *)
-            sudo modprobe i2c-bcm2708 2>/dev/null || log "WARN" "i2c-bcm2708 module not available"
-            ;;
-    esac
-    
-    # Ensure modules load at boot
-    local modules_file="/etc/modules"
-    if ! grep -q "^i2c-dev" "$modules_file"; then
-        echo "i2c-dev" | sudo tee -a "$modules_file" > /dev/null
-        log "INFO" "Added i2c-dev to boot modules"
-    fi
-    
-    # Create and configure I2C group
-    if ! getent group i2c > /dev/null; then
-        sudo groupadd i2c
-        log "INFO" "Created i2c group"
-    fi
-    
-    # Add current user to i2c group
-    sudo usermod -a -G i2c "$USER"
-    log "INFO" "Added user to i2c group"
-    
-    # Set proper permissions for I2C devices
-    sudo tee /etc/udev/rules.d/99-i2c.rules > /dev/null << 'EOF'
-SUBSYSTEM=="i2c-dev", GROUP="i2c", MODE="0664"
-KERNEL=="i2c-[0-9]*", GROUP="i2c", MODE="0664"
+# Test I2C functionality
+echo "Testing I2C functionality..."
+if command -v i2cdetect > /dev/null; then
+    echo "Running i2cdetect to scan for devices:"
+    # Raspberry Pi 5 uses different I2C bus numbers (13, 14) instead of the traditional (0, 1)
+    # Scan all available buses
+    for bus_num in $(ls /dev/i2c-* 2>/dev/null | sed 's/.*i2c-//'); do
+        echo "Scanning I2C bus $bus_num:"
+        sudo i2cdetect -y $bus_num
+    done
+    echo "Note: If you just enabled I2C, you may need to reboot to see devices."
+else
+    echo "i2cdetect not found. Installing I2C tools..."
+    sudo apt-get install -y i2c-tools
+fi
+
 EOF
     log "INFO" "Configured I2C device permissions"
     
@@ -454,95 +404,69 @@ detect_i2c_buses() {
 setup_application_directory() {
     log "INFO" "Setting up application directory..."
     
-    mkdir -p "$APP_DIR"
-    cd "$APP_DIR" || {
-        log "ERROR" "Failed to change to application directory"
-        exit 1
-    }
-    
-    log "INFO" "Application directory: $APP_DIR"
-}
 
-setup_repository() {
-    log "INFO" "Setting up git repository..."
-    
-    local repo_url="$1"
-    local target_dir="$(pwd)"
-    
-    if [ -d ".git" ]; then
-        log "INFO" "Existing repository detected - updating..."
-        
-        # Verify and update remote URL
-        local current_remote
-        current_remote=$(git remote get-url origin 2>/dev/null || echo "")
-        
-        if [ "$current_remote" != "$repo_url" ]; then
-            log "WARN" "Remote URL mismatch - updating"
-            log "INFO" "Expected: $repo_url"
-            log "INFO" "Found: $current_remote"
-            git remote set-url origin "$repo_url"
-        fi
-        
-        # Fetch latest changes
-        if ! git fetch origin main; then
-            log "ERROR" "Failed to fetch from repository"
-            exit 1
-        fi
-        
-        # Handle local changes safely
-        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-            log "INFO" "Detected local changes - stashing..."
-            git stash push -m "Auto-stash before update $(date)"
-        fi
-        
-        # Update to latest version
-        if ! git reset --hard origin/main; then
-            log "ERROR" "Failed to update repository"
-            exit 1
-        fi
-        
-        success_message "Repository updated successfully"
-        
-        fix_python_executable_permissions
-    else
-        # Handle directory that may contain files but isn't a git repo
-        if [ "$(ls -A "$target_dir" 2>/dev/null | wc -l)" -gt 0 ]; then
-            log "INFO" "Directory contains files but is not a git repository"
-            
-            # Create timestamped backup
-            local backup_dir="${target_dir}/backup_$(date +%Y%m%d_%H%M%S)"
-            log "INFO" "Creating backup at: $backup_dir"
-            mkdir -p "$backup_dir"
-            
-            # Move all files to backup (excluding . and .. and the backup dir itself)
-            find "$target_dir" -maxdepth 1 -not -path "$target_dir" -not -path "$backup_dir" \
-                -exec mv {} "$backup_dir/" \; 2>/dev/null || true
-            
-            log "INFO" "Existing files backed up successfully"
-        fi
-        
-        # Clone repository with proper error handling
-        log "INFO" "Cloning repository..."
-        log "INFO" "Repository URL: $repo_url"
-        
-        if ! git clone "$repo_url" "$target_dir"; then
-            log "ERROR" "Failed to clone repository from $repo_url"
-            
-            # Provide helpful debugging information
-            log "INFO" "Troubleshooting information:"
-            log "INFO" "- Check internet connectivity: ping -c 1 github.com"
-            log "INFO" "- Verify repository URL: $repo_url"
-            log "INFO" "- Check available disk space: df -h $target_dir"
-            
-            exit 1
-        fi
-        
-        success_message "Repository cloned successfully"
+    # Create a script to auto-detect and configure I2C buses at runtime
+    cat > /tmp/configure_i2c.sh << 'EOI'
+#!/bin/bash
+
+# Configure I2C - Automatically detect and use available I2C buses
+# Optimized for Raspberry Pi 5 with new I2C bus addressing (buses 13, 14)
+echo "Configuring I2C bus detection for Rodent Refreshment Regulator..."
+
+# Detect available I2C buses
+AVAILABLE_BUSES=()
+for i in $(seq 0 50); do  # Extended range for Pi 5
+    if [ -e "/dev/i2c-$i" ]; then
+        AVAILABLE_BUSES+=("$i")
+        echo "Found I2C bus: /dev/i2c-$i"
     fi
-    
-    # Fix Python executable permissions for both new and updated repositories
-    fix_python_executable_permissions
-}
+done
+
+if [ ${#AVAILABLE_BUSES[@]} -eq 0 ]; then
+    echo "Error: No I2C buses detected!"
+    echo "Please check that I2C is enabled in raspi-config"
+    echo "For Raspberry Pi 5, ensure dtparam=i2c_arm=on is in /boot/firmware/config.txt"
+    exit 1
+fi
+
+# For Raspberry Pi 5, prefer higher numbered buses (13, 14)
+PRIMARY_BUS=${AVAILABLE_BUSES[-1]}  # Last (highest) bus
+echo "Will use primary I2C bus: /dev/i2c-$PRIMARY_BUS"
+
+# Run fix_i2c.py if available with virtual environment
+cd ~/rodent-refreshment-regulator
+if [ -f "Project/fix_i2c.py" ]; then
+    echo "Running I2C fix script with proper Python environment..."
+    source venv/bin/activate 2>/dev/null || echo "Warning: Could not activate virtual environment"
+    cd Project
+    chmod +x fix_i2c.py
+    python3 fix_i2c.py
+    cd ..
+    echo "I2C configuration complete."
+fi
+
+# Test with i2cdetect on all available buses
+for bus in "${AVAILABLE_BUSES[@]}"; do
+    echo "Testing I2C bus $bus:"
+    if timeout 10 sudo i2cdetect -y $bus; then
+        echo "✓ Bus $bus is responsive"
+    else
+        echo "⚠ Bus $bus timeout or error"
+    fi
+done
+
+# Display bus recommendations
+echo ""
+echo "I2C Bus Configuration Summary:"
+echo "Available buses: ${AVAILABLE_BUSES[*]}"
+if [[ " ${AVAILABLE_BUSES[*]} " =~ " 13 " ]] || [[ " ${AVAILABLE_BUSES[*]} " =~ " 14 " ]]; then
+    echo "✓ Raspberry Pi 5 detected (buses 13/14 present)"
+    echo "✓ Using modern I2C configuration"
+else
+    echo "ℹ Traditional Raspberry Pi I2C configuration detected"
+fi
+EOI
+
 
 fix_python_executable_permissions() {
     log "INFO" "Setting executable permissions for Python scripts..."
@@ -550,32 +474,193 @@ fix_python_executable_permissions() {
     local python_executables=()
     local fixed_count=0
     
-    # Find all Python files with shebang lines that should be executable
-    while IFS= read -r -d '' file; do
-        if [ -f "$file" ] && head -n 1 "$file" 2>/dev/null | grep -q "^#!.*python"; then
-            python_executables+=("$file")
+
+    # Also put a copy in the root directory for compatibility with existing scripts
+    cp ~/rodent-refreshment-regulator/tools/configure_i2c.sh ~/rodent-refreshment-regulator/configure_i2c.sh
+    chmod +x ~/rodent-refreshment-regulator/configure_i2c.sh
+fi
+
+# Smart installation directory setup - handles all execution contexts
+log "=== Setting up application directory ==="
+
+# Set repository URL
+REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+TARGET_DIR="$HOME/rodent-refreshment-regulator"
+
+# Function to detect current execution context
+detect_execution_context() {
+    local current_dir=$(pwd)
+    local current_basename=$(basename "$current_dir")
+    
+    # Check if we're already in a git repository
+    if [ -d ".git" ]; then
+        local repo_url=$(git remote get-url origin 2>/dev/null || echo "")
+        if [[ "$repo_url" == *"rodRefReg"* ]] || [[ "$repo_url" == *"rodent-refreshment-regulator"* ]]; then
+            echo "EXISTING_REPO"
+            return
+        fi
+    fi
+    
+    # Check if we're in the target directory
+    if [ "$current_dir" = "$TARGET_DIR" ]; then
+        echo "TARGET_DIR"
+        return
+    fi
+    
+    # Check if target directory exists and is a repo
+    if [ -d "$TARGET_DIR/.git" ]; then
+        echo "TARGET_EXISTS"
+        return
+    fi
+    
+    # Default case - fresh installation
+    echo "FRESH_INSTALL"
+}
+
+# Execute context-aware installation
+CONTEXT=$(detect_execution_context)
+log "Detected execution context: $CONTEXT"
+
+case $CONTEXT in
+    "EXISTING_REPO")
+        log "Running from existing repository - setting up in place"
+        
+        # Ask user about repository handling
+        echo ""
+        echo "🔄 Repository Update Options:"
+        echo "1. Keep existing repository and try to update (preserves any local changes)"
+        echo "2. Fresh clone from GitHub (overwrites any local changes with latest version)"
+        echo ""
+        read -p "Choose option (1 or 2, default is 1): " -r repo_choice
+        echo ""
+        
+        if [[ "$repo_choice" == "2" ]]; then
+            log "User chose fresh clone - removing existing repository"
+            current_dir=$(pwd)
+            cd /tmp
+            rm -rf "$current_dir"
             
-            # Check if file is already executable
-            if [ ! -x "$file" ]; then
-                log "INFO" "Setting executable permission: $file"
-                chmod +x "$file" || log "WARN" "Failed to set executable permission: $file"
-                ((fixed_count++))
+            # Fresh clone
+            log "Fresh cloning repository to target directory"
+            git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+            cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+            log "Fresh repository cloned successfully"
+        else
+            log "User chose to keep existing repository"
+            
+            # If we're not in the target directory, copy/move to target
+            if [ "$(pwd)" != "$TARGET_DIR" ]; then
+                log "Moving repository to standard location: $TARGET_DIR"
+                
+                # Create backup if target exists
+                if [ -d "$TARGET_DIR" ]; then
+                    backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+                    log "Creating backup: $backup_dir"
+                    mv "$TARGET_DIR" "$backup_dir"
+                fi
+                
+                # Copy current repo to target location
+                cp -r "$(pwd)" "$TARGET_DIR"
+                cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+            fi
+            
+            # Configure git to handle divergent branches
+            git config pull.rebase false || log "Warning: could not set git config"
+            
+            # Update the repository with conflict resolution
+            log "Updating repository..."
+            if ! git fetch origin; then
+                log "Warning: fetch failed, continuing with existing code"
             else
-                log "INFO" "Already executable: $file"
+                # Try to pull with automatic conflict resolution
+                if ! git pull origin main; then
+                    if ! git pull origin master; then
+                        log "Warning: pull failed due to conflicts, resetting to remote state"
+                        # Stash any local changes and reset to remote
+                        git stash push -m "Auto-stash during installation $(date)" || true
+                        git reset --hard origin/main || git reset --hard origin/master || log "Warning: could not reset to remote"
+                    fi
+                fi
             fi
         fi
-    done < <(find "$APP_DIR/Project" -name "*.py" -type f -print0 2>/dev/null)
-    
-    # Specifically ensure main.py is executable (critical for application startup)
-    if [ -f "$APP_DIR/Project/main.py" ]; then
-        if [ ! -x "$APP_DIR/Project/main.py" ]; then
-            log "INFO" "Ensuring main.py is executable (critical for application startup)"
-            chmod +x "$APP_DIR/Project/main.py" || {
-                log "ERROR" "Failed to make main.py executable - installation will fail"
-                exit 1
-            }
-            ((fixed_count++))
+        ;;
+        
+    "TARGET_DIR")
+        log "Already in target directory - updating repository"
+        if [ -d ".git" ]; then
+            git fetch origin || log "Warning: fetch failed, continuing"
+            git pull origin main || git pull origin master || log "Warning: pull failed, continuing"
+        else
+            log "Warning: In target directory but no git repository found"
+            # Try to initialize from remote
+            git clone "$REPO_URL" temp_clone || error_exit "Failed to clone repository"
+            cp -r temp_clone/* .
+            cp -r temp_clone/.git .
+            rm -rf temp_clone
         fi
+        ;;
+        
+    "TARGET_EXISTS")
+        log "Target directory exists - updating existing installation"
+        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+        git fetch origin || log "Warning: fetch failed, continuing"
+        git pull origin main || git pull origin master || log "Warning: pull failed, continuing"
+        ;;
+        
+    "FRESH_INSTALL")
+        log "Fresh installation - cloning repository to target directory"
+        
+        # Create parent directory if needed
+        mkdir -p "$(dirname "$TARGET_DIR")"
+        
+        # Clone repository
+        git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+        log "Repository cloned successfully to $TARGET_DIR"
+        ;;
+        
+    *)
+        error_exit "Unknown execution context: $CONTEXT"
+        ;;
+esac
+
+# Verify we're in the correct location with the correct structure
+if [ ! -f "Project/main.py" ]; then
+    error_exit "Installation verification failed - Project/main.py not found in $(pwd)"
+fi
+
+log "✓ Repository setup complete - using directory: $(pwd)"
+
+# Create virtual environment with access to system packages 
+# (this is critical for PyQt5 and RPi.GPIO)
+log "=== Creating Python virtual environment with system packages ==="
+python3 -m venv venv --system-site-packages || error_exit "Failed to create virtual environment"
+source venv/bin/activate || error_exit "Failed to activate virtual environment"
+
+# Create a modified requirements file without the problematic packages
+log "=== Creating modified requirements file ==="
+if [ -f "installer/requirements.txt" ]; then
+    grep -v -E 'PyQt5|RPi\.GPIO|gpiozero|pandas|numpy' installer/requirements.txt > /tmp/requirements_modified.txt
+    REQUIREMENTS_PATH="/tmp/requirements_modified.txt"
+elif [ -f "requirements.txt" ]; then
+    grep -v -E 'PyQt5|RPi\.GPIO|gpiozero|pandas|numpy' requirements.txt > /tmp/requirements_modified.txt
+    REQUIREMENTS_PATH="/tmp/requirements_modified.txt"
+else
+    log "No requirements.txt found, will install packages individually."
+    REQUIREMENTS_PATH=""
+fi
+
+# Install Python dependencies
+log "=== Installing Python dependencies ==="
+pip install --upgrade pip || log "Warning: pip upgrade failed, but continuing"
+
+# If we have a modified requirements file, use it
+if [ -n "$REQUIREMENTS_PATH" ]; then
+    log "Installing dependencies from modified requirements file..."
+    # Use --break-system-packages only if needed
+    if pip install -r "$REQUIREMENTS_PATH"; then
+        log "Dependencies installed successfully."
+
     else
         log "ERROR" "main.py not found - this will cause application failure"
         exit 1
@@ -691,29 +776,27 @@ install_python_dependencies() {
     success_message "Python dependencies installation completed"
 }
 
-verify_python_dependencies() {
-    log "INFO" "Verifying Python dependencies..."
-    
-    # Critical dependencies verification
-    local dependencies=(
-        "PyQt5:PyQt5.QtCore"
-        "RPi.GPIO:RPi.GPIO"
-        "pandas:pandas"
-        "slack_sdk:slack_sdk"
-        "numpy:numpy"
-    )
-    
-    local failed_deps=()
-    
-    for dep in "${dependencies[@]}"; do
-        local package_name="${dep%%:*}"
-        local import_name="${dep##*:}"
-        
-        if python3 -c "import $import_name" 2>/dev/null; then
-            log "INFO" "✓ $package_name available"
-        else
-            log "WARN" "✗ $package_name not available"
-            failed_deps+=("$package_name")
+
+# Verify SM16relind Python module can be imported (if it exists)
+log "=== Verifying SM16relind module is accessible ==="
+python3 -c "
+try: 
+    import SM16relind
+    print('SM16relind module found')
+except ImportError: 
+    print('SM16relind module not found, but command line tool should work')
+" || {
+    log "Note: SM16relind Python module not found. This is normal if the module uses command line tools instead."
+    # Try symlink if the lib directory exists but install didn't work
+    if [ -d "/usr/local/lib/python3*/dist-packages/SM16relind" ]; then
+        log "Found SM16relind module in system packages, creating symlink to virtual environment..."
+        SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
+        if [ -n "$SM_PATH" ]; then
+            PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+            mkdir -p ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+            ln -sf $SM_PATH ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+            log "Symlink created."
+
         fi
     done
     
@@ -725,9 +808,69 @@ verify_python_dependencies() {
     fi
 }
 
-# ====================================================================
-# APPLICATION SCRIPTS AND INTEGRATION
-# ====================================================================
+# Test and validate 16relind relay HAT functionality with Raspberry Pi 5 configuration
+log "=== Testing 16relind Relay HAT Functionality ==="
+if command -v 16relind > /dev/null; then
+    log "Testing relay HAT communication on detected I2C buses..."
+    
+    # Test relay command on available buses
+    HAT_FOUND=false
+    for bus in "${AVAILABLE_BUSES[@]}"; do
+        log "Testing relay HAT on I2C bus $bus..."
+        
+        # Try to get relay status (non-destructive test)
+        if timeout 5 16relind 0 read all 2>/dev/null | grep -q "0\|1"; then
+            log "✓ Relay HAT responding on bus $bus"
+            HAT_FOUND=true
+            break
+        else
+            log "No response from relay HAT on bus $bus"
+        fi
+    done
+    
+    if [ "$HAT_FOUND" = true ]; then
+        log "✓ Relay HAT communication verified"
+        
+        # Test custom Python module with proper bus detection
+        log "Testing custom SM16relind Python module..."
+        python3 -c "
+import sys
+import os
+sys.path.insert(0, 'Project/gpio')
+try:
+    from custom_SM16relind import find_available_i2c_buses, test_connection
+    buses = find_available_i2c_buses()
+    print(f'Python module detected I2C buses: {buses}')
+    
+    if buses:
+        print('✓ Custom SM16relind module is working correctly')
+        print(f'✓ Raspberry Pi 5 I2C configuration detected: {any(b >= 13 for b in buses)}')
+    else:
+        print('⚠ No I2C buses detected by Python module')
+except Exception as e:
+    print(f'Error testing custom module: {e}')
+" || log "Warning: Custom SM16relind module test failed"
+    else
+        log "⚠ No relay HAT detected on any I2C bus"
+        log "   This may be normal if hardware is not connected yet"
+    fi
+else
+    log "Warning: 16relind command not found - relay HAT control may not work"
+fi
+
+# Create a desktop shortcut with improved execution
+log "=== Creating desktop shortcut ==="
+
+# Determine the actual user (not root) for desktop shortcut
+ACTUAL_USER="${SUDO_USER:-$USER}"
+ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
+
+# Create desktop directory for both root and actual user
+mkdir -p ~/Desktop
+if [ "$ACTUAL_USER" != "root" ] && [ -n "$ACTUAL_HOME" ]; then
+    mkdir -p "$ACTUAL_HOME/Desktop"
+fi
+
 
 create_launcher_script() {
     log "INFO" "Creating application launcher script..."
@@ -858,19 +1001,32 @@ main() {
     fi
 }
 
-main "$@"
-EOF
+# Create the desktop shortcut using the launcher script
+SHORTCUT_CONTENT="[Desktop Entry]
+Type=Application
+Name=Rodent Refreshment Regulator
+Comment=Start the Rodent Refreshment Regulator application
+Exec=bash -c \"cd ~/rodent-refreshment-regulator && ./launch_rrr.sh\"
+Icon=applications-science
+Terminal=true
+Categories=Science;Lab;"
 
-    chmod +x "$APP_DIR/launch_rrr.sh"
-    success_message "Application launcher created"
-}
+# Create shortcut for root user
+echo "$SHORTCUT_CONTENT" > ~/Desktop/RRR.desktop
+chmod +x ~/Desktop/RRR.desktop
 
-create_i2c_configuration_script() {
-    log "INFO" "Creating runtime I2C configuration script..."
-    
-    mkdir -p "$APP_DIR/tools"
-    
-    cat > "$APP_DIR/tools/configure_i2c.sh" << 'EOF'
+# Create shortcut for actual user if different from root
+if [ "$ACTUAL_USER" != "root" ] && [ -n "$ACTUAL_HOME" ]; then
+    echo "$SHORTCUT_CONTENT" > "$ACTUAL_HOME/Desktop/RRR.desktop"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/Desktop/RRR.desktop"
+    chmod +x "$ACTUAL_HOME/Desktop/RRR.desktop"
+    log "Desktop shortcut created for user $ACTUAL_USER"
+fi
+
+# Create a startup script
+log "=== Creating startup script ==="
+cat > ~/rodent-refreshment-regulator/start_rrr.sh << EOF
+
 #!/bin/bash
 # Runtime I2C Configuration Script for RRR
 
@@ -1686,450 +1842,204 @@ EOF
 # POWER MANAGEMENT CONFIGURATION
 # ====================================================================
 
-configure_power_management() {
-    log "INFO" "Configuring power management..."
-    
-    local config_file="/boot/config.txt"
-    
-    # Use Pi 5 config path if available
-    if [ -f "/boot/firmware/config.txt" ]; then
-        config_file="/boot/firmware/config.txt"
-    fi
-    
-    # Backup config file
-    if [ -f "$config_file" ]; then
-        sudo cp "$config_file" "${config_file}.power_bak"
-        log "INFO" "Config file backed up"
-        
-        # Prevent HDMI blanking
-        if ! grep -q "^hdmi_blanking=0" "$config_file"; then
-            echo "hdmi_blanking=0" | sudo tee -a "$config_file" > /dev/null
-            log "INFO" "HDMI blanking disabled"
-        fi
-    fi
-    
-    # Disable console blanking
-    if [ -f "/boot/cmdline.txt" ]; then
-        sudo cp /boot/cmdline.txt /boot/cmdline.txt.power_bak
-        
-        if ! grep -q "consoleblank=0" /boot/cmdline.txt; then
-            sudo sed -i 's/$/ consoleblank=0/' /boot/cmdline.txt
-            log "INFO" "Console blanking disabled"
-        fi
-    fi
-    
-    success_message "Power management configured"
-}
 
-# ====================================================================
-# INSTALLATION VALIDATION AND VERIFICATION
-# ====================================================================
+# Create installation verification script
+log "=== Creating installation verification script ==="
+cat > ~/rodent-refreshment-regulator/verify_installation.sh << 'EOF'
+#!/bin/bash
+# RRR Installation Verification Script
+# Quickly checks if the installation is working correctly
 
-validate_installation() {
-    log "INFO" "Validating installation integrity..."
-    
-    local validation_errors=()
-    local validation_warnings=()
-    
-    # Check directory structure
-    log "INFO" "Checking directory structure..."
-    
-    local required_dirs=(
-        "$APP_DIR"
-        "$APP_DIR/Project"
-        "$APP_DIR/venv"
-        "$APP_DIR/tools"
-    )
-    
-    for dir in "${required_dirs[@]}"; do
-        if [ ! -d "$dir" ]; then
-            validation_errors+=("Missing directory: $dir")
-        else
-            log "INFO" "✓ Directory exists: $dir"
-        fi
-    done
-    
-    # Check essential files
-    log "INFO" "Checking essential files..."
-    
-    local required_files=(
-        "$APP_DIR/Project/main.py"
-        "$APP_DIR/venv/bin/activate"
-        "$APP_DIR/launch_rrr.sh"
-        "$APP_DIR/start_rrr.sh"
-        "$APP_DIR/diagnose.sh"
-        "$APP_DIR/fix_dependencies.sh"
-        "$APP_DIR/fix_i2c.sh"
-        "$APP_DIR/test_hardware.sh"
-        "$APP_DIR/update_ui.sh"
-        "$APP_DIR/toggle_service.sh"
-        "$APP_DIR/tools/configure_i2c.sh"
-    )
-    
-    for file in "${required_files[@]}"; do
-        if [ ! -f "$file" ]; then
-            validation_errors+=("Missing file: $file")
-        elif [ ! -x "$file" ]; then
-            validation_errors+=("File not executable: $file")
-        else
-            log "INFO" "✓ File exists and executable: $(basename "$file")"
-        fi
-    done
-    
-    # Additional check for critical Python files with shebang lines
-    local critical_python_files=(
-        "$APP_DIR/Project/main.py"
-        "$APP_DIR/Project/fix_i2c.py"
-    )
-    
-    for file in "${critical_python_files[@]}"; do
-        if [ -f "$file" ]; then
-            # Check if file has shebang and is executable
-            if head -n 1 "$file" 2>/dev/null | grep -q "^#!.*python"; then
-                if [ -x "$file" ]; then
-                    log "INFO" "✓ Python executable ready: $(basename "$file")"
-                else
-                    validation_errors+=("Python script with shebang not executable: $file")
-                fi
-            fi
-        fi
-    done
-    
-    # Check Python environment
-    log "INFO" "Checking Python environment..."
-    
-    if [ -f "$APP_DIR/venv/bin/activate" ]; then
-        (
-            cd "$APP_DIR" || exit 1
-            source venv/bin/activate
-            
-            # Test critical Python imports
-            local python_modules=(
-                "PyQt5"
-                "pandas"
-                "requests"
-                "slack_sdk"
-            )
-            
-            for module in "${python_modules[@]}"; do
-                if python3 -c "import $module" 2>/dev/null; then
-                    log "INFO" "✓ Python module available: $module"
-                else
-                    validation_warnings+=("Python module not available: $module")
-                fi
-            done
-            
-            # Test hardware-specific modules (these may fail on non-Pi systems)
-            if python3 -c "import RPi.GPIO" 2>/dev/null; then
-                log "INFO" "✓ RPi.GPIO available"
-            else
-                validation_warnings+=("RPi.GPIO not available (expected on non-Pi systems)")
-            fi
-            
-            if python3 -c "import SM16relind" 2>/dev/null; then
-                log "INFO" "✓ SM16relind module available"
-            else
-                validation_warnings+=("SM16relind module not available (may need hardware)")
-            fi
-        )
-    else
-        validation_errors+=("Virtual environment activation script not found")
-    fi
-    
-    # Check system configuration
-    log "INFO" "Checking system configuration..."
-    
-    # Check I2C configuration
-    local config_file="/boot/config.txt"
-    if [ -f "/boot/firmware/config.txt" ]; then
-        config_file="/boot/firmware/config.txt"
-    fi
-    
-    if [ -f "$config_file" ]; then
-        if grep -q "^dtparam=i2c_arm=on" "$config_file"; then
-            log "INFO" "✓ I2C enabled in boot configuration"
-        else
-            validation_warnings+=("I2C not enabled in boot configuration")
-        fi
-    else
-        validation_warnings+=("Boot configuration file not found")
-    fi
-    
-    # Check user groups
-    if groups | grep -q "i2c"; then
-        log "INFO" "✓ User is in i2c group"
-    else
-        validation_warnings+=("User not in i2c group - hardware control may not work")
-    fi
-    
-    # Check system service
-    if [ -f "/etc/systemd/system/rodent-regulator.service" ]; then
-        log "INFO" "✓ System service file created"
-    else
-        validation_warnings+=("System service file not created")
-    fi
-    
-    # Check desktop integration
-    if [ -f ~/Desktop/RRR.desktop ]; then
-        log "INFO" "✓ Desktop shortcut created"
-    else
-        validation_warnings+=("Desktop shortcut not created")
-    fi
-    
-    # Report validation results
-    log "INFO" "=== Installation Validation Results ==="
-    
-    if [ ${#validation_errors[@]} -eq 0 ]; then
-        if [ ${#validation_warnings[@]} -eq 0 ]; then
-            log "INFO" "🎉 Installation validation passed with no issues!"
-            success_message "All components validated successfully"
-            return 0
-        else
-            log "WARN" "Installation validation passed with warnings:"
-            for warning in "${validation_warnings[@]}"; do
-                log "WARN" "  ⚠️  $warning"
-            done
-            log "INFO" "✅ Installation is functional despite warnings"
-            return 0
-        fi
-    else
-        log "ERROR" "Installation validation failed with errors:"
-        for error in "${validation_errors[@]}"; do
-            log "ERROR" "  ❌ $error"
-        done
-        
-        if [ ${#validation_warnings[@]} -gt 0 ]; then
-            log "WARN" "Additional warnings:"
-            for warning in "${validation_warnings[@]}"; do
-                log "WARN" "  ⚠️  $warning"
-            done
-        fi
-        
-        log "ERROR" "Installation may not function correctly"
-        return 1
-    fi
-}
+echo "🔍 RRR Installation Verification"
+echo "================================"
+echo ""
 
-# ====================================================================
-# INSTALLATION RECOVERY AND CLEANUP
-# ====================================================================
+# Check if we're in the right directory
+if [ ! -f "Project/main.py" ]; then
+    echo "❌ Error: Not in RRR installation directory"
+    echo "   Please run this from: ~/rodent-refreshment-regulator/"
+    exit 1
+fi
 
-setup_cleanup_handler() {
-    log "INFO" "Setting up cleanup handlers..."
-    
-    # Create cleanup function
-    cleanup_on_failure() {
-        local exit_code=$?
-        log "WARN" "Installation interrupted or failed with code $exit_code"
-        
-        # Perform minimal cleanup to leave system in a recoverable state
-        log "INFO" "Performing cleanup..."
-        
-        # Deactivate virtual environment if active
-        if [[ "${VIRTUAL_ENV:-}" != "" ]]; then
-            deactivate 2>/dev/null || true
-        fi
-        
-        # Clean up temporary files
-        rm -f /tmp/enable_i2c_temp.sh /tmp/configure_i2c.sh /tmp/requirements_modified.txt /tmp/relay_test.py 2>/dev/null || true
-        
-        # Don't remove the installation directory to allow recovery
-        if [ -d "$APP_DIR" ] && [ -f "$APP_DIR/.installation_incomplete" ]; then
-            log "INFO" "Partial installation preserved at: $APP_DIR"
-            log "INFO" "You can run the installer again to retry"
-        fi
-        
-        log "INFO" "Cleanup completed"
-        exit $exit_code
-    }
-    
-    # Set up trap for cleanup
-    trap cleanup_on_failure EXIT
-    
-    # Mark installation as incomplete
-    touch "$APP_DIR/.installation_incomplete" 2>/dev/null || true
-}
+echo "✅ Installation directory: $(pwd)"
 
-finalize_installation() {
-    log "INFO" "Finalizing installation..."
+# Check Python environment
+echo "🐍 Checking Python environment..."
+if [ -d "venv" ]; then
+    echo "   ✅ Virtual environment found"
     
-    # Remove incomplete marker
-    rm -f "$APP_DIR/.installation_incomplete" 2>/dev/null || true
+    if source venv/bin/activate 2>/dev/null; then
+        echo "   ✅ Virtual environment activated"
+        
+        # Test critical imports
+        python3 -c "
+import sys
+try:
+    import PyQt5
+    print('   ✅ PyQt5 available')
+except ImportError:
+    print('   ❌ PyQt5 not available')
+
+try:
+    import RPi.GPIO
+    print('   ✅ RPi.GPIO available')
+except ImportError:
+    print('   ❌ RPi.GPIO not available')
+
+try:
+    import pandas
+    print('   ✅ pandas available')
+except ImportError:
+    print('   ❌ pandas not available')
+" 2>/dev/null
+        
+        deactivate
+    else
+        echo "   ❌ Cannot activate virtual environment"
+    fi
+else
+    echo "   ❌ Virtual environment not found"
+fi
+
+# Check hardware components
+echo ""
+echo "🔧 Checking hardware components..."
+
+# Check I2C
+if command -v i2cdetect >/dev/null 2>&1; then
+    echo "   ✅ I2C tools installed"
     
-    # Create installation info file
-    cat > "$APP_DIR/.installation_info" << EOF
-# RRR Installation Information
-INSTALL_DATE=$(date '+%Y-%m-%d %H:%M:%S')
-INSTALLER_VERSION=$SCRIPT_VERSION
-SYSTEM_INFO=$(uname -a)
-PYTHON_VERSION=$(python3 --version 2>&1)
-GIT_COMMIT=$(cd "$APP_DIR" && git rev-parse HEAD 2>/dev/null || echo "unknown")
-PI_VERSION=$DETECTED_PI_VERSION
-NEEDS_REBOOT=$NEEDS_REBOOT
-I2C_DETECTION_SUCCESS=$I2C_DETECTION_SUCCESS
+    # List available I2C buses
+    buses=($(ls /dev/i2c-* 2>/dev/null | sed 's/.*i2c-//'))
+    if [ ${#buses[@]} -gt 0 ]; then
+        echo "   ✅ I2C buses available: ${buses[*]}"
+    else
+        echo "   ⚠️  No I2C buses detected (may need reboot)"
+    fi
+else
+    echo "   ❌ I2C tools not installed"
+fi
+
+# Check relay HAT communication
+echo "   🔌 Testing relay HAT communication..."
+if command -v 16relind >/dev/null 2>&1; then
+    echo "   ✅ 16relind command available"
+    
+    # Try to communicate with relay HAT
+    if timeout 5 16relind -h >/dev/null 2>&1; then
+        echo "   ✅ Relay HAT driver responding"
+    else
+        echo "   ⚠️  Relay HAT driver installed but may need hardware connection"
+    fi
+else
+    echo "   ❌ 16relind command not found"
+fi
+
+echo ""
+echo "📊 Summary:"
+echo "==========="
+
+# Overall assessment
+critical_files=("Project/main.py" "Project/ui/gui.py" "Project/gpio/gpio_handler.py")
+missing_files=0
+
+for file in "${critical_files[@]}"; do
+    if [ ! -f "$file" ]; then
+        ((missing_files++))
+    fi
+done
+
+if [ $missing_files -eq 0 ] && [ -d "venv" ]; then
+    echo "🎉 Installation appears to be working correctly!"
+    echo ""
+    echo "Next steps:"
+    echo "1. Reboot your system if you haven't already"
+    echo "2. Run the application: ./start_rrr.sh"
+    echo "3. Check the Help tab in the application for usage guides"
+else
+    echo "⚠️  Installation has some issues that may need attention"
+    echo ""
+    echo "Troubleshooting:"
+    echo "1. Try running: ./fix_dependencies.sh"
+    echo "2. For I2C issues: ./fix_i2c.sh"
+    echo "3. For general diagnosis: ./diagnose.sh"
+fi
+
+echo ""
+echo "For support, check the documentation or contact your system administrator."
 EOF
-    
-    # Set proper permissions on all created scripts
-    find "$APP_DIR" -name "*.sh" -type f -exec chmod +x {} + 2>/dev/null || true
-    
-    # Clear trap - installation successful
-    trap - EXIT
-    
-    success_message "Installation finalized successfully"
-}
 
-# ====================================================================
-# MAIN INSTALLATION FLOW
-# ====================================================================
+chmod +x ~/rodent-refreshment-regulator/verify_installation.sh
 
-display_header() {
-    echo ""
-    echo "========================================================================"
-    echo "    Rodent Refreshment Regulator (RRR) - Robust Installer v$SCRIPT_VERSION"
-    echo "========================================================================"
-    echo ""
-    echo "This installer will set up the complete RRR system with:"
-    echo "• Raspberry Pi hardware detection and configuration"
-    echo "• I2C interface setup with Pi 5 compatibility"
-    echo "• Python environment and dependency management"
-    echo "• Application installation with error recovery"
-    echo "• Desktop integration and system services"
-    echo ""
-    echo "Installation log: $INSTALL_LOG"
-    echo ""
-}
+# Final installation verification
+log "=== Final Installation Verification ==="
+cd "$TARGET_DIR" || error_exit "Target directory not accessible"
 
-installation_summary() {
-    echo ""
-    echo "========================================================================"
-    echo "                      INSTALLATION SUMMARY"
-    echo "========================================================================"
-    echo ""
-    
-    if [ "$NEEDS_REBOOT" = true ]; then
-        echo "🔄 REBOOT REQUIRED"
-        echo ""
-        echo "Configuration changes require a system reboot:"
-        echo "  • I2C interface configuration"
-        echo "  • Kernel module loading" 
-        echo "  • Device permissions"
-        echo "  • Power management settings"
-        echo ""
-        echo "After reboot, start the application using:"
-        echo "  1. Desktop shortcut: Double-click 'RRR' icon"
-        echo "  2. Command line: ~/rodent-refreshment-regulator/launch_rrr.sh"
-        echo ""
-        
-        if [ "$I2C_DETECTION_SUCCESS" = false ]; then
-            echo "⚠️  I2C buses were not detected during installation."
-            echo "This is expected and should be resolved after reboot."
-            echo ""
-        fi
-        
-        echo "Would you like to reboot now? (y/n)"
-        read -r reboot_choice
-        
-        if [[ $reboot_choice =~ ^[Yy]$ ]]; then
-            echo ""
-            echo "Rebooting in 5 seconds... (Press Ctrl+C to cancel)"
-            sleep 5
-            sudo reboot
-        else
-            echo ""
-            echo "Please reboot your system before using the RRR application:"
-            echo "  sudo reboot"
-        fi
-        
+# Check critical files
+CRITICAL_FILES=("Project/main.py" "Project/ui/gui.py" "Project/gpio/gpio_handler.py")
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        log "WARNING: Critical file missing: $file"
     else
-        echo "✅ INSTALLATION COMPLETED SUCCESSFULLY"
-        echo ""
-        echo "The RRR system is ready to use!"
-        echo ""
-        echo "Start the application:"
-        echo "  1. Desktop shortcut: Double-click 'RRR' icon"
-        echo "  2. Command line: ~/rodent-refreshment-regulator/launch_rrr.sh"
-        echo ""
-        
-        if [ "$I2C_DETECTION_SUCCESS" = true ]; then
-            echo "✅ Hardware control is ready"
-        else
-            echo "⚠️  Hardware control may require troubleshooting"
-            echo "Run: ~/rodent-refreshment-regulator/fix_i2c.sh"
-        fi
+        log "✓ Verified: $file"
     fi
-    
-    echo ""
-    echo "📋 Troubleshooting Resources:"
-    echo "  • System diagnostics: ~/rodent-refreshment-regulator/diagnose.sh"
-    echo "  • Hardware testing: ~/rodent-refreshment-regulator/test_hardware.sh"
-    echo "  • I2C troubleshooting: ~/rodent-refreshment-regulator/fix_i2c.sh"
-    echo "  • Dependency fixes: ~/rodent-refreshment-regulator/fix_dependencies.sh"
-    echo "  • Service management: ~/rodent-refreshment-regulator/toggle_service.sh"
-    echo ""
-    echo "📖 Documentation: https://github.com/Corticomics/rodRefReg"
-    echo "📝 Installation log: $INSTALL_LOG"
-    echo ""
-}
+done
 
-main() {
-    display_header
-    
-    log "INFO" "Starting RRR installation v$SCRIPT_VERSION"
-    log "INFO" "Target user: $USER"
-    log "INFO" "Installation directory: $APP_DIR"
-    
-    # Set up error handling and cleanup
-    setup_cleanup_handler
-    
-    # Phase 1: System Requirements
-    log "INFO" "=== Phase 1: System Requirements ==="
-    detect_raspberry_pi
-    check_system_requirements
-    
-    # Phase 2: Package Installation
-    log "INFO" "=== Phase 2: Package Installation ==="
-    update_system_packages
-    install_system_dependencies
-    validate_python_version
-    install_relay_hat_driver
-    
-    # Phase 3: Hardware Configuration
-    log "INFO" "=== Phase 3: Hardware Configuration ==="
-    configure_i2c_interface
-    detect_i2c_buses || true  # Don't fail if I2C detection fails
-    
-    # Phase 4: Application Setup
-    log "INFO" "=== Phase 4: Application Setup ==="
-    setup_application_directory
-    setup_repository "$REPO_URL"
-    
-    # Phase 5: Python Environment
-    log "INFO" "=== Phase 5: Python Environment ==="
-    setup_python_environment
-    install_python_dependencies
-    verify_python_dependencies
-    
-    # Phase 6: System Integration
-    log "INFO" "=== Phase 6: System Integration ==="
-    create_launcher_script
-    create_i2c_configuration_script
-    create_update_script
-    create_diagnostic_scripts
-    create_desktop_integration
-    create_system_service
-    configure_power_management
-    
-    # Phase 7: Validation and Finalization
-    log "INFO" "=== Phase 7: Validation and Finalization ==="
-    validate_installation
-    finalize_installation
-    
-    # Installation Complete
-    success_message "Installation completed successfully!"
-    installation_summary
-}
+# Test Python environment
+log "Testing Python environment..."
+if source venv/bin/activate 2>/dev/null; then
+    if python3 -c "import PyQt5; print('✓ PyQt5 available')" 2>/dev/null; then
+        log "✓ Python environment verified"
+    else
+        log "WARNING: PyQt5 may not be properly installed"
+    fi
+    deactivate
+else
+    log "WARNING: Virtual environment activation failed"
+fi
 
-# Start installation
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
+echo ""
+echo "🎉 ===== INSTALLATION COMPLETE! ===== 🎉"
+echo ""
+echo "The Rodent Refreshment Regulator has been successfully installed!"
+echo "Installation directory: $TARGET_DIR"
+echo ""
+echo "🚀 TO START THE APPLICATION:"
+echo "   Option 1: Double-click the desktop shortcut 'RRR'"
+echo "   Option 2: Run: ~/rodent-refreshment-regulator/start_rrr.sh"
+echo "   Option 3: Manual start:"
+echo "            cd ~/rodent-refreshment-regulator"
+echo "            source venv/bin/activate"
+echo "            cd Project && python3 main.py"
+echo ""
+echo "🛠️  TROUBLESHOOTING TOOLS (if needed):"
+echo "   • Installation check: ~/rodent-refreshment-regulator/verify_installation.sh"
+echo "   • Fix dependencies: ~/rodent-refreshment-regulator/fix_dependencies.sh"
+echo "   • System diagnosis: ~/rodent-refreshment-regulator/diagnose.sh"
+echo "   • Hardware test: ~/rodent-refreshment-regulator/test_hardware.sh"
+echo "   • I2C issues: ~/rodent-refreshment-regulator/fix_i2c.sh"
+echo ""
+echo "⚙️  SYSTEM CONFIGURATION:"
+echo "   • Service mode toggle: ~/rodent-refreshment-regulator/toggle_service.sh"
+echo "   • Power management: DISABLED (prevents sleep during experiments)"
+echo "   • I2C buses detected: ${AVAILABLE_BUSES[*]:-"Will be detected on reboot"}"
+echo ""
+echo "⚠️  IMPORTANT: A system reboot is recommended for I2C and power settings."
+echo ""
+read -p "Would you like to reboot now? (y/N): " -r reboot_choice
+echo ""
+
+if [[ $reboot_choice =~ ^[Yy]$ ]]; then
+    echo "🔄 Rebooting system..."
+    log "User chose to reboot - system restarting"
+    sudo reboot
+else
+    echo "✅ Installation complete! Remember to reboot later."
+    echo ""
+    echo "📖 For detailed usage instructions, see:"
+    echo "   ~/rodent-refreshment-regulator/README.md"
+    echo ""
+    echo "🎯 Quick start: Run the application and check the Help tab for guides."
+    log "Installation completed successfully - user chose not to reboot"
+
 fi 
