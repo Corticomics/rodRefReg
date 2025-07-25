@@ -61,6 +61,34 @@ log "=== Rodent Refreshment Regulator Installation Script ==="
 log "This script will install all dependencies and set up your Raspberry Pi"
 log ""
 
+# SECURITY: Detect real user and target directory correctly (must be early in script)
+if [ -n "$SUDO_USER" ]; then
+    REAL_USER="$SUDO_USER"
+    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    log "Security: Running with sudo, installing for user: $REAL_USER at $REAL_HOME"
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+fi
+
+# Prevent root user installation
+if [ "$REAL_USER" = "root" ]; then
+    error_exit "This installer should not be run as root user directly. Use your regular user account."
+fi
+
+TARGET_DIR="$REAL_HOME/rodent-refreshment-regulator"
+
+# PRIVILEGE SEPARATION: Functions to run operations with correct privileges
+run_as_user() {
+    if [ "$(id -u)" -eq 0 ]; then
+        # Running as root, drop privileges to real user
+        sudo -u "$REAL_USER" -H "$@"
+    else
+        # Already running as user
+        "$@"
+    fi
+}
+
 # Check if running with sudo (required for some operations)
 if [ "$(id -u)" -ne 0 ]; then
     log "Some installation steps require sudo privileges."
@@ -281,34 +309,6 @@ log "=== Setting up application directory ==="
 
 # Set repository URL
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
-
-# SECURITY: Detect real user and target directory correctly
-if [ -n "$SUDO_USER" ]; then
-    REAL_USER="$SUDO_USER"
-    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-    log "Security: Running with sudo, installing for user: $REAL_USER at $REAL_HOME"
-else
-    REAL_USER="$USER"
-    REAL_HOME="$HOME"
-fi
-
-# Prevent root user installation
-if [ "$REAL_USER" = "root" ]; then
-    error_exit "This installer should not be run as root user directly. Use your regular user account."
-fi
-
-TARGET_DIR="$REAL_HOME/rodent-refreshment-regulator"
-
-# PRIVILEGE SEPARATION: Functions to run operations with correct privileges
-run_as_user() {
-    if [ "$(id -u)" -eq 0 ]; then
-        # Running as root, drop privileges to real user
-        sudo -u "$REAL_USER" -H "$@"
-    else
-        # Already running as user
-        "$@"
-    fi
-}
 
 # Function to detect current execution context
 detect_execution_context() {
