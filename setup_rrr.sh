@@ -281,7 +281,34 @@ log "=== Setting up application directory ==="
 
 # Set repository URL
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
-TARGET_DIR="$HOME/rodent-refreshment-regulator"
+
+# SECURITY: Detect real user and target directory correctly
+if [ -n "$SUDO_USER" ]; then
+    REAL_USER="$SUDO_USER"
+    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    log "Security: Running with sudo, installing for user: $REAL_USER at $REAL_HOME"
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+fi
+
+# Prevent root user installation
+if [ "$REAL_USER" = "root" ]; then
+    error_exit "This installer should not be run as root user directly. Use your regular user account."
+fi
+
+TARGET_DIR="$REAL_HOME/rodent-refreshment-regulator"
+
+# PRIVILEGE SEPARATION: Functions to run operations with correct privileges
+run_as_user() {
+    if [ "$(id -u)" -eq 0 ]; then
+        # Running as root, drop privileges to real user
+        sudo -u "$REAL_USER" -H "$@"
+    else
+        # Already running as user
+        "$@"
+    fi
+}
 
 # Function to detect current execution context
 detect_execution_context() {
@@ -303,15 +330,15 @@ detect_execution_context() {
         return
     fi
     
-    # Check if target directory exists and is a repo
+    # Check if target directory exists and is a valid git repo
     if [ -d "$TARGET_DIR/.git" ]; then
-        echo "TARGET_EXISTS"
+        echo "TARGET_EXISTS_VALID_REPO"
         return
     fi
     
     # Check if target directory exists (but isn't a git repo)
     if [ -d "$TARGET_DIR" ]; then
-        echo "TARGET_EXISTS"
+        echo "TARGET_EXISTS_INVALID_REPO"
         return
     fi
     
@@ -344,7 +371,7 @@ case $CONTEXT in
             
             # Fresh clone
             log "Fresh cloning repository to target directory"
-            git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+            run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
             cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
             log "Fresh repository cloned successfully"
         else
@@ -402,11 +429,26 @@ case $CONTEXT in
         fi
         ;;
         
-    "TARGET_EXISTS")
-        log "Target directory exists - updating existing installation"
+    "TARGET_EXISTS_VALID_REPO")
+        log "Target directory exists with valid git repository - updating installation"
         cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
-        git fetch origin || log "Warning: fetch failed, continuing"
-        git pull origin main || git pull origin master || log "Warning: pull failed, continuing"
+        log "Valid git repository found, updating..."
+        run_as_user git fetch origin || log "Warning: fetch failed, continuing"
+        run_as_user git pull origin main || run_as_user git pull origin master || log "Warning: pull failed, continuing"
+        ;;
+        
+    "TARGET_EXISTS_INVALID_REPO")
+        log "Target directory exists but is not a valid git repository - performing fresh clone"
+        # Create backup of existing directory
+        backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+        log "Creating backup: $backup_dir"
+        mv "$TARGET_DIR" "$backup_dir" || log "Warning: backup failed"
+        
+                    # Fresh clone
+            log "Cloning fresh repository..."
+            run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
+        log "Fresh repository cloned successfully"
         ;;
         
     "FRESH_INSTALL")
@@ -416,7 +458,7 @@ case $CONTEXT in
         mkdir -p "$(dirname "$TARGET_DIR")"
         
         # Clone repository
-        git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
+        run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
         cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
         log "Repository cloned successfully to $TARGET_DIR"
         ;;
@@ -433,13 +475,31 @@ fi
 
 log "✓ Repository setup complete - using directory: $(pwd)"
 
+# SECURITY: Fix ownership of all files to ensure they belong to the real user
+log "=== Setting correct file ownership ==="
+if [ "$(id -u)" -eq 0 ] && [ -n "$REAL_USER" ]; then
+    chown -R "$REAL_USER:$REAL_USER" "$TARGET_DIR"
+    log "✓ File ownership set to $REAL_USER"
+fi
+
 # Create virtual environment with access to system packages 
 # (this is critical for PyQt5 and RPi.GPIO)
 log "=== Creating Python virtual environment with system packages ==="
-python3 -m venv venv --system-site-packages || error_exit "Failed to create virtual environment"
-source venv/bin/activate || error_exit "Failed to activate virtual environment"
+run_as_user python3 -m venv venv --system-site-packages || error_exit "Failed to create virtual environment"
 
-# Create a modified requirements file without the problematic packages
+# Activate virtual environment and set up dependencies (all as real user)
+log "=== Setting up Python dependencies ==="
+run_as_user bash -c "
+    source venv/bin/activate
+    
+    # Install pip packages as the real user
+    pip install --upgrade pip || echo 'Warning: pip upgrade failed'
+    
+    # Install essential packages
+    pip install gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 lgpio==0.2.2.0 smbus2==0.4.1 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7 || pip install --break-system-packages gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 lgpio==0.2.2.0 smbus2==0.4.1 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7
+"
+
+# Create a modified requirements file without the problematic packages (if needed)
 log "=== Creating modified requirements file ==="
 if [ -f "installer/requirements.txt" ]; then
     grep -v -E 'PyQt5|RPi\.GPIO|gpiozero|pandas|numpy' installer/requirements.txt > /tmp/requirements_modified.txt
@@ -452,25 +512,8 @@ else
     REQUIREMENTS_PATH=""
 fi
 
-# Install Python dependencies
-log "=== Installing Python dependencies ==="
-pip install --upgrade pip || log "Warning: pip upgrade failed, but continuing"
-
-# If we have a modified requirements file, use it
-if [ -n "$REQUIREMENTS_PATH" ]; then
-    log "Installing dependencies from modified requirements file..."
-    # Use --break-system-packages only if needed
-    if pip install -r "$REQUIREMENTS_PATH"; then
-        log "Dependencies installed successfully."
-    else
-        log "Initial installation failed, trying with --break-system-packages..."
-        pip install --break-system-packages -r "$REQUIREMENTS_PATH" || log "Warning: pip install failed, but continuing"
-    fi
-else
-    log "Installing essential packages individually..."
-    # Install everything except problem packages
-    pip install gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 lgpio==0.2.2.0 smbus2==0.4.1 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7 || log "Warning: individual package installation failed, but continuing"
-fi
+# Dependencies already installed in user context above
+log "=== Python dependencies installed successfully ==="
 
 # Verify slack_sdk installation
 log "=== Verifying slack_sdk installation ==="
@@ -1386,6 +1429,7 @@ echo "🎉 ===== INSTALLATION COMPLETE! ===== 🎉"
 echo ""
 echo "The Rodent Refreshment Regulator has been successfully installed!"
 echo "Installation directory: $TARGET_DIR"
+echo "Installed for user: $REAL_USER"
 echo ""
 echo "🚀 TO START THE APPLICATION:"
 echo "   Option 1: Double-click the desktop shortcut 'RRR'"
