@@ -259,7 +259,7 @@ PRIMARY_BUS=${AVAILABLE_BUSES[-1]}  # Last (highest) bus
 echo "Will use primary I2C bus: /dev/i2c-$PRIMARY_BUS"
 
 # Run fix_i2c.py if available with virtual environment
-cd ~/rodent-refreshment-regulator
+cd "\$(dirname "\$0")"
 if [ -f "Project/fix_i2c.py" ]; then
     echo "Running I2C fix script with proper Python environment..."
     source venv/bin/activate 2>/dev/null || echo "Warning: Could not activate virtual environment"
@@ -294,14 +294,8 @@ EOI
 
     chmod +x /tmp/configure_i2c.sh
     
-    # Create tools directory and properly use it
-    run_as_user mkdir -p "$TARGET_DIR/tools"
-    run_as_user cp /tmp/configure_i2c.sh "$TARGET_DIR/tools/configure_i2c.sh"
-    run_as_user chmod +x "$TARGET_DIR/tools/configure_i2c.sh"
-    
-    # Also put a copy in the root directory for compatibility with existing scripts  
-    run_as_user cp "$TARGET_DIR/tools/configure_i2c.sh" "$TARGET_DIR/configure_i2c.sh"
-    run_as_user chmod +x "$TARGET_DIR/configure_i2c.sh"
+    # Note: I2C script will be copied to application directory after repository setup
+    log "I2C configuration script created, will be installed after repository setup"
 fi
 
 # Smart installation directory setup - handles all execution contexts
@@ -474,6 +468,22 @@ if [ ! -f "Project/main.py" ]; then
 fi
 
 log "✓ Repository setup complete - using directory: $(pwd)"
+
+# Install I2C configuration script (now that directory exists)
+if [ -f "/tmp/configure_i2c.sh" ]; then
+    log "=== Installing I2C configuration script ==="
+    run_as_user mkdir -p "$TARGET_DIR/tools"
+    run_as_user cp /tmp/configure_i2c.sh "$TARGET_DIR/tools/configure_i2c.sh"
+    run_as_user chmod +x "$TARGET_DIR/tools/configure_i2c.sh"
+    
+    # Also put a copy in the root directory for compatibility with existing scripts
+    run_as_user cp "$TARGET_DIR/tools/configure_i2c.sh" "$TARGET_DIR/configure_i2c.sh"
+    run_as_user chmod +x "$TARGET_DIR/configure_i2c.sh"
+    
+    # Clean up temporary file
+    rm -f /tmp/configure_i2c.sh
+    log "✓ I2C configuration script installed"
+fi
 
 # SECURITY: Fix ownership of all files to ensure they belong to the real user
 log "=== Setting correct file ownership ==="
