@@ -189,14 +189,22 @@ BRANCH="salvation-0.02"
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
 
 # Clone or update the repository at the specified branch
-if [ ! -d ".git" ]; then
-    log "=== Cloning the repository (branch $BRANCH) ==="
-    git clone --depth 1 --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
-else
+if [ -d ".git" ]; then
     log "Repository already exists. Checking out branch $BRANCH"
     git fetch origin "$BRANCH" || log "Warning: Failed to fetch branch $BRANCH"
     git checkout "$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
     git pull origin "$BRANCH" || log "Warning: git pull failed, but continuing"
+else
+    if [ -z "$(ls -A)" ]; then
+        log "=== Cloning the repository (branch $BRANCH) ==="
+        git clone --depth 1 --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
+    else
+        log "Directory not empty and no Git repo, initializing repository"
+        git init . || error_exit "Failed to initialize git repository"
+        git remote add origin "$REPO_URL" || error_exit "Failed to add remote origin"
+        git fetch --depth 1 origin "$BRANCH" || error_exit "Failed to fetch branch $BRANCH"
+        git checkout -b "$BRANCH" "origin/$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
+    fi
 fi
 
 # Enhanced I2C bus detection and configuration
