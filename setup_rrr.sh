@@ -296,11 +296,11 @@ EOI
     
     # Create tools directory and properly use it
     run_as_user mkdir -p "$TARGET_DIR/tools"
-    cp /tmp/configure_i2c.sh "$TARGET_DIR/tools/configure_i2c.sh"
+    run_as_user cp /tmp/configure_i2c.sh "$TARGET_DIR/tools/configure_i2c.sh"
     run_as_user chmod +x "$TARGET_DIR/tools/configure_i2c.sh"
     
     # Also put a copy in the root directory for compatibility with existing scripts  
-    cp "$TARGET_DIR/tools/configure_i2c.sh" "$TARGET_DIR/configure_i2c.sh"
+    run_as_user cp "$TARGET_DIR/tools/configure_i2c.sh" "$TARGET_DIR/configure_i2c.sh"
     run_as_user chmod +x "$TARGET_DIR/configure_i2c.sh"
 fi
 
@@ -389,7 +389,7 @@ case $CONTEXT in
                 fi
                 
                 # Copy current repo to target location
-                cp -r "$(pwd)" "$TARGET_DIR"
+                run_as_user cp -r "$(pwd)" "$TARGET_DIR"
                 cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
             fi
             
@@ -422,10 +422,10 @@ case $CONTEXT in
         else
             log "Warning: In target directory but no git repository found"
             # Try to initialize from remote
-            git clone "$REPO_URL" temp_clone || error_exit "Failed to clone repository"
-            cp -r temp_clone/* .
-            cp -r temp_clone/.git .
-            rm -rf temp_clone
+            run_as_user git clone "$REPO_URL" temp_clone || error_exit "Failed to clone repository"
+            run_as_user cp -r temp_clone/* .
+            run_as_user cp -r temp_clone/.git .
+            run_as_user rm -rf temp_clone
         fi
         ;;
         
@@ -455,7 +455,7 @@ case $CONTEXT in
         log "Fresh installation - cloning repository to target directory"
         
         # Create parent directory if needed
-        mkdir -p "$(dirname "$TARGET_DIR")"
+        run_as_user mkdir -p "$(dirname "$TARGET_DIR")"
         
         # Clone repository
         run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
@@ -569,8 +569,8 @@ except ImportError:
         SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
         if [ -n "$SM_PATH" ]; then
             PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-            mkdir -p ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
-            ln -sf $SM_PATH ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+            run_as_user mkdir -p "$TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/"
+            run_as_user ln -sf $SM_PATH "$TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/"
             log "Symlink created."
         fi
     fi
@@ -636,14 +636,14 @@ ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
 # Create desktop directory for both root and actual user
 mkdir -p ~/Desktop
 if [ "$ACTUAL_USER" != "root" ] && [ -n "$ACTUAL_HOME" ]; then
-    mkdir -p "$ACTUAL_HOME/Desktop"
+    run_as_user mkdir -p "$ACTUAL_HOME/Desktop"
 fi
 
 # First create a launcher script for better error handling
 run_as_user bash -c "cat > '$TARGET_DIR/launch_rrr.sh' << 'EOF'
 #!/bin/bash
 # RRR Application Launcher with error handling
-cd $TARGET_DIR"
+cd \"\$(dirname \"\$0\")\""
 
 # Log file
 LAUNCH_LOG="$HOME/rrr_launch_$(date +%Y%m%d).log"
@@ -714,9 +714,9 @@ fi
 
 # Create a startup script
 log "=== Creating startup script ==="
-run_as_user cat > "$TARGET_DIR/start_rrr.sh" << EOF
+run_as_user cat > "$TARGET_DIR/start_rrr.sh" << 'EOF'
 #!/bin/bash
-cd $TARGET_DIR
+cd "$(dirname "$0")"
 
 # Auto-detect and configure I2C buses
 if [ -f "configure_i2c.sh" ]; then
@@ -909,7 +909,7 @@ run_as_user chmod +x "$TARGET_DIR/update_ui.sh"
 log "=== Creating hardware test script ==="
 run_as_user cat > "$TARGET_DIR/test_hardware.sh" << 'EOF'
 #!/bin/bash
-cd $TARGET_DIR
+cd "$(dirname "$0")"
 source venv/bin/activate
 cd Project
 
@@ -948,7 +948,7 @@ run_as_user cat > "$TARGET_DIR/diagnose.sh" << 'EOF'
 #!/bin/bash
 echo "=== RRR Diagnostic Script ==="
 echo "Checking environment..."
-cd $TARGET_DIR
+cd "$(dirname "$0")"
 echo "Current directory: $(pwd)"
 
 echo "Activating virtual environment..."
@@ -996,7 +996,7 @@ log "=== Creating quick fix script for missing packages ==="
 run_as_user cat > "$TARGET_DIR/fix_dependencies.sh" << 'EOF'
 #!/bin/bash
 echo "=== RRR Dependency Fix Script ==="
-cd $TARGET_DIR
+cd "$(dirname "$0")"
 source venv/bin/activate
 
 echo "Installing pandas..."
@@ -1024,8 +1024,8 @@ if [ -d "/tmp/16relind-rpi/python" ]; then
     PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
     SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
     if [ -n "$SM_PATH" ]; then
-        mkdir -p $TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/
-        ln -sf $SM_PATH $TARGET_DIR/venv/lib/python$PY_VERSION/site-packages/
+        mkdir -p venv/lib/python$PY_VERSION/site-packages/
+        ln -sf $SM_PATH venv/lib/python$PY_VERSION/site-packages/
     fi
     cd - > /dev/null
 fi
@@ -1172,7 +1172,7 @@ echo "===== I2C Troubleshooting Summary ====="
 if detect_i2c_buses; then
     echo "✅ I2C buses detected. The system should be ready to use."
     echo "   If you're still having issues, try running the fix_i2c.py script:"
-    echo "   cd $TARGET_DIR/Project && python3 fix_i2c.py"
+    echo "   cd \"\$(dirname \"\$0\")/Project\" && python3 fix_i2c.py"
 else
     echo "❌ No I2C buses detected."
     
@@ -1284,7 +1284,7 @@ echo ""
 # Check if we're in the right directory
 if [ ! -f "Project/main.py" ]; then
     echo "❌ Error: Not in RRR installation directory"
-    echo "   Please run this from: $TARGET_DIR/"
+    echo "   Please run this from the RRR installation directory"
     exit 1
 fi
 
