@@ -283,6 +283,21 @@ EOI
     # Also put a copy in the root directory for compatibility with existing scripts
     cp ~/rodent-refreshment-regulator/tools/configure_i2c.sh ~/rodent-refreshment-regulator/configure_i2c.sh
     chmod +x ~/rodent-refreshment-regulator/configure_i2c.sh
+
+    # Create /dev/i2c-1 symlink pointing to the on-board bcm2835 I2C adapter
+    PHYSICAL_BUS=$(i2cdetect -l | awk '/bcm2835 I2C adapter/ {print $1}' | cut -d'-' -f2 | head -n1)
+    if [ -n "$PHYSICAL_BUS" ] && [ ! -e /dev/i2c-1 ]; then
+        sudo ln -sf "/dev/i2c-$PHYSICAL_BUS" /dev/i2c-1
+        log "Created symlink /dev/i2c-1 -> /dev/i2c-$PHYSICAL_BUS"
+    fi
+fi
+
+# Verify the relay HAT is present at I2C addresses 0x20–0x27 on bus 1
+log "=== Checking for relay HAT at addresses 0x20-0x27 on bus 1 ==="
+if ! i2cdetect -y 1 | grep -q "20:"; then
+    error_exit "No relay HAT detected at addresses 0x20-0x27. Ensure the HAT is powered (5V) and properly connected."
+else
+    log "Relay HAT detected on bus 1 - OK"
 fi
 
 # Create virtual environment with access to system packages 
