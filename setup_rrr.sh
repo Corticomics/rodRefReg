@@ -292,12 +292,26 @@ EOI
     fi
 fi
 
-# Verify the relay HAT is present at I2C addresses 0x20–0x27 on bus 1
-log "=== Checking for relay HAT at addresses 0x20-0x27 on bus 1 ==="
-if ! i2cdetect -y 1 | grep -q "20:"; then
-    error_exit "No relay HAT detected at addresses 0x20-0x27. Ensure the HAT is powered (5V) and properly connected."
+# Verify the relay HAT is present at I2C addresses 0x20–0x27 on any detected bus
+log "=== Checking for relay HAT at addresses 0x20-0x27 on detected buses ==="
+DETECTED_BUSES=($(detect_i2c_buses))
+if [ ${#DETECTED_BUSES[@]} -eq 0 ]; then
+    log "WARN: No I2C buses detected. You may need to reboot for I2C changes to take effect."
 else
-    log "Relay HAT detected on bus 1 - OK"
+    HAT_FOUND=false
+    HAT_BUS=""
+    for bus in "${DETECTED_BUSES[@]}"; do
+        if i2cdetect -y "$bus" 2>/dev/null | egrep -q '(^|[^0-9a-f])2[0-7]([^0-9a-f]|$)'; then
+            HAT_FOUND=true
+            HAT_BUS="$bus"
+            break
+        fi
+    done
+    if [ "$HAT_FOUND" = true ]; then
+        log "Relay HAT detected on bus $HAT_BUS - OK"
+    else
+        log "WARN: No relay HAT detected at 0x20-0x27 on buses: ${DETECTED_BUSES[*]}. If you just enabled I2C, reboot may be required."
+    fi
 fi
 
 # Create virtual environment with access to system packages 
@@ -379,7 +393,18 @@ python3 -c "import pandas; print('pandas version:', pandas.__version__)" || {
 
 # Verify SM16relind Python module can be imported (if it exists)
 log "=== Verifying SM16relind module is accessible ==="
-python3 -c "try: import SM16relind; print('SM16relind module found'); except ImportError: print('SM16relind module not found, but command line tool should work')" || {
+if python3 - <<'PY'
+try:
+    import SM16relind
+    print('SM16relind module found')
+    import sys; sys.exit(0)
+except ImportError:
+    print('SM16relind module not found, but command line tool should work')
+    import sys; sys.exit(1)
+PY
+then
+    :
+else
     log "Note: SM16relind Python module not found. This is normal if the module uses command line tools instead."
     # Try symlink if the lib directory exists but install didn't work
     if [ -d "/usr/local/lib/python3*/dist-packages/SM16relind" ]; then
@@ -387,12 +412,12 @@ python3 -c "try: import SM16relind; print('SM16relind module found'); except Imp
         SM_PATH=$(find /usr/local/lib/python3*/dist-packages -name "SM16relind" -type d | head -n 1)
         if [ -n "$SM_PATH" ]; then
             PY_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-            mkdir -p ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
-            ln -sf $SM_PATH ~/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/
+            mkdir -p "$HOME/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/"
+            ln -sf "$SM_PATH" "$HOME/rodent-refreshment-regulator/venv/lib/python$PY_VERSION/site-packages/"
             log "Symlink created."
         fi
     fi
-}
+fi
 
 # Create a desktop shortcut with improved execution
 log "=== Creating desktop shortcut ==="
@@ -966,11 +991,14 @@ chmod +x ~/rodent-refreshment-regulator/fix_i2c.sh
 log "=== Configuring Enterprise Display Management ==="
 log "Setting up robust display management for laboratory use..."
 
+# Ensure application directory is defined for display management tooling
+APP_DIR="${HOME}/rodent-refreshment-regulator"
+
 # Download and install display management modules
 setup_display_management() {
     log "INFO" "Installing display management modules..."
     
-    # Create tools directory
+    # Create tools directory under the application path
     mkdir -p "$APP_DIR/tools"
     
     # Download display management modules
@@ -1043,10 +1071,17 @@ WorkingDirectory=${HOME_DIR}/rodent-refreshment-regulator
 Restart=always
 User=${CURRENT_USER}
 Environment=DISPLAY=:0
+Environment=QT_QPA_PLATFORM=offscreen
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# Enable and start the service for unattended operation
+sudo systemctl daemon-reload
+sudo systemctl enable rodent-regulator.service || true
+sudo systemctl restart rodent-regulator.service || true
 
 # Create a script to enable/disable service
 cat > ~/rodent-refreshment-regulator/toggle_service.sh << 'EOF'
