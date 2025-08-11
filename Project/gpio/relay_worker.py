@@ -464,8 +464,11 @@ class RelayWorker(QObject):
     def stop(self):
         with QMutexLocker(self.mutex):
             self._is_running = False
-        self.monitor_timer.stop()
-        self.main_timer.stop()
+        # Stop timers from within the worker's thread context
+        if self.monitor_timer.isActive():
+            self.monitor_timer.stop()
+        if self.main_timer.isActive():
+            self.main_timer.stop()
         for timer in self.timers:
             try:
                 timer.stop()  # No need to call deleteLater() since timers are parented.
@@ -473,6 +476,7 @@ class RelayWorker(QObject):
                 self.progress.emit(f"Timer already deleted: {ex}")
         self.timers.clear()
         self.progress.emit("RelayWorker stopped")
+        # Defensive: ensure we only emit finished once per stop path
         self.finished.emit()
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
@@ -481,7 +485,7 @@ class RelayWorker(QObject):
             self.delivered_volumes = {}
             window_start = datetime.fromisoformat(schedule['start_time']).timestamp()
             window_end = datetime.fromisoformat(schedule['end_time']).timestamp()
-            prinat(f"Setting up schedule with {len(schedule.get('animal_ids', []))} animals")
+            print(f"Setting up schedule with {len(schedule.get('animal_ids', []))} animals")
             print(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
             animal_ids = schedule.get('animal_ids', [])
             relay_assignments = schedule.get('relay_unit_assignments', {})

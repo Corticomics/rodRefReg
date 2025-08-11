@@ -2,6 +2,7 @@
 import sys, os, time, traceback
 from PyQt5.QtWidgets import (QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout)
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
+from PyQt5.QtGui import QGuiApplication
 from utils.volume_calculator import VolumeCalculator
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
@@ -39,6 +40,11 @@ class StreamRedirector(QObject):
 # =============================================================================
 thread = None
 worker = None
+
+class ControlSignals(QObject):
+    stop_requested = pyqtSignal()
+
+control_signals = ControlSignals()
 
 # =============================================================================
 # setup() – create our global objects and UI
@@ -167,6 +173,13 @@ def run_program(schedule, mode, window_start, window_end):
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
+        # Ensure stop requests are delivered to the worker's thread (Qt.QueuedConnection)
+        try:
+            control_signals.stop_requested.disconnect()
+        except Exception:
+            pass
+        control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection)
+
         thread.started.connect(worker.run_cycle)
         thread.start()
 
@@ -208,9 +221,15 @@ def cleanup():
 def stop_program():
     global thread, worker, relay_handler
     try:
+        # Instrumentation: capture caller context to diagnose unexpected stops
         print("[DEBUG] Starting stop sequence")
+        try:
+            print("[DEBUG] stop_program caller stack:\n" + "".join(traceback.format_stack(limit=12)))
+        except Exception:
+            pass
         if worker:
-            worker.stop()  # This will cause the worker to emit finished, triggering cleanup().
+            # Emit a queued stop so QTimers are stopped from the owning thread
+            control_signals.stop_requested.emit()
             print("[DEBUG] Worker stop() called")
         if thread and thread.isRunning():
             if not thread.wait(2000):
@@ -300,6 +319,23 @@ def _update_gui_relay_units(relay_units):
 # =============================================================================
 def main():
     app = QApplication(sys.argv)
+    # Per Qt docs: prevent implicit quit when the last window is closed, which can
+    # happen during headless/display unplug events. See QGuiApplication.setQuitOnLastWindowClosed
+    # https://doc.qt.io/qt-5/qguiapplication.html#quitOnLastWindowClosed-prop
+    QGuiApplication.setQuitOnLastWindowClosed(False)
+    
+    # Observe application lifecycle signals to diagnose display-related state changes
+    try:
+        QGuiApplication.instance().applicationStateChanged.connect(
+            lambda state: print(f"[DEBUG] Application state changed: {state}")
+        )
+        # Log when all windows are closed (we disabled quitting above)
+        app.lastWindowClosed.connect(lambda: print("[DEBUG] lastWindowClosed emitted"))
+        # Log screen topology changes that occur when HDMI is unplugged
+        app.screenAdded.connect(lambda scr: print(f"[DEBUG] screenAdded: {scr.name() if hasattr(scr,'name') else 'unknown'}"))
+        app.screenRemoved.connect(lambda scr: print(f"[DEBUG] screenRemoved: {scr.name() if hasattr(scr,'name') else 'unknown'}"))
+    except Exception:
+        pass
     setup()
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
@@ -314,6 +350,12 @@ def main():
         print(f"Error checking for UI updates: {e}")
     
     gui.show()
+
+    # Connect aboutToQuit to log and attempt graceful shutdown only once
+    try:
+        app.aboutToQuit.connect(lambda: print("[DEBUG] aboutToQuit emitted"))
+    except Exception:
+        pass
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

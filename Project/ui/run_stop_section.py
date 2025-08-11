@@ -252,6 +252,7 @@ class RunStopSection(QWidget):
             self.stop_button.setEnabled(False)
             self.stop_button.setText("Stopping...")
             
+            print("[DEBUG] Stop button clicked by user")
             self._execute_stop()
             
         except Exception as e:

@@ -408,6 +408,28 @@ cd ~/rodent-refreshment-regulator
 LAUNCH_LOG="$HOME/rrr_launch_$(date +%Y%m%d).log"
 echo "=== RRR Launch $(date) ===" >> "$LAUNCH_LOG"
 
+# Single-instance guard to prevent simultaneous runs
+LOCK_FILE="$HOME/.rrr.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    echo "Another RRR instance appears to be running. Exiting." | tee -a "$LAUNCH_LOG"
+    exit 1
+fi
+trap 'flock -u 200' EXIT
+
+# Headless-safe: prefer offscreen when no active outputs on Wayland
+if [ "${XDG_SESSION_TYPE}" = "wayland" ]; then
+    if command -v wlr-randr >/dev/null 2>&1; then
+        if ! wlr-randr | grep -q "enabled: yes"; then
+            export QT_QPA_PLATFORM=offscreen
+            echo "Using Qt offscreen platform (no active outputs detected)" | tee -a "$LAUNCH_LOG"
+        fi
+    else
+        export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-offscreen}
+        echo "Using Qt platform: $QT_QPA_PLATFORM (fallback)" | tee -a "$LAUNCH_LOG"
+    fi
+fi
+
 # Run the update script first
 if [ -f "update_ui.sh" ]; then
     echo "Checking for UI updates..." | tee -a "$LAUNCH_LOG"
@@ -940,37 +962,67 @@ EOF
 
 chmod +x ~/rodent-refreshment-regulator/fix_i2c.sh
 
-# Disable power management and screen blanking
-log "=== Disabling Power Management ==="
-log "Configuring system to prevent sleep during experiments..."
+# Configure enterprise-grade display management for laboratory environments
+log "=== Configuring Enterprise Display Management ==="
+log "Setting up robust display management for laboratory use..."
 
-# Backup config.txt before modifications
-if [ -f "/boot/config.txt" ]; then
-    sudo cp /boot/config.txt /boot/config.txt.power_bak
-    log "Backed up /boot/config.txt to /boot/config.txt.power_bak"
+# Download and install display management modules
+setup_display_management() {
+    log "INFO" "Installing display management modules..."
     
-    # Add HDMI configurations to prevent display sleep
-    if ! grep -v "^hdmi_blanking=0" /boot/config.txt; then
-        echo "hdmi_blanking=0" | sudo tee -a /boot/config.txt > /dev/null
-        log "Added hdmi_blanking=0 to /boot/config.txt"
-    else
-        log "hdmi_blanking=0 already set in config.txt"
+    # Create tools directory
+    mkdir -p "$APP_DIR/tools"
+    
+    # Download display management modules
+    local base_url="https://raw.githubusercontent.com/Corticomics/rodRefReg/main"
+    
+    # Download modules with fallback to local files if they exist
+    for module in "display_management.sh" "display_recovery_service.sh" "display_tools.sh"; do
+        if [ -f "$module" ]; then
+            log "INFO" "Using local $module"
+            cp "$module" "$APP_DIR/tools/"
+        else
+            log "INFO" "Downloading $module..."
+            if curl -fsSL "${base_url}/${module}" -o "$APP_DIR/tools/${module}"; then
+                log "INFO" "Downloaded $module successfully"
+            else
+                log "WARN" "Failed to download $module - display management may be limited"
+                continue
+            fi
+        fi
+        chmod +x "$APP_DIR/tools/${module}"
+    done
+    
+    # Install display management configuration
+    if [ -x "$APP_DIR/tools/display_management.sh" ]; then
+        log "INFO" "Configuring HDMI display settings..."
+        if "$APP_DIR/tools/display_management.sh" install; then
+            log "INFO" "Display management configured successfully"
+        else
+            log "WARN" "Display management configuration encountered issues"
+        fi
     fi
-fi
+    
+    # Install display recovery service
+    if [ -x "$APP_DIR/tools/display_recovery_service.sh" ]; then
+        log "INFO" "Installing automatic display recovery service..."
+        if "$APP_DIR/tools/display_recovery_service.sh" install "$APP_DIR"; then
+            log "INFO" "Display recovery service installed successfully"
+        else
+            log "WARN" "Display recovery service installation encountered issues"
+        fi
+    fi
+    
+    # Create user-friendly display management command
+    if [ -x "$APP_DIR/tools/display_tools.sh" ]; then
+        ln -sf "tools/display_tools.sh" "$APP_DIR/fix_display.sh"
+        log "INFO" "Created user-friendly display management command: fix_display.sh"
+    fi
+    
+    log "INFO" "Display management setup completed"
+}
 
-# Disable console blanking in cmdline.txt
-if [ -f "/boot/cmdline.txt" ]; then
-    sudo cp /boot/cmdline.txt /boot/cmdline.txt.power_bak
-    log "Backed up /boot/cmdline.txt to /boot/cmdline.txt.power_bak"
-    
-    if ! grep -q "consoleblank=0" /boot/cmdline.txt; then
-        # Append consoleblank=0 to the end of cmdline.txt, preserving its single-line structure
-        sudo sed -i 's/$/ consoleblank=0/' /boot/cmdline.txt
-        log "Added consoleblank=0 to kernel command line"
-    else
-        log "consoleblank=0 already set in cmdline.txt"
-    fi
-fi
+setup_display_management
 
 # Create a service file to run RRR as a system service
 log "=== Creating System Service ==="
@@ -1039,12 +1091,16 @@ echo ""
 echo "To troubleshoot I2C issues:"
 echo "Run: ~/rodent-refreshment-regulator/fix_i2c.sh"
 echo ""
+echo "To manage display issues (monitor power cycling):"
+echo "Run: ~/rodent-refreshment-regulator/fix_display.sh"
+echo "Commands: check, recover, capture, service"
+echo ""
 echo "To disable/enable service mode (for unattended operation):"
 echo "Run: ~/rodent-refreshment-regulator/toggle_service.sh"
 echo ""
-echo "Important: Power management has been disabled to prevent sleep during experiments."
-echo "This means your system will not go to sleep while the application is running,"
-echo "ensuring continuous operation even when the display is disconnected."
+echo "Important: Enterprise display management has been configured to handle"
+echo "monitor power cycling robustly. The system includes automatic recovery"
+echo "when displays are turned off and on during experiments."
 echo ""
 echo "Note: A system reboot may be required for power management and I2C changes to take effect."
 echo "Would you like to reboot now? (y/n)"
