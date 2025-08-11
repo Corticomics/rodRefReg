@@ -3,6 +3,7 @@ import sys, os, time, traceback
 from PyQt5.QtWidgets import (QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout)
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
 from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from utils.volume_calculator import VolumeCalculator
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
@@ -318,6 +319,21 @@ def _update_gui_relay_units(relay_units):
 # Main entry point
 # =============================================================================
 def main():
+    # Single-instance guard using QLocalServer
+    instance_key = 'rrr_single_instance_v1'
+    socket = QLocalSocket()
+    socket.connectToServer(instance_key)
+    if socket.waitForConnected(100):
+        try:
+            socket.write(b'raise')
+            socket.flush()
+            socket.waitForBytesWritten(100)
+        except Exception:
+            pass
+        # Another instance is running; exit
+        return
+    socket.abort()
+
     app = QApplication(sys.argv)
     # Per Qt docs: prevent implicit quit when the last window is closed, which can
     # happen during headless/display unplug events. See QGuiApplication.setQuitOnLastWindowClosed
@@ -350,6 +366,33 @@ def main():
         print(f"Error checking for UI updates: {e}")
     
     gui.show()
+
+    # Create local server to receive raise/focus requests from subsequent launches
+    server = QLocalServer()
+    # Remove stale server if present
+    try:
+        QLocalServer.removeServer(instance_key)
+    except Exception:
+        pass
+    server.listen(instance_key)
+
+    def _handle_new_connection():
+        conn = server.nextPendingConnection()
+        if conn:
+            try:
+                conn.readAll()  # read and ignore content
+                conn.disconnectFromServer()
+            except Exception:
+                pass
+        # Bring GUI to front
+        try:
+            gui.show()
+            gui.raise_()
+            gui.activateWindow()
+        except Exception:
+            pass
+
+    server.newConnection.connect(_handle_new_connection)
 
     # Connect aboutToQuit to log and attempt graceful shutdown only once
     try:

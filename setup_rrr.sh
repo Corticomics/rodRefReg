@@ -442,16 +442,11 @@ if ! flock -n 200; then
 fi
 trap 'flock -u 200' EXIT
 
-# Headless-safe: prefer offscreen when no active outputs on Wayland
-if [ "${XDG_SESSION_TYPE}" = "wayland" ]; then
-    if command -v wlr-randr >/dev/null 2>&1; then
-        if ! wlr-randr | grep -q "enabled: yes"; then
-            export QT_QPA_PLATFORM=offscreen
-            echo "Using Qt offscreen platform (no active outputs detected)" | tee -a "$LAUNCH_LOG"
-        fi
-    else
-        export QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-offscreen}
-        echo "Using Qt platform: $QT_QPA_PLATFORM (fallback)" | tee -a "$LAUNCH_LOG"
+# Headless-safe: only enable offscreen when we can PROVE no active outputs
+if [ "${XDG_SESSION_TYPE}" = "wayland" ] && command -v wlr-randr >/dev/null 2>&1; then
+    if ! wlr-randr | grep -q "enabled: yes"; then
+        export QT_QPA_PLATFORM=offscreen
+        echo "Using Qt offscreen platform (no active outputs detected)" | tee -a "$LAUNCH_LOG"
     fi
 fi
 
@@ -514,6 +509,9 @@ log "=== Creating startup script ==="
 cat > ~/rodent-refreshment-regulator/start_rrr.sh << EOF
 #!/bin/bash
 cd ~/rodent-refreshment-regulator
+
+# Hint Qt to keep app alive if last window closes (we also set this in code)
+export QT_QPA_PLATFORMTHEME=${QT_QPA_PLATFORMTHEME:-qt5ct}
 
 # Auto-detect and configure I2C buses
 if [ -f "configure_i2c.sh" ]; then
@@ -1031,14 +1029,10 @@ setup_display_management() {
         fi
     fi
     
-    # Install display recovery service
+    # Install display recovery service (disabled by default until next release)
     if [ -x "$APP_DIR/tools/display_recovery_service.sh" ]; then
-        log "INFO" "Installing automatic display recovery service..."
-        if "$APP_DIR/tools/display_recovery_service.sh" install "$APP_DIR"; then
-            log "INFO" "Display recovery service installed successfully"
-        else
-            log "WARN" "Display recovery service installation encountered issues"
-        fi
+        log "INFO" "Skipping automatic installation of display recovery service for Wayland stability"
+        log "INFO" "You can install it manually later: $APP_DIR/tools/display_recovery_service.sh install $APP_DIR"
     fi
     
     # Create user-friendly display management command
@@ -1071,7 +1065,8 @@ WorkingDirectory=${HOME_DIR}/rodent-refreshment-regulator
 Restart=always
 User=${CURRENT_USER}
 Environment=DISPLAY=:0
-Environment=QT_QPA_PLATFORM=offscreen
+# Do NOT force offscreen; GUI runs under service only for unattended headless ops
+# Environment=QT_QPA_PLATFORM=offscreen
 RestartSec=3
 
 [Install]
@@ -1080,8 +1075,8 @@ EOF
 
 # Enable and start the service for unattended operation
 sudo systemctl daemon-reload
+# Enable service but do not auto-restart immediately to avoid double-running alongside desktop
 sudo systemctl enable rodent-regulator.service || true
-sudo systemctl restart rodent-regulator.service || true
 
 # Create a script to enable/disable service
 cat > ~/rodent-refreshment-regulator/toggle_service.sh << 'EOF'
