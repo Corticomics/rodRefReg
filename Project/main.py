@@ -2,6 +2,8 @@
 import sys, os, time, traceback
 from PyQt5.QtWidgets import (QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout)
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from utils.volume_calculator import VolumeCalculator
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
@@ -39,6 +41,11 @@ class StreamRedirector(QObject):
 # =============================================================================
 thread = None
 worker = None
+
+class ControlSignals(QObject):
+    stop_requested = pyqtSignal()
+
+control_signals = ControlSignals()
 
 # =============================================================================
 # setup() – create our global objects and UI
@@ -167,6 +174,13 @@ def run_program(schedule, mode, window_start, window_end):
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
+        # Ensure stop requests are delivered to the worker's thread (Qt.QueuedConnection)
+        try:
+            control_signals.stop_requested.disconnect()
+        except Exception:
+            pass
+        control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection)
+
         thread.started.connect(worker.run_cycle)
         thread.start()
 
@@ -210,7 +224,8 @@ def stop_program():
     try:
         print("[DEBUG] Starting stop sequence")
         if worker:
-            worker.stop()  # This will cause the worker to emit finished, triggering cleanup().
+            # Emit a queued stop so QTimers are stopped from the owning thread
+            control_signals.stop_requested.emit()
             print("[DEBUG] Worker stop() called")
         if thread and thread.isRunning():
             if not thread.wait(2000):
@@ -299,7 +314,36 @@ def _update_gui_relay_units(relay_units):
 # Main entry point
 # =============================================================================
 def main():
+    # Single-instance guard using QLocalServer
+    instance_key = 'rrr_single_instance_v1'
+    socket = QLocalSocket()
+    socket.connectToServer(instance_key)
+    if socket.waitForConnected(100):
+        try:
+            socket.write(b'raise')
+            socket.flush()
+            socket.waitForBytesWritten(100)
+        except Exception:
+            pass
+        # Another instance is running; exit
+        return
+    socket.abort()
+
     app = QApplication(sys.argv)
+    # Prevent implicit quit when the last window is closed (Wayland hotplug resilience)
+    # Qt docs: QGuiApplication::quitOnLastWindowClosed
+    QGuiApplication.setQuitOnLastWindowClosed(False)
+
+    # Observe application lifecycle and screen changes
+    try:
+        QGuiApplication.instance().applicationStateChanged.connect(
+            lambda state: print(f"[DEBUG] Application state changed: {state}")
+        )
+        app.lastWindowClosed.connect(lambda: print("[DEBUG] lastWindowClosed emitted"))
+        app.screenAdded.connect(lambda scr: print(f"[DEBUG] screenAdded: {getattr(scr, 'name', lambda: 'unknown')()}"))
+        app.screenRemoved.connect(lambda scr: print(f"[DEBUG] screenRemoved: {getattr(scr, 'name', lambda: 'unknown')()}"))
+    except Exception:
+        pass
     setup()
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
@@ -314,6 +358,32 @@ def main():
         print(f"Error checking for UI updates: {e}")
     
     gui.show()
+
+    # Local server to receive raise/focus requests from subsequent launches
+    server = QLocalServer()
+    try:
+        QLocalServer.removeServer(instance_key)
+    except Exception:
+        pass
+    server.listen(instance_key)
+
+    def _handle_new_connection():
+        conn = server.nextPendingConnection()
+        if conn:
+            try:
+                conn.readAll()
+                conn.disconnectFromServer()
+            except Exception:
+                pass
+        # Bring GUI to front
+        try:
+            gui.show()
+            gui.raise_()
+            gui.activateWindow()
+        except Exception:
+            pass
+
+    server.newConnection.connect(_handle_new_connection)
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
