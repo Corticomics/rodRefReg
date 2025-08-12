@@ -65,6 +65,11 @@ class RelayWorker(QObject):
         # Retrieve mode and delivery instants from worker settings
         self.mode = settings.get('mode', 'instant').lower()
         self.delivery_instants = settings.get('delivery_instants', [])
+
+        # Window end behavior: allow continuing after window end until targets are met (best-practice for robustness)
+        self.enforce_window_end = settings.get('enforce_window_end', False)
+        # Effective target volumes for staggered mode
+        self.target_volumes = settings.get('target_volumes', settings.get('desired_water_outputs', {}))
         
         # Initialize tracking variables
         self.delivered_volumes = {}
@@ -228,8 +233,8 @@ class RelayWorker(QObject):
                 self.main_timer.singleShot(delay_ms, self.run_staggered_cycle)
                 return
             
-            if current_time > self.window_end:
-                print(f"Current time ({current_time}) is after window end ({self.window_end})")
+            if current_time > self.window_end and self.enforce_window_end:
+                print(f"Current time ({current_time}) is after window end ({self.window_end}) and enforce_window_end=True")
                 self.check_window_completion()
                 return
             
@@ -402,7 +407,8 @@ class RelayWorker(QObject):
                 elapsed_time = (current_time - self.window_start).total_seconds()
                 progress_percent = min(100, (elapsed_time / window_duration) * 100)
                 volume_progress = {}
-                for animal_id, target in self.settings.get('target_volumes', {}).items():
+                effective_targets = self.settings.get('target_volumes', self.settings.get('desired_water_outputs', {}))
+                for animal_id, target in effective_targets.items():
                     delivered = self.delivered_volumes.get(animal_id, 0)
                     volume_progress[animal_id] = {
                         'delivered': delivered,
@@ -435,9 +441,9 @@ class RelayWorker(QObject):
                 else:
                     self.main_timer.singleShot(10000, self.check_window_completion)
             else:
-                target_volumes = self.settings.get('target_volumes', {})
+                target_volumes = self.settings.get('target_volumes', self.settings.get('desired_water_outputs', {}))
                 if not target_volumes:
-                    if current_time >= self.window_end:
+                    if current_time >= self.window_end and self.enforce_window_end:
                         self.progress.emit("Window time completed")
                         self.stop()
                     else:
@@ -447,7 +453,7 @@ class RelayWorker(QObject):
                     self.delivered_volumes.get(aid, 0) >= target
                     for aid, target in target_volumes.items()
                 )
-                if all_volumes_delivered or current_time >= self.window_end:
+                if all_volumes_delivered or (self.enforce_window_end and current_time >= self.window_end):
                     for animal_id, target in target_volumes.items():
                         delivered = self.delivered_volumes.get(animal_id, 0)
                         self.progress.emit(
