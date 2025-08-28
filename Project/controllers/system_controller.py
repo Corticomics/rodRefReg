@@ -63,6 +63,7 @@ class SystemController(QObject):
             'min_trigger_interval_ms': 500,
             'cycle_interval': 3600,
             'stagger_interval': 0.5,
+            'hardware_mode': 'pump',  # 'pump' | 'solenoid'
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {
@@ -77,7 +78,7 @@ class SystemController(QObject):
     def _get_json_settings_keys(self):
         """Define which settings go in JSON file"""
         return {
-            'num_hats', 'slack_token', 'channel_id',
+            'num_hats', 'slack_token', 'channel_id', 'hardware_mode',
             'debug_mode', 'log_level'
         }
     
@@ -98,7 +99,8 @@ class SystemController(QObject):
             'debug_mode': bool,
             'log_level': int,
             'slack_token': str,
-            'channel_id': str
+            'channel_id': str,
+            'hardware_mode': str,
         }
         return type_map.get(key, str)
 

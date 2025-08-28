@@ -4,6 +4,7 @@ import time
 from utils.volume_calculator import VolumeCalculator
 import asyncio
 import logging
+from strategies.factory import StrategyFactory
 
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
@@ -81,6 +82,15 @@ class RelayWorker(QObject):
         self.volume_calculator = VolumeCalculator(self.system_controller)
         # --------------------------------------------------------------------
         
+        # Resolve hardware mode and strategy
+        system_settings = self.system_controller.settings
+        self.hardware_mode = (system_settings.get('hardware_mode') or 'pump') if isinstance(system_settings, dict) else 'pump'
+        self.strategy = StrategyFactory.create(
+            self.hardware_mode,
+            pump_controller=self.pump_controller,
+            volume_calculator=self.volume_calculator,
+        )
+
         # Start progress monitoring timer
         self.monitor_timer = QTimer()
         self.monitor_timer.timeout.connect(self.update_window_progress)
@@ -289,10 +299,10 @@ class RelayWorker(QObject):
                     target_volume - current_delivered
                 )
 
-            success = await self.pump_controller.dispense_water(
-                delivery_data['relay_unit_id'],
-                delivery_data['water_volume'],
-                delivery_data['triggers']
+            success = await self.strategy.deliver(
+                relay_unit_id=delivery_data['relay_unit_id'],
+                target_volume_ml=delivery_data['water_volume'],
+                triggers_hint=delivery_data.get('triggers'),
             )
 
             if success:
@@ -487,7 +497,7 @@ class RelayWorker(QObject):
             self.delivered_volumes = {}
             window_start = datetime.fromisoformat(schedule['start_time']).timestamp()
             window_end = datetime.fromisoformat(schedule['end_time']).timestamp()
-            prinat(f"Setting up schedule with {len(schedule.get('animal_ids', []))} animals")
+            print(f"Setting up schedule with {len(schedule.get('animal_ids', []))} animals")
             print(f"Window period: {datetime.fromtimestamp(window_start)} to {datetime.fromtimestamp(window_end)}")
             animal_ids = schedule.get('animal_ids', [])
             relay_assignments = schedule.get('relay_unit_assignments', {})
@@ -638,10 +648,23 @@ class RelayWorker(QObject):
                     adjusted_volume,
                     target_volume - current_delivered
                 )
-            success = self.trigger_relay(
-                delivery_data['relay_unit_id'],
-                delivery_data['water_volume']
-            )
+            # In pump mode, keep legacy synchronous path via trigger_relay to avoid behavior change.
+            # For other modes, delivery is handled asynchronously by strategy at schedule time.
+            if self.hardware_mode == 'pump':
+                success = self.trigger_relay(
+                    delivery_data['relay_unit_id'],
+                    delivery_data['water_volume']
+                )
+            else:
+                # Non-pump modes should not use trigger_relay; schedule immediate async deliver
+                # so we preserve single-cage serial semantics.
+                success = asyncio.get_event_loop().run_until_complete(
+                    self.strategy.deliver(
+                        relay_unit_id=delivery_data['relay_unit_id'],
+                        target_volume_ml=delivery_data['water_volume'],
+                        triggers_hint=delivery_data.get('triggers'),
+                    )
+                )
             if success:
                 with QMutexLocker(self.mutex):
                     actual_volume = delivery_data['water_volume']

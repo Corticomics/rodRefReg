@@ -209,6 +209,20 @@ class RelayHandler:
                     print(f"Error setting relay {relay_id} to state {state}: {e}")
                     logging.error(f"Relay state change error: {str(e)}")
 
+    def set_relays(self, relay_ids, state):
+        """Public method to set one or more relay channels ON (1) or OFF (0).
+
+        This wraps the internal `_set_relay_states` and should be preferred by
+        higher-level controllers (e.g., solenoid controller) instead of calling
+        `_execute_triggers` when a sustained ON/OFF state is desired.
+        """
+        try:
+            self._set_relay_states(relay_ids, 1 if state else 0)
+            return True
+        except Exception as e:
+            logging.error(f"set_relays error: {str(e)}")
+            return False
+
     def update_relay_units(self, relay_units, num_hats):
         """Updates the relay units and reinitializes the relay hats"""
         self.relay_units = {unit.unit_id: unit for unit in relay_units}
