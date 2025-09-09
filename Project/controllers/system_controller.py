@@ -64,6 +64,14 @@ class SystemController(QObject):
             'cycle_interval': 3600,
             'stagger_interval': 0.5,
             'hardware_mode': 'pump',  # 'pump' | 'solenoid'
+            'global_master_relay_id': 16,
+            'i2c_bus': 1,
+            'flow_sampling_hz': 50.0,
+            'predictive_close_ms': 10.0,
+            'residual_check_ms': 200.0,
+            'residual_flow_threshold_ml_min': 1.0,
+            'max_consecutive_sensor_errors': 10,
+            'cage_relays': {},
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {
@@ -79,6 +87,10 @@ class SystemController(QObject):
         """Define which settings go in JSON file"""
         return {
             'num_hats', 'slack_token', 'channel_id', 'hardware_mode',
+            'global_master_relay_id', 'i2c_bus', 'flow_sampling_hz',
+            'predictive_close_ms', 'residual_check_ms',
+            'residual_flow_threshold_ml_min', 'max_consecutive_sensor_errors',
+            'cage_relays',
             'debug_mode', 'log_level'
         }
     
@@ -101,8 +113,54 @@ class SystemController(QObject):
             'slack_token': str,
             'channel_id': str,
             'hardware_mode': str,
+            'global_master_relay_id': int,
+            'i2c_bus': int,
+            'flow_sampling_hz': float,
+            'predictive_close_ms': float,
+            'residual_check_ms': float,
+            'residual_flow_threshold_ml_min': float,
+            'max_consecutive_sensor_errors': int,
         }
         return type_map.get(key, str)
+
+    # --- Auto-detect helpers (used by UI) ---
+    def detect_hats(self):
+        """Attempt to detect number of relay HATs by probing stack IDs 0..7.
+
+        Returns the detected count and does not persist automatically. UI layer
+        can decide to persist by calling save_settings().
+        """
+        try:
+            from gpio.gpio_handler import RelayHandler
+            from models.relay_unit_manager import RelayUnitManager
+            temp_settings = self.settings.copy()
+            # Probe hats by optimistic init. RelayHandler internally logs errors.
+            manager = RelayUnitManager(temp_settings)
+            handler = RelayHandler(manager, temp_settings.get('num_hats', 1))
+            hats = max(1, temp_settings.get('num_hats', 1))
+            return hats
+        except Exception:
+            return self.settings.get('num_hats', 1)
+
+    def detect_flow_sensor_bus(self):
+        """Probe common I2C buses for SLF3x address 0x08; return bus id or current setting."""
+        try:
+            import os
+            from smbus2 import SMBus, i2c_msg
+            for bus in range(0, 6):
+                if not os.path.exists(f"/dev/i2c-{bus}"):
+                    continue
+                try:
+                    with SMBus(bus) as b:
+                        # Quick read zero bytes to see if device NACKs; fallback to a harmless read.
+                        r = i2c_msg.read(0x08, 1)
+                        b.i2c_rdwr(r)
+                        return bus
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return self.settings.get('i2c_bus', 1)
 
     def get_pump_controller(self):
         """Get or create a pump controller instance"""

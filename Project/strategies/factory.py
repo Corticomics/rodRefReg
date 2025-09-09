@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from .pump_strategy import PumpStrategy
+from .solenoid_flow_strategy import SolenoidFlowStrategy
 
 
 class StrategyFactory:
@@ -21,6 +22,10 @@ class StrategyFactory:
         *,
         pump_controller=None,
         volume_calculator=None,
+        solenoid_controller=None,
+        flow_sensor=None,
+        calibration_store=None,
+        settings=None,
         **kwargs,
     ):
         mode = (hardware_mode or "pump").strip().lower()
@@ -29,9 +34,13 @@ class StrategyFactory:
             return PumpStrategy(pump_controller, volume_calculator)
 
         if mode == "solenoid":
-            # We will wire this once SolenoidFlowStrategy is implemented.
-            raise NotImplementedError(
-                "SolenoidFlowStrategy not available yet; use 'pump' mode"
+            if not (solenoid_controller and flow_sensor and calibration_store and settings is not None):
+                raise ValueError("Solenoid strategy requires solenoid_controller, flow_sensor, calibration_store, settings")
+            return SolenoidFlowStrategy(
+                solenoid_controller=solenoid_controller,
+                flow_sensor=flow_sensor,
+                calibration_store=calibration_store,
+                settings=settings,
             )
 
         # Fallback to pump mode for unknown values to preserve current behavior.

@@ -14,7 +14,8 @@ class DeliveryStrategy(Protocol):
 
     Notes
     -----
-    - `relay_unit_id` refers to the logical unit used by `RelayHandler`.
+    - `relay_unit_id
+    por` refers to the logical unit used by `RelayHandler`.
     - `target_volume_ml` is the desired volume in milliliters.
     - `triggers_hint` can be provided when applicable (e.g., legacy pump path)
       to avoid recalculating triggers. Implementations may ignore it.

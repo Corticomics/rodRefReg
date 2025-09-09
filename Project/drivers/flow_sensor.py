@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, Tuple
 import asyncio
+from smbus2 import SMBus, i2c_msg
 
 
 @dataclass
@@ -32,15 +33,18 @@ class SLF3S0600FDriver:
         span_scale: float = 1.0,
     ) -> None:
         # We defer import to runtime to keep tests lightweight.
-        from sensirion_i2c_slf3x import Slf3xI2cDevice
-        from sensirion_i2c_driver import I2cConnection
-
         self._sampling_period_s = 1.0 / max(1.0, float(sampling_hz))
         self._zero_offset = float(zero_offset_ml_min)
         self._span_scale = float(span_scale)
-
-        self._device = Slf3xI2cDevice(I2cConnection(i2c_bus))
         self._running = False
+        self._sdk = None
+        try:
+            from sensirion_i2c_slf3x import Slf3xI2cDevice
+            from sensirion_i2c_driver import I2cConnection
+            self._sdk = Slf3xI2cDevice(I2cConnection(i2c_bus))
+        except Exception:
+            self._bus = SMBus(i2c_bus)
+            self._addr = 0x08
 
     def zero_calibrate(self) -> None:
         """Set the current zero offset to 0; caller should compute offset.
@@ -58,15 +62,96 @@ class SLF3S0600FDriver:
         self._running = True
         try:
             while self._running:
-                # Sensirion API returns flow in ml/min and temperature in degC
-                reading = self._device.read_measurement_data()
-                flow = (reading.flow - self._zero_offset) * self._span_scale
-                yield FlowSample(flow_ml_min=flow, temperature_c=reading.temperature)
+                if self._sdk is not None:
+                    reading = self._sdk.read_measurement_data()
+                    flow = (reading.flow - self._zero_offset) * self._span_scale
+                    yield FlowSample(flow_ml_min=flow, temperature_c=reading.temperature)
+                else:
+                    sample = self._read_raw_frame()
+                    if sample is not None:
+                        flow_ul_min, temp_c, _ = sample
+                        flow_ml_min = ((flow_ul_min / 1000.0) - self._zero_offset) * self._span_scale
+                        yield FlowSample(flow_ml_min=flow_ml_min, temperature_c=temp_c)
                 await asyncio.sleep(self._sampling_period_s)
         finally:
             self._running = False
 
     def stop(self) -> None:
         self._running = False
+
+    # --- Raw backend helpers (CRC-8 per Sensirion) ---
+    @staticmethod
+    def _crc8(data: bytes) -> int:
+        crc = 0xFF
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                crc = ((crc << 1) & 0xFF) ^ 0x31 if (crc & 0x80) else ((crc << 1) & 0xFF)
+        return crc
+
+    def _start_raw(self) -> None:
+        try:
+            w = i2c_msg.write(self._addr, [0x36, 0x08])
+            self._bus.i2c_rdwr(w)
+        except Exception:
+            pass
+
+    def _stop_raw(self) -> None:
+        try:
+            w = i2c_msg.write(self._addr, [0x3F, 0xF9])
+            self._bus.i2c_rdwr(w)
+        except Exception:
+            pass
+
+    def start(self) -> None:
+        if self._sdk is None:
+            self._start_raw()
+
+    def read_one(self) -> Optional[Tuple[float, float, int]]:
+        """Return a single sample: (flow_uL_min, temp_C, flags) or None."""
+        if self._sdk is not None:
+            try:
+                r = self._sdk.read_measurement_data()
+                return (r.flow * 1000.0, r.temperature, 0)
+            except Exception:
+                return None
+        return self._read_raw_frame()
+
+    def _read_raw_frame(self) -> Optional[Tuple[float, float, int]]:
+        try:
+            r = i2c_msg.read(self._addr, 9)
+            self._bus.i2c_rdwr(r)
+            data = bytes(r)
+            if len(data) != 9:
+                return None
+            fmsb, flsb, fcrc = data[0], data[1], data[2]
+            tmsb, tlsb, tcrc = data[3], data[4], data[5]
+            cmsb, clsb, ccrc = data[6], data[7], data[8]
+            if self._crc8(bytes([fmsb, flsb])) != fcrc:
+                return None
+            if self._crc8(bytes([tmsb, tlsb])) != tcrc:
+                return None
+            if self._crc8(bytes([cmsb, clsb])) != ccrc:
+                return None
+            flow_raw = (fmsb << 8) | flsb
+            temp_raw = (tmsb << 8) | tlsb
+            if flow_raw & 0x8000:
+                flow_raw -= 0x10000
+            if temp_raw & 0x8000:
+                temp_raw -= 0x10000
+            flags = (cmsb << 8) | clsb
+            flow_ul_min = flow_raw / 10.0
+            temp_c = temp_raw / 200.0
+            return (flow_ul_min, temp_c, flags)
+        except Exception:
+            return None
+
+    def close(self) -> None:
+        if self._sdk is None:
+            try:
+                self._stop_raw()
+                self._bus.close()
+            except Exception:
+                pass
 
 

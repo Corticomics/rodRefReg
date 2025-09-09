@@ -5,6 +5,9 @@ from utils.volume_calculator import VolumeCalculator
 import asyncio
 import logging
 from strategies.factory import StrategyFactory
+from drivers.flow_sensor import SLF3S0600FDriver
+from drivers.solenoid_controller import SolenoidController
+from utils.calibration import CalibrationStore
 
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
@@ -85,11 +88,33 @@ class RelayWorker(QObject):
         # Resolve hardware mode and strategy
         system_settings = self.system_controller.settings
         self.hardware_mode = (system_settings.get('hardware_mode') or 'pump') if isinstance(system_settings, dict) else 'pump'
-        self.strategy = StrategyFactory.create(
-            self.hardware_mode,
-            pump_controller=self.pump_controller,
-            volume_calculator=self.volume_calculator,
-        )
+        # Here we added a check for the hardware mode to be solenoid
+        if self.hardware_mode == 'solenoid':
+            # Build solenoid components
+            i2c_bus = int(system_settings.get('i2c_bus', 1))
+            flow_sampling_hz = float(system_settings.get('flow_sampling_hz', 50.0))
+            flow_sensor = SLF3S0600FDriver(i2c_bus=i2c_bus, sampling_hz=flow_sampling_hz)
+
+            # Build cage map and solenoid controller
+            cage_map = system_settings.get('cage_relays', {})
+            master_id = int(system_settings.get('global_master_relay_id', 16))
+            solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
+            cal_store = CalibrationStore()
+            self.strategy = StrategyFactory.create(
+                self.hardware_mode,
+                solenoid_controller=solenoid,
+                flow_sensor=flow_sensor,
+                calibration_store=cal_store,
+                settings=system_settings,
+                pump_controller=self.pump_controller,
+                volume_calculator=self.volume_calculator,
+            )
+        else:
+            self.strategy = StrategyFactory.create(
+                self.hardware_mode,
+                pump_controller=self.pump_controller,
+                volume_calculator=self.volume_calculator,
+            )
 
         # Start progress monitoring timer
         self.monitor_timer = QTimer()
