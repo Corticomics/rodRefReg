@@ -143,11 +143,11 @@ class SystemController(QObject):
             return self.settings.get('num_hats', 1)
 
     def detect_flow_sensor_bus(self):
-        """Probe common I2C buses for SLF3x address 0x08; return bus id or current setting."""
+        """Probe I2C buses for SLF3x address 0x08; return bus id or current setting."""
         try:
             import os
             from smbus2 import SMBus, i2c_msg
-            for bus in range(0, 6):
+            for bus in range(0, 21):
                 if not os.path.exists(f"/dev/i2c-{bus}"):
                     continue
                 try:
@@ -161,6 +161,49 @@ class SystemController(QObject):
         except Exception:
             pass
         return self.settings.get('i2c_bus', 1)
+
+    def ensure_solenoid_defaults(self):
+        """Seed solenoid settings 
+
+        Rules (confirmed):
+        - Global master is relay ID 16 on HAT #1 (fixed).
+        - All other relays across all hats are cages, ascending order.
+        - I2C bus is auto-detected by probing 0x08 across /dev/i2c-*. If none, keep current.
+        - Do not change hardware_mode automatically; only seed maps and buses.
+        """
+        try:
+            s = dict(self.settings)
+
+            # Detect I2C bus (if not set or default)
+            if not isinstance(s.get('i2c_bus'), int) or s.get('i2c_bus', 1) == 1:
+                detected_bus = self.detect_flow_sensor_bus()
+                if isinstance(detected_bus, int):
+                    s['i2c_bus'] = detected_bus
+
+            # Number of hats already configured via settings; if missing fallback to 1
+            num_hats = int(s.get('num_hats', 1))
+
+            # Global master fixed at relay 16 on first HAT
+            s['global_master_relay_id'] = 16
+
+            # Build cage map if empty: fill all relays except master across hats
+            cage_map = s.get('cage_relays') or {}
+            if not cage_map:
+                total_relays = 16 * num_hats
+                cage_id = 1
+                new_map = {}
+                for relay_id in range(1, total_relays + 1):
+                    if relay_id == 16:  # reserved global master
+                        continue
+                    new_map[str(cage_id)] = relay_id
+                    cage_id += 1
+                s['cage_relays'] = new_map
+
+            # Persist if anything changed
+            if s != self.settings:
+                self.save_settings(s)
+        except Exception as e:
+            self.system_status.emit(f"Solenoid auto-seed failed: {e}")
 
     def get_pump_controller(self):
         """Get or create a pump controller instance"""
