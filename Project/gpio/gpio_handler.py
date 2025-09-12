@@ -92,46 +92,50 @@ class RelayHandler:
             return [0, 1]  # Default fallback
 
     def _initialize_hats(self):
-        """Initialize relay hat hardware"""
+        """Initialize relay hat hardware.
+
+        Standard module (SM16relind):
+          - Instantiate with stack index 0..num_hats-1 (per Sequent docs).
+        Custom module (custom_SM16relind):
+          - Supports bus_id; iterate detected I2C buses and stacks.
+        """
         self.relay_hats = []
-        
-        # Find available I2C buses
-        available_buses = self._find_available_i2c_buses()
-        
-        # Try to initialize hats
+
         success = False
-        
-        # First try the specific buses found
-        for bus in available_buses:
+
+        if USING_CUSTOM_MODULE:
+            # Iterate detected I2C buses and stack IDs
+            for bus in self._find_available_i2c_buses():
+                for stack in range(self.num_hats):
+                    try:
+                        hat = SM16relind(stack=stack, bus_id=bus)
+                        hat.set_all(0)
+                        self.relay_hats.append(hat)
+                        print(f"Initialized relay hat stack={stack} on I2C bus {bus}")
+                        success = True
+                    except Exception as e:
+                        print(f"Failed to initialize custom hat stack={stack} bus={bus}: {e}")
+            if not success:
+                error_msg = "Failed to initialize any relay hats via custom module."
+                print(error_msg)
+                logging.error(error_msg)
+            return
+
+        # Standard module path: use stack indices only
+        for stack in range(self.num_hats):
             try:
-                if USING_CUSTOM_MODULE:
-                    hat = SM16relind(stack=0, bus_id=bus)
-                else:
-                    # For standard module, we'll try each bus as the stack address
-                    # This is a workaround since standard module doesn't support bus_id
-                    hat = SM16relind.SM16relind(bus)
-                
-                hat.set_all(0)  # Initialize all relays to OFF
+                ctor = getattr(SM16relind, 'SM16relind', None)
+                if ctor is None:
+                    raise AttributeError("SM16relind class not found in module")
+                hat = ctor(stack)
+                hat.set_all(0)
                 self.relay_hats.append(hat)
-                print(f"Initialized relay hat on I2C bus {bus}")
+                print(f"Initialized relay hat stack={stack}")
                 success = True
-                break  # Exit once we successfully initialize a hat
             except Exception as e:
-                print(f"Failed to initialize hat on I2C bus {bus}: {e}")
-        
-        # If no success yet, try the traditional way with address only
-        if not success:
-            for i in range(self.num_hats):
-                try:
-                    hat = SM16relind.SM16relind(i)
-                    hat.set_all(0)  # Initialize all relays to OFF
-                    self.relay_hats.append(hat)
-                    print(f"Initialized relay hat {i}")
-                    success = True
-                except Exception as e:
-                    print(f"Failed to initialize hat {i}: {e}")
-                    logging.error(f"Hat initialization error: {str(e)}")
-        
+                print(f"Failed to initialize hat stack={stack}: {e}")
+                logging.error(f"Hat initialization error: {str(e)}")
+
         if not success:
             error_msg = "Failed to initialize any relay hats. Check I2C configuration and connections."
             print(error_msg)
@@ -149,6 +153,10 @@ class RelayHandler:
     def trigger_relays(self, selected_units, num_triggers, stagger):
         """Triggers the specified relay units with verification"""
         relay_info = []
+
+        if not self.relay_hats:
+            logging.error("Trigger requested but no relay hats are initialized")
+            return []
         
         for unit_id in selected_units:
             # Get relay unit from dictionary
