@@ -63,7 +63,7 @@ class SystemController(QObject):
             'min_trigger_interval_ms': 500,
             'cycle_interval': 3600,
             'stagger_interval': 0.5,
-            'hardware_mode': 'pump',  # 'pump' | 'solenoid'
+            'hardware_mode': 'solenoid',  # default to solenoid; UI can switch to pump
             'global_master_relay_id': 16,
             'i2c_bus': 1,
             'flow_sampling_hz': 50.0,
