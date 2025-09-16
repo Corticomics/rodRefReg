@@ -44,11 +44,9 @@ class SolenoidFlowStrategy:
         target_volume_ml: float,
         triggers_hint: Optional[int] = None,
     ) -> bool:
-        # Map relay_unit_id to cage relay id via settings.cage_relays
-        cage_relays = self._settings.get('cage_relays', {})
-        cage_relay_id = cage_relays.get(str(relay_unit_id)) or cage_relays.get(relay_unit_id)
-        if cage_relay_id is None:
-            raise ValueError(f"No cage relay mapping for unit {relay_unit_id}")
+        # Treat relay_unit_id as the cage identifier and defer mapping to SolenoidController
+        # This avoids reliance on a potentially stale settings snapshot.
+        cage_id = int(relay_unit_id)
 
         # Strategy parameters
         sampling_hz = float(self._settings.get('flow_sampling_hz', 50.0))
@@ -79,7 +77,7 @@ class SolenoidFlowStrategy:
                 pass
 
         self._valves.open_master()
-        self._valves.open_cage(cage_relay_id)
+        self._valves.open_cage(cage_id)
 
         start = asyncio.get_event_loop().time()
         try:
@@ -131,7 +129,7 @@ class SolenoidFlowStrategy:
                 v_lag_ul = max(0.0, (avg_recent_ml_min * (close_ms / 1000.0)) * 1000.0)
                 if delivered_ul >= (target_ul - v_lag_ul):
                     # Initiate close sequence
-                    self._valves.close_cage(cage_relay_id)
+                    self._valves.close_cage(cage_id)
                     self._valves.close_master()
                     break
 
@@ -164,7 +162,7 @@ class SolenoidFlowStrategy:
             return True
         finally:
             try:
-                self._valves.close_cage(cage_relay_id)
+                self._valves.close_cage(cage_id)
             except Exception:
                 pass
             try:
