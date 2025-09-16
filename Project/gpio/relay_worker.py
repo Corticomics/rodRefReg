@@ -98,23 +98,26 @@ class RelayWorker(QObject):
             # Build cage map and solenoid controller
             cage_map = system_settings.get('cage_relays', {})
             if not cage_map:
-                # Fallback: derive single-relay map from RelayUnit pairs (first channel only)
-                derived = {}
+                # Fallback: build sequential single-relay map across all relays, excluding master (16)
                 try:
-                    for unit in self.relay_handler.get_all_relay_units():
-                        if hasattr(unit, 'unit_id') and hasattr(unit, 'relay_ids') and unit.relay_ids:
-                            # Map cage_id == unit_id to the first relay channel
-                            derived[str(unit.unit_id)] = int(unit.relay_ids[0])
-                except Exception as e:
-                    print(f"Failed to derive cage_relays from relay units: {e}")
-                if derived:
-                    cage_map = derived
+                    num_hats = int(system_settings.get('num_hats', 1))
+                    total_relays = 16 * num_hats
+                    master_id = int(system_settings.get('global_master_relay_id', 16))
+                    seq_map = {}
+                    cage_id = 1
+                    for relay_id in range(1, total_relays + 1):
+                        if relay_id == master_id:
+                            continue
+                        seq_map[str(cage_id)] = relay_id
+                        cage_id += 1
+                    cage_map = seq_map
                     # Persist to settings for future runs
                     new_settings = dict(system_settings)
                     new_settings['cage_relays'] = cage_map
-                    # Ensure global master per confirmed wiring
-                    new_settings['global_master_relay_id'] = int(new_settings.get('global_master_relay_id', 16))
+                    new_settings['global_master_relay_id'] = master_id
                     self.system_controller.save_settings(new_settings)
+                except Exception as e:
+                    print(f"Failed to build sequential cage_relays: {e}")
             master_id = int(system_settings.get('global_master_relay_id', 16))
             solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
             cal_store = CalibrationStore()
@@ -699,15 +702,24 @@ class RelayWorker(QObject):
                     delivery_data['water_volume']
                 )
             else:
-                # Non-pump modes should not use trigger_relay; schedule immediate async deliver
-                # so we preserve single-cage serial semantics.
-                success = asyncio.get_event_loop().run_until_complete(
-                    self.strategy.deliver(
-                        relay_unit_id=delivery_data['relay_unit_id'],
-                        target_volume_ml=delivery_data['water_volume'],
-                        triggers_hint=delivery_data.get('triggers'),
-                    )
-                )
+                # Non-pump modes should not use trigger_relay; run coroutine in a private loop
+                try:
+                    loop = asyncio.new_event_loop()
+                    try:
+                        asyncio.set_event_loop(loop)
+                        success = loop.run_until_complete(
+                            self.strategy.deliver(
+                                relay_unit_id=delivery_data['relay_unit_id'],
+                                target_volume_ml=delivery_data['water_volume'],
+                                triggers_hint=delivery_data.get('triggers'),
+                            )
+                        )
+                    finally:
+                        loop.close()
+                        asyncio.set_event_loop(None)
+                except Exception as e:
+                    self.progress.emit(f"Delivery error: {str(e)}")
+                    success = False
             if success:
                 with QMutexLocker(self.mutex):
                     actual_volume = delivery_data['water_volume']
