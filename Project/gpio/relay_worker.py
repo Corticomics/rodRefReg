@@ -97,6 +97,24 @@ class RelayWorker(QObject):
 
             # Build cage map and solenoid controller
             cage_map = system_settings.get('cage_relays', {})
+            if not cage_map:
+                # Fallback: derive single-relay map from RelayUnit pairs (first channel only)
+                derived = {}
+                try:
+                    for unit in self.relay_handler.get_all_relay_units():
+                        if hasattr(unit, 'unit_id') and hasattr(unit, 'relay_ids') and unit.relay_ids:
+                            # Map cage_id == unit_id to the first relay channel
+                            derived[str(unit.unit_id)] = int(unit.relay_ids[0])
+                except Exception as e:
+                    print(f"Failed to derive cage_relays from relay units: {e}")
+                if derived:
+                    cage_map = derived
+                    # Persist to settings for future runs
+                    new_settings = dict(system_settings)
+                    new_settings['cage_relays'] = cage_map
+                    # Ensure global master per confirmed wiring
+                    new_settings['global_master_relay_id'] = int(new_settings.get('global_master_relay_id', 16))
+                    self.system_controller.save_settings(new_settings)
             master_id = int(system_settings.get('global_master_relay_id', 16))
             solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
             cal_store = CalibrationStore()

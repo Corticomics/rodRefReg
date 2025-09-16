@@ -22,7 +22,7 @@ class SolenoidController:
         if master_relay_id is None:
             raise ValueError("master_relay_id is required")
         if not cage_to_relay_id:
-            raise ValueError("cage_to_relay_id mapping is required")
+            raise ValueError("cage_relays mapping is required")
         self._relay_handler = relay_handler
         self._master = int(master_relay_id)
         self._cage_map = {int(k): int(v) for k, v in cage_to_relay_id.items()}
