@@ -103,7 +103,7 @@ class SolenoidFlowStrategy:
                 if meas is None:
                     sensor_errors += 1
                     if sensor_errors >= max_sensor_errors:
-                        self._valves.close_cage(cage_relay_id)
+                        self._valves.close_cage(cage_id)
                         self._valves.close_master()
                         return False
                     await asyncio.sleep(sample_period_s)
