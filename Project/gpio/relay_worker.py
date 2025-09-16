@@ -400,7 +400,19 @@ class RelayWorker(QObject):
         delivery_data['instant_time'] = retry_time
         timer = QTimer(self)
         timer.setSingleShot(True)
-        timer.timeout.connect(lambda d=delivery_data: self.execute_delivery(d))
+        # Wrap coroutine execution in a thread-local event loop
+        def _run_retry(d=delivery_data):
+            try:
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self.execute_delivery(d))
+                finally:
+                    loop.close()
+                    asyncio.set_event_loop(None)
+            except Exception as e:
+                self.progress.emit(f"Retry error: {str(e)}")
+        timer.timeout.connect(_run_retry)
         timer.start(retry_delay * 1000)
         self.timers.append(timer)
         self.progress.emit(f"Scheduled retry for animal {delivery_data['animal_id']} in {retry_delay} seconds")
