@@ -356,7 +356,7 @@ class RelayWorker(QObject):
                     actual_volume = delivery_data['water_volume']
                     self.delivered_volumes[animal_id] = current_delivered + actual_volume
                     self.failed_deliveries[animal_id] = 0
-                    await self.database_handler.log_delivery({
+                    self.database_handler.log_delivery({
                         'schedule_id': delivery_data['schedule_id'],
                         'animal_id': animal_id,
                         'relay_unit_id': delivery_data['relay_unit_id'],
@@ -373,7 +373,7 @@ class RelayWorker(QObject):
             else:
                 with QMutexLocker(self.mutex):
                     self.failed_deliveries[animal_id] = failed_count + 1
-                    await self.database_handler.log_delivery({
+                    self.database_handler.log_delivery({
                         'schedule_id': delivery_data['schedule_id'],
                         'animal_id': animal_id,
                         'relay_unit_id': delivery_data['relay_unit_id'],
