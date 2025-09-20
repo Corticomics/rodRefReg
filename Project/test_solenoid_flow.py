@@ -22,7 +22,7 @@ sys.path.insert(0, '.')
 from drivers.flow_sensor import SLF3S0600FDriver, FlowSample
 from drivers.solenoid_controller import SolenoidController
 from gpio.gpio_handler import RelayHandler
-from models.relay_unit_manager import RelayUnitManager
+# Pump-era RelayUnitManager is not needed for solenoid tests
 
 
 class SolenoidFlowTester:
@@ -52,8 +52,8 @@ class SolenoidFlowTester:
         
         # Initialize relay system
         try:
-            self.relay_unit_manager = RelayUnitManager()
-            self.relay_handler = RelayHandler(self.relay_unit_manager, num_hats=num_hats)
+            # Initialize RelayHandler directly for solenoid control; we only need HAT access
+            self.relay_handler = RelayHandler([], num_hats=num_hats)
             print("[Init] ✓ Relay system initialized")
         except Exception as e:
             print(f"[Init] ✗ Failed to initialize relay system: {e}")
@@ -123,6 +123,7 @@ class SolenoidFlowTester:
             self.flow_sensor.start()
             self._print_header()
             self._start_time = time.time()
+            self._running = True
             
             async for sample in self.flow_sensor.read():
                 if not self._running:
