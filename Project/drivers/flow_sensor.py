@@ -38,10 +38,14 @@ class SLF3S0600FDriver:
         self._span_scale = float(span_scale)
         self._running = False
         self._sdk = None
+        self._backend = 'raw'
+        self._bus_id = int(i2c_bus)
+        self._null_reads = 0
         try:
             from sensirion_i2c_slf3x import Slf3xI2cDevice
             from sensirion_i2c_driver import I2cConnection
             self._sdk = Slf3xI2cDevice(I2cConnection(i2c_bus))
+            self._backend = 'sdk'
         except Exception:
             self._bus = SMBus(i2c_bus)
             self._addr = 0x08
@@ -79,6 +83,13 @@ class SLF3S0600FDriver:
     def stop(self) -> None:
         self._running = False
 
+    # Debug helpers
+    def backend_mode(self) -> str:
+        return self._backend
+
+    def bus_id(self) -> int:
+        return self._bus_id
+
     # --- Raw backend helpers (CRC-8 per Sensirion) ---
     @staticmethod
     def _crc8(data: bytes) -> int:
@@ -106,6 +117,11 @@ class SLF3S0600FDriver:
     def start(self) -> None:
         if self._sdk is None:
             self._start_raw()
+        # Light debug to aid field setup
+        try:
+            print(f"[FlowSensor] start backend={self._backend} bus={self._bus_id}")
+        except Exception:
+            pass
 
     def read_one(self) -> Optional[Tuple[float, float, int]]:
         """Return a single sample: (flow_uL_min, temp_C, flags) or None."""
@@ -115,7 +131,18 @@ class SLF3S0600FDriver:
                 return (r.flow * 1000.0, r.temperature, 0)
             except Exception:
                 return None
-        return self._read_raw_frame()
+        sample = self._read_raw_frame()
+        if sample is None:
+            # Bound debug noise: only print occasionally at first use
+            self._null_reads += 1
+            if self._null_reads in (1, 5):
+                try:
+                    print(f"[FlowSensor] no frame on bus {self._bus_id} (attempt {self._null_reads})")
+                except Exception:
+                    pass
+        else:
+            self._null_reads = 0
+        return sample
 
     def _read_raw_frame(self) -> Optional[Tuple[float, float, int]]:
         try:

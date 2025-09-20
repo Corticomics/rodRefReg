@@ -57,10 +57,14 @@ class SolenoidFlowStrategy:
 
         # Prime path (master only)
         await asyncio.sleep(0)  # yield once
-        self._valves.open_master()
-        await asyncio.sleep(self._prime_ms / 1000.0)
-        self._valves.close_master()
-        await asyncio.sleep(0.05)
+        try:
+            self._valves.open_master()
+            await asyncio.sleep(self._prime_ms / 1000.0)
+            self._valves.close_master()
+            await asyncio.sleep(0.05)
+        except Exception as e:
+            # Hardware or mapping issue – fail fast
+            return False
 
         # Delivery
         delivered_ul = 0.0
@@ -76,8 +80,11 @@ class SolenoidFlowStrategy:
             except Exception:
                 pass
 
-        self._valves.open_master()
-        self._valves.open_cage(cage_id)
+        try:
+            self._valves.open_master()
+            self._valves.open_cage(cage_id)
+        except Exception:
+            return False
 
         start = asyncio.get_event_loop().time()
         try:
@@ -111,11 +118,13 @@ class SolenoidFlowStrategy:
 
                 sensor_errors = 0
 
-                # Normalize to ml/min
+                # Normalize to ml/min, guard NaNs
                 if isinstance(meas, tuple) and len(meas) >= 1:
                     flow_ml_min = float(meas[0]) / 1000.0  # tuple from raw backend in uL/min
                 else:
                     flow_ml_min = float(getattr(meas, 'flow_ml_min', 0.0))
+                if flow_ml_min != flow_ml_min:  # NaN check
+                    flow_ml_min = 0.0
 
                 # Predictive cutoff
                 if last_flow_ml_min is not None:
