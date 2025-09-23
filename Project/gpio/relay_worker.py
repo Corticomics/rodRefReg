@@ -130,6 +130,14 @@ class RelayWorker(QObject):
                 pump_controller=self.pump_controller,
                 volume_calculator=self.volume_calculator,
             )
+            
+            # Start flow sensor in continuous mode to avoid I²C conflicts during delivery
+            try:
+                if hasattr(flow_sensor, 'start'):
+                    flow_sensor.start()
+                    print(f"Flow sensor started in continuous mode on bus {i2c_bus}")
+            except Exception as e:
+                print(f"Warning: Flow sensor start failed: {e}")
         else:
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,
@@ -546,6 +554,17 @@ class RelayWorker(QObject):
             except RuntimeError as ex:
                 self.progress.emit(f"Timer already deleted: {ex}")
         self.timers.clear()
+        
+        # Stop flow sensor if running in solenoid mode
+        if self.hardware_mode == 'solenoid' and hasattr(self, 'strategy'):
+            try:
+                # Access flow sensor through strategy if available
+                if hasattr(self.strategy, '_sensor') and hasattr(self.strategy._sensor, 'stop'):
+                    self.strategy._sensor.stop()
+                    print("Flow sensor stopped")
+            except Exception as e:
+                print(f"Warning: Flow sensor stop failed: {e}")
+        
         self.progress.emit("RelayWorker stopped")
         self.finished.emit()
     def setup_schedule(self, schedule):

@@ -73,12 +73,9 @@ class SolenoidFlowStrategy:
         sensor_errors = 0
         sample_period_s = 1.0 / max(1.0, sampling_hz)
 
-        # Start stream (SDK will handle internal start; raw backend must be started already)
-        if hasattr(self._sensor, 'start'):
-            try:
-                self._sensor.start()
-            except Exception:
-                pass
+        # Note: Flow sensor should be started once during initialization, not per-delivery
+        # Starting/stopping repeatedly causes I²C conflicts with relay HATs on shared bus
+        # Sensor maintains continuous measurement mode for better reliability
 
         try:
             self._valves.open_master()
@@ -178,9 +175,6 @@ class SolenoidFlowStrategy:
                 self._valves.close_master()
             except Exception:
                 pass
-            if hasattr(self._sensor, 'stop'):
-                try:
-                    self._sensor.stop()
-                except Exception:
-                    pass
+            # Note: Flow sensor runs continuously, don't stop after each delivery
+            # This prevents I²C conflicts and maintains measurement continuity
 
