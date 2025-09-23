@@ -6,6 +6,7 @@ import asyncio
 import logging
 from smbus2 import SMBus, i2c_msg
 from .i2c_bus_manager import get_bus_manager
+from .i2c_coordinator import get_i2c_coordinator
 
 
 @dataclass
@@ -43,8 +44,9 @@ class SLF3S0600FDriver:
         self._bus_id = int(i2c_bus)
         self._null_reads = 0
         # Note: sensirion-i2c-slf3x package doesn't exist on PyPI
-        # Use raw I2C implementation with bus manager for conflict prevention
+        # Use raw I2C implementation with coordination for conflict prevention
         self._bus_manager = get_bus_manager()
+        self._coordinator = get_i2c_coordinator()
         self._addr = 0x08
 
     def zero_calibrate(self) -> None:
@@ -98,19 +100,24 @@ class SLF3S0600FDriver:
         return crc
 
     def _start_raw(self) -> None:
-        """Start continuous measurement mode.
+        """Start continuous measurement mode with I2C coordination.
         
         Command: 0x3608 (Start continuous measurement for liquid flow)
         Based on Sensirion I2C Implementation Guide.
         """
-        success = self._bus_manager.safe_write(
-            self._bus_id, self._addr, [0x36, 0x08], retries=2
-        )
-        if success:
-            import time
-            time.sleep(0.01)  # 10ms sensor initialization time
-        else:
-            logging.warning(f"Flow sensor start command failed on bus {self._bus_id}")
+        try:
+            success = self._coordinator.sync_exclusive_access(
+                'flow_sensor',
+                self._bus_manager.safe_write,
+                self._bus_id, self._addr, [0x36, 0x08], retries=1
+            )
+            if success:
+                import time
+                time.sleep(0.01)  # 10ms sensor initialization time
+            else:
+                logging.warning(f"Flow sensor start command failed on bus {self._bus_id}")
+        except Exception as e:
+            logging.error(f"Flow sensor start coordination failed: {e}")
 
     def _stop_raw(self) -> None:
         """Stop continuous measurement mode."""
@@ -146,12 +153,18 @@ class SLF3S0600FDriver:
         return sample
 
     def _read_raw_frame(self) -> Optional[Tuple[float, float, int]]:
-        """Read 9-byte measurement frame with CRC validation."""
-        data = self._bus_manager.safe_read(self._bus_id, self._addr, 9, retries=2)
-        if data is None or len(data) != 9:
-            return None
-        
+        """Read 9-byte measurement frame with CRC validation and I2C coordination."""
         try:
+            # Use coordinated access for flow sensor reads
+            data = self._coordinator.sync_exclusive_access(
+                'flow_sensor', 
+                self._bus_manager.safe_read, 
+                self._bus_id, self._addr, 9, retries=1  # Reduced retries for faster failover
+            )
+            
+            if data is None or len(data) != 9:
+                return None
+            
             fmsb, flsb, fcrc = data[0], data[1], data[2]
             tmsb, tlsb, tcrc = data[3], data[4], data[5]
             cmsb, clsb, ccrc = data[6], data[7], data[8]

@@ -76,6 +76,7 @@ class SolenoidFlowStrategy:
         # Note: Flow sensor should be started once during initialization, not per-delivery
         # Starting/stopping repeatedly causes I²C conflicts with relay HATs on shared bus
         # Sensor maintains continuous measurement mode for better reliability
+        # I2C coordination ensures relay operations and sensor reads don't conflict
 
         try:
             self._valves.open_master()
