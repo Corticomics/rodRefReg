@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Dict, Iterable, Optional
-from .i2c_coordinator import get_i2c_coordinator
 
 
 class SolenoidController:
@@ -27,38 +26,27 @@ class SolenoidController:
         self._relay_handler = relay_handler
         self._master = int(master_relay_id)
         self._cage_map = {int(k): int(v) for k, v in cage_to_relay_id.items()}
-        self._coordinator = get_i2c_coordinator()
 
     def open_master(self) -> bool:
-        return self._coordinator.sync_exclusive_access(
-            'relay', self._relay_handler.set_relays, [self._master], 1
-        )
+        return self._relay_handler.set_relays([self._master], 1)
 
     def close_master(self) -> bool:
-        return self._coordinator.sync_exclusive_access(
-            'relay', self._relay_handler.set_relays, [self._master], 0
-        )
+        return self._relay_handler.set_relays([self._master], 0)
 
     def open_cage(self, cage_id: int) -> bool:
         relay = self._cage_map.get(int(cage_id))
         if relay is None:
             raise ValueError(f"Unknown cage_id {cage_id}")
-        return self._coordinator.sync_exclusive_access(
-            'relay', self._relay_handler.set_relays, [relay], 1
-        )
+        return self._relay_handler.set_relays([relay], 1)
 
     def close_cage(self, cage_id: int) -> bool:
         relay = self._cage_map.get(int(cage_id))
         if relay is None:
             raise ValueError(f"Unknown cage_id {cage_id}")
-        return self._coordinator.sync_exclusive_access(
-            'relay', self._relay_handler.set_relays, [relay], 0
-        )
+        return self._relay_handler.set_relays([relay], 0)
 
     def close_all_cages(self) -> bool:
-        return self._coordinator.sync_exclusive_access(
-            'relay', self._relay_handler.set_relays, list(self._cage_map.values()), 0
-        )
+        return self._relay_handler.set_relays(list(self._cage_map.values()), 0)
 
     def all_closed(self) -> bool:
         # The underlying RelayHandler does not expose readback; for now we assume

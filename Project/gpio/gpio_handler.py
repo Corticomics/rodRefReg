@@ -5,6 +5,14 @@ import time
 import datetime
 from models.relay_unit import RelayUnit
 
+# Import I2C coordination for hardware-level conflict prevention
+try:
+    from drivers.i2c_coordinator import get_i2c_coordinator
+    I2C_COORDINATION_AVAILABLE = True
+except ImportError:
+    I2C_COORDINATION_AVAILABLE = False
+    print("I2C coordination not available, relay operations may conflict with sensors")
+
 # Try to import our custom module first
 try:
     from .custom_SM16relind import SM16relind, find_available_i2c_buses
@@ -47,6 +55,12 @@ class RelayHandler:
         """Initialize RelayHandler with relay unit manager and hats"""
         self.num_hats = num_hats
         self.relay_hats = []
+        
+        # Initialize I2C coordinator for hardware-level conflict prevention
+        if I2C_COORDINATION_AVAILABLE:
+            self._coordinator = get_i2c_coordinator()
+        else:
+            self._coordinator = None
         
         # Initialize relay units dictionary from manager
         self.relay_units = {}
@@ -142,13 +156,27 @@ class RelayHandler:
             logging.error(error_msg)
 
     def set_all_relays(self, state):
-        """Set all relays to given state (0 or 1)"""
-        for hat in self.relay_hats:
+        """Set all relays to given state (0 or 1) with I2C coordination"""
+        def _hardware_set_all_operation():
+            for hat in self.relay_hats:
+                try:
+                    hat.set_all(0 if state == 0 else 65535)  # 65535 = all relays ON
+                except Exception as e:
+                    print(f"Error setting all relays: {e}")
+                    logging.error(f"Relay state error: {str(e)}")
+        
+        # Use I2C coordination if available
+        if self._coordinator:
             try:
-                hat.set_all(0 if state == 0 else 65535)  # 65535 = all relays ON
+                self._coordinator.sync_exclusive_access(
+                    'relay', 
+                    _hardware_set_all_operation
+                )
             except Exception as e:
-                print(f"Error setting all relays: {e}")
-                logging.error(f"Relay state error: {str(e)}")
+                logging.error(f"I2C coordination failed for set_all operation: {e}")
+                _hardware_set_all_operation()
+        else:
+            _hardware_set_all_operation()
 
     def trigger_relays(self, selected_units, num_triggers, stagger):
         """Triggers the specified relay units with verification"""
@@ -207,15 +235,30 @@ class RelayHandler:
             return False
 
     def _set_relay_states(self, relay_ids, state):
-        """Set the state of specified relay IDs"""
-        for relay_id in relay_ids:
-            hat_index, relay_num = divmod(relay_id - 1, 16)
-            if hat_index < len(self.relay_hats):
-                try:
-                    self.relay_hats[hat_index].set(relay_num + 1, state)
-                except Exception as e:
-                    print(f"Error setting relay {relay_id} to state {state}: {e}")
-                    logging.error(f"Relay state change error: {str(e)}")
+        """Set the state of specified relay IDs with I2C coordination"""
+        def _hardware_relay_operation():
+            for relay_id in relay_ids:
+                hat_index, relay_num = divmod(relay_id - 1, 16)
+                if hat_index < len(self.relay_hats):
+                    try:
+                        self.relay_hats[hat_index].set(relay_num + 1, state)
+                    except Exception as e:
+                        print(f"Error setting relay {relay_id} to state {state}: {e}")
+                        logging.error(f"Relay state change error: {str(e)}")
+        
+        # Use I2C coordination if available, otherwise fall back to direct control
+        if self._coordinator:
+            try:
+                self._coordinator.sync_exclusive_access(
+                    'relay', 
+                    _hardware_relay_operation
+                )
+            except Exception as e:
+                logging.error(f"I2C coordination failed for relay operation: {e}")
+                # Fall back to direct control
+                _hardware_relay_operation()
+        else:
+            _hardware_relay_operation()
 
     def set_relays(self, relay_ids, state):
         """Public method to set one or more relay channels ON (1) or OFF (0).
