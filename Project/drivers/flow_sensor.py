@@ -5,7 +5,6 @@ from typing import AsyncIterator, Optional, Tuple
 import asyncio
 import logging
 from smbus2 import SMBus, i2c_msg
-from .i2c_bus_manager import get_bus_manager
 from .i2c_coordinator import get_i2c_coordinator
 
 
@@ -45,7 +44,6 @@ class SLF3S0600FDriver:
         self._null_reads = 0
         # Note: sensirion-i2c-slf3x package doesn't exist on PyPI
         # Use raw I2C implementation with coordination for conflict prevention
-        self._bus_manager = get_bus_manager()
         self._coordinator = get_i2c_coordinator()
         self._addr = 0x08
 
@@ -105,25 +103,47 @@ class SLF3S0600FDriver:
         Command: 0x3608 (Start continuous measurement for liquid flow)
         Based on Sensirion I2C Implementation Guide.
         """
+        def _hardware_start_operation():
+            try:
+                with SMBus(self._bus_id) as bus:
+                    write_msg = i2c_msg.write(self._addr, [0x36, 0x08])
+                    bus.i2c_rdwr(write_msg)
+                    import time
+                    time.sleep(0.01)  # 10ms sensor initialization time
+                    return True
+            except Exception as e:
+                logging.warning(f"Flow sensor start I2C operation failed: {e}")
+                return False
+        
         try:
             success = self._coordinator.sync_exclusive_access(
                 'flow_sensor',
-                self._bus_manager.safe_write,
-                self._bus_id, self._addr, [0x36, 0x08], retries=1
+                _hardware_start_operation
             )
-            if success:
-                import time
-                time.sleep(0.01)  # 10ms sensor initialization time
-            else:
+            if not success:
                 logging.warning(f"Flow sensor start command failed on bus {self._bus_id}")
         except Exception as e:
             logging.error(f"Flow sensor start coordination failed: {e}")
 
     def _stop_raw(self) -> None:
-        """Stop continuous measurement mode."""
-        self._bus_manager.safe_write(
-            self._bus_id, self._addr, [0x3F, 0xF9], retries=1
-        )
+        """Stop continuous measurement mode with I2C coordination."""
+        def _hardware_stop_operation():
+            try:
+                with SMBus(self._bus_id) as bus:
+                    write_msg = i2c_msg.write(self._addr, [0x3F, 0xF9])
+                    bus.i2c_rdwr(write_msg)
+                    return True
+            except Exception as e:
+                logging.warning(f"Flow sensor stop I2C operation failed: {e}")
+                return False
+        
+        try:
+            self._coordinator.sync_exclusive_access(
+                'flow_sensor',
+                _hardware_stop_operation
+            )
+        except Exception as e:
+            logging.error(f"Flow sensor stop coordination failed: {e}")
 
     def start(self) -> None:
         # Brief delay before flow sensor start to avoid I2C conflicts with relay initialization
@@ -154,12 +174,21 @@ class SLF3S0600FDriver:
 
     def _read_raw_frame(self) -> Optional[Tuple[float, float, int]]:
         """Read 9-byte measurement frame with CRC validation and I2C coordination."""
+        def _hardware_read_operation():
+            try:
+                with SMBus(self._bus_id) as bus:
+                    read_msg = i2c_msg.read(self._addr, 9)
+                    bus.i2c_rdwr(read_msg)
+                    return bytes(read_msg)
+            except Exception as e:
+                # Don't log every read failure to avoid spam
+                return None
+        
         try:
             # Use coordinated access for flow sensor reads
             data = self._coordinator.sync_exclusive_access(
                 'flow_sensor', 
-                self._bus_manager.safe_read, 
-                self._bus_id, self._addr, 9, retries=1  # Reduced retries for faster failover
+                _hardware_read_operation
             )
             
             if data is None or len(data) != 9:
@@ -191,7 +220,6 @@ class SLF3S0600FDriver:
         """Stop sensor and cleanup resources."""
         try:
             self._stop_raw()
-            self._bus_manager.close()
         except Exception:
             pass
 
