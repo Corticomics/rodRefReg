@@ -51,10 +51,11 @@ class FlowSensorTester:
         
         try:
             self.bus = SMBus(self.bus_id)
-            # Try to read a single byte to test connectivity
-            read = i2c_msg.read(self.addr, 1)
-            self.bus.i2c_rdwr(read)
-            print("✓ I2C connectivity test passed")
+            # SLF3x sensors may not respond to simple reads without proper commands
+            # Instead, try sending the start command as a connectivity test
+            write = i2c_msg.write(self.addr, [0x36, 0x08])
+            self.bus.i2c_rdwr(write)
+            print("✓ I2C connectivity test passed (start command accepted)")
             return True
         except Exception as e:
             print(f"✗ I2C connectivity test failed: {e}")

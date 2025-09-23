@@ -96,9 +96,17 @@ class SLF3S0600FDriver:
         return crc
 
     def _start_raw(self) -> None:
+        """Start continuous measurement mode.
+        
+        Command: 0x3608 (Start continuous measurement for liquid flow)
+        Based on Sensirion I2C Implementation Guide.
+        """
         try:
             w = i2c_msg.write(self._addr, [0x36, 0x08])
             self._bus.i2c_rdwr(w)
+            # Small delay to let sensor initialize measurement
+            import time
+            time.sleep(0.01)  # 10ms as recommended
         except Exception:
             pass
 
