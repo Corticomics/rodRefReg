@@ -93,14 +93,12 @@ class SolenoidFlowStrategy:
                     # SDK wrapper may return FlowSample(flow_ml_min, temperature_c)
                     meas = None
                     if hasattr(self._sensor, 'read') and callable(getattr(self._sensor, 'read')):
-                        # Async iterator path
-                        # For simplicity, we poll at sample_period_s using a non-iterator accessor if available
+                        # Poll at sample_period_s using a direct accessor if available
                         if hasattr(self._sensor, 'read_one'):
-                            meas = await self._sensor.read_one()
-                        else:
-                            # Fallback: use a synchronous read if exposed
-                            if hasattr(self._sensor, 'read_frame'):
-                                meas = self._sensor.read_frame()
+                            # read_one() is synchronous in our driver
+                            meas = self._sensor.read_one()
+                        elif hasattr(self._sensor, 'read_frame'):
+                            meas = self._sensor.read_frame()
                     # If unified accessors not present, try SDK style cached sample
                 except Exception:
                     meas = None
@@ -148,7 +146,7 @@ class SolenoidFlowStrategy:
             while asyncio.get_event_loop().time() < residual_end:
                 try:
                     if hasattr(self._sensor, 'read_one'):
-                        meas = await self._sensor.read_one()
+                        meas = self._sensor.read_one()
                     else:
                         meas = None
                 except Exception:
