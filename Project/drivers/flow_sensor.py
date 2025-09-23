@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import AsyncIterator, Optional, Tuple
 import asyncio
+import logging
 from smbus2 import SMBus, i2c_msg
+from .i2c_bus_manager import get_bus_manager
 
 
 @dataclass
@@ -41,8 +43,8 @@ class SLF3S0600FDriver:
         self._bus_id = int(i2c_bus)
         self._null_reads = 0
         # Note: sensirion-i2c-slf3x package doesn't exist on PyPI
-        # Use raw I2C implementation only
-        self._bus = SMBus(i2c_bus)
+        # Use raw I2C implementation with bus manager for conflict prevention
+        self._bus_manager = get_bus_manager()
         self._addr = 0x08
 
     def zero_calibrate(self) -> None:
@@ -101,23 +103,26 @@ class SLF3S0600FDriver:
         Command: 0x3608 (Start continuous measurement for liquid flow)
         Based on Sensirion I2C Implementation Guide.
         """
-        try:
-            w = i2c_msg.write(self._addr, [0x36, 0x08])
-            self._bus.i2c_rdwr(w)
-            # Small delay to let sensor initialize measurement
+        success = self._bus_manager.safe_write(
+            self._bus_id, self._addr, [0x36, 0x08], retries=2
+        )
+        if success:
             import time
-            time.sleep(0.01)  # 10ms as recommended
-        except Exception:
-            pass
+            time.sleep(0.01)  # 10ms sensor initialization time
+        else:
+            logging.warning(f"Flow sensor start command failed on bus {self._bus_id}")
 
     def _stop_raw(self) -> None:
-        try:
-            w = i2c_msg.write(self._addr, [0x3F, 0xF9])
-            self._bus.i2c_rdwr(w)
-        except Exception:
-            pass
+        """Stop continuous measurement mode."""
+        self._bus_manager.safe_write(
+            self._bus_id, self._addr, [0x3F, 0xF9], retries=1
+        )
 
     def start(self) -> None:
+        # Brief delay before flow sensor start to avoid I2C conflicts with relay initialization
+        import time
+        time.sleep(0.05)  # 50ms relay HAT stabilization delay
+        
         self._start_raw()
         # Light debug to aid field setup
         try:
@@ -141,12 +146,12 @@ class SLF3S0600FDriver:
         return sample
 
     def _read_raw_frame(self) -> Optional[Tuple[float, float, int]]:
+        """Read 9-byte measurement frame with CRC validation."""
+        data = self._bus_manager.safe_read(self._bus_id, self._addr, 9, retries=2)
+        if data is None or len(data) != 9:
+            return None
+        
         try:
-            r = i2c_msg.read(self._addr, 9)
-            self._bus.i2c_rdwr(r)
-            data = bytes(r)
-            if len(data) != 9:
-                return None
             fmsb, flsb, fcrc = data[0], data[1], data[2]
             tmsb, tlsb, tcrc = data[3], data[4], data[5]
             cmsb, clsb, ccrc = data[6], data[7], data[8]
@@ -170,11 +175,11 @@ class SLF3S0600FDriver:
             return None
 
     def close(self) -> None:
-        if self._sdk is None:
-            try:
-                self._stop_raw()
-                self._bus.close()
-            except Exception:
-                pass
+        """Stop sensor and cleanup resources."""
+        try:
+            self._stop_raw()
+            self._bus_manager.close()
+        except Exception:
+            pass
 
 
