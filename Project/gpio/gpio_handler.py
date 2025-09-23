@@ -4,7 +4,10 @@ import logging
 import time
 import datetime
 from models.relay_unit import RelayUnit
-
+import os
+# Prefer the vendor's standard module by default. Only use the custom module
+# when explicitly enabled via environment (to avoid multi-bus side effects).
+USE_CUSTOM_SM16 = os.getenv('RRR_USE_CUSTOM_SM16', '0') == '1'
 # Import I2C coordination for hardware-level conflict prevention
 try:
     from drivers.i2c_coordinator import get_i2c_coordinator
@@ -13,12 +16,16 @@ except ImportError:
     I2C_COORDINATION_AVAILABLE = False
     print("I2C coordination not available, relay operations may conflict with sensors")
 
-# Try to import our custom module first
-try:
-    from .custom_SM16relind import SM16relind, find_available_i2c_buses
-    USING_CUSTOM_MODULE = True
-    print("Using custom SM16relind module with multi-bus support")
-except ImportError:
+if USE_CUSTOM_SM16:
+    try:
+        from .custom_SM16relind import SM16relind, find_available_i2c_buses
+        USING_CUSTOM_MODULE = True
+        print("Using custom SM16relind module with multi-bus support (RRR_USE_CUSTOM_SM16=1)")
+    except ImportError:
+        USING_CUSTOM_MODULE = False
+        print("Custom SM16relind not available; falling back to standard module")
+
+if not USE_CUSTOM_SM16 or not 'USING_CUSTOM_MODULE' in globals() or not USING_CUSTOM_MODULE:
     # Fall back to standard module
     try:
         import SM16relind
@@ -83,8 +90,11 @@ class RelayHandler:
     def _find_available_i2c_buses(self):
         """Find available I2C buses on the system"""
         if USING_CUSTOM_MODULE:
-            # Use the implementation from custom module
-            return find_available_i2c_buses()
+            # Use the implementation from custom module only if explicitly enabled
+            try:
+                return find_available_i2c_buses()
+            except Exception:
+                pass
         
         # Fallback implementation
         available_buses = []
@@ -118,8 +128,10 @@ class RelayHandler:
         success = False
 
         if USING_CUSTOM_MODULE:
-            # Iterate detected I2C buses and stack IDs
-            for bus in self._find_available_i2c_buses():
+            # When custom module is explicitly enabled, still prefer the default Pi bus (1)
+            # to avoid unintended bus probing that can disrupt the flow sensor.
+            preferred_buses = [1]
+            for bus in preferred_buses:
                 for stack in range(self.num_hats):
                     try:
                         hat = SM16relind(stack=stack, bus_id=bus)
@@ -130,7 +142,7 @@ class RelayHandler:
                     except Exception as e:
                         print(f"Failed to initialize custom hat stack={stack} bus={bus}: {e}")
             if not success:
-                error_msg = "Failed to initialize any relay hats via custom module."
+                error_msg = "Failed to initialize relay hats via custom module on preferred buses."
                 print(error_msg)
                 logging.error(error_msg)
             return
