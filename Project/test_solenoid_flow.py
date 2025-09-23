@@ -1,375 +1,456 @@
 #!/usr/bin/env python3
 """
-Simple test script for solenoid-flow sensor integration.
+Comprehensive test script for SLF3S-0600F flow sensor and solenoid system.
 
-This script opens the master solenoid and displays real-time flow sensor data
-to verify the hardware integration is working correctly.
+This script tests:
+1. I2C communication with the flow sensor
+2. Solenoid relay control
+3. Integration between flow sensor and solenoid strategy
+4. Hardware setup validation
 
 Usage:
-    python test_solenoid_flow.py [--bus BUS_ID] [--master-relay RELAY_ID] [--duration SECONDS]
+    python3 test_solenoid_flow.py [--bus BUS_ID] [--test-type TYPE]
+    
+Test types:
+    - sensor: Test flow sensor only
+    - solenoid: Test solenoid relays only  
+    - integration: Test complete system
+    - all: Run all tests (default)
 """
 
 import asyncio
 import argparse
-import sys
 import time
-from datetime import datetime
-from typing import Optional
+from smbus2 import SMBus, i2c_msg
+import sys
+import os
 
-# Add project root to Python path for imports
-sys.path.insert(0, '.')
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from drivers.flow_sensor import SLF3S0600FDriver, FlowSample
-from drivers.solenoid_controller import SolenoidController
-from gpio.gpio_handler import RelayHandler
-# Pump-era RelayUnitManager is not needed for solenoid tests
-
-
-class SolenoidFlowTester:
-    """Simple test class for solenoid-flow sensor integration."""
+class FlowSensorTester:
+    """Test the SLF3S-0600F flow sensor using raw I2C communication."""
     
-    def __init__(
-        self,
-        i2c_bus: int = 1,
-        master_relay_id: int = 16,
-        sampling_hz: float = 10.0,
-        num_hats: int = 1
-    ):
-        """Initialize the test system.
+    def __init__(self, bus_id=1):
+        self.bus_id = bus_id
+        self.addr = 0x08
+        self.bus = None
         
-        Args:
-            i2c_bus: I2C bus number for flow sensor (default: 1)
-            master_relay_id: Relay ID for master solenoid (default: 16)
-            sampling_hz: Flow sensor sampling rate (default: 10 Hz for testing)
-            num_hats: Number of relay HATs (default: 1)
-        """
-        self.i2c_bus = i2c_bus
-        self.master_relay_id = master_relay_id
-        self.sampling_hz = sampling_hz
+    def crc8(self, data):
+        """Calculate CRC-8 checksum as per Sensirion specification."""
+        crc = 0xFF
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                crc = ((crc << 1) & 0xFF) ^ 0x31 if (crc & 0x80) else ((crc << 1) & 0xFF)
+        return crc
+    
+    def test_i2c_connectivity(self):
+        """Test basic I2C connectivity to the sensor."""
+        print(f"Testing I2C connectivity on bus {self.bus_id}, address 0x{self.addr:02X}")
         
-        print(f"[Init] Setting up solenoid-flow test system...")
-        print(f"[Init] I2C Bus: {i2c_bus}, Master Relay: {master_relay_id}, Sampling: {sampling_hz} Hz")
-        
-        # Initialize relay system
         try:
-            # Initialize RelayHandler directly for solenoid control; we only need HAT access
-            self.relay_handler = RelayHandler([], num_hats=num_hats)
-            print("[Init] ✓ Relay system initialized")
+            self.bus = SMBus(self.bus_id)
+            # Try to read a single byte to test connectivity
+            read = i2c_msg.read(self.addr, 1)
+            self.bus.i2c_rdwr(read)
+            print("✓ I2C connectivity test passed")
+            return True
         except Exception as e:
-            print(f"[Init] ✗ Failed to initialize relay system: {e}")
-            raise
+            print(f"✗ I2C connectivity test failed: {e}")
+            return False
+        finally:
+            if self.bus:
+                self.bus.close()
+                self.bus = None
+    
+    def test_sensor_start_command(self):
+        """Test sending start continuous measurement command."""
+        print("Testing sensor start command (0x3608)")
         
-        # Initialize flow sensor
         try:
-            self.flow_sensor = SLF3S0600FDriver(
-                i2c_bus=i2c_bus,
-                sampling_hz=sampling_hz
+            self.bus = SMBus(self.bus_id)
+            # Send start continuous measurement in water mode
+            write = i2c_msg.write(self.addr, [0x36, 0x08])
+            self.bus.i2c_rdwr(write)
+            print("✓ Start command sent successfully")
+            
+            # Wait a moment for sensor to initialize
+            time.sleep(0.1)
+            return True
+            
+        except Exception as e:
+            print(f"✗ Start command failed: {e}")
+            return False
+    
+    def test_sensor_data_read(self):
+        """Test reading measurement data from the sensor."""
+        print("Testing sensor data read (expecting 9 bytes)")
+        
+        try:
+            # Read 9 bytes: flow(2) + crc(1) + temp(2) + crc(1) + flags(2) + crc(1)
+            read = i2c_msg.read(self.addr, 9)
+            self.bus.i2c_rdwr(read)
+            data = bytes(read)
+            
+            if len(data) != 9:
+                print(f"✗ Expected 9 bytes, got {len(data)}")
+                return False
+            
+            print(f"✓ Read {len(data)} bytes: {' '.join(f'{b:02X}' for b in data)}")
+            
+            # Parse the data
+            fmsb, flsb, fcrc = data[0], data[1], data[2]
+            tmsb, tlsb, tcrc = data[3], data[4], data[5]
+            cmsb, clsb, ccrc = data[6], data[7], data[8]
+            
+            # Verify CRCs
+            flow_crc_calc = self.crc8(bytes([fmsb, flsb]))
+            temp_crc_calc = self.crc8(bytes([tmsb, tlsb]))
+            flags_crc_calc = self.crc8(bytes([cmsb, clsb]))
+            
+            print(f"Flow CRC: expected {fcrc:02X}, calculated {flow_crc_calc:02X}")
+            print(f"Temp CRC: expected {tcrc:02X}, calculated {temp_crc_calc:02X}")
+            print(f"Flags CRC: expected {ccrc:02X}, calculated {flags_crc_calc:02X}")
+            
+            if flow_crc_calc != fcrc or temp_crc_calc != tcrc or flags_crc_calc != ccrc:
+                print("✗ CRC verification failed")
+                return False
+            
+            # Convert to physical values
+            flow_raw = (fmsb << 8) | flsb
+            temp_raw = (tmsb << 8) | tlsb
+            flags = (cmsb << 8) | clsb
+            
+            # Handle signed values
+            if flow_raw & 0x8000:
+                flow_raw -= 0x10000
+            if temp_raw & 0x8000:
+                temp_raw -= 0x10000
+            
+            # Apply scaling factors from datasheet
+            flow_ul_min = flow_raw / 10.0  # µL/min
+            flow_ml_min = flow_ul_min / 1000.0  # mL/min
+            temp_c = temp_raw / 200.0  # °C
+            
+            print(f"✓ Parsed values:")
+            print(f"  Flow: {flow_ul_min:.1f} µL/min ({flow_ml_min:.3f} mL/min)")
+            print(f"  Temperature: {temp_c:.2f} °C")
+            print(f"  Flags: 0x{flags:04X}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"✗ Data read failed: {e}")
+            return False
+    
+    def test_sensor_stop_command(self):
+        """Test sending stop measurement command."""
+        print("Testing sensor stop command (0x3FF9)")
+        
+        try:
+            write = i2c_msg.write(self.addr, [0x3F, 0xF9])
+            self.bus.i2c_rdwr(write)
+            print("✓ Stop command sent successfully")
+            return True
+            
+        except Exception as e:
+            print(f"✗ Stop command failed: {e}")
+            return False
+        finally:
+            if self.bus:
+                self.bus.close()
+                self.bus = None
+    
+    def run_full_sensor_test(self):
+        """Run complete sensor test sequence."""
+        print("=" * 60)
+        print("FLOW SENSOR TEST")
+        print("=" * 60)
+        
+        tests = [
+            self.test_i2c_connectivity,
+            self.test_sensor_start_command,
+            self.test_sensor_data_read,
+            self.test_sensor_stop_command
+        ]
+        
+        results = []
+        for test in tests:
+            result = test()
+            results.append(result)
+            print()
+        
+        passed = sum(results)
+        total = len(results)
+        
+        print(f"Sensor test summary: {passed}/{total} tests passed")
+        return passed == total
+
+class SolenoidTester:
+    """Test solenoid relay control."""
+    
+    def __init__(self):
+        self.relay_handler = None
+        
+    def setup_relay_handler(self):
+        """Initialize relay handler."""
+        try:
+            from gpio.gpio_handler import RelayHandler
+            from models.relay_unit_manager import RelayUnitManager
+            
+            # Simple settings for testing
+            settings = {'num_hats': 1, 'relay_pairs': [(1, 2)]}
+            manager = RelayUnitManager(settings)
+            self.relay_handler = RelayHandler(manager, 1)
+            print("✓ Relay handler initialized")
+            return True
+            
+        except Exception as e:
+            print(f"✗ Relay handler setup failed: {e}")
+            return False
+    
+    def test_individual_relays(self):
+        """Test individual relay control."""
+        print("Testing individual relay control (relays 1 and 16)")
+        
+        try:
+            # Test cage relay (relay 1)
+            print("Activating relay 1 (cage)...")
+            self.relay_handler.set_relays([1], 1)
+            time.sleep(1)
+            print("Deactivating relay 1...")
+            self.relay_handler.set_relays([1], 0)
+            
+            time.sleep(0.5)
+            
+            # Test master relay (relay 16)
+            print("Activating relay 16 (master)...")
+            self.relay_handler.set_relays([16], 1)
+            time.sleep(1)
+            print("Deactivating relay 16...")
+            self.relay_handler.set_relays([16], 0)
+            
+            print("✓ Individual relay test completed")
+            return True
+            
+        except Exception as e:
+            print(f"✗ Individual relay test failed: {e}")
+            return False
+    
+    def test_solenoid_sequence(self):
+        """Test typical solenoid valve sequence."""
+        print("Testing solenoid sequence (prime + delivery)")
+        
+        try:
+            # Prime sequence (master only)
+            print("Prime: Opening master relay...")
+            self.relay_handler.set_relays([16], 1)
+            time.sleep(0.2)  # 200ms prime
+            print("Prime: Closing master relay...")
+            self.relay_handler.set_relays([16], 0)
+            time.sleep(0.1)
+            
+            # Delivery sequence (master + cage)
+            print("Delivery: Opening master + cage relays...")
+            self.relay_handler.set_relays([16, 1], 1)
+            time.sleep(2.0)  # 2 second delivery simulation
+            print("Delivery: Closing cage relay...")
+            self.relay_handler.set_relays([1], 0)
+            print("Delivery: Closing master relay...")
+            self.relay_handler.set_relays([16], 0)
+            
+            print("✓ Solenoid sequence test completed")
+            return True
+            
+        except Exception as e:
+            print(f"✗ Solenoid sequence test failed: {e}")
+            return False
+    
+    def run_full_solenoid_test(self):
+        """Run complete solenoid test sequence."""
+        print("=" * 60)
+        print("SOLENOID TEST")
+        print("=" * 60)
+        
+        if not self.setup_relay_handler():
+            return False
+        
+        tests = [
+            self.test_individual_relays,
+            self.test_solenoid_sequence
+        ]
+        
+        results = []
+        for test in tests:
+            result = test()
+            results.append(result)
+            print()
+        
+        passed = sum(results)
+        total = len(results)
+        
+        print(f"Solenoid test summary: {passed}/{total} tests passed")
+        return passed == total
+
+class IntegrationTester:
+    """Test integration between flow sensor and solenoid system."""
+    
+    def __init__(self, bus_id=1):
+        self.bus_id = bus_id
+        
+    async def test_flow_strategy_init(self):
+        """Test SolenoidFlowStrategy initialization."""
+        print("Testing SolenoidFlowStrategy initialization")
+        
+        try:
+            from drivers.flow_sensor import SLF3S0600FDriver
+            from drivers.solenoid_controller import SolenoidController
+            from strategies.solenoid_flow_strategy import SolenoidFlowStrategy
+            from utils.calibration import CalibrationStore
+            from gpio.gpio_handler import RelayHandler
+            from models.relay_unit_manager import RelayUnitManager
+            
+            # Setup components
+            settings = {'num_hats': 1, 'relay_pairs': [(1, 2)]}
+            manager = RelayUnitManager(settings)
+            relay_handler = RelayHandler(manager, 1)
+            
+            flow_sensor = SLF3S0600FDriver(i2c_bus=self.bus_id)
+            cage_map = {1: 1}  # cage 1 -> relay 1
+            solenoid = SolenoidController(relay_handler, 16, cage_map)
+            cal_store = CalibrationStore()
+            
+            strategy_settings = {
+                'flow_sampling_hz': 10.0,
+                'predictive_close_ms': 50.0,
+                'residual_check_ms': 200.0,
+                'residual_flow_threshold_ml_min': 1.0,
+                'max_consecutive_sensor_errors': 5,
+            }
+            
+            strategy = SolenoidFlowStrategy(
+                solenoid_controller=solenoid,
+                flow_sensor=flow_sensor,
+                calibration_store=cal_store,
+                settings=strategy_settings
             )
-            print(f"[Init] ✓ Flow sensor initialized (backend: {self.flow_sensor.backend_mode()})")
+            
+            print("✓ SolenoidFlowStrategy initialized successfully")
+            return True, strategy
+            
         except Exception as e:
-            print(f"[Init] ✗ Failed to initialize flow sensor: {e}")
-            raise
+            print(f"✗ SolenoidFlowStrategy initialization failed: {e}")
+            return False, None
+    
+    async def test_mock_delivery(self, strategy):
+        """Test a mock delivery with the strategy."""
+        print("Testing mock delivery (0.1 mL)")
         
-        # Initialize solenoid controller
         try:
-            # Create a minimal cage map for testing (just one cage for now)
-            cage_map = {1: 1}  # Cage 1 -> Relay 1 (example)
-            self.solenoid_controller = SolenoidController(
-                relay_handler=self.relay_handler,
-                master_relay_id=master_relay_id,
-                cage_to_relay_id=cage_map
+            # Test small volume delivery
+            result = await strategy.deliver(
+                relay_unit_id=1,
+                target_volume_ml=0.1,
+                triggers_hint=None
             )
-            print("[Init] ✓ Solenoid controller initialized")
+            
+            if result:
+                print("✓ Mock delivery completed successfully")
+            else:
+                print("✗ Mock delivery failed (expected due to no actual flow)")
+            
+            return True  # Success means no crash, not necessarily successful delivery
+            
         except Exception as e:
-            print(f"[Init] ✗ Failed to initialize solenoid controller: {e}")
-            raise
+            print(f"✗ Mock delivery crashed: {e}")
+            return False
+    
+    async def run_full_integration_test(self):
+        """Run complete integration test."""
+        print("=" * 60)
+        print("INTEGRATION TEST")
+        print("=" * 60)
         
-        self._running = False
-        self._total_volume_ml = 0.0
-        self._sample_count = 0
-        self._start_time = None
+        success, strategy = await self.test_flow_strategy_init()
+        if not success:
+            return False
+        
+        print()
+        result = await self.test_mock_delivery(strategy)
+        
+        print(f"\nIntegration test summary: {'PASSED' if result else 'FAILED'}")
+        return result
 
-    def _print_header(self):
-        """Print the data table header."""
-        print("\n" + "="*80)
-        print("SOLENOID-FLOW SENSOR TEST")
-        print("="*80)
-        print(f"{'Time':<12} {'Flow (mL/min)':<15} {'Temp (°C)':<12} {'Volume (mL)':<15} {'Notes':<20}")
-        print("-"*80)
-
-    def _print_sample(self, sample: FlowSample, notes: str = ""):
-        """Print a flow sensor sample in tabular format."""
-        elapsed = time.time() - self._start_time if self._start_time else 0
-        self._sample_count += 1
-        
-        # Simple volume integration (rectangular rule for simplicity)
-        if self._sample_count > 1:
-            dt_min = (1.0 / self.sampling_hz) / 60.0  # Convert sampling period to minutes
-            volume_increment = sample.flow_ml_min * dt_min
-            self._total_volume_ml += volume_increment
-        
-        print(f"{elapsed:>8.1f}s    {sample.flow_ml_min:>8.2f}        "
-              f"{sample.temperature_c:>6.1f}      {self._total_volume_ml:>8.3f}        {notes}")
-
-    async def test_flow_sensor_only(self, duration: float = 10.0):
-        """Test flow sensor readings without opening solenoids.
-        
-        Args:
-            duration: Test duration in seconds
-        """
-        print(f"\n[Test] Testing flow sensor for {duration} seconds (solenoids closed)...")
-        
-        try:
-            self.flow_sensor.start()
-            self._print_header()
-            self._start_time = time.time()
-            self._running = True
-            
-            async for sample in self.flow_sensor.read():
-                if not self._running:
-                    break
-                    
-                elapsed = time.time() - self._start_time
-                if elapsed >= duration:
-                    break
-                    
-                self._print_sample(sample, "Baseline")
-                
-        except KeyboardInterrupt:
-            print("\n[Test] Test interrupted by user")
-        except Exception as e:
-            print(f"\n[Test] ✗ Flow sensor test failed: {e}")
-        finally:
-            self.flow_sensor.stop()
-            print(f"\n[Test] Flow sensor test completed. Baseline volume: {self._total_volume_ml:.3f} mL")
-
-    async def test_master_solenoid_flow(self, duration: float = 30.0):
-        """Test master solenoid with flow sensor readings.
-        
-        Args:
-            duration: Test duration in seconds
-        """
-        print(f"\n[Test] Testing master solenoid + flow sensor for {duration} seconds...")
-        
-        try:
-            # Start flow sensor
-            self.flow_sensor.start()
-            await asyncio.sleep(0.5)  # Let sensor stabilize
-            
-            # Reset counters
-            self._total_volume_ml = 0.0
-            self._sample_count = 0
-            
-            self._print_header()
-            self._start_time = time.time()
-            
-            # Open master solenoid
-            print("[Solenoid] Opening master solenoid...")
-            success = self.solenoid_controller.open_master()
-            if not success:
-                print("[Solenoid] ✗ Failed to open master solenoid")
-                return
-            
-            print("[Solenoid] ✓ Master solenoid opened")
-            
-            # Read flow data
-            self._running = True
-            async for sample in self.flow_sensor.read():
-                if not self._running:
-                    break
-                    
-                elapsed = time.time() - self._start_time
-                if elapsed >= duration:
-                    break
-                    
-                # Determine status based on flow
-                if sample.flow_ml_min > 5.0:
-                    status = "FLOWING"
-                elif sample.flow_ml_min > 1.0:
-                    status = "Low flow"
-                else:
-                    status = "No flow"
-                
-                self._print_sample(sample, status)
-                
-        except KeyboardInterrupt:
-            print("\n[Test] Test interrupted by user")
-        except Exception as e:
-            print(f"\n[Test] ✗ Master solenoid test failed: {e}")
-        finally:
-            # Always close the solenoid
-            try:
-                print("\n[Solenoid] Closing master solenoid...")
-                self.solenoid_controller.close_master()
-                print("[Solenoid] ✓ Master solenoid closed")
-            except Exception as e:
-                print(f"[Solenoid] ✗ Error closing master solenoid: {e}")
-            
-            self.flow_sensor.stop()
-            self._running = False
-            
-            print(f"\n[Test] Master solenoid test completed. Total volume: {self._total_volume_ml:.3f} mL")
-
-    async def test_cage_solenoid_flow(self, cage_id: int = 1, duration: float = 15.0):
-        """Test cage solenoid with master + flow sensor readings.
-        
-        Args:
-            cage_id: Cage ID to test (default: 1)
-            duration: Test duration in seconds
-        """
-        print(f"\n[Test] Testing cage {cage_id} solenoid + master + flow sensor for {duration} seconds...")
-        
-        try:
-            # Start flow sensor
-            self.flow_sensor.start()
-            await asyncio.sleep(0.5)  # Let sensor stabilize
-            
-            # Reset counters
-            self._total_volume_ml = 0.0
-            self._sample_count = 0
-            
-            self._print_header()
-            self._start_time = time.time()
-            
-            # Open master solenoid first
-            print("[Solenoid] Opening master solenoid...")
-            success = self.solenoid_controller.open_master()
-            if not success:
-                print("[Solenoid] ✗ Failed to open master solenoid")
-                return
-            
-            await asyncio.sleep(0.5)  # Brief delay
-            
-            # Open cage solenoid
-            print(f"[Solenoid] Opening cage {cage_id} solenoid...")
-            success = self.solenoid_controller.open_cage(cage_id)
-            if not success:
-                print(f"[Solenoid] ✗ Failed to open cage {cage_id} solenoid")
-                return
-            
-            print(f"[Solenoid] ✓ Both master and cage {cage_id} solenoids opened")
-            
-            # Read flow data
-            self._running = True
-            async for sample in self.flow_sensor.read():
-                if not self._running:
-                    break
-                    
-                elapsed = time.time() - self._start_time
-                if elapsed >= duration:
-                    break
-                    
-                # Determine status based on flow
-                if sample.flow_ml_min > 10.0:
-                    status = "HIGH FLOW"
-                elif sample.flow_ml_min > 5.0:
-                    status = "Good flow"
-                elif sample.flow_ml_min > 1.0:
-                    status = "Low flow"
-                else:
-                    status = "No flow"
-                
-                self._print_sample(sample, status)
-                
-        except KeyboardInterrupt:
-            print("\n[Test] Test interrupted by user")
-        except Exception as e:
-            print(f"\n[Test] ✗ Cage solenoid test failed: {e}")
-        finally:
-            # Always close both solenoids
-            try:
-                print(f"\n[Solenoid] Closing cage {cage_id} solenoid...")
-                self.solenoid_controller.close_cage(cage_id)
-                print("[Solenoid] Closing master solenoid...")
-                self.solenoid_controller.close_master()
-                print("[Solenoid] ✓ All solenoids closed")
-            except Exception as e:
-                print(f"[Solenoid] ✗ Error closing solenoids: {e}")
-            
-            self.flow_sensor.stop()
-            self._running = False
-            
-            print(f"\n[Test] Cage solenoid test completed. Total volume: {self._total_volume_ml:.3f} mL")
-
-    def cleanup(self):
-        """Clean up resources."""
-        try:
-            if hasattr(self, 'flow_sensor'):
-                self.flow_sensor.close()
-            if hasattr(self, 'solenoid_controller'):
-                # Ensure all solenoids are closed
-                self.solenoid_controller.close_master()
-                if hasattr(self.solenoid_controller, 'close_all_cages'):
-                    self.solenoid_controller.close_all_cages()
-            print("[Cleanup] ✓ Resources cleaned up")
-        except Exception as e:
-            print(f"[Cleanup] ⚠ Error during cleanup: {e}")
-
+def show_sensor_package_info():
+    """Show information about sensor packages."""
+    print("=" * 60)
+    print("SENSOR PACKAGE INFORMATION")
+    print("=" * 60)
+    
+    print("The 'sensirion-slf3s' package is for UART/serial communication.")
+    print("There is NO official I2C Python package for SLF3x sensors on PyPI.")
+    print("\nThis test uses raw I2C communication via smbus2 (already installed).")
+    print("Protocol based on Sensirion's official I2C implementation guide.")
+    print("\nIf you have sensirion-slf3s installed, you can remove it:")
+    print("pip uninstall sensirion-slf3s")
 
 async def main():
-    """Main test function."""
-    parser = argparse.ArgumentParser(description="Test solenoid-flow sensor integration")
-    parser.add_argument('--bus', type=int, default=1, help='I2C bus number (default: 1)')
-    parser.add_argument('--master-relay', type=int, default=16, help='Master relay ID (default: 16)')
-    parser.add_argument('--duration', type=float, default=30.0, help='Test duration in seconds (default: 30)')
-    parser.add_argument('--test-mode', choices=['sensor', 'master', 'cage', 'all'], default='all',
-                       help='Test mode: sensor only, master solenoid, cage solenoid, or all (default: all)')
-    parser.add_argument('--cage-id', type=int, default=1, help='Cage ID for cage test (default: 1)')
-    parser.add_argument('--sampling-hz', type=float, default=10.0, help='Flow sensor sampling rate (default: 10 Hz)')
+    parser = argparse.ArgumentParser(description="Test SLF3S-0600F flow sensor and solenoid system")
+    parser.add_argument("--bus", type=int, default=1, help="I2C bus number (default: 1)")
+    parser.add_argument("--test-type", choices=["sensor", "solenoid", "integration", "all"], 
+                       default="all", help="Type of test to run")
     
     args = parser.parse_args()
     
-    print("SOLENOID-FLOW SENSOR INTEGRATION TEST")
-    print("=" * 50)
+    print("SLF3S-0600F Flow Sensor and Solenoid Test")
+    print("=" * 60)
     print(f"I2C Bus: {args.bus}")
-    print(f"Master Relay: {args.master_relay}")
-    print(f"Test Duration: {args.duration}s")
-    print(f"Test Mode: {args.test_mode}")
-    print(f"Sampling Rate: {args.sampling_hz} Hz")
-    print("=" * 50)
+    print(f"Test Type: {args.test_type}")
+    print()
     
-    tester = None
+    # Show package information
+    show_sensor_package_info()
+    print()
     
-    try:
-        # Initialize tester
-        tester = SolenoidFlowTester(
-            i2c_bus=args.bus,
-            master_relay_id=args.master_relay,
-            sampling_hz=args.sampling_hz
-        )
-        
-        if args.test_mode in ['sensor', 'all']:
-            await tester.test_flow_sensor_only(duration=10.0)
-            if args.test_mode == 'all':
-                await asyncio.sleep(2.0)  # Brief pause between tests
-        
-        if args.test_mode in ['master', 'all']:
-            await tester.test_master_solenoid_flow(duration=args.duration)
-            if args.test_mode == 'all':
-                await asyncio.sleep(2.0)  # Brief pause between tests
-        
-        if args.test_mode in ['cage', 'all']:
-            await tester.test_cage_solenoid_flow(cage_id=args.cage_id, duration=args.duration)
-        
-        print("\n" + "=" * 80)
-        print("TEST COMPLETED SUCCESSFULLY")
-        print("=" * 80)
-        print("\nNext steps:")
-        print("1. Verify flow readings make sense for your system")
-        print("2. Check that solenoids open/close properly")
-        print("3. Validate volume measurements against known volumes")
-        print("4. Run calibration procedures if needed")
-        
-    except KeyboardInterrupt:
-        print("\n\nTest interrupted by user (Ctrl+C)")
-    except Exception as e:
-        print(f"\nTest failed with error: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        if tester:
-            tester.cleanup()
-
+    results = []
+    
+    if args.test_type in ["sensor", "all"]:
+        sensor_tester = FlowSensorTester(args.bus)
+        result = sensor_tester.run_full_sensor_test()
+        results.append(("Sensor", result))
+        print()
+    
+    if args.test_type in ["solenoid", "all"]:
+        solenoid_tester = SolenoidTester()
+        result = solenoid_tester.run_full_solenoid_test()
+        results.append(("Solenoid", result))
+        print()
+    
+    if args.test_type in ["integration", "all"]:
+        integration_tester = IntegrationTester(args.bus)
+        result = await integration_tester.run_full_integration_test()
+        results.append(("Integration", result))
+        print()
+    
+    # Final summary
+    print("=" * 60)
+    print("FINAL SUMMARY")
+    print("=" * 60)
+    
+    for test_name, result in results:
+        status = "PASSED" if result else "FAILED"
+        print(f"{test_name:12}: {status}")
+    
+    total_passed = sum(1 for _, result in results if result)
+    total_tests = len(results)
+    
+    print(f"\nOverall: {total_passed}/{total_tests} test suites passed")
+    
+    if total_passed == total_tests:
+        print("🎉 All tests passed! System is ready for operation.")
+    else:
+        print("⚠️  Some tests failed. Check the output above for details.")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -37,18 +37,13 @@ class SLF3S0600FDriver:
         self._zero_offset = float(zero_offset_ml_min)
         self._span_scale = float(span_scale)
         self._running = False
-        self._sdk = None
         self._backend = 'raw'
         self._bus_id = int(i2c_bus)
         self._null_reads = 0
-        try:
-            from sensirion_i2c_slf3x import Slf3xI2cDevice
-            from sensirion_i2c_driver import I2cConnection
-            self._sdk = Slf3xI2cDevice(I2cConnection(i2c_bus))
-            self._backend = 'sdk'
-        except Exception:
-            self._bus = SMBus(i2c_bus)
-            self._addr = 0x08
+        # Note: sensirion-i2c-slf3x package doesn't exist on PyPI
+        # Use raw I2C implementation only
+        self._bus = SMBus(i2c_bus)
+        self._addr = 0x08
 
     def zero_calibrate(self) -> None:
         """Set the current zero offset to 0; caller should compute offset.
@@ -115,8 +110,7 @@ class SLF3S0600FDriver:
             pass
 
     def start(self) -> None:
-        if self._sdk is None:
-            self._start_raw()
+        self._start_raw()
         # Light debug to aid field setup
         try:
             print(f"[FlowSensor] start backend={self._backend} bus={self._bus_id}")
@@ -125,12 +119,6 @@ class SLF3S0600FDriver:
 
     def read_one(self) -> Optional[Tuple[float, float, int]]:
         """Return a single sample: (flow_uL_min, temp_C, flags) or None."""
-        if self._sdk is not None:
-            try:
-                r = self._sdk.read_measurement_data()
-                return (r.flow * 1000.0, r.temperature, 0)
-            except Exception:
-                return None
         sample = self._read_raw_frame()
         if sample is None:
             # Bound debug noise: only print occasionally at first use
