@@ -143,24 +143,38 @@ class SystemController(QObject):
             return self.settings.get('num_hats', 1)
 
     def detect_flow_sensor_bus(self):
-        """Probe I2C buses for SLF3x address 0x08; return bus id or current setting."""
+        """Probe I2C buses for SLF3x address 0x08, avoiding relay HAT conflicts.
+        
+        Strategy: Test buses in order of preference to avoid I²C conflicts.
+        Priority: 13, 14, 1 (bus 1 shared with relay HATs, use as fallback)
+        """
         try:
             import os
             from smbus2 import SMBus, i2c_msg
-            for bus in range(0, 21):
+            
+            # Priority order: isolated buses first, shared bus last
+            bus_priority = [13, 14, 1, 0] + list(range(2, 21))
+            
+            for bus in bus_priority:
                 if not os.path.exists(f"/dev/i2c-{bus}"):
                     continue
                 try:
                     with SMBus(bus) as b:
-                        # Quick read zero bytes to see if device NACKs; fallback to a harmless read.
-                        r = i2c_msg.read(0x08, 1)
-                        b.i2c_rdwr(r)
+                        # Test with start command (more reliable than simple read)
+                        w = i2c_msg.write(0x08, [0x36, 0x08])
+                        b.i2c_rdwr(w)
+                        # If successful, this bus works
+                        self.system_status.emit(f"Flow sensor detected on I²C bus {bus}")
                         return bus
                 except Exception:
                     continue
         except Exception:
             pass
-        return self.settings.get('i2c_bus', 1)
+        
+        # Fallback to current setting
+        current = self.settings.get('i2c_bus', 1)
+        self.system_status.emit(f"Flow sensor detection failed, using configured bus {current}")
+        return current
 
     def ensure_solenoid_defaults(self):
         """Seed solenoid settings 
@@ -174,11 +188,11 @@ class SystemController(QObject):
         try:
             s = dict(self.settings)
 
-            # Detect I2C bus (if not set or default)
-            if not isinstance(s.get('i2c_bus'), int) or s.get('i2c_bus', 1) == 1:
-                detected_bus = self.detect_flow_sensor_bus()
-                if isinstance(detected_bus, int):
-                    s['i2c_bus'] = detected_bus
+            # Always detect best I2C bus to avoid conflicts (critical for production)
+            detected_bus = self.detect_flow_sensor_bus()
+            if isinstance(detected_bus, int) and detected_bus != s.get('i2c_bus', 1):
+                self.system_status.emit(f"Updated I2C bus from {s.get('i2c_bus', 1)} to {detected_bus} for optimal flow sensor communication")
+                s['i2c_bus'] = detected_bus
 
             # Number of hats already configured via settings; if missing fallback to 1
             num_hats = int(s.get('num_hats', 1))

@@ -396,9 +396,48 @@ def show_sensor_package_info():
     print("\nIf you have sensirion-slf3s installed, you can remove it:")
     print("pip uninstall sensirion-slf3s")
 
+def find_working_bus():
+    """Find a working I2C bus for the flow sensor, avoiding conflicts."""
+    import os
+    from smbus2 import SMBus, i2c_msg
+    
+    # Priority order: isolated buses first, shared bus last
+    bus_priority = [13, 14, 1, 0] + list(range(2, 21))
+    
+    print("=" * 60)
+    print("I2C BUS DETECTION")
+    print("=" * 60)
+    
+    working_buses = []
+    
+    for bus in bus_priority:
+        if not os.path.exists(f"/dev/i2c-{bus}"):
+            continue
+            
+        print(f"Testing bus {bus}...", end=" ")
+        try:
+            with SMBus(bus) as b:
+                # Test with start command
+                w = i2c_msg.write(0x08, [0x36, 0x08])
+                b.i2c_rdwr(w)
+                print("✓ Working")
+                working_buses.append(bus)
+        except Exception as e:
+            print(f"✗ Failed ({e})")
+    
+    if working_buses:
+        chosen = working_buses[0]
+        print(f"\nRecommended bus: {chosen}")
+        if len(working_buses) > 1:
+            print(f"Alternative buses: {working_buses[1:]}")
+        return chosen
+    else:
+        print("\n⚠️  No working I2C buses found for flow sensor!")
+        return 1  # Fallback
+
 async def main():
     parser = argparse.ArgumentParser(description="Test SLF3S-0600F flow sensor and solenoid system")
-    parser.add_argument("--bus", type=int, default=1, help="I2C bus number (default: 1)")
+    parser.add_argument("--bus", type=int, help="I2C bus number (auto-detect if not specified)")
     parser.add_argument("--test-type", choices=["sensor", "solenoid", "integration", "all"], 
                        default="all", help="Type of test to run")
     
@@ -406,6 +445,12 @@ async def main():
     
     print("SLF3S-0600F Flow Sensor and Solenoid Test")
     print("=" * 60)
+    
+    # Auto-detect bus if not specified
+    if args.bus is None:
+        args.bus = find_working_bus()
+        print()
+    
     print(f"I2C Bus: {args.bus}")
     print(f"Test Type: {args.test_type}")
     print()
