@@ -190,9 +190,15 @@ class UARTFlowSensor:
         if not self._serial or not self._serial.is_open:
             raise ConnectionError("Serial connection not open")
         
-        command_str = json.dumps(command) + '\n'
-        self._serial.write(command_str.encode('utf-8'))
-        self._serial.flush()
+        try:
+            command_str = json.dumps(command) + '\n'
+            self._serial.write(command_str.encode('utf-8'))
+            self._serial.flush()
+        except Exception as e:
+            if "Input/output error" in str(e) or "write failed" in str(e):
+                raise ConnectionError(f"USB connection lost during command: {e}")
+            else:
+                raise
     
     def _reader_loop(self) -> None:
         """Background thread to read data from Teensy."""
@@ -218,7 +224,49 @@ class UARTFlowSensor:
             except Exception as e:
                 self._logger.error(f"Reader loop error: {e}")
                 self._error_count += 1
-                time.sleep(0.1)
+                
+                # Attempt to recover connection on I/O errors
+                if "Input/output error" in str(e) or "write failed" in str(e):
+                    self._logger.warning("USB connection lost, attempting to reconnect...")
+                    if self._attempt_reconnection():
+                        self._logger.info("USB connection restored")
+                        self._error_count = 0  # Reset error count on successful reconnection
+                    else:
+                        self._logger.error("USB reconnection failed")
+                        time.sleep(1.0)  # Longer delay on connection failure
+                else:
+                    time.sleep(0.1)
+    
+    def _attempt_reconnection(self) -> bool:
+        """Attempt to reconnect to Teensy after connection loss."""
+        try:
+            # Close existing connection
+            if self._serial and self._serial.is_open:
+                try:
+                    self._serial.close()
+                except:
+                    pass
+            
+            # Wait for device to settle
+            time.sleep(2.0)
+            
+            # Try to reopen connection
+            self._serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
+            time.sleep(1.0)  # Allow Teensy to initialize
+            
+            # Test connection with ping
+            test_successful = self._test_connection()
+            if test_successful:
+                # Restart sensor
+                self._start_sensor()
+                return True
+            else:
+                self._serial.close()
+                return False
+                
+        except Exception as e:
+            self._logger.error(f"Reconnection attempt failed: {e}")
+            return False
     
     def _process_message(self, line: str) -> None:
         """Process JSON message from Teensy."""

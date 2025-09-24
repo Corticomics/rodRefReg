@@ -81,8 +81,12 @@ class SolenoidFlowStrategy:
         # I2C coordination ensures relay operations and sensor reads don't conflict
 
         try:
+            self._logger.info(f"Starting delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
+            self._logger.debug(f"Opening master solenoid...")
             self._valves.open_master()
+            self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valves.open_cage(cage_id)
+            self._logger.info(f"Solenoids opened successfully for cage {cage_id}")
         except Exception as e:
             self._logger.error(f"Failed to open solenoids for cage {cage_id}: {e}")
             # Ensure master is closed on any opening failure
@@ -113,6 +117,11 @@ class SolenoidFlowStrategy:
 
                 if meas is None:
                     sensor_errors += 1
+                    if sensor_errors == 1:  # Log first sensor error
+                        self._logger.warning(f"Sensor read failed for cage {cage_id}, attempt {sensor_errors}/{max_sensor_errors}")
+                    elif sensor_errors % 5 == 0:  # Log every 5th error to avoid spam
+                        self._logger.warning(f"Sensor read failed for cage {cage_id}, attempt {sensor_errors}/{max_sensor_errors}")
+                    
                     if sensor_errors >= max_sensor_errors:
                         self._logger.error(f"Max consecutive sensor errors ({max_sensor_errors}) reached for cage {cage_id}. Aborting delivery.")
                         # Ensure all valves are closed on sensor failure
@@ -147,6 +156,7 @@ class SolenoidFlowStrategy:
                 v_lag_ul = max(0.0, (avg_recent_ml_min * (close_ms / 1000.0)) * 1000.0)
                 if delivered_ul >= (target_ul - v_lag_ul):
                     # Initiate close sequence
+                    self._logger.info(f"Target reached for cage {cage_id}: {delivered_ul:.1f}µL delivered, closing valves")
                     self._valves.close_cage(cage_id)
                     self._valves.close_master()
                     break
