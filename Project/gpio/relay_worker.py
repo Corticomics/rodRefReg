@@ -134,14 +134,14 @@ class RelayWorker(QObject):
                 volume_calculator=self.volume_calculator,
             )
             
-                  # Start flow sensor in continuous mode
-                  try:
-                      if hasattr(flow_sensor, 'start'):
-                          flow_sensor.start()
-                          sensor_info = f"{flow_sensor.backend_mode()} on {flow_sensor.bus_id() if hasattr(flow_sensor, 'bus_id') else 'unknown'}"
-                          print(f"Flow sensor started in continuous mode ({sensor_info})")
-                  except Exception as e:
-                      print(f"Warning: Flow sensor start failed: {e}")
+            # Start flow sensor in continuous mode
+            try:
+                if hasattr(flow_sensor, 'start'):
+                    flow_sensor.start()
+                    sensor_info = f"{flow_sensor.backend_mode()} on {flow_sensor.bus_id() if hasattr(flow_sensor, 'bus_id') else 'unknown'}"
+                    print(f"Flow sensor started in continuous mode ({sensor_info})")
+            except Exception as e:
+                print(f"Warning: Flow sensor start failed: {e}")
         else:
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,
