@@ -66,6 +66,8 @@ class SystemController(QObject):
             'hardware_mode': 'solenoid',  # default to solenoid; UI can switch to pump
             'global_master_relay_id': 16,
             'i2c_bus': 3,  # Default to dedicated flow sensor bus (GPIO 12/13)
+            'flow_sensor_type': 'uart',  # 'i2c' or 'uart' (Teensy)
+            'uart_port': '/dev/ttyACM0',  # Teensy USB serial port
             'flow_sampling_hz': 50.0,
             'predictive_close_ms': 10.0,
             'residual_check_ms': 200.0,
@@ -87,8 +89,8 @@ class SystemController(QObject):
         """Define which settings go in JSON file"""
         return {
             'num_hats', 'slack_token', 'channel_id', 'hardware_mode',
-            'global_master_relay_id', 'i2c_bus', 'flow_sampling_hz',
-            'predictive_close_ms', 'residual_check_ms',
+            'global_master_relay_id', 'i2c_bus', 'flow_sensor_type', 'uart_port',
+            'flow_sampling_hz', 'predictive_close_ms', 'residual_check_ms',
             'residual_flow_threshold_ml_min', 'max_consecutive_sensor_errors',
             'cage_relays',
             'debug_mode', 'log_level'
@@ -144,6 +146,8 @@ class SystemController(QObject):
 
     def detect_flow_sensor_bus(self):
         """Probe I2C buses for SLF3x address 0x08, avoiding relay HAT conflicts.
+        
+        NOTE: Only used for legacy I2C mode. UART mode (Teensy) is preferred.
         
         Strategy: Test buses in order of preference to avoid I²C conflicts.
         Priority: 13, 14, 1 (bus 1 shared with relay HATs, use as fallback)

@@ -3,14 +3,13 @@
 I2C Coordination Manager for RRR
 ===============================
 
-Provides exclusive time-sliced access to I2C bus for relay HAT and flow sensor.
-Prevents simultaneous access conflicts by coordinating device operations.
+Provides thread-safe access to I2C bus for relay HAT operations.
+With Teensy UART flow sensor, only relay coordination is needed.
 
 Architecture:
 - Relay operations get exclusive windows for switching
-- Flow sensor gets exclusive windows for reading  
-- No simultaneous I2C access
-- Configurable timing for different device requirements
+- Thread-safe access for multiple relay operations
+- Configurable timing for relay switching requirements
 
 Based on I2C arbitration best practices for shared bus systems.
 """
@@ -24,12 +23,12 @@ from contextlib import asynccontextmanager
 
 class I2CCoordinator:
     """
-    Coordinates exclusive I2C access between relay HAT and flow sensor.
+    Coordinates thread-safe I2C access for relay HAT operations.
     
-    Uses time-slicing approach:
+    Uses exclusive access approach:
     - Relay operations: 50ms exclusive windows
-    - Flow sensor reads: 20ms exclusive windows  
-    - Inter-device gaps: 10ms stabilization
+    - Thread-safe switching for multiple relays
+    - Inter-operation gaps: 10ms stabilization
     """
     
     def __init__(self):
@@ -43,10 +42,6 @@ class I2CCoordinator:
             'relay': {
                 'max_duration': 0.05,  # 50ms max for relay switching
                 'stabilization': 0.01, # 10ms post-operation delay
-            },
-            'flow_sensor': {
-                'max_duration': 0.02,  # 20ms max for sensor read
-                'stabilization': 0.01, # 10ms post-read delay
             }
         }
     

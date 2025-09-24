@@ -90,10 +90,13 @@ class RelayWorker(QObject):
         self.hardware_mode = (system_settings.get('hardware_mode') or 'pump') if isinstance(system_settings, dict) else 'pump'
         # Here we added a check for the hardware mode to be solenoid
         if self.hardware_mode == 'solenoid':
-            # Build solenoid components
-            i2c_bus = int(system_settings.get('i2c_bus', 1))
-            flow_sampling_hz = float(system_settings.get('flow_sampling_hz', 50.0))
-            flow_sensor = SLF3S0600FDriver(i2c_bus=i2c_bus, sampling_hz=flow_sampling_hz)
+            # Build solenoid components using factory pattern
+            from drivers.flow_sensor_factory import create_flow_sensor
+            try:
+                flow_sensor = create_flow_sensor(system_settings)
+            except Exception as e:
+                print(f"Failed to create flow sensor: {e}")
+                raise
 
             # Build cage map and solenoid controller
             cage_map = system_settings.get('cage_relays', {})
@@ -131,13 +134,14 @@ class RelayWorker(QObject):
                 volume_calculator=self.volume_calculator,
             )
             
-            # Start flow sensor in continuous mode to avoid I²C conflicts during delivery
-            try:
-                if hasattr(flow_sensor, 'start'):
-                    flow_sensor.start()
-                    print(f"Flow sensor started in continuous mode on bus {i2c_bus}")
-            except Exception as e:
-                print(f"Warning: Flow sensor start failed: {e}")
+                  # Start flow sensor in continuous mode
+                  try:
+                      if hasattr(flow_sensor, 'start'):
+                          flow_sensor.start()
+                          sensor_info = f"{flow_sensor.backend_mode()} on {flow_sensor.bus_id() if hasattr(flow_sensor, 'bus_id') else 'unknown'}"
+                          print(f"Flow sensor started in continuous mode ({sensor_info})")
+                  except Exception as e:
+                      print(f"Warning: Flow sensor start failed: {e}")
         else:
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,

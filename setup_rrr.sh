@@ -172,9 +172,9 @@ chmod +x /tmp/enable_i2c_temp.sh
 /tmp/enable_i2c_temp.sh || log "Warning: I2C setup encountered issues, but continuing"
 rm /tmp/enable_i2c_temp.sh
 
-# Enhanced I2C bus detection and configuration
-log "=== Enhanced I2C Bus Detection ==="
-log "Checking for available I2C buses..."
+# I2C bus detection and configuration (for legacy I2C mode)
+log "=== I2C Bus Detection (Legacy Mode) ==="
+log "Checking for available I2C buses (only needed for legacy I2C flow sensor)..."
 
 # Function to detect available I2C buses
 detect_i2c_buses() {
@@ -930,7 +930,18 @@ chmod +x ~/rodent-refreshment-regulator/toggle_service.sh
 
 echo ""
 echo "=== Installation complete! ==="
-echo "To run the application, you can:"
+echo ""
+echo "=== Flow Sensor Configuration Options ==="
+echo "1. UART Mode (Teensy Bridge) - RECOMMENDED for production"
+echo "   • Eliminates I²C conflicts with relay HAT"
+echo "   • More reliable sensor communication"
+echo "   • Setup: cd Project && ./setup_teensy_flow.sh"
+echo ""
+echo "2. I²C Mode (Direct Pi Connection) - Legacy/development only"
+echo "   • May have bus conflicts with relay HAT"
+echo "   • Already configured by this installer"
+echo ""
+echo "=== To run the application ==="
 echo "1. Double-click the desktop shortcut"
 echo "2. Run the startup script: ~/rodent-refreshment-regulator/start_rrr.sh"
 echo "3. Manually navigate to the Project directory and run: python3 main.py"

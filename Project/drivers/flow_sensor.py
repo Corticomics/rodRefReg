@@ -15,15 +15,16 @@ class FlowSample:
 
 
 class SLF3S0600FDriver:
-    """Async wrapper for Sensirion SLF3S-0600F using sensirion-i2c-slf3x.
+    """I2C driver for Sensirion SLF3S-0600F flow sensor.
 
-    The official driver exposes synchronous reads; we adapt to an async iterator
-    with a configurable sampling rate suitable for integration. All calibration
-    is applied as a zero offset and optional span factor.
+    NOTE: This driver is legacy. Prefer UARTFlowSensor (Teensy bridge) for production.
+    I2C mode may have bus conflicts with relay HATs.
+
+    Uses raw SMBus implementation with I2C coordination for conflict prevention.
+    All calibration applied as zero offset and span factor.
 
     References
     ---------
-    - Sensirion "sensirion-i2c-slf3x" Python package documentation.
     - SLF3S-0600F Datasheet: measurement units (ml/min), I2C addressing, CRC-8.
     """
 
