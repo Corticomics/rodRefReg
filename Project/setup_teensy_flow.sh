@@ -25,21 +25,36 @@ TEENSY_PORT=""
 for port in /dev/ttyACM* /dev/ttyUSB*; do
     if [ -e "$port" ]; then
         echo "Found potential USB device: $port"
-        # Try to communicate with device
-        if timeout 2 bash -c "echo '{\"cmd\":\"ping\"}' > $port && read -r line < $port" 2>/dev/null; then
-            if echo "$line" | grep -q "pong"; then
-                TEENSY_PORT="$port"
-                echo "✓ Teensy detected at $port"
-                break
-            fi
+        # Try to communicate with device using a more robust test
+        if timeout 3 python3 -c "
+import serial
+import json
+import time
+try:
+    with serial.Serial('$port', 115200, timeout=1.0) as ser:
+        time.sleep(0.5)
+        ser.write(b'{\"cmd\":\"ping\"}\n')
+        ser.flush()
+        response = ser.readline().decode('utf-8').strip()
+        if response:
+            data = json.loads(response)
+            if data.get('type') == 'pong':
+                exit(0)
+except:
+    pass
+exit(1)
+" 2>/dev/null; then
+            TEENSY_PORT="$port"
+            echo "✓ Teensy detected at $port"
+            break
         fi
     fi
 done
 
 if [ -z "$TEENSY_PORT" ]; then
-    echo "⚠️  Teensy not detected. Using default /dev/ttyACM0"
+    echo "⚠️  Teensy not detected. Using default /dev/ttyACM1"
     echo "   Make sure Teensy is connected and programmed with flow reader firmware"
-    TEENSY_PORT="/dev/ttyACM0"
+    TEENSY_PORT="/dev/ttyACM1"
 fi
 
 # Update RRR settings for UART flow sensor

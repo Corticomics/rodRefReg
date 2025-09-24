@@ -67,7 +67,7 @@ class SystemController(QObject):
             'global_master_relay_id': 16,
             'i2c_bus': 3,  # Default to dedicated flow sensor bus (GPIO 12/13)
             'flow_sensor_type': 'uart',  # 'i2c' or 'uart' (Teensy)
-            'uart_port': '/dev/ttyACM0',  # Teensy USB serial port
+            'uart_port': '/dev/ttyACM1',  # Teensy USB serial port (auto-detected on startup)
             'flow_sampling_hz': 50.0,
             'predictive_close_ms': 10.0,
             'residual_check_ms': 200.0,
@@ -181,6 +181,70 @@ class SystemController(QObject):
         self.system_status.emit(f"Flow sensor detection failed, using configured bus {current}")
         return current
 
+    def detect_teensy_port(self):
+        """Auto-detect Teensy device port for UART flow sensor.
+        
+        Scans common USB serial device paths and tests for Teensy communication.
+        Returns the first working port or falls back to current setting.
+        """
+        import glob
+        import os
+        
+        # Get current port as fallback
+        current_port = self.settings.get('uart_port', '/dev/ttyACM0')
+        
+        try:
+            # Common Teensy device patterns
+            potential_ports = []
+            
+            # Check common serial device patterns
+            patterns = ['/dev/ttyACM*', '/dev/ttyUSB*']
+            for pattern in patterns:
+                potential_ports.extend(glob.glob(pattern))
+            
+            # Also check by-id directory for Teensy-specific devices
+            try:
+                by_id_devices = glob.glob('/dev/serial/by-id/*')
+                for device in by_id_devices:
+                    if 'teensy' in device.lower() or 'arduino' in device.lower():
+                        actual_device = os.path.realpath(device)
+                        potential_ports.append(actual_device)
+            except:
+                pass
+            
+            # Filter to existing devices
+            existing_ports = [p for p in potential_ports if os.path.exists(p)]
+            
+            # Test each port for Teensy response
+            for port in existing_ports:
+                try:
+                    import serial
+                    import json
+                    import time
+                    
+                    # Quick communication test
+                    with serial.Serial(port, 115200, timeout=1.0) as ser:
+                        time.sleep(0.5)  # Brief init time
+                        ser.write(b'{"cmd":"ping"}\n')
+                        ser.flush()
+                        
+                        response = ser.readline().decode('utf-8').strip()
+                        if response:
+                            data = json.loads(response)
+                            if data.get("type") == "pong":
+                                self.system_status.emit(f"Teensy detected on {port}")
+                                return port
+                except Exception:
+                    continue
+            
+            # No working Teensy found, use current setting
+            self.system_status.emit(f"Teensy auto-detection failed, using configured port {current_port}")
+            return current_port
+            
+        except Exception as e:
+            self.system_status.emit(f"Teensy detection error: {e}, using configured port {current_port}")
+            return current_port
+
     def ensure_solenoid_defaults(self):
         """Seed solenoid settings 
 
@@ -198,6 +262,13 @@ class SystemController(QObject):
             if isinstance(detected_bus, int) and detected_bus != s.get('i2c_bus', 1):
                 self.system_status.emit(f"Updated I2C bus from {s.get('i2c_bus', 1)} to {detected_bus} for optimal flow sensor communication")
                 s['i2c_bus'] = detected_bus
+
+            # Auto-detect Teensy port for UART flow sensor
+            if s.get('flow_sensor_type') == 'uart':
+                detected_port = self.detect_teensy_port()
+                if detected_port != s.get('uart_port', '/dev/ttyACM0'):
+                    self.system_status.emit(f"Updated UART port from {s.get('uart_port', '/dev/ttyACM0')} to {detected_port} for Teensy flow sensor")
+                    s['uart_port'] = detected_port
 
             # Number of hats already configured via settings; if missing fallback to 1
             num_hats = int(s.get('num_hats', 1))
