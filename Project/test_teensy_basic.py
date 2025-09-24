@@ -113,15 +113,61 @@ def test_teensy_basic(port='/dev/ttyACM0', baudrate=115200):
         print(f"✗ Unexpected error: {e}")
         return False
 
-if __name__ == "__main__":
-    port = sys.argv[1] if len(sys.argv) > 1 else '/dev/ttyACM0'
+def find_teensy_port():
+    """Auto-detect Teensy device port."""
+    import glob
+    import os
     
+    # Common Teensy device patterns
+    potential_ports = []
+    
+    # Check common serial device patterns
+    patterns = [
+        '/dev/ttyACM*',
+        '/dev/ttyUSB*', 
+        '/dev/cu.usbmodem*',  # macOS
+        '/dev/ttyS*'
+    ]
+    
+    for pattern in patterns:
+        potential_ports.extend(glob.glob(pattern))
+    
+    # Also check by-id directory for Teensy
+    try:
+        by_id_devices = glob.glob('/dev/serial/by-id/*')
+        for device in by_id_devices:
+            if 'teensy' in device.lower() or 'arduino' in device.lower():
+                # Resolve symlink to actual device
+                actual_device = os.path.realpath(device)
+                potential_ports.append(actual_device)
+    except:
+        pass
+    
+    print(f"Found potential serial ports: {potential_ports}")
+    
+    # Filter existing devices
+    existing_ports = [p for p in potential_ports if os.path.exists(p)]
+    print(f"Existing ports: {existing_ports}")
+    
+    if existing_ports:
+        return existing_ports[0]  # Return first available
+    else:
+        return '/dev/ttyACM0'  # Fallback
+
+if __name__ == "__main__":
     print("Teensy 4.1 Communication Test")
     print("Make sure:")
     print("1. Teensy is connected via USB")
     print("2. Teensy has flow sensor firmware loaded")
     print("3. Flow sensor is connected to Teensy I2C pins")
     print()
+    
+    # Auto-detect or use provided port
+    if len(sys.argv) > 1:
+        port = sys.argv[1]
+    else:
+        port = find_teensy_port()
+        print(f"Auto-detected port: {port}")
     
     success = test_teensy_basic(port)
     
