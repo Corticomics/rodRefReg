@@ -37,6 +37,7 @@ class SolenoidFlowStrategy:
         self._cal = calibration_store
         self._settings = settings
         self._prime_ms = int(prime_ms)
+        self._logger = logging.getLogger(self.__class__.__name__)
 
     async def deliver(
         self,
