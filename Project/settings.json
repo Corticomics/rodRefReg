@@ -1,46 +1,34 @@
 {
-    "interval": 3600,
-    "stagger": 1,
-    "window_start": 8,
-    "window_end": 20,
-    "selected_relays": [],
-    "num_triggers": {},
+    "num_hats": 1,
     "slack_token": "",
     "channel_id": "",
-    "num_hats": 1,
-    "offline_duration": 60,
-    "relay_pairs": [
-        [
-            1,
-            2
-        ],
-        [
-            3,
-            4
-        ],
-        [
-            5,
-            6
-        ],
-        [
-            7,
-            8
-        ],
-        [
-            9,
-            10
-        ],
-        [
-            11,
-            12
-        ],
-        [
-            13,
-            14
-        ],
-        [
-            15,
-            16
-        ]
-    ]
+    "hardware_mode": "solenoid",
+    "global_master_relay_id": 16,
+    "i2c_bus": 3,
+    "flow_sensor_type": "uart",
+    "uart_port": "/dev/ttyACM0",
+    "flow_sampling_hz": 50.0,
+    "predictive_close_ms": 10.0,
+    "residual_check_ms": 200.0,
+    "residual_flow_threshold_ml_min": 1.0,
+    "max_consecutive_sensor_errors": 10,
+    "cage_relays": {
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "10": 10,
+        "11": 11,
+        "12": 12,
+        "13": 13,
+        "14": 14,
+        "15": 15
+    },
+    "debug_mode": false,
+    "log_level": 2
 }
