@@ -81,7 +81,13 @@ class SolenoidFlowStrategy:
         try:
             self._valves.open_master()
             self._valves.open_cage(cage_id)
-        except Exception:
+        except Exception as e:
+            self._logger.error(f"Failed to open solenoids for cage {cage_id}: {e}")
+            # Ensure master is closed on any opening failure
+            try:
+                self._valves.close_master()
+            except Exception:
+                pass
             return False
 
         start = asyncio.get_event_loop().time()
@@ -106,8 +112,13 @@ class SolenoidFlowStrategy:
                 if meas is None:
                     sensor_errors += 1
                     if sensor_errors >= max_sensor_errors:
-                        self._valves.close_cage(cage_id)
-                        self._valves.close_master()
+                        self._logger.error(f"Max consecutive sensor errors ({max_sensor_errors}) reached for cage {cage_id}. Aborting delivery.")
+                        # Ensure all valves are closed on sensor failure
+                        try:
+                            self._valves.close_cage(cage_id)
+                            self._valves.close_master()
+                        except Exception as e:
+                            self._logger.error(f"Failed to close valves during sensor error recovery: {e}")
                         return False
                     await asyncio.sleep(sample_period_s)
                     continue

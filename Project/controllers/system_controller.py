@@ -65,7 +65,7 @@ class SystemController(QObject):
             'stagger_interval': 0.5,
             'hardware_mode': 'solenoid',  # default to solenoid; UI can switch to pump
             'global_master_relay_id': 16,
-            'i2c_bus': 1,
+            'i2c_bus': 3,  # Default to dedicated flow sensor bus (GPIO 12/13)
             'flow_sampling_hz': 50.0,
             'predictive_close_ms': 10.0,
             'residual_check_ms': 200.0,
@@ -152,8 +152,9 @@ class SystemController(QObject):
             import os
             from smbus2 import SMBus, i2c_msg
             
-            # Priority order: isolated buses first, shared bus last
-            bus_priority = [13, 14, 1, 0] + list(range(2, 21))
+            # Priority order: dedicated sensor buses first, shared bus last
+            # Bus 3 is dedicated for flow sensor (GPIO 12/13), avoiding relay HAT conflicts
+            bus_priority = [3, 13, 14, 1, 0] + list(range(2, 21))
             
             for bus in bus_priority:
                 if not os.path.exists(f"/dev/i2c-{bus}"):
