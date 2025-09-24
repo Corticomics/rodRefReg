@@ -20,13 +20,19 @@ from __future__ import annotations
 
 import json
 import logging
-import serial
 import threading
 import time
 from dataclasses import dataclass
 from typing import Optional, Tuple, AsyncIterator
 import asyncio
 from queue import Queue, Empty
+
+try:
+    import serial
+    SERIAL_AVAILABLE = True
+except ImportError:
+    SERIAL_AVAILABLE = False
+    serial = None
 
 
 @dataclass
@@ -52,6 +58,9 @@ class UARTFlowSensor:
         baud_rate: int = 115200,
         timeout: float = 1.0
     ) -> None:
+        if not SERIAL_AVAILABLE:
+            raise ImportError("pyserial not available. Install with: pip install pyserial")
+        
         self.port = port
         self.sampling_hz = sampling_hz
         self.zero_offset = zero_offset_ml_min

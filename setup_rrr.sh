@@ -314,7 +314,7 @@ if [ -n "$REQUIREMENTS_PATH" ]; then
 else
     log "Installing essential packages individually..."
     # Install everything except problem packages
-    pip install gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 lgpio==0.2.2.0 smbus2==0.4.1 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7 || log "Warning: individual package installation failed, but continuing"
+    pip install gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 lgpio==0.2.2.0 smbus2==0.4.1 pyserial==3.5 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7 || log "Warning: individual package installation failed, but continuing"
 fi
 
 # Verify slack_sdk installation
@@ -324,6 +324,15 @@ if pip show slack_sdk > /dev/null; then
 else
     log "Installing slack_sdk separately..."
     pip install slack_sdk==3.21.3 --break-system-packages || error_exit "Failed to install slack_sdk"
+fi
+
+# Verify pyserial installation (needed for Teensy UART flow sensor)
+log "=== Verifying pyserial installation ==="
+if pip show pyserial > /dev/null; then
+    log "pyserial is installed correctly."
+else
+    log "Installing pyserial separately..."
+    pip install pyserial==3.5 --break-system-packages || error_exit "Failed to install pyserial"
 fi
 
 # Verify PyQt5 is accessible from the virtual environment

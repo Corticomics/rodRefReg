@@ -1,4 +1,4 @@
-# gpio/relay_handler.py
+# gpio_handler.py
 
 import logging
 import time
