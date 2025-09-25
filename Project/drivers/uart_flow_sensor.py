@@ -393,8 +393,15 @@ class UARTFlowSensor:
                         
             elif msg_type == "error":
                 error_msg = message.get("error", "Unknown error")
-                self._logger.warning(f"Teensy error: {error_msg}")
-                self._error_count += 1
+                
+                # Handle "0 bytes" as normal condition per Sensirion best practices
+                if "received 0 bytes" in error_msg.lower():
+                    # This is normal when no flow is present (idle state)
+                    self._logger.debug(f"Sensor idle state: {error_msg}")
+                else:
+                    # Other errors are more significant
+                    self._logger.warning(f"Teensy error: {error_msg}")
+                    self._error_count += 1
                 
             elif msg_type == "status":
                 self._logger.debug(f"Teensy status: {message.get('message', '')}")

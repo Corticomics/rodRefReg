@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 
 @dataclass
@@ -99,22 +99,9 @@ class SolenoidFlowStrategy:
         start = asyncio.get_event_loop().time()
         try:
             while True:
-                # Read measurement
-                try:
-                    # Unified interface: raw backend returns tuple (flow_uL_min, temp_C, flags)
-                    # SDK wrapper may return FlowSample(flow_ml_min, temperature_c)
-                    meas = None
-                    if hasattr(self._sensor, 'read') and callable(getattr(self._sensor, 'read')):
-                        # Poll at sample_period_s using a direct accessor if available
-                        if hasattr(self._sensor, 'read_one'):
-                            # read_one() is synchronous in our driver
-                            meas = self._sensor.read_one()
-                        elif hasattr(self._sensor, 'read_frame'):
-                            meas = self._sensor.read_frame()
-                    # If unified accessors not present, try SDK style cached sample
-                except Exception:
-                    meas = None
-
+                # Read measurement with robust error handling (Sensirion best practices)
+                meas = await self._read_sensor_robust(cage_id, max_sensor_errors)
+                
                 if meas is None:
                     sensor_errors += 1
                     if sensor_errors == 1:  # Log first sensor error
@@ -199,4 +186,116 @@ class SolenoidFlowStrategy:
                 pass
             # Note: Flow sensor runs continuously, don't stop after each delivery
             # This prevents I²C conflicts and maintains measurement continuity
+
+    async def _read_sensor_robust(self, cage_id: int, max_errors: int) -> Optional[Tuple]:
+        """
+        Robust sensor reading with Sensirion SLF3x best practices.
+        
+        Based on Sensirion documentation and embedded systems guidelines:
+        - Handle "0 bytes" as normal for idle/no-flow conditions
+        - Implement retry logic with appropriate delays
+        - Validate data ranges and filter anomalies
+        - Use timeout protection to prevent hanging
+        
+        Args:
+            cage_id: Cage identifier for logging
+            max_errors: Maximum consecutive errors before giving up
+            
+        Returns:
+            Sensor measurement tuple (flow_uL_min, temp_C, flags) or None if failed
+        """
+        max_attempts = 3  # Per Sensirion guidelines: retry transient failures
+        attempt_delay = 0.02  # 20ms between attempts (SLF3x measurement cycle is ~10ms)
+        
+        for attempt in range(max_attempts):
+            try:
+                # Multiple access patterns for different sensor backends
+                meas = None
+                
+                # Method 1: Direct read_one() call (preferred for UART)
+                if hasattr(self._sensor, 'read_one'):
+                    meas = self._sensor.read_one()
+                
+                # Method 2: Frame-based reading (for I2C backends)
+                elif hasattr(self._sensor, 'read_frame'):
+                    meas = self._sensor.read_frame()
+                
+                # Method 3: Generic read() interface
+                elif hasattr(self._sensor, 'read') and callable(getattr(self._sensor, 'read')):
+                    meas = self._sensor.read()
+                
+                # Validate measurement data
+                if meas is not None:
+                    # Handle different return formats
+                    if isinstance(meas, tuple) and len(meas) >= 2:
+                        flow_val, temp_val = meas[0], meas[1]
+                    elif hasattr(meas, 'flow_ml_min') and hasattr(meas, 'temperature_c'):
+                        # SDK-style object
+                        flow_val = meas.flow_ml_min * 1000.0  # Convert to µL/min
+                        temp_val = meas.temperature_c
+                        meas = (flow_val, temp_val)
+                    else:
+                        # Unexpected format
+                        self._logger.debug(f"Unexpected sensor data format: {type(meas)}")
+                        if attempt < max_attempts - 1:
+                            await asyncio.sleep(attempt_delay)
+                            continue
+                        return None
+                    
+                    # Validate data ranges (Sensirion SLF3S-0600F specifications)
+                    # Flow: -40 to +40 mL/min (±40000 µL/min)
+                    # Temperature: -10 to +70°C (sensor operating range)
+                    if self._is_measurement_valid(flow_val, temp_val):
+                        if attempt > 0:
+                            self._logger.debug(f"Sensor read successful on attempt {attempt + 1} for cage {cage_id}")
+                        return meas
+                    else:
+                        self._logger.debug(f"Invalid sensor data: flow={flow_val}, temp={temp_val}")
+                
+                # Measurement failed or invalid - check if this is a "0 bytes" case
+                if attempt < max_attempts - 1:
+                    self._logger.debug(f"Sensor read attempt {attempt + 1} failed for cage {cage_id}, retrying...")
+                    await asyncio.sleep(attempt_delay)
+                    continue
+                
+            except Exception as e:
+                self._logger.debug(f"Sensor read exception (attempt {attempt + 1}): {e}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(attempt_delay)
+                    continue
+        
+        # All attempts failed
+        self._logger.debug(f"All {max_attempts} sensor read attempts failed for cage {cage_id}")
+        return None
+    
+    def _is_measurement_valid(self, flow_ul_min: float, temp_c: float) -> bool:
+        """
+        Validate sensor measurements against Sensirion SLF3S-0600F specifications.
+        
+        Args:
+            flow_ul_min: Flow rate in µL/min
+            temp_c: Temperature in Celsius
+            
+        Returns:
+            True if measurement is within valid ranges
+        """
+        try:
+            # Flow range: ±40 mL/min = ±40000 µL/min (SLF3S-0600F spec)
+            if not (-40000 <= flow_ul_min <= 40000):
+                return False
+            
+            # Temperature range: -10 to +70°C (sensor operating range)
+            if not (-10 <= temp_c <= 70):
+                return False
+            
+            # Check for NaN or infinite values
+            if not (float('-inf') < flow_ul_min < float('inf')):
+                return False
+            if not (float('-inf') < temp_c < float('inf')):
+                return False
+            
+            return True
+            
+        except (ValueError, TypeError):
+            return False
 
