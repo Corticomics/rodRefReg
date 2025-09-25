@@ -391,6 +391,13 @@ class UARTFlowSensor:
                 
         except Exception as e:
             self._logger.error(f"Reconnection attempt failed: {e}")
+            # Try auto-detection immediately if open failed
+            try:
+                self._logger.info("Attempting port auto-detection after open failure…")
+                if self._try_auto_detection():
+                    return True
+            except Exception:
+                pass
             return False
     
     def _process_message(self, line: str) -> None:

@@ -335,6 +335,35 @@ else
     pip install pyserial==3.5 --break-system-packages || error_exit "Failed to install pyserial"
 fi
 
+# Create persistent Teensy serial symlink and ensure permissions
+log "=== Creating persistent Teensy serial symlink ==="
+UDEV_RULE_PATH="/etc/udev/rules.d/99-teensy-flow.rules"
+sudo bash -c "cat > ${UDEV_RULE_PATH}" << 'EOF'
+# Teensy 4.x (Teensyduino Serial) stable symlink for RRR
+SUBSYSTEM=="tty", ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="0483", SYMLINK+="teensy_flow", MODE="0660", GROUP="dialout"
+EOF
+if [ $? -eq 0 ]; then
+    log "Udev rule installed at ${UDEV_RULE_PATH}"
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+else
+    log "Warning: failed to write udev rule at ${UDEV_RULE_PATH}"
+fi
+
+# Ensure user has serial access
+if groups $USER | grep -q dialout; then
+    log "User already in dialout group."
+else
+    log "Adding user ${USER} to dialout group (serial access)"
+    sudo usermod -a -G dialout $USER || log "Warning: failed to add user to dialout group"
+fi
+
+if [ -e "/dev/teensy_flow" ]; then
+    log "Detected /dev/teensy_flow symlink created successfully."
+else
+    log "Symlink /dev/teensy_flow not present yet. It will appear after replug or reboot."
+fi
+
 # Verify PyQt5 is accessible from the virtual environment
 log "=== Verifying PyQt5 is accessible ==="
 python3 -c "import PyQt5.QtCore; print('PyQt5 version:', PyQt5.QtCore.PYQT_VERSION_STR)" || {

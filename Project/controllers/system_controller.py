@@ -190,12 +190,16 @@ class SystemController(QObject):
         import glob
         import os
         
-        try:
-            # Quick scan for existing ports
-            potential_ports = []
-            patterns = ['/dev/ttyACM*', '/dev/ttyUSB*']
-            for pattern in patterns:
-                potential_ports.extend(glob.glob(pattern))
+            try:
+                # Prefer persistent udev symlink if present
+                if os.path.exists('/dev/teensy_flow'):
+                    return '/dev/teensy_flow'
+
+                # Quick scan for existing ports
+                potential_ports = []
+                patterns = ['/dev/ttyACM*', '/dev/ttyUSB*']
+                for pattern in patterns:
+                    potential_ports.extend(glob.glob(pattern))
             
             # Filter to existing devices and prioritize /dev/ttyACM*
             existing_ports = [p for p in potential_ports if os.path.exists(p)]
@@ -225,6 +229,11 @@ class SystemController(QObject):
         current_port = self.settings.get('uart_port', '/dev/ttyACM0')
         
         try:
+            # Prefer persistent udev symlink if present
+            if os.path.exists('/dev/teensy_flow'):
+                self.system_status.emit("Teensy symlink detected at /dev/teensy_flow")
+                return '/dev/teensy_flow'
+
             # Common Teensy device patterns
             potential_ports = []
             
