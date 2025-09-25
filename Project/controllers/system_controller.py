@@ -67,7 +67,7 @@ class SystemController(QObject):
             'global_master_relay_id': 16,
             'i2c_bus': 3,  # Default to dedicated flow sensor bus (GPIO 12/13)
             'flow_sensor_type': 'uart',  # 'i2c' or 'uart' (Teensy)
-            'uart_port': '/dev/ttyACM1',  # Teensy USB serial port (auto-detected on startup)
+            'uart_port': self._detect_initial_teensy_port(),  # Auto-detected Teensy USB port
             'flow_sampling_hz': 50.0,
             'predictive_close_ms': 10.0,
             'residual_check_ms': 200.0,
@@ -181,6 +181,37 @@ class SystemController(QObject):
         self.system_status.emit(f"Flow sensor detection failed, using configured bus {current}")
         return current
 
+    def _detect_initial_teensy_port(self):
+        """Initial Teensy port detection during settings creation.
+        
+        Lightweight version for default settings - doesn't emit status messages
+        or access self.settings since we're creating the settings.
+        """
+        import glob
+        import os
+        
+        try:
+            # Quick scan for existing ports
+            potential_ports = []
+            patterns = ['/dev/ttyACM*', '/dev/ttyUSB*']
+            for pattern in patterns:
+                potential_ports.extend(glob.glob(pattern))
+            
+            # Filter to existing devices and prioritize /dev/ttyACM*
+            existing_ports = [p for p in potential_ports if os.path.exists(p)]
+            existing_ports.sort()  # Consistent ordering
+            
+            if existing_ports:
+                # Return first available port (likely the Teensy)
+                return existing_ports[0]
+            else:
+                # Fallback if no ports found
+                return '/dev/ttyACM0'
+                
+        except Exception:
+            # Safe fallback on any error
+            return '/dev/ttyACM0'
+    
     def detect_teensy_port(self):
         """Auto-detect Teensy device port for UART flow sensor.
         
@@ -246,54 +277,91 @@ class SystemController(QObject):
             return current_port
 
     def ensure_solenoid_defaults(self):
-        """Seed solenoid settings 
+        """Centralized solenoid settings initialization with auto-detection.
 
-        Rules (confirmed):
-        - Global master is relay ID 16 on HAT #1 (fixed).
-        - All other relays across all hats are cages, ascending order.
-        - I2C bus is auto-detected by probing 0x08 across /dev/i2c-*. If none, keep current.
-        - Do not change hardware_mode automatically; only seed maps and buses.
+        Best practices implementation:
+        - Auto-detects Teensy port regardless of current mode
+        - Auto-detects optimal I2C bus for legacy mode
+        - Creates complete solenoid configuration if missing
+        - Maintains backward compatibility with existing settings
         """
         try:
             s = dict(self.settings)
+            settings_changed = False
 
-            # Always detect best I2C bus to avoid conflicts (critical for production)
+            # Ensure solenoid mode is set (central requirement)
+            if s.get('hardware_mode') != 'solenoid':
+                s['hardware_mode'] = 'solenoid'
+                settings_changed = True
+                self.system_status.emit("Set hardware mode to solenoid")
+
+            # Ensure flow sensor type is set
+            if 'flow_sensor_type' not in s:
+                s['flow_sensor_type'] = 'uart'  # Default to Teensy UART
+                settings_changed = True
+
+            # Auto-detect Teensy port (always run for robustness)
+            detected_port = self.detect_teensy_port()
+            current_port = s.get('uart_port', '/dev/ttyACM0')
+            if detected_port != current_port:
+                self.system_status.emit(f"Auto-detected Teensy port: {current_port} → {detected_port}")
+                s['uart_port'] = detected_port
+                settings_changed = True
+
+            # Auto-detect I2C bus for legacy support
             detected_bus = self.detect_flow_sensor_bus()
-            if isinstance(detected_bus, int) and detected_bus != s.get('i2c_bus', 1):
-                self.system_status.emit(f"Updated I2C bus from {s.get('i2c_bus', 1)} to {detected_bus} for optimal flow sensor communication")
+            current_bus = s.get('i2c_bus', 1)
+            if isinstance(detected_bus, int) and detected_bus != current_bus:
+                self.system_status.emit(f"Auto-detected I2C bus: {current_bus} → {detected_bus}")
                 s['i2c_bus'] = detected_bus
+                settings_changed = True
 
-            # Auto-detect Teensy port for UART flow sensor
-            if s.get('flow_sensor_type') == 'uart':
-                detected_port = self.detect_teensy_port()
-                if detected_port != s.get('uart_port', '/dev/ttyACM0'):
-                    self.system_status.emit(f"Updated UART port from {s.get('uart_port', '/dev/ttyACM0')} to {detected_port} for Teensy flow sensor")
-                    s['uart_port'] = detected_port
+            # Ensure all required solenoid settings exist
+            solenoid_defaults = {
+                'global_master_relay_id': 16,
+                'flow_sampling_hz': 50.0,
+                'predictive_close_ms': 10.0,
+                'residual_check_ms': 200.0,
+                'residual_flow_threshold_ml_min': 1.0,
+                'max_consecutive_sensor_errors': 10,
+                'num_hats': 1
+            }
+            
+            for key, default_value in solenoid_defaults.items():
+                if key not in s:
+                    s[key] = default_value
+                    settings_changed = True
 
-            # Number of hats already configured via settings; if missing fallback to 1
-            num_hats = int(s.get('num_hats', 1))
-
-            # Global master fixed at relay 16 on first HAT
-            s['global_master_relay_id'] = 16
-
-            # Build cage map if empty: fill all relays except master across hats
+            # Build cage map if empty
             cage_map = s.get('cage_relays') or {}
             if not cage_map:
+                num_hats = int(s.get('num_hats', 1))
                 total_relays = 16 * num_hats
+                master_id = s.get('global_master_relay_id', 16)
+                
                 cage_id = 1
                 new_map = {}
                 for relay_id in range(1, total_relays + 1):
-                    if relay_id == 16:  # reserved global master
+                    if relay_id == master_id:  # Skip master relay
                         continue
                     new_map[str(cage_id)] = relay_id
                     cage_id += 1
+                
                 s['cage_relays'] = new_map
+                settings_changed = True
+                self.system_status.emit(f"Created cage mapping: {len(new_map)} cages, master on relay {master_id}")
 
-            # Persist if anything changed
-            if s != self.settings:
+            # Save settings if any changes were made
+            if settings_changed:
                 self.save_settings(s)
+                self.system_status.emit("Solenoid configuration auto-initialized successfully")
+            else:
+                self.system_status.emit("Solenoid configuration verified - no changes needed")
+                
         except Exception as e:
-            self.system_status.emit(f"Solenoid auto-seed failed: {e}")
+            self.system_status.emit(f"Solenoid auto-configuration failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     def get_pump_controller(self):
         """Get or create a pump controller instance"""

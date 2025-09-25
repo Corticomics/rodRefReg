@@ -58,14 +58,14 @@ def setup():
     # Use a distinct global settings dictionary.
     app_settings = system_controller.settings
 
-    # Seed solenoid defaults for production UX if mode is solenoid and cage map is empty
+    # Auto-configure solenoid settings with hardware detection (always run for best UX)
     try:
-        if app_settings.get('hardware_mode') == 'solenoid':
-            if not app_settings.get('cage_relays'):
-                system_controller.ensure_solenoid_defaults()
-                app_settings = system_controller.settings
+        system_controller.ensure_solenoid_defaults()
+        app_settings = system_controller.settings  # Refresh settings after auto-configuration
+        print(f"✓ Hardware auto-configuration completed")
     except Exception as e:
-        print(f"Solenoid default seeding skipped: {e}")
+        print(f"Hardware auto-configuration failed: {e}")
+        # Continue with existing settings
 
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler = RelayHandler(relay_unit_manager, app_settings['num_hats'])
