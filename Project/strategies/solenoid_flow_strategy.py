@@ -83,6 +83,20 @@ class SolenoidFlowStrategy:
         try:
             self._logger.info(f"Starting delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
             self._logger.debug(f"Opening master solenoid...")
+            # Suspend UART pings during valve switching to reduce contention
+            try:
+                if hasattr(self._sensor, '_pings_suspended'):
+                    self._sensor._pings_suspended = True
+            except Exception:
+                pass
+            # Gate delivery on active stream: require N frames before opening
+            try:
+                if hasattr(self._sensor, 'ensure_streaming'):
+                    if not self._sensor.ensure_streaming(min_frames=3, timeout_s=2.0):
+                        self._logger.error("Flow stream not available; aborting delivery")
+                        return False
+            except Exception as _:
+                pass
             self._valves.open_master()
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valves.open_cage(cage_id)
@@ -186,6 +200,12 @@ class SolenoidFlowStrategy:
                 pass
             # Note: Flow sensor runs continuously, don't stop after each delivery
             # This prevents I²C conflicts and maintains measurement continuity
+            # Resume UART pings after valve operations
+            try:
+                if hasattr(self._sensor, '_pings_suspended'):
+                    self._sensor._pings_suspended = False
+            except Exception:
+                pass
 
     async def _read_sensor_robust(self, cage_id: int, max_errors: int) -> Optional[Tuple]:
         """

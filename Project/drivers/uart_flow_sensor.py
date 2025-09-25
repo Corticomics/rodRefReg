@@ -86,7 +86,10 @@ class UARTFlowSensor:
         # Connection management
         self._connected = False
         self._last_ping = 0
-        self._ping_interval = 5.0  # seconds
+        self._ping_interval = 10.0  # seconds (reduce chatter during delivery)
+        self._pings_suspended = False
+        self._recovering = False
+        self._i2c_error_count = 0
         
     def start(self) -> None:
         """Start sensor and begin continuous reading."""
@@ -311,7 +314,7 @@ class UARTFlowSensor:
                     continue
                 
                 # Check for periodic ping
-                if time.time() - self._last_ping > self._ping_interval:
+                if (not self._pings_suspended) and (time.time() - self._last_ping > self._ping_interval):
                     self._send_command({"cmd": "status"})
                     self._last_ping = time.time()
                 
@@ -359,8 +362,19 @@ class UARTFlowSensor:
             # Test connection with ping
             test_successful = self._test_connection_robust()
             if test_successful:
-                # Restart sensor
-                self._start_sensor()
+                # Attempt a clean stop->start sequence to clear Teensy I2C state
+                try:
+                    self._send_command({"cmd": "stop"})
+                    time.sleep(0.1)
+                except Exception:
+                    pass
+                # Retry start up to 3 times with small backoff
+                for attempt in range(3):
+                    try:
+                        self._start_sensor()
+                        break
+                    except Exception:
+                        time.sleep(0.2 * (attempt + 1))
                 return True
             else:
                 # Close and attempt auto-detection on alternate port (e.g., ACM0 -> ACM1)
@@ -410,14 +424,21 @@ class UARTFlowSensor:
             elif msg_type == "error":
                 error_msg = message.get("error", "Unknown error")
                 
-                # Handle "0 bytes" as normal condition per Sensirion best practices
-                if "received 0 bytes" in error_msg.lower():
+                # Handle partial/empty frames as benign idle/transient conditions
+                if "received" in error_msg.lower() and "bytes" in error_msg.lower():
                     # This is normal when no flow is present (idle state)
-                    self._logger.debug(f"Sensor idle state: {error_msg}")
+                    self._logger.debug(f"Sensor transient frame: {error_msg}")
                 else:
                     # Other errors are more significant
                     self._logger.warning(f"Teensy error: {error_msg}")
                     self._error_count += 1
+                    # Attempt recovery on I2C NACK or start failure
+                    eml = error_msg.lower()
+                    if ("i2c error" in eml or "nack" in eml or "failed to start sensor" in eml):
+                        try:
+                            self._recover_i2c_error()
+                        except Exception as _:
+                            pass
                 
             elif msg_type == "status":
                 self._logger.debug(f"Teensy status: {message.get('message', '')}")
@@ -429,6 +450,54 @@ class UARTFlowSensor:
             self._logger.error(f"Message processing error: {e}")
             self._error_count += 1
     
+    def _recover_i2c_error(self) -> None:
+        """Attempt to recover from I2C NACK/start failures per SLF3x best practices.
+        Sequence: reset (0x0006) → 25ms → start (0x3608) → wait for frames.
+        """
+        if self._recovering:
+            return
+        self._recovering = True
+        try:
+            # Try firmware-supported JSON reset; fall back to stop/start
+            try:
+                self._send_command({"cmd": "reset"})
+                time.sleep(0.03)  # 25–30ms for reset complete
+            except Exception:
+                # Fallback: stop with small delay
+                try:
+                    self._send_command({"cmd": "stop"})
+                except Exception:
+                    pass
+                time.sleep(0.2)
+            # Start and wait for frames
+            try:
+                self._start_sensor()
+            except Exception:
+                pass
+            self.wait_for_frames(min_frames=2, timeout_s=1.0)
+        finally:
+            self._recovering = False
+
+    def wait_for_frames(self, min_frames: int = 3, timeout_s: float = 2.0) -> bool:
+        """Wait for at least min_frames new measurements within timeout_s."""
+        start_time = time.time()
+        start_count = self._sample_count
+        while time.time() - start_time < timeout_s:
+            if (self._sample_count - start_count) >= min_frames:
+                return True
+            time.sleep(0.01)
+        return (self._sample_count - start_count) >= min_frames
+
+    def ensure_streaming(self, min_frames: int = 3, timeout_s: float = 2.0) -> bool:
+        """Ensure streaming is active; if not, attempt to start and wait for frames."""
+        if not self._running:
+            self.start()
+        # Attempt to nudge stream
+        try:
+            self._send_command({"cmd": "start", "rate": self.sampling_hz})
+        except Exception:
+            pass
+        return self.wait_for_frames(min_frames=min_frames, timeout_s=timeout_s)
     def read_one(self) -> Optional[Tuple[float, float, int]]:
         """
         Read one sample from sensor.
