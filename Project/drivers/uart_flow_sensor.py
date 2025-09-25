@@ -485,7 +485,7 @@ class UARTFlowSensor:
         finally:
             self._recovering = False
 
-    def wait_for_frames(self, min_frames: int = 3, timeout_s: float = 2.0) -> bool:
+    def wait_for_frames(self, min_frames: int = 3, timeout_s: float = 5.0) -> bool:
         """Wait for at least min_frames new measurements within timeout_s."""
         start_time = time.time()
         start_count = self._sample_count
