@@ -32,9 +32,9 @@ unsigned long sample_interval_us;
 uint32_t sample_count = 0;
 uint32_t error_count = 0;
 
-// Buffers
-DynamicJsonDocument command_doc(JSON_BUFFER_SIZE);
-DynamicJsonDocument response_doc(JSON_BUFFER_SIZE);
+// Buffers (ArduinoJson v7+)
+JsonDocument command_doc;
+JsonDocument response_doc;
 
 void setup() {
   // Initialize serial communication with Pi
@@ -99,6 +99,9 @@ void processCommands() {
     else if (cmd == "ping") {
       sendResponse("pong", "");
     }
+  else if (cmd == "reset") {
+      resetSensor();
+  }
     else {
       sendError("Unknown command: " + cmd);
     }
@@ -133,6 +136,34 @@ void stopSensor() {
   
   sensor_running = false;
   sendStatus("Sensor stopped");
+}
+
+// Perform SLF3x soft reset per datasheet: general call 0x00, byte 0x06, wait >= 25 ms
+void resetSensor() {
+  // Ensure streaming is stopped first (best practice before reset)
+  if (sensor_running) {
+    stopSensor();
+    delay(10);
+  }
+
+  // General call reset
+  Wire.beginTransmission(0x00);
+  Wire.write(0x06);
+  uint8_t rc = Wire.endTransmission();
+
+  // Wait for reset completion (datasheet: ~25 ms)
+  delay(30);
+
+  // Clear counters and state; do NOT auto-start here (host will issue start)
+  sensor_running = false;
+  sample_count = 0;
+  error_count = 0;
+
+  if (rc == 0) {
+    sendStatus("Sensor soft reset completed");
+  } else {
+    sendError("Sensor soft reset failed, I2C error: " + String(rc));
+  }
 }
 
 void setSamplingRate(float rate) {

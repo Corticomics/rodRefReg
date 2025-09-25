@@ -446,6 +446,12 @@ class UARTFlowSensor:
                             self._recover_i2c_error()
                         except Exception as _:
                             pass
+                    elif "unknown command" in eml and "reset" in eml:
+                        # Firmware lacks reset support – fallback to stop/start recovery
+                        try:
+                            self._recover_i2c_error()
+                        except Exception:
+                            pass
                 
             elif msg_type == "status":
                 self._logger.debug(f"Teensy status: {message.get('message', '')}")
@@ -465,6 +471,8 @@ class UARTFlowSensor:
             return
         self._recovering = True
         try:
+            # Suspend pings during recovery
+            self._pings_suspended = True
             # Try firmware-supported JSON reset; fall back to stop/start
             try:
                 self._send_command({"cmd": "reset"})
@@ -481,8 +489,9 @@ class UARTFlowSensor:
                 self._start_sensor()
             except Exception:
                 pass
-            self.wait_for_frames(min_frames=2, timeout_s=1.0)
+            self.wait_for_frames(min_frames=3, timeout_s=3.0)
         finally:
+            self._pings_suspended = False
             self._recovering = False
 
     def wait_for_frames(self, min_frames: int = 3, timeout_s: float = 5.0) -> bool:
@@ -499,12 +508,21 @@ class UARTFlowSensor:
         """Ensure streaming is active; if not, attempt to start and wait for frames."""
         if not self._running:
             self.start()
-        # Attempt to nudge stream
-        try:
-            self._send_command({"cmd": "start", "rate": self.sampling_hz})
-        except Exception:
-            pass
-        return self.wait_for_frames(min_frames=min_frames, timeout_s=timeout_s)
+        # Attempt up to 3 start cycles
+        for attempt in range(3):
+            try:
+                self._send_command({"cmd": "start", "rate": self.sampling_hz})
+            except Exception:
+                pass
+            if self.wait_for_frames(min_frames=min_frames, timeout_s=timeout_s):
+                return True
+            # Fallback: stop then start with small backoff
+            try:
+                self._send_command({"cmd": "stop"})
+            except Exception:
+                pass
+            time.sleep(0.2 * (attempt + 1))
+        return False
     def read_one(self) -> Optional[Tuple[float, float, int]]:
         """
         Read one sample from sensor.
