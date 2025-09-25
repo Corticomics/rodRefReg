@@ -194,6 +194,13 @@ class UARTFlowSensor:
         for ping_attempt in range(max_ping_attempts):
             try:
                 # Send ping command
+                # Clear any existing buffered data to avoid stale frames interfering
+                try:
+                    if self._serial:
+                        self._serial.reset_input_buffer()
+                except Exception:
+                    pass
+
                 self._send_command({"cmd": "ping"})
                 
                 # Wait for pong response with timeout
@@ -347,7 +354,7 @@ class UARTFlowSensor:
             
             # Try to reopen connection
             self._serial = serial.Serial(self.port, self.baud_rate, timeout=self.timeout)
-            time.sleep(1.0)  # Allow Teensy to initialize
+            time.sleep(2.5)  # Allow Teensy to initialize fully
             
             # Test connection with ping
             test_successful = self._test_connection_robust()
@@ -356,7 +363,16 @@ class UARTFlowSensor:
                 self._start_sensor()
                 return True
             else:
-                self._serial.close()
+                # Close and attempt auto-detection on alternate port (e.g., ACM0 -> ACM1)
+                try:
+                    self._serial.close()
+                except Exception:
+                    pass
+
+                # Attempt auto-detection fallback
+                self._logger.info("Primary reconnection failed; attempting port auto-detection...")
+                if self._try_auto_detection():
+                    return True
                 return False
                 
         except Exception as e:
