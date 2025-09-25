@@ -346,11 +346,11 @@ class UARTFlowSensor:
             time.sleep(2.0)
             
             # Try to reopen connection
-            self._serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
+            self._serial = serial.Serial(self.port, self.baud_rate, timeout=self.timeout)
             time.sleep(1.0)  # Allow Teensy to initialize
             
             # Test connection with ping
-            test_successful = self._test_connection()
+            test_successful = self._test_connection_robust()
             if test_successful:
                 # Restart sensor
                 self._start_sensor()
