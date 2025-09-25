@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, AsyncIterator
 import asyncio
 from queue import Queue, Empty
+import os
+import fcntl
 
 try:
     import serial
@@ -132,6 +134,8 @@ class UARTFlowSensor:
         
         self._connected = False
         self._logger.info("UART flow sensor stopped")
+        # Release inter-process lock
+        self._release_lock()
     
     def _connect(self) -> None:
         """Establish serial connection to Teensy with robust retry logic.
@@ -154,6 +158,9 @@ class UARTFlowSensor:
                 
                 self._logger.debug(f"Connection attempt {attempt + 1}/{max_retries} on {self.port}")
                 
+                # Acquire cross-process lock to avoid multiple access on port
+                self._acquire_lock()
+
                 # Open serial connection
                 self._serial = serial.Serial(
                     port=self.port,
@@ -251,6 +258,29 @@ class UARTFlowSensor:
             self._logger.error(f"Auto-detection failed: {e}")
         
         return False
+
+    def _acquire_lock(self) -> None:
+        """Acquire exclusive lock file to prevent multiple processes accessing the port."""
+        if hasattr(self, '_lock_fd') and self._lock_fd is not None:
+            return
+        try:
+            lock_path = '/var/lock/teensy_flow.lock'
+            os.makedirs('/var/lock', exist_ok=True)
+            fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o664)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            os.write(fd, str.encode(self.port))
+            self._lock_fd = fd
+        except Exception as e:
+            raise ConnectionError(f"Serial port in use by another process. Close other tools and retry. Details: {e}")
+
+    def _release_lock(self) -> None:
+        try:
+            if hasattr(self, '_lock_fd') and self._lock_fd is not None:
+                fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
+                os.close(self._lock_fd)
+                self._lock_fd = None
+        except Exception:
+            pass
     
     def _connect_to_port(self, port: str) -> bool:
         """Connect to a specific port (helper for auto-detection)."""
