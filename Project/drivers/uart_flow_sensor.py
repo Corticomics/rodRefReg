@@ -35,6 +35,11 @@ except ImportError:
     serial = None
 
 
+class TeensyUnavailableError(ConnectionError):
+    """Raised when Teensy is not responding to communication attempts."""
+    pass
+
+
 @dataclass
 class FlowSample:
     flow_ml_min: float
@@ -126,53 +131,143 @@ class UARTFlowSensor:
         self._logger.info("UART flow sensor stopped")
     
     def _connect(self) -> None:
-        """Establish serial connection to Teensy."""
+        """Establish serial connection to Teensy with robust retry logic.
+        
+        Based on Teensy CDC and PySerial best practices:
+        - Teensy resets when serial port opens (USB re-enumeration)
+        - Allow 2-3 seconds for firmware initialization
+        - Retry ping commands with backoff
+        - Auto-detect port changes if initial connection fails
+        """
+        max_retries = 3
+        retry_delay = 0.5
+        
+        for attempt in range(max_retries):
+            try:
+                # Close any existing connection
+                if self._serial and self._serial.is_open:
+                    self._serial.close()
+                    time.sleep(0.5)
+                
+                self._logger.debug(f"Connection attempt {attempt + 1}/{max_retries} on {self.port}")
+                
+                # Open serial connection
+                self._serial = serial.Serial(
+                    port=self.port,
+                    baudrate=self.baud_rate,
+                    timeout=self.timeout,
+                    write_timeout=self.timeout
+                )
+                
+                # Teensy USB CDC reset delay (critical for stable communication)
+                time.sleep(2.5)  # Extended wait for Teensy firmware initialization
+                
+                # Test connection with multiple ping attempts
+                if self._test_connection_robust():
+                    self._connected = True
+                    self._logger.info(f"✓ Connected to Teensy on {self.port}")
+                    return
+                else:
+                    self._logger.warning(f"Ping test failed on {self.port}, attempt {attempt + 1}")
+                    
+            except Exception as e:
+                self._logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+            
+            # Wait before retry
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+        
+        # All attempts failed - try auto-detection as last resort
+        self._logger.warning("Primary connection failed, attempting auto-detection...")
+        if self._try_auto_detection():
+            return
+        
+        # Connection completely failed
+        raise TeensyUnavailableError(f"Teensy not responding on {self.port} after {max_retries} attempts")
+    
+    def _test_connection_robust(self) -> bool:
+        """Test connection with multiple ping attempts and extended timeout."""
+        max_ping_attempts = 5
+        ping_timeout = 1.0
+        
+        for ping_attempt in range(max_ping_attempts):
+            try:
+                # Send ping command
+                self._send_command({"cmd": "ping"})
+                
+                # Wait for pong response with timeout
+                start_time = time.time()
+                while time.time() - start_time < ping_timeout:
+                    if self._serial.in_waiting:
+                        line = self._serial.readline().decode('utf-8').strip()
+                        if line:
+                            try:
+                                response = json.loads(line)
+                                if response.get("type") == "pong":
+                                    self._logger.debug(f"✓ Ping successful on attempt {ping_attempt + 1}")
+                                    return True
+                            except json.JSONDecodeError:
+                                continue
+                    time.sleep(0.01)
+                
+                self._logger.debug(f"Ping attempt {ping_attempt + 1} timeout")
+                time.sleep(0.2)  # Brief delay between ping attempts
+                
+            except Exception as e:
+                self._logger.debug(f"Ping attempt {ping_attempt + 1} error: {e}")
+                time.sleep(0.2)
+        
+        return False
+    
+    def _try_auto_detection(self) -> bool:
+        """Attempt to auto-detect Teensy on different port as fallback."""
         try:
+            # Import here to avoid circular imports
+            from controllers.system_controller import SystemController
+            
+            # Create temporary instance for detection
+            temp_controller = SystemController(None)
+            detected_port = temp_controller.detect_teensy_port()
+            
+            if detected_port and detected_port != self.port:
+                self._logger.info(f"Auto-detected Teensy on different port: {self.port} → {detected_port}")
+                self.port = detected_port
+                
+                # Try connection on the new port
+                return self._connect_to_port(detected_port)
+            
+        except Exception as e:
+            self._logger.error(f"Auto-detection failed: {e}")
+        
+        return False
+    
+    def _connect_to_port(self, port: str) -> bool:
+        """Connect to a specific port (helper for auto-detection)."""
+        try:
+            if self._serial and self._serial.is_open:
+                self._serial.close()
+                time.sleep(0.5)
+            
             self._serial = serial.Serial(
-                port=self.port,
+                port=port,
                 baudrate=self.baud_rate,
                 timeout=self.timeout,
                 write_timeout=self.timeout
             )
             
-            # Wait for Teensy to initialize
-            time.sleep(2.0)
+            time.sleep(2.5)  # Teensy initialization time
             
-            # Test connection with ping
-            if self._test_connection():
+            if self._test_connection_robust():
                 self._connected = True
-                self._logger.info(f"Connected to Teensy on {self.port}")
-            else:
-                raise ConnectionError("Teensy ping test failed")
+                self._logger.info(f"✓ Connected to Teensy on auto-detected port {port}")
+                return True
                 
         except Exception as e:
-            self._logger.error(f"Failed to connect to Teensy: {e}")
-            raise
+            self._logger.debug(f"Failed to connect to auto-detected port {port}: {e}")
+        
+        return False
     
-    def _test_connection(self) -> bool:
-        """Test connection with ping command."""
-        try:
-            self._send_command({"cmd": "ping"})
-            
-            # Wait for pong response
-            start_time = time.time()
-            while time.time() - start_time < 2.0:
-                if self._serial.in_waiting:
-                    line = self._serial.readline().decode('utf-8').strip()
-                    if line:
-                        try:
-                            response = json.loads(line)
-                            if response.get("type") == "pong":
-                                return True
-                        except json.JSONDecodeError:
-                            continue
-                time.sleep(0.01)
-            
-            return False
-            
-        except Exception as e:
-            self._logger.error(f"Connection test failed: {e}")
-            return False
     
     def _start_sensor(self) -> None:
         """Send start command to Teensy."""

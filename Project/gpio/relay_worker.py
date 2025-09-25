@@ -92,8 +92,13 @@ class RelayWorker(QObject):
         if self.hardware_mode == 'solenoid':
             # Build solenoid components using factory pattern
             from drivers.flow_sensor_factory import create_flow_sensor
+            from drivers.uart_flow_sensor import TeensyUnavailableError
             try:
                 flow_sensor = create_flow_sensor(system_settings)
+            except TeensyUnavailableError as e:
+                self.progress.emit(f"Flow sensor unavailable: {e}")
+                self.progress.emit("Cannot run solenoid schedule without flow sensor. Please check Teensy connection.")
+                raise RuntimeError("Flow sensor required for solenoid mode")
             except Exception as e:
                 print(f"Failed to create flow sensor: {e}")
                 raise
@@ -138,10 +143,20 @@ class RelayWorker(QObject):
             try:
                 if hasattr(flow_sensor, 'start'):
                     flow_sensor.start()
-                    sensor_info = f"{flow_sensor.backend_mode()} on {flow_sensor.bus_id() if hasattr(flow_sensor, 'bus_id') else 'unknown'}"
-                    print(f"Flow sensor started in continuous mode ({sensor_info})")
+                    # Get sensor info for logging
+                    if hasattr(flow_sensor, 'port'):
+                        sensor_info = f"uart on {flow_sensor.port}"
+                    elif hasattr(flow_sensor, 'bus_id'):
+                        sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
+                    else:
+                        sensor_info = "unknown interface"
+                    self.progress.emit(f"✓ Flow sensor started ({sensor_info})")
+            except TeensyUnavailableError as e:
+                self.progress.emit(f"✗ Flow sensor startup failed: {e}")
+                raise RuntimeError("Flow sensor required for solenoid mode")
             except Exception as e:
-                print(f"Warning: Flow sensor start failed: {e}")
+                self.progress.emit(f"⚠ Flow sensor start warning: {e}")
+                # Continue without sensor for testing/fallback mode
         else:
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,
