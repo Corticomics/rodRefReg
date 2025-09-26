@@ -62,6 +62,8 @@ class RelayWorker(QObject):
         self.mutex = QMutex()
         self._is_running = False
         self.timers = []
+        # Track per-animal retry timers to avoid duplicate scheduling
+        self.retry_timers = {}
         
         # Initialize main_timer
         self.main_timer = QTimer(self)
@@ -263,11 +265,10 @@ class RelayWorker(QObject):
             print(f"Current time: {current_time}")
             
             window_duration = (self.window_end - self.window_start).total_seconds()
-            max_volume = max(
-                float(vol) for vol in self.settings.get('desired_water_outputs', {}).values()
-            )
+            outputs = [float(vol) for vol in self.settings.get('desired_water_outputs', {}).values()]
+            max_volume = max(outputs) if outputs else 0.0
             max_volume_per_cycle = self.settings.get('max_cycle_volume', 0.2)
-            min_cycles_needed = max_volume / max_volume_per_cycle
+            min_cycles_needed = (max_volume / max_volume_per_cycle) if max_volume_per_cycle > 0 else 0
             
             cycle_interval = min(
                 window_duration / max(min_cycles_needed, 2),
@@ -288,11 +289,14 @@ class RelayWorker(QObject):
                     window_end = datetime.fromisoformat(animal_window.get('end', self.window_end.isoformat()))
                     
                     window_duration = (window_end - window_start).total_seconds()
-                    cycles_in_window = window_duration / cycle_interval
-                    volume_per_cycle = min(
-                        target_volume / cycles_in_window,
-                        max_volume_per_cycle
-                    )
+                    cycles_in_window = (window_duration / cycle_interval) if cycle_interval > 0 else 0
+                    if target_volume <= 0 or cycles_in_window <= 0:
+                        volume_per_cycle = 0.0
+                    else:
+                        volume_per_cycle = min(
+                            target_volume / cycles_in_window,
+                            max_volume_per_cycle
+                        )
                     
                     self.animal_windows[animal_id] = {
                         'start': window_start,
@@ -424,6 +428,15 @@ class RelayWorker(QObject):
         if retry_time >= window_end:
             self.progress.emit("Cannot retry delivery - outside window")
             return
+        # Prevent duplicate retries per animal
+        animal_id = delivery_data.get('animal_id')
+        if animal_id in self.retry_timers:
+            existing_timer = self.retry_timers.get(animal_id)
+            if existing_timer and existing_timer.isActive():
+                self.progress.emit(f"Retry already scheduled for animal {animal_id}; skipping duplicate")
+                return
+            # Clean up stale mapping
+            self.retry_timers.pop(animal_id, None)
         delivery_data['instant_time'] = retry_time
         timer = QTimer(self)
         timer.setSingleShot(True)
@@ -439,9 +452,17 @@ class RelayWorker(QObject):
                     asyncio.set_event_loop(None)
             except Exception as e:
                 self.progress.emit(f"Retry error: {str(e)}")
+            finally:
+                # Remove timer mapping once it fires
+                try:
+                    self.retry_timers.pop(animal_id, None)
+                except Exception:
+                    pass
         timer.timeout.connect(_run_retry)
         timer.start(retry_delay * 1000)
         self.timers.append(timer)
+        # Track this retry timer
+        self.retry_timers[animal_id] = timer
         self.progress.emit(f"Scheduled retry for animal {delivery_data['animal_id']} in {retry_delay} seconds")
 
     def check_completion(self):
@@ -508,7 +529,7 @@ class RelayWorker(QObject):
                     volume_progress[animal_id] = {
                         'delivered': delivered,
                         'target': target,
-                        'percent': (delivered / target) * 100 if target > 0 else 0
+                        'percent': (delivered / target) * 100 if (target is not None and target > 0) else 100
                     }
                 progress_info = {
                     'window_progress': progress_percent,
@@ -545,7 +566,7 @@ class RelayWorker(QObject):
                         self.main_timer.singleShot(10000, self.check_window_completion)
                     return
                 all_volumes_delivered = all(
-                    self.delivered_volumes.get(aid, 0) >= target
+                    (target is None or target <= 0) or (self.delivered_volumes.get(aid, 0) >= target)
                     for aid, target in target_volumes.items()
                 )
                 if all_volumes_delivered or (self.enforce_window_end and current_time >= self.window_end):
