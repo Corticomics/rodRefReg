@@ -90,7 +90,7 @@ class UARTFlowSensor:
         self._last_ping = 0
         self._ping_interval = 10.0  # seconds (reduce chatter during delivery)
         self._pings_suspended = False
-              self._reads_suspended = False
+        self._reads_suspended = False
         self._recovering = False
         self._i2c_error_count = 0
         
