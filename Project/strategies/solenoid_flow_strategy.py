@@ -92,6 +92,8 @@ class SolenoidFlowStrategy:
             try:
                 if hasattr(self._sensor, '_pings_suspended'):
                     self._sensor._pings_suspended = True
+                if hasattr(self._sensor, 'suspend_reads'):
+                    self._sensor.suspend_reads(True)
             except Exception:
                 pass
             # Gate delivery on active stream: require N frames before opening
@@ -113,7 +115,8 @@ class SolenoidFlowStrategy:
             except Exception as _:
                 pass
             # Quiet period before switching relays to reduce collisions
-            await asyncio.sleep(0.2)
+            quiet_ms = float(self._settings.get('valve_switch_quiet_ms', 300.0))
+            await asyncio.sleep(max(0.0, quiet_ms) / 1000.0)
             self._valves.open_master()
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valves.open_cage(cage_id)
@@ -256,6 +259,8 @@ class SolenoidFlowStrategy:
             try:
                 if hasattr(self._sensor, '_pings_suspended'):
                     self._sensor._pings_suspended = False
+                if hasattr(self._sensor, 'suspend_reads'):
+                    self._sensor.suspend_reads(False)
             except Exception:
                 pass
 
