@@ -343,10 +343,10 @@ class UARTFlowSensor:
                 if not self._serial or not self._serial.is_open:
                     time.sleep(0.1)
                     continue
-                      # Allow strategy to temporarily suspend reads during noisy valve switching
-                      if self._reads_suspended:
-                          time.sleep(0.01)
-                          continue
+                # Allow strategy to temporarily suspend reads during noisy valve switching
+                if self._reads_suspended:
+                    time.sleep(0.01)
+                continue
                 
                 # Check for periodic ping
                 if (not self._pings_suspended) and (time.time() - self._last_ping > self._ping_interval):
@@ -377,13 +377,13 @@ class UARTFlowSensor:
                 else:
                     time.sleep(0.1)
 
-          def suspend_reads(self, suspend: bool) -> None:
-              """Suspend or resume reading frames from the serial port."""
-              self._reads_suspended = suspend
-              if suspend:
-                  self._logger.debug("Serial reads suspended.")
-              else:
-                  self._logger.debug("Serial reads resumed.")
+    def suspend_reads(self, suspend: bool) -> None:
+        """Suspend or resume reading frames from the serial port."""
+        self._reads_suspended = suspend
+        if suspend:
+            self._logger.debug("Serial reads suspended.")
+        else:
+            self._logger.debug("Serial reads resumed.")
     
     def _attempt_reconnection(self) -> bool:
         """Attempt to reconnect to Teensy after connection loss."""
