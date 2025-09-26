@@ -74,6 +74,11 @@ class SolenoidFlowStrategy:
         last_flow_ml_min = None
         sensor_errors = 0
         sample_period_s = 1.0 / max(1.0, sampling_hz)
+        # Safety/timeouts and debug sampling
+        max_valve_open_s = float(self._settings.get('max_valve_open_s', 20.0))
+        no_flow_threshold_ml_min = float(self._settings.get('no_flow_threshold_ml_min', 0.05))
+        no_flow_timeout_s = float(self._settings.get('no_flow_timeout_s', 2.0))
+        no_flow_accum_s = 0.0
 
         # Note: Flow sensor should be started once during initialization, not per-delivery
         # Starting/stopping repeatedly causes I²C conflicts with relay HATs on shared bus
@@ -122,7 +127,9 @@ class SolenoidFlowStrategy:
                 pass
             return False
 
-        start = asyncio.get_event_loop().time()
+        loop_ref = asyncio.get_event_loop()
+        start = loop_ref.time()
+        last_log = start
         try:
             while True:
                 # Read measurement with robust error handling (Sensirion best practices)
@@ -157,6 +164,21 @@ class SolenoidFlowStrategy:
                 if flow_ml_min != flow_ml_min:  # NaN check
                     flow_ml_min = 0.0
 
+                # No-flow detection window (occlusion/EMI stall)
+                if abs(flow_ml_min) < no_flow_threshold_ml_min:
+                    no_flow_accum_s += sample_period_s
+                else:
+                    no_flow_accum_s = 0.0
+                if no_flow_accum_s >= no_flow_timeout_s:
+                    self._logger.error(
+                        f"No flow detected for {no_flow_accum_s:.1f}s (< {no_flow_threshold_ml_min:.3f} mL/min). Aborting delivery.")
+                    try:
+                        self._valves.close_cage(cage_id)
+                        self._valves.close_master()
+                    except Exception:
+                        pass
+                    return False
+
                 # Predictive cutoff
                 if last_flow_ml_min is not None:
                     avg_flow_ml_min = 0.5 * (last_flow_ml_min + flow_ml_min)
@@ -173,6 +195,24 @@ class SolenoidFlowStrategy:
                     self._valves.close_cage(cage_id)
                     self._valves.close_master()
                     break
+
+                # Max-open safety cutoff
+                now = loop_ref.time()
+                if (now - start) >= max_valve_open_s:
+                    self._logger.error(
+                        f"Max valve open time {max_valve_open_s:.1f}s exceeded. Delivered {delivered_ul/1000.0:.3f}mL; aborting.")
+                    try:
+                        self._valves.close_cage(cage_id)
+                        self._valves.close_master()
+                    except Exception:
+                        pass
+                    return False
+
+                # 1 Hz debug summary
+                if (now - last_log) >= 1.0:
+                    self._logger.debug(
+                        f"cage={cage_id} flow={flow_ml_min:.3f} mL/min delivered={delivered_ul/1000.0:.3f} mL")
+                    last_log = now
 
                 await asyncio.sleep(sample_period_s)
 
