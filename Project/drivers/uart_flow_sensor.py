@@ -524,6 +524,14 @@ class UARTFlowSensor:
             self._pings_suspended = False
             self._recovering = False
 
+    # Public reset hook for strategies/tests
+    def reset(self) -> bool:
+        try:
+            self._recover_i2c_error()
+            return True
+        except Exception:
+            return False
+
     def wait_for_frames(self, min_frames: int = 3, timeout_s: float = 5.0) -> bool:
         """Wait for at least min_frames new measurements within timeout_s."""
         start_time = time.time()

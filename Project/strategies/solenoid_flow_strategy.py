@@ -92,11 +92,23 @@ class SolenoidFlowStrategy:
             # Gate delivery on active stream: require N frames before opening
             try:
                 if hasattr(self._sensor, 'ensure_streaming'):
-                    if not self._sensor.ensure_streaming(min_frames=3, timeout_s=2.0):
-                        self._logger.error("Flow stream not available; aborting delivery")
-                        return False
+                    if not self._sensor.ensure_streaming(min_frames=3, timeout_s=3.0):
+                        # Attempt datasheet-compliant recovery via reset if available
+                        if hasattr(self._sensor, 'reset'):
+                            try:
+                                self._sensor.reset()
+                            except Exception:
+                                pass
+                            if not self._sensor.ensure_streaming(min_frames=5, timeout_s=5.0):
+                                self._logger.error("Flow stream not available after reset; aborting delivery")
+                                return False
+                        else:
+                            self._logger.error("Flow stream not available; aborting delivery")
+                            return False
             except Exception as _:
                 pass
+            # Quiet period before switching relays to reduce collisions
+            await asyncio.sleep(0.2)
             self._valves.open_master()
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valves.open_cage(cage_id)
