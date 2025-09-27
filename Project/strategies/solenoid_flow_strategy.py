@@ -77,7 +77,7 @@ class SolenoidFlowStrategy:
         # Safety/timeouts and debug sampling
         max_valve_open_s = float(self._settings.get('max_valve_open_s', 20.0))
         no_flow_threshold_ml_min = float(self._settings.get('no_flow_threshold_ml_min', 0.05))
-        no_flow_timeout_s = float(self._settings.get('no_flow_timeout_s', 2.0))
+        no_flow_timeout_s = float(self._settings.get('no_flow_timeout_s', 3.5))
         no_flow_accum_s = 0.0
 
         # Note: Flow sensor should be started once during initialization, not per-delivery
@@ -115,7 +115,7 @@ class SolenoidFlowStrategy:
             except Exception:
                 pass
             # Quiet period before switching relays to reduce collisions
-            quiet_ms = float(self._settings.get('valve_switch_quiet_ms', 300.0))
+            quiet_ms = float(self._settings.get('valve_switch_quiet_ms', 800.0))
             await asyncio.sleep(max(0.0, quiet_ms) / 1000.0)
             self._valves.open_master()
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
