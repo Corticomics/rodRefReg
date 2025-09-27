@@ -88,15 +88,7 @@ class SolenoidFlowStrategy:
         try:
             self._logger.info(f"Starting delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
             self._logger.debug(f"Opening master solenoid...")
-            # Suspend UART pings during valve switching to reduce contention
-            try:
-                if hasattr(self._sensor, '_pings_suspended'):
-                    self._sensor._pings_suspended = True
-                if hasattr(self._sensor, 'suspend_reads'):
-                    self._sensor.suspend_reads(True)
-            except Exception:
-                pass
-            # Gate delivery on active stream: require N frames before opening
+            # Gate delivery on active stream: require N frames before opening (reads must NOT be suspended)
             try:
                 if hasattr(self._sensor, 'ensure_streaming'):
                     if not self._sensor.ensure_streaming(min_frames=3, timeout_s=3.0):
@@ -113,6 +105,14 @@ class SolenoidFlowStrategy:
                             self._logger.error("Flow stream not available; aborting delivery")
                             return False
             except Exception as _:
+                pass
+            # Suspend UART pings and serial reads during valve switching to reduce contention
+            try:
+                if hasattr(self._sensor, '_pings_suspended'):
+                    self._sensor._pings_suspended = True
+                if hasattr(self._sensor, 'suspend_reads'):
+                    self._sensor.suspend_reads(True)
+            except Exception:
                 pass
             # Quiet period before switching relays to reduce collisions
             quiet_ms = float(self._settings.get('valve_switch_quiet_ms', 300.0))

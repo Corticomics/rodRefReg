@@ -346,7 +346,7 @@ class UARTFlowSensor:
                 # Allow strategy to temporarily suspend reads during noisy valve switching
                 if self._reads_suspended:
                     time.sleep(0.01)
-                continue
+                    continue
                 
                 # Check for periodic ping
                 if (not self._pings_suspended) and (time.time() - self._last_ping > self._ping_interval):
