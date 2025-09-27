@@ -3,27 +3,40 @@ import time
 
 I2C_BUS = 8
 ADDRESS = 0x08
-START_MEASUREMENT = [0x36, 0x08]  # per datasheet
+CMD_HIGH = 0x36
+CMD_LOW  = 0x08
 
-bus = smbus2.SMBus(I2C_BUS)
-time.sleep(0.1)  # sensor startup
+def send_start(bus):
+    # Try block-data write first
+    for attempt in range(5):
+        try:
+            bus.write_i2c_block_data(ADDRESS, CMD_HIGH, [CMD_LOW])
+            return True
+        except OSError:
+            time.sleep(0.02)  # 20 ms retry delay
+    # Fallback: send two separate writes (some SMBus implementations accept this)
+    try:
+        bus.write_byte_data(ADDRESS, CMD_HIGH, CMD_LOW)
+        return True
+    except OSError:
+        return False
 
-# Send start measurement
-bus.write_i2c_block_data(ADDRESS, START_MEASUREMENT[0], [START_MEASUREMENT[1]])
+def main():
+    bus = smbus2.SMBus(I2C_BUS)
+    time.sleep(0.1)  # initial wait
+    if not send_start(bus):
+        print("Failed to send start command after retries.")
+        return
+    print("Measurement started.")
+    try:
+        while True:
+            data = bus.read_i2c_block_data(ADDRESS, 0x00, 9)
+            raw = (data[0] << 8) | data[1]
+            if raw & 0x8000: raw -= 1<<16
+            print(f"Flow: {raw/10:.2f} µL/min")
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Stopped.")
 
-try:
-    while True:
-        # Read 9 bytes: Flow(2)+CRC(1), Temp(2)+CRC(1), Flags(2)+CRC(1)
-        data = bus.read_i2c_block_data(ADDRESS, 0x00, 9)
-
-        # Parse flow (first two bytes)
-        flow_raw = (data[0] << 8) | data[1]
-        if flow_raw & 0x8000:  # two’s complement
-            flow_raw -= 1 << 16
-        # Scale: flow_raw / 10 = µL/min
-        flow_rate = flow_raw / 10.0
-
-        print(f"Flow: {flow_rate:.2f} µL/min | Raw: {flow_raw} | Bytes: {data}")
-        time.sleep(1)
-except KeyboardInterrupt:
-    print("Measurement stopped.")
+if __name__ == "__main__":
+    main()
