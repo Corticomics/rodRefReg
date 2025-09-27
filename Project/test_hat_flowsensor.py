@@ -2,7 +2,7 @@
 """
 Test script: Open relay 1, stream flow sensor data for 5 seconds, then close relay 1.
 Assumes:
-- Sequent Microsystems 16-relay HAT with lib16relind installed
+- Sequent Microsystems 16-relay HAT with SM16relind installed
 - Teensy firmware streaming JSON over UART1 connected to /dev/serial0
 - Python3, pyserial installed
 """
@@ -10,26 +10,22 @@ Assumes:
 import time
 import json
 import serial
-import lib16relind
+import SM16relind
 
 # Configuration
 RELAY_STACK = 0          # Relay HAT stack address (0 if single HAT)
-RELAY_NUM = 1            # Relay channel to test
+RELAY_NUM = 1            # Relay channel to test (1-based index)
 TEENSY_PORT = "/dev/serial0"
 BAUD_RATE = 115200
 STREAM_DURATION = 5.0    # seconds
 
 def main():
-    # Initialize relay HAT
-    if not lib16relind.begin(RELAY_STACK):
-        print(f"Error: Failed to initialize relay stack {RELAY_STACK}")
-        return
+    # Initialize relay HAT object
+    rel = SM16relind.SM16relind(RELAY_STACK)
 
     # Open relay 1
-    if not lib16relind.writeRelay(RELAY_STACK, RELAY_NUM, 1):
-        print(f"Error: Failed to open relay {RELAY_NUM}")
-        return
-    print(f"Relay {RELAY_NUM} OPENED")
+    rel.set(RELAY_NUM, 1)
+    print(f"Relay {RELAY_NUM} set to {rel.get(RELAY_NUM)}")
 
     # Connect to Teensy UART
     try:
@@ -38,7 +34,7 @@ def main():
         ser.reset_input_buffer()
     except Exception as e:
         print(f"Error: Cannot open serial port {TEENSY_PORT}: {e}")
-        lib16relind.writeRelay(RELAY_STACK, RELAY_NUM, 0)
+        rel.set(RELAY_NUM, 0)
         return
 
     # Read and print flow data for STREAM_DURATION
@@ -60,10 +56,8 @@ def main():
             break
 
     # Close relay 1
-    if not lib16relind.writeRelay(RELAY_STACK, RELAY_NUM, 0):
-        print(f"Error: Failed to close relay {RELAY_NUM}")
-    else:
-        print(f"Relay {RELAY_NUM} CLOSED")
+    rel.set(RELAY_NUM, 0)
+    print(f"Relay {RELAY_NUM} set to {rel.get(RELAY_NUM)}")
 
     # Cleanup
     ser.close()
