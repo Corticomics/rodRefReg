@@ -3,25 +3,24 @@ import time
 
 I2C_BUS = 8
 ADDRESS = 0x08
-START_FLOW_CMD = [0x36, 0x08]  # Per SLF3S-0600F documentation, start continuous measurement
 
-def main():
-    bus = smbus2.SMBus(I2C_BUS)
-    print(f"Starting measurement on I2C bus {I2C_BUS} at address 0x{ADDRESS:02X}")
+START_MEASUREMENT = [0x36, 0x08]  # For water
 
-    # Send the "start continuous measurement" command
-    bus.write_i2c_block_data(ADDRESS, START_FLOW_CMD[0], [START_FLOW_CMD[1]])
+bus = smbus2.SMBus(I2C_BUS)
+# Step 1: Start continuous measurement
+bus.write_i2c_block_data(ADDRESS, START_MEASUREMENT[0], [START_MEASUREMENT[1]])
+time.sleep(0.06)  # Wait at least 60 ms for warm-up
 
-    try:
-        while True:
-            # Read 6 bytes: flow, temperature, status (see Sensirion docs)
-            data = bus.read_i2c_block_data(ADDRESS, 0x00, 6)
-            # Flow is first two bytes (big endian)
-            flow_raw = (data[0] << 8) | data[1]
-            print(f"Raw flow: {flow_raw}, All bytes: {data}")
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Stopped.")
-
-if __name__ == "__main__":
-    main()
+try:
+    while True:
+        # Step 2: Read 9 bytes: 2 (flow) + 1 (crc) + 2 (temp) + 1 (crc) + 2 (flags) + 1 (crc)
+        data = bus.read_i2c_block_data(ADDRESS, 0x00, 9)
+        # Convert flow bytes, ignoring CRC for basic demo
+        flow_raw = (data[0] << 8) | data[1]
+        # Handle two's complement for signed value:
+        if flow_raw >= 0x8000: flow_raw -= 0x10000
+        flow_ul_min = flow_raw / 10.0
+        print(f"Flow: {flow_ul_min:.2f} μL/min, Raw bytes: {data}")
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("Stopped.")
