@@ -171,7 +171,8 @@ class UARTFlowSensor:
                 )
                 
                 # Teensy USB CDC reset delay (critical for stable communication)
-                time.sleep(2.5)  # Extended wait for Teensy firmware initialization
+                # Pi requires longer wait than Mac due to slower USB enumeration
+                time.sleep(3.5)  # Extended wait for Teensy firmware initialization
                 
                 # Test connection with multiple ping attempts
                 if self._test_connection_robust():
@@ -297,7 +298,7 @@ class UARTFlowSensor:
                 write_timeout=self.timeout
             )
             
-            time.sleep(2.5)  # Teensy initialization time
+            time.sleep(3.5)  # Teensy initialization time (Pi needs longer than Mac)
             
             if self._test_connection_robust():
                 self._connected = True
@@ -400,7 +401,7 @@ class UARTFlowSensor:
             
             # Try to reopen connection
             self._serial = serial.Serial(self.port, self.baud_rate, timeout=self.timeout)
-            time.sleep(2.5)  # Allow Teensy to initialize fully
+            time.sleep(3.5)  # Allow Teensy to initialize fully (Pi needs longer than Mac)
             
             # Test connection with ping
             test_successful = self._test_connection_robust()

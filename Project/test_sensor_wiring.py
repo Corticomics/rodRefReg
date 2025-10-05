@@ -60,7 +60,16 @@ class SensorDiagnostic:
         print("🔌 Connecting to Teensy...")
         try:
             self.serial = serial.Serial(self.port, self.baud, timeout=2.0)
-            time.sleep(2.5)  # CDC enumeration
+            print(f"  ⏳ Waiting for Teensy USB re-enumeration...")
+            time.sleep(3.5)  # Extended wait for Pi (slower than Mac)
+            
+            # Flush any startup messages from buffer
+            try:
+                self.serial.reset_input_buffer()
+                self.serial.reset_output_buffer()
+            except:
+                pass
+            
             print(f"  ✅ Connected to {self.port}")
             return True
         except Exception as e:
