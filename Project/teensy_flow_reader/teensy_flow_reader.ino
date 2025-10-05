@@ -45,7 +45,7 @@ void setup() {
   
   // Initialize I2C
   Wire.begin();
-  Wire.setClock(100000); // 100kHz for reliable communication
+  Wire.setClock(50000); // 50kHz for maximum reliability on breadboard
   
   // Initialize sampling interval
   setSamplingRate(sampling_rate);
@@ -111,6 +111,15 @@ void processCommands() {
 void startSensor(float rate) {
   setSamplingRate(rate);
   
+  // Perform soft reset first (per SLF3x datasheet best practice)
+  // General call address 0x00, command 0x06
+  Wire.beginTransmission(0x00);
+  Wire.write(0x06);
+  uint8_t reset_result = Wire.endTransmission();
+  
+  // Wait for reset completion (datasheet: min 25ms)
+  delay(30);
+  
   // Send start command to sensor
   Wire.beginTransmission(SENSOR_ADDR);
   Wire.write(START_CMD >> 8);    // MSB
@@ -121,9 +130,9 @@ void startSensor(float rate) {
     sensor_running = true;
     sample_count = 0;
     error_count = 0;
-    sendStatus("Sensor started at " + String(rate) + " Hz");
+    sendStatus("Sensor started at " + String(rate) + " Hz (reset: " + String(reset_result) + ")");
   } else {
-    sendError("Failed to start sensor, I2C error: " + String(result));
+    sendError("Failed to start sensor, I2C error: " + String(result) + " (reset: " + String(reset_result) + ")");
   }
 }
 
