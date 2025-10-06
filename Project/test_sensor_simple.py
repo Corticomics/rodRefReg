@@ -25,7 +25,7 @@ except ImportError:
 
 
 def main():
-    port = '/dev/ttyACM1'
+    port = '/dev/ttyACM0'
     baud = 115200
     duration = 30  # seconds
     
