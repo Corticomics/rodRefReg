@@ -63,6 +63,7 @@ class IntegrationTest:
         self.usb_disconnects = 0
         self.max_frame_gap = 0.0
         self.last_frame_time = None
+        self.latest_measurement = None  # Store latest measurement for live display
         
         # Control
         self.running = False
@@ -132,6 +133,7 @@ class IntegrationTest:
         - USB connection stability
         - Inter-frame gaps (EMI indicator)
         - Error messages from Teensy
+        - Live measurements
         """
         while self.running:
             try:
@@ -156,6 +158,13 @@ class IntegrationTest:
                             self.max_frame_gap = max(self.max_frame_gap, gap)
                         self.last_frame_time = now
                         self.frames_received += 1
+                        
+                        # Store latest measurement for live display
+                        self.latest_measurement = {
+                            'flow': msg.get('flow', 0.0),
+                            'temp': msg.get('temp', 0.0),
+                            'count': msg.get('count', 0)
+                        }
                         
                     elif msg_type == 'error':
                         error_msg = msg.get('error', 'Unknown error')
@@ -224,6 +233,10 @@ class IntegrationTest:
                     relay_cycle = int(elapsed / relay_pulse_interval_s)
                     relay_id = relays_to_test[relay_cycle % len(relays_to_test)]
                     
+                    # Print live measurement before relay switch
+                    if self.latest_measurement:
+                        print(f"  [{elapsed:5.1f}s] 📊 Before: flow={self.latest_measurement['flow']:.4f} mL/min, temp={self.latest_measurement['temp']:.2f}°C")
+                    
                     print(f"  [{elapsed:5.1f}s] 🔌 Pulsing relay {relay_id}...", end='')
                     frames_before = self.frames_received
                     
@@ -236,6 +249,10 @@ class IntegrationTest:
                     loss_pct = ((expected_during - frames_during) / expected_during) * 100
                     
                     print(f" Frames: {frames_during}/{expected_during} (loss: {loss_pct:.1f}%)")
+                    
+                    # Print live measurement after relay switch
+                    if self.latest_measurement:
+                        print(f"  [{elapsed:5.1f}s] 📊 After: flow={self.latest_measurement['flow']:.4f} mL/min, temp={self.latest_measurement['temp']:.2f}°C")
                 
                 # Progress update
                 if int(elapsed) % 5 == 0 and int(elapsed) > 0:
