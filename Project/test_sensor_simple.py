@@ -201,7 +201,7 @@ def main():
     
     # Summary
     print("\n" + "="*70)
-    print("📊 SUMMARY")
+    print("SUMMARY")
     print("="*70)
     print(f"Total messages:    {message_count}")
     print(f"Measurements:      {measurement_count}")
