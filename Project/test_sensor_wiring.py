@@ -185,17 +185,19 @@ class SensorDiagnostic:
                             return True
                         elif msg_type == 'error':
                             error_msg = msg.get('error', 'unknown')
-                            print(f"  ❌ Sensor error: {error_msg}")
                             self.error_log.append(error_msg)
                             
-                            # Parse specific I²C errors
+                            # Ignore "0 bytes" errors - these are normal during sensor startup
+                            # (transient frame during soft reset, per Sensirion datasheet)
+                            if 'received 0 bytes' in error_msg.lower() or 'bytes' in error_msg.lower():
+                                print(f"  ℹ️  Startup transient: {error_msg} (ignoring)")
+                                continue  # Keep waiting for first measurement
+                            
+                            # Parse critical I²C errors (hardware issues)
+                            print(f"  ❌ Sensor error: {error_msg}")
                             if 'I2C error' in error_msg or 'NACK' in error_msg:
                                 print("\n  🔌 I²C Communication Failure Detected!")
                                 self.print_i2c_troubleshooting()
-                                return False
-                            elif 'received 0 bytes' in error_msg or 'bytes' in error_msg:
-                                print("\n  📡 Sensor Not Responding")
-                                self.print_sensor_troubleshooting()
                                 return False
                     except json.JSONDecodeError:
                         pass
