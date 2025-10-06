@@ -158,9 +158,13 @@ class SensorDiagnostic:
         if not self.send_command({"cmd": "start", "rate": rate_hz}):
             return False
         
+        # Wait for sensor initialization (reset 30ms + warm-up ~60ms + first reading)
+        print(f"  ⏳ Waiting for sensor initialization (reset + warm-up)...")
+        time.sleep(0.2)  # 200ms to ensure sensor is ready
+        
         # Wait for first measurement or error
         start = time.time()
-        while time.time() - start < 3.0:
+        while time.time() - start < 5.0:  # Increased from 3s to 5s
             if self.serial.in_waiting:
                 line = self.serial.readline().decode('utf-8', errors='ignore').strip()
                 if line:
@@ -168,7 +172,13 @@ class SensorDiagnostic:
                         msg = json.loads(line)
                         msg_type = msg.get('type')
                         
-                        if msg_type == 'measurement':
+                        if msg_type == 'status':
+                            # Status message confirming start - keep waiting for measurement
+                            status_msg = msg.get('message', '')
+                            if 'started' in status_msg.lower():
+                                print(f"  📋 {status_msg}")
+                            continue
+                        elif msg_type == 'measurement':
                             print(f"  ✅ Sensor streaming! First reading:")
                             print(f"     Flow: {msg.get('flow', 'N/A')} mL/min")
                             print(f"     Temp: {msg.get('temp', 'N/A')} °C")
