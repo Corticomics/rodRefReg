@@ -144,6 +144,7 @@ class RelayWorker(QObject):
             # Start flow sensor in continuous mode
             try:
                 if hasattr(flow_sensor, 'start'):
+                    self.progress.emit(f"[DEBUG] Attempting to start flow sensor...")
                     flow_sensor.start()
                     # Get sensor info for logging
                     if hasattr(flow_sensor, 'port'):
@@ -151,14 +152,19 @@ class RelayWorker(QObject):
                     elif hasattr(flow_sensor, 'bus_id'):
                         sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
                     else:
-                        sensor_info = "unknown interface"
+                        sensor_info = f"unknown interface"
                     self.progress.emit(f"✓ Flow sensor started ({sensor_info})")
+                else:
+                    self.progress.emit(f"[WARNING] Flow sensor has no start() method!")
             except TeensyUnavailableError as e:
-                self.progress.emit(f"✗ Flow sensor startup failed: {e}")
+                self.progress.emit(f"✗ Flow sensor startup failed (Teensy unavailable): {e}")
                 raise RuntimeError("Flow sensor required for solenoid mode")
             except Exception as e:
-                self.progress.emit(f"⚠ Flow sensor start warning: {e}")
-                # Continue without sensor for testing/fallback mode
+                # CRITICAL: Don't silently ignore startup failures in production!
+                self.progress.emit(f"✗ CRITICAL: Flow sensor start failed: {e}")
+                import traceback
+                self.progress.emit(f"✗ Stack trace: {traceback.format_exc()}")
+                raise RuntimeError(f"Flow sensor startup failed: {e}")
         else:
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,
