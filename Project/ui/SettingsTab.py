@@ -104,7 +104,7 @@ class SettingsTab(QWidget):
         # Teensy port selection
         port_row = QHBoxLayout()
         self.teensy_port_edit = QLineEdit()
-        self.teensy_port_edit.setText(self.settings.get('teensy_port', '/dev/ttyACM0'))
+        self.teensy_port_edit.setText(self.settings.get('uart_port', '/dev/ttyACM0'))
         self.teensy_port_edit.setPlaceholderText("/dev/ttyACM0 or auto-detect")
         port_row.addWidget(self.teensy_port_edit)
         
@@ -191,7 +191,7 @@ class SettingsTab(QWidget):
             QMessageBox.critical(self, "Error", f"Auto-detect failed: {str(e)}")
     
     def _test_teensy_connection(self):
-        """Test Teensy connection using basic ping"""
+        """Test Teensy connection using basic ping with proper resource management"""
         import serial
         import json
         import time
@@ -201,6 +201,7 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Test Error", "Please specify a Teensy port first.")
             return
         
+        ser = None  # Initialize for finally block
         try:
             self.print_to_terminal(f"Testing connection to {port}...")
             ser = serial.Serial(port, 115200, timeout=2.0)
@@ -211,6 +212,7 @@ class SettingsTab(QWidget):
             ser.flush()
             
             # Wait for pong
+            pong_received = False
             for _ in range(10):
                 if ser.in_waiting:
                     line = ser.readline().decode('utf-8').strip()
@@ -218,23 +220,23 @@ class SettingsTab(QWidget):
                         try:
                             msg = json.loads(line)
                             if msg.get("type") == "pong":
-                                ser.close()
+                                pong_received = True
                                 self.print_to_terminal(f"✓ Teensy connection OK on {port}")
                                 QMessageBox.information(self, "Connection Test", 
                                     f"✓ Teensy responded successfully!\nPort: {port}")
-                                return
+                                break  # Exit loop, port closed in finally
                         except json.JSONDecodeError:
                             pass
                 time.sleep(0.1)
             
-            ser.close()
-            self.print_to_terminal(f"✗ Teensy did not respond on {port}")
-            QMessageBox.warning(self, "Connection Test", 
-                f"Teensy did not respond.\n\n"
-                f"Troubleshooting:\n"
-                f"• Verify firmware is uploaded\n"
-                f"• Check serial port permissions\n"
-                f"• Try replugging USB cable")
+            if not pong_received:
+                self.print_to_terminal(f"✗ Teensy did not respond on {port}")
+                QMessageBox.warning(self, "Connection Test", 
+                    f"Teensy did not respond.\n\n"
+                    f"Troubleshooting:\n"
+                    f"• Verify firmware is uploaded\n"
+                    f"• Check serial port permissions\n"
+                    f"• Try replugging USB cable")
                 
         except serial.SerialException as e:
             self.print_to_terminal(f"✗ Serial error: {e}")
@@ -244,6 +246,15 @@ class SettingsTab(QWidget):
         except Exception as e:
             self.print_to_terminal(f"✗ Test error: {e}")
             QMessageBox.critical(self, "Connection Test", f"Test failed: {str(e)}")
+        finally:
+            # CRITICAL: Always close serial port and release file lock
+            if ser and ser.is_open:
+                try:
+                    ser.close()
+                    time.sleep(0.5)  # Give OS time to fully release port lock
+                    self.print_to_terminal(f"Serial port {port} closed and lock released")
+                except Exception as cleanup_error:
+                    self.print_to_terminal(f"Warning: Error during port cleanup: {cleanup_error}")
 
     def _create_pump_settings(self):
         widget = QWidget()
@@ -441,7 +452,7 @@ class SettingsTab(QWidget):
             updated_settings = {
                 # Hardware settings
                 'hardware_mode': self.hardware_mode_combo.currentText(),
-                'teensy_port': self.teensy_port_edit.text(),
+                'uart_port': self.teensy_port_edit.text(),  # Canonical key for flow sensor factory
                 'flow_sampling_hz': self.flow_sampling_hz.value(),
                 'max_valve_open_s': self.max_valve_open_s.value(),
                 'no_flow_timeout_s': self.no_flow_timeout_s.value(),

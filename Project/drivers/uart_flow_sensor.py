@@ -101,18 +101,25 @@ class UARTFlowSensor:
     def start(self) -> None:
         """Start sensor and begin continuous reading."""
         try:
+            self._logger.info(f"[UART] Starting flow sensor on {self.port} at {self.sampling_hz} Hz")
+            
             self._connect()
+            self._logger.info(f"[UART] ✓ Connection established to {self.port}")
+            
             self._start_sensor()
+            self._logger.info(f"[UART] ✓ Sensor start command sent")
+            
             self._running = True
             
             # Start reader thread
             self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
             self._reader_thread.start()
+            self._logger.info(f"[UART] ✓ Reader thread started")
             
-            self._logger.info(f"UART flow sensor started on {self.port} at {self.sampling_hz} Hz")
+            self._logger.info(f"[UART] ✓ Flow sensor fully initialized on {self.port} at {self.sampling_hz} Hz")
             
         except Exception as e:
-            self._logger.error(f"Failed to start UART flow sensor: {e}")
+            self._logger.error(f"[UART] X Failed to start flow sensor: {e}", exc_info=True)
             self.stop()
             raise
     
@@ -154,6 +161,8 @@ class UARTFlowSensor:
         max_retries = 3
         retry_delay = 0.5
         
+        self._logger.info(f"[UART] Attempting connection to {self.port} (max {max_retries} retries)")
+        
         for attempt in range(max_retries):
             try:
                 # Close any existing connection
@@ -161,30 +170,37 @@ class UARTFlowSensor:
                     self._serial.close()
                     time.sleep(0.5)
                 
-                self._logger.debug(f"Connection attempt {attempt + 1}/{max_retries} on {self.port}")
+                self._logger.info(f"[UART] Connection attempt {attempt + 1}/{max_retries} on {self.port}")
                 
                 # Acquire cross-process lock to avoid multiple access on port
+                self._logger.debug(f"[UART] Acquiring file lock for {self.port}")
                 self._acquire_lock()
+                self._logger.debug(f"[UART] ✓ Lock acquired")
 
                 # Open serial connection
+                self._logger.info(f"[UART] Opening serial port {self.port} at {self.baud_rate} baud")
                 self._serial = serial.Serial(
                     port=self.port,
                     baudrate=self.baud_rate,
                     timeout=self.timeout,
                     write_timeout=self.timeout
                 )
+                self._logger.info(f"[UART] ✓ Serial port opened successfully")
                 
                 # Teensy USB CDC reset delay (critical for stable communication)
                 # Pi requires longer wait than Mac due to slower USB enumeration
+                self._logger.debug(f"[UART] Waiting 3.5s for Teensy USB CDC enumeration...")
                 time.sleep(3.5)  # Extended wait for Teensy firmware initialization
+                self._logger.debug(f"[UART] ✓ CDC enumeration wait complete")
                 
                 # Test connection with multiple ping attempts
+                self._logger.info(f"[UART] Testing connection with ping...")
                 if self._test_connection_robust():
                     self._connected = True
-                    self._logger.info(f"✓ Connected to Teensy on {self.port}")
+                    self._logger.info(f"[UART] ✓ Connected to Teensy on {self.port}")
                     return
                 else:
-                    self._logger.warning(f"Ping test failed on {self.port}, attempt {attempt + 1}")
+                    self._logger.warning(f"[UART] ✗ Ping test failed on {self.port}, attempt {attempt + 1}/{max_retries}")
                     
             except Exception as e:
                 self._logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
