@@ -99,10 +99,15 @@ class RelayWorker(QObject):
         
         self.hardware_mode = (system_settings.get('hardware_mode') or 'pump') if isinstance(system_settings, dict) else 'pump'
         print(f"[DEBUG] Resolved hardware_mode: '{self.hardware_mode}'")
+        print(f"[DEBUG] Type of hardware_mode: {type(self.hardware_mode)}")
+        print(f"[DEBUG] hardware_mode == 'solenoid': {self.hardware_mode == 'solenoid'}")
+        print(f"[DEBUG] hardware_mode.strip() == 'solenoid': {self.hardware_mode.strip() == 'solenoid' if isinstance(self.hardware_mode, str) else 'NOT STRING'}")
         print(f"[DEBUG] ===============================================\n")
         
         # Here we added a check for the hardware mode to be solenoid
+        print(f"[DEBUG] About to check: if self.hardware_mode == 'solenoid':")
         if self.hardware_mode == 'solenoid':
+            print(f"[DEBUG] ✅ ENTERED solenoid mode block!")
             self.progress.emit(f"[DEBUG] Entering solenoid mode initialization...")
             # Build solenoid components using factory pattern
             from drivers.flow_sensor_factory import create_flow_sensor
@@ -179,6 +184,8 @@ class RelayWorker(QObject):
                 raise RuntimeError(f"Flow sensor startup failed: {e}")
         else:
             # NOT solenoid mode - using pump or other strategy
+            print(f"[DEBUG] ❌ ENTERED else block (NOT solenoid mode)!")
+            print(f"[DEBUG] hardware_mode value: '{self.hardware_mode}'")
             self.progress.emit(f"[DEBUG] NOT in solenoid mode (hardware_mode={self.hardware_mode}), using generic strategy")
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,
