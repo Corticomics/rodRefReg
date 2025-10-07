@@ -10,9 +10,10 @@
 ## Table of Contents
 1. [Hardware Setup](#hardware-setup)
 2. [Software Architecture](#software-architecture)
-3. [Coding Standards](#coding-standards)
-4. [Testing Strategy](#testing-strategy)
-5. [Troubleshooting](#troubleshooting)
+3. [GUI Configuration](#gui-configuration)
+4. [Coding Standards](#coding-standards)
+5. [Testing Strategy](#testing-strategy)
+6. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -192,6 +193,95 @@ Per Sensirion best practices:
    - Wait 3.5s for CDC enumeration
    - Send ping to verify
    - Implementation: `uart_flow_sensor.py::_attempt_reconnection()`
+
+---
+
+## GUI Configuration
+
+### Step-by-Step Setup for Users
+
+The RRR GUI provides a **Hardware** settings tab for configuring pump vs. solenoid delivery modes.
+
+#### 1. Open Settings Tab
+1. Launch RRR application: `cd ~/rodent-refreshment-regulator/Project && python3 main.py`
+2. **Log in** (Settings are only accessible to logged-in users)
+3. Navigate to **Profile** → **Settings** tab
+
+#### 2. Configure Hardware Mode
+In the **Hardware** sub-tab:
+
+**Delivery Hardware Mode:**
+- Select **`solenoid`** (default, recommended) or **`pump`**
+- **Solenoid**: Flow sensor-based volumetric control (accurate, real-time feedback)
+- **Pump**: Time-based peristaltic pump control (legacy mode)
+
+**Flow Sensor Configuration (solenoid mode only):**
+- **Teensy Port**: 
+  - Click **Auto-Detect** to find Teensy automatically
+  - Or manually enter port (e.g., `/dev/ttyACM0`, `/dev/teensy_flow`)
+  - Click **Test Connection** to verify communication
+
+- **Sampling Rate**: 50.0 Hz (default, matches test results)
+  - Range: 1.0 – 100.0 Hz
+  - Higher = more responsive, lower = less CPU load
+
+- **Max Valve Open Time**: 20.0 s (safety cutoff)
+  - Maximum time solenoid can remain open
+  - Prevents runaway deliveries
+
+- **No-Flow Timeout**: 3.5 s (default per integration tests)
+  - Abort delivery if no flow detected for this duration
+  - Detects occlusions, sensor failures, empty reservoir
+
+- **Predictive Close Lag**: 10.0 ms (default)
+  - Compensates for solenoid valve close delay
+  - Reduces overshoot (tune based on valve characteristics)
+
+#### 3. Save Settings
+Click **Save All Settings** at the bottom of the Settings tab.
+
+#### 4. Verify Configuration
+**Test Sensor Connection:**
+1. Ensure Teensy is plugged in via USB
+2. In Hardware tab, click **Test Connection**
+3. You should see: ✓ Teensy responded successfully!
+
+**Troubleshooting:**
+- ✗ Port not found → Run auto-detect or check USB cable
+- ✗ Permission denied → Add user to `dialout` group: `sudo usermod -a -G dialout $USER` (then log out/in)
+- ✗ No response → Verify firmware is uploaded to Teensy
+
+#### 5. Create and Run Schedule
+1. **Animals Tab**: Add animals (if not already present)
+2. **Schedules Tab**: 
+   - Create new schedule
+   - Assign animals to cages
+   - Set target volumes
+   - Select **Instant** or **Staggered** delivery mode
+3. **Run**: Click **Run** button
+   - RRR will automatically use hardware mode from settings
+   - Solenoid mode: Real-time flow monitoring in terminal
+   - Pump mode: Time-based delivery
+
+### GUI Testing Workflow
+
+**Pre-Delivery Checklist:**
+- [ ] Hardware mode configured (Settings → Hardware tab)
+- [ ] Teensy connection tested (green checkmark)
+- [ ] Animals assigned to cages
+- [ ] Schedule created with target volumes
+- [ ] Relay HAT initialized (visible in terminal on startup)
+
+**During Delivery:**
+- Monitor **System Messages** terminal for:
+  - `✓ Flow sensor started (uart on /dev/ttyACM0)`
+  - `Starting delivery for cage X: Y.YYY mL`
+  - `cage=X flow=Z.ZZZ mL/min delivered=A.AAA mL` (1 Hz updates)
+  - `Target reached for cage X`
+
+**Post-Delivery:**
+- Check delivered volumes in **Progress UI**
+- Review logs for any errors or warnings
 
 ---
 

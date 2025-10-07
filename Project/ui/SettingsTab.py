@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QGroupBox, 
     QFormLayout, QLineEdit, QLabel, QPushButton, 
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QFileDialog, QGridLayout
+    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import json
@@ -49,6 +49,7 @@ class SettingsTab(QWidget):
         self.tab_widget = QTabWidget()
         
         # Create and add settings sub-tabs
+        self.hardware_settings = self._create_hardware_settings()
         self.pump_settings = self._create_pump_settings()
         self.system_settings = self._create_system_settings()
         self.notifications = self._create_notifications()
@@ -56,6 +57,7 @@ class SettingsTab(QWidget):
         self.data_import_export = self._create_data_import_export()
         
         # Add sub-tabs to settings - CHECK USABILITY OF SYSTEM AND BACKUP/RESTORE
+        self.tab_widget.addTab(self.hardware_settings, "Hardware")
         self.tab_widget.addTab(self.pump_settings, "Pump Settings")
         #self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
@@ -68,6 +70,180 @@ class SettingsTab(QWidget):
         save_button = QPushButton("Save All Settings")
         save_button.clicked.connect(self._save_all_settings)
         layout.addWidget(save_button)
+
+    def _create_hardware_settings(self):
+        """Create hardware configuration tab for pump/solenoid mode selection"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        
+        # Hardware Mode Group
+        mode_group = QGroupBox("Delivery Hardware Mode")
+        mode_layout = QFormLayout()
+        
+        self.hardware_mode_combo = QComboBox()
+        self.hardware_mode_combo.addItems(['solenoid', 'pump'])  # Solenoid first (default per requirements)
+        current_mode = self.settings.get('hardware_mode', 'solenoid')
+        self.hardware_mode_combo.setCurrentText(current_mode)
+        self.hardware_mode_combo.currentTextChanged.connect(self._on_hardware_mode_changed)
+        mode_layout.addRow("Hardware Mode:", self.hardware_mode_combo)
+        
+        mode_help = QLabel(
+            "• <b>Solenoid</b> (default): Flow sensor-based volumetric control\n"
+            "• <b>Pump</b>: Time-based peristaltic pump control"
+        )
+        mode_help.setWordWrap(True)
+        mode_layout.addRow("", mode_help)
+        
+        mode_group.setLayout(mode_layout)
+        layout.addWidget(mode_group)
+        
+        # Flow Sensor Configuration Group (only visible in solenoid mode)
+        self.flow_sensor_group = QGroupBox("Flow Sensor Configuration (Teensy Bridge)")
+        flow_layout = QFormLayout()
+        
+        # Teensy port selection
+        port_row = QHBoxLayout()
+        self.teensy_port_edit = QLineEdit()
+        self.teensy_port_edit.setText(self.settings.get('teensy_port', '/dev/ttyACM0'))
+        self.teensy_port_edit.setPlaceholderText("/dev/ttyACM0 or auto-detect")
+        port_row.addWidget(self.teensy_port_edit)
+        
+        detect_button = QPushButton("Auto-Detect")
+        detect_button.clicked.connect(self._auto_detect_teensy)
+        port_row.addWidget(detect_button)
+        
+        test_button = QPushButton("Test Connection")
+        test_button.clicked.connect(self._test_teensy_connection)
+        port_row.addWidget(test_button)
+        
+        flow_layout.addRow("Teensy Port:", port_row)
+        
+        # Sampling rate
+        self.flow_sampling_hz = QDoubleSpinBox()
+        self.flow_sampling_hz.setRange(1.0, 100.0)
+        self.flow_sampling_hz.setValue(self.settings.get('flow_sampling_hz', 50.0))
+        self.flow_sampling_hz.setSuffix(" Hz")
+        self.flow_sampling_hz.setToolTip("Sensor measurement frequency (default: 50 Hz)")
+        flow_layout.addRow("Sampling Rate:", self.flow_sampling_hz)
+        
+        # Safety timeouts
+        self.max_valve_open_s = QDoubleSpinBox()
+        self.max_valve_open_s.setRange(1.0, 60.0)
+        self.max_valve_open_s.setValue(self.settings.get('max_valve_open_s', 20.0))
+        self.max_valve_open_s.setSuffix(" s")
+        self.max_valve_open_s.setToolTip("Maximum time valve can remain open (safety cutoff)")
+        flow_layout.addRow("Max Valve Open Time:", self.max_valve_open_s)
+        
+        self.no_flow_timeout_s = QDoubleSpinBox()
+        self.no_flow_timeout_s.setRange(0.5, 10.0)
+        self.no_flow_timeout_s.setValue(self.settings.get('no_flow_timeout_s', 3.5))
+        self.no_flow_timeout_s.setSuffix(" s")
+        self.no_flow_timeout_s.setToolTip("Abort delivery if no flow detected for this duration")
+        flow_layout.addRow("No-Flow Timeout:", self.no_flow_timeout_s)
+        
+        # Predictive cutoff
+        self.predictive_close_ms = QDoubleSpinBox()
+        self.predictive_close_ms.setRange(0.0, 100.0)
+        self.predictive_close_ms.setValue(self.settings.get('predictive_close_ms', 10.0))
+        self.predictive_close_ms.setSuffix(" ms")
+        self.predictive_close_ms.setToolTip("Valve close lag compensation (reduces overshoot)")
+        flow_layout.addRow("Predictive Close Lag:", self.predictive_close_ms)
+        
+        self.flow_sensor_group.setLayout(flow_layout)
+        layout.addWidget(self.flow_sensor_group)
+        
+        # Update visibility based on current mode
+        self._update_hardware_ui_visibility()
+        
+        # Add stretch to push everything to top
+        layout.addStretch()
+        
+        widget.setLayout(layout)
+        return widget
+
+    def _on_hardware_mode_changed(self, mode):
+        """Handle hardware mode change"""
+        self._update_hardware_ui_visibility()
+        self.print_to_terminal(f"Hardware mode changed to: {mode}")
+    
+    def _update_hardware_ui_visibility(self):
+        """Show/hide flow sensor settings based on hardware mode"""
+        is_solenoid = self.hardware_mode_combo.currentText() == 'solenoid'
+        self.flow_sensor_group.setVisible(is_solenoid)
+    
+    def _auto_detect_teensy(self):
+        """Auto-detect Teensy port using system controller"""
+        try:
+            port = self.system_controller.detect_teensy_port()
+            if port:
+                self.teensy_port_edit.setText(port)
+                self.print_to_terminal(f"✓ Teensy detected on {port}")
+                QMessageBox.information(self, "Auto-Detect", f"Teensy found on {port}")
+            else:
+                self.print_to_terminal("✗ Teensy not detected. Check USB connection.")
+                QMessageBox.warning(self, "Auto-Detect", 
+                    "Teensy not found. Ensure:\n"
+                    "• Teensy is connected via USB\n"
+                    "• Firmware is uploaded\n"
+                    "• You are in 'dialout' group")
+        except Exception as e:
+            self.print_to_terminal(f"Auto-detect error: {e}")
+            QMessageBox.critical(self, "Error", f"Auto-detect failed: {str(e)}")
+    
+    def _test_teensy_connection(self):
+        """Test Teensy connection using basic ping"""
+        import serial
+        import json
+        import time
+        
+        port = self.teensy_port_edit.text()
+        if not port:
+            QMessageBox.warning(self, "Test Error", "Please specify a Teensy port first.")
+            return
+        
+        try:
+            self.print_to_terminal(f"Testing connection to {port}...")
+            ser = serial.Serial(port, 115200, timeout=2.0)
+            time.sleep(3.5)  # Teensy CDC enumeration delay
+            
+            # Send ping
+            ser.write(b'{"cmd":"ping"}\n')
+            ser.flush()
+            
+            # Wait for pong
+            for _ in range(10):
+                if ser.in_waiting:
+                    line = ser.readline().decode('utf-8').strip()
+                    if line:
+                        try:
+                            msg = json.loads(line)
+                            if msg.get("type") == "pong":
+                                ser.close()
+                                self.print_to_terminal(f"✓ Teensy connection OK on {port}")
+                                QMessageBox.information(self, "Connection Test", 
+                                    f"✓ Teensy responded successfully!\nPort: {port}")
+                                return
+                        except json.JSONDecodeError:
+                            pass
+                time.sleep(0.1)
+            
+            ser.close()
+            self.print_to_terminal(f"✗ Teensy did not respond on {port}")
+            QMessageBox.warning(self, "Connection Test", 
+                f"Teensy did not respond.\n\n"
+                f"Troubleshooting:\n"
+                f"• Verify firmware is uploaded\n"
+                f"• Check serial port permissions\n"
+                f"• Try replugging USB cable")
+                
+        except serial.SerialException as e:
+            self.print_to_terminal(f"✗ Serial error: {e}")
+            QMessageBox.critical(self, "Connection Test", 
+                f"Failed to open port:\n{str(e)}\n\n"
+                f"Check that no other program is using {port}")
+        except Exception as e:
+            self.print_to_terminal(f"✗ Test error: {e}")
+            QMessageBox.critical(self, "Connection Test", f"Test failed: {str(e)}")
 
     def _create_pump_settings(self):
         widget = QWidget()
@@ -261,19 +437,40 @@ class SettingsTab(QWidget):
             return
         
         try:
-            self.settings.update({
+            # Build updated settings dictionary
+            updated_settings = {
+                # Hardware settings
+                'hardware_mode': self.hardware_mode_combo.currentText(),
+                'teensy_port': self.teensy_port_edit.text(),
+                'flow_sampling_hz': self.flow_sampling_hz.value(),
+                'max_valve_open_s': self.max_valve_open_s.value(),
+                'no_flow_timeout_s': self.no_flow_timeout_s.value(),
+                'predictive_close_ms': self.predictive_close_ms.value(),
+                
+                # Pump settings
                 'pump_volume_ul': self.pump_volume.value(),
                 'calibration_factor': self.calibration_factor.value(),
+                
+                # Notifications
                 'slack_token': self._encrypt_sensitive_data(self.slack_token.text()),
                 'channel_id': self.slack_channel.text(),
+                
+                # System
                 'log_level': self.log_level.value()
-            })
+            }
             
-            self.push_callback()
+            # Update settings via system controller (ensures persistence)
+            self.settings.update(updated_settings)
+            self.system_controller.save_settings(self.settings)
+            
+            # Emit signal for other components
             self.settings_updated.emit(self.settings)
+            
+            self.print_to_terminal(f"✓ Settings saved (mode: {updated_settings['hardware_mode']})")
             QMessageBox.information(self, "Success", "Settings saved successfully")
             
         except Exception as e:
+            self.print_to_terminal(f"✗ Settings save failed: {e}")
             QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
 
     def export_animals(self):
