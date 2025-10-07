@@ -94,6 +94,10 @@ class UARTFlowSensor:
         self._recovering = False
         self._i2c_error_count = 0
         
+        # Frame activity monitoring (detect firmware hangs)
+        self._last_frame_time = 0
+        self._frame_timeout_s = 3.0  # No frames for 3s = potential hang
+        
     def start(self) -> None:
         """Start sensor and begin continuous reading."""
         try:
@@ -339,6 +343,8 @@ class UARTFlowSensor:
     
     def _reader_loop(self) -> None:
         """Background thread to read data from Teensy."""
+        self._last_frame_time = time.time()  # Initialize frame activity monitor
+        
         while self._running:
             try:
                 if not self._serial or not self._serial.is_open:
@@ -347,6 +353,17 @@ class UARTFlowSensor:
                 # Allow strategy to temporarily suspend reads during noisy valve switching
                 if self._reads_suspended:
                     time.sleep(0.01)
+                    continue
+                
+                # Check for frame activity timeout (detects firmware hangs)
+                if not self._recovering and (time.time() - self._last_frame_time > self._frame_timeout_s):
+                    self._logger.error(f"No frames received for {self._frame_timeout_s}s - firmware may be hung, attempting recovery...")
+                    if self._attempt_reconnection():
+                        self._logger.info("Frame stream restored after recovery")
+                        self._last_frame_time = time.time()
+                    else:
+                        self._logger.error("Recovery failed, will retry")
+                        time.sleep(1.0)
                     continue
                 
                 # Check for periodic ping
@@ -372,6 +389,7 @@ class UARTFlowSensor:
                     if self._attempt_reconnection():
                         self._logger.info("USB connection restored")
                         self._error_count = 0  # Reset error count on successful reconnection
+                        self._last_frame_time = time.time()  # Reset activity monitor
                     else:
                         self._logger.error("USB reconnection failed")
                         time.sleep(1.0)  # Longer delay on connection failure
@@ -460,6 +478,9 @@ class UARTFlowSensor:
                 sample = FlowSample(flow_ml_min=flow_calibrated, temperature_c=temp)
                 self._latest_sample = sample
                 self._sample_count += 1
+                
+                # Update frame activity timestamp (for hang detection)
+                self._last_frame_time = time.time()
                 
                 # Add to queue (non-blocking)
                 try:

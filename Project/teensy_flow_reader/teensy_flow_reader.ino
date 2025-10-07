@@ -10,10 +10,16 @@
  * Communication Protocol:
  * Pi → Teensy: {"cmd":"start","rate":50}
  * Teensy → Pi: {"flow":123.4,"temp":25.1,"time":1234567890}
+ * 
+ * Firmware Watchdog:
+ * - Hardware watchdog timer prevents I2C lockups
+ * - 5-second timeout forces reset if firmware hangs
+ * - Critical for production reliability
  */
 
 #include <Wire.h>
 #include <ArduinoJson.h>
+#include <Watchdog.h>  // Teensy 4.x hardware watchdog
 
 // SLF3S-0600F Configuration
 const uint8_t SENSOR_ADDR = 0x08;
@@ -32,6 +38,9 @@ unsigned long sample_interval_us;
 uint32_t sample_count = 0;
 uint32_t error_count = 0;
 
+// Hardware watchdog
+Watchdog watchdog;
+
 // Buffers (ArduinoJson v7+)
 JsonDocument command_doc;
 JsonDocument response_doc;
@@ -47,16 +56,23 @@ void setup() {
   Wire.begin();
   Wire.setClock(50000); // 50kHz for maximum reliability on breadboard
   
+  // Initialize hardware watchdog (4 second timeout)
+  // Prevents firmware lockup from I2C hangs
+  watchdog.enable(Watchdog::TIMEOUT_4S);  // 4 seconds - will reset if firmware hangs
+  
   // Initialize sampling interval
   setSamplingRate(sampling_rate);
   
   // Send startup message
-  sendStatus("Teensy flow reader initialized");
+  sendStatus("Teensy flow reader initialized with watchdog");
   
   delay(100);
 }
 
 void loop() {
+  // Feed the watchdog to prevent timeout (critical for I2C hang prevention)
+  watchdog.reset();
+  
   // Process commands from Pi
   processCommands();
   
