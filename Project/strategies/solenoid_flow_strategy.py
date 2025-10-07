@@ -121,6 +121,17 @@ class SolenoidFlowStrategy:
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valves.open_cage(cage_id)
             self._logger.info(f"Solenoids opened successfully for cage {cage_id}")
+            
+            # CRITICAL: Resume reads IMMEDIATELY after valve switching completes!
+            # The delivery loop NEEDS sensor data to measure flow
+            try:
+                if hasattr(self._sensor, 'suspend_reads'):
+                    self._sensor.suspend_reads(False)
+                    self._logger.debug("Sensor reads resumed after valve switching")
+                if hasattr(self._sensor, '_pings_suspended'):
+                    self._sensor._pings_suspended = False
+            except Exception as e:
+                self._logger.warning(f"Failed to resume reads: {e}")
         except Exception as e:
             self._logger.error(f"Failed to open solenoids for cage {cage_id}: {e}")
             # Ensure master is closed on any opening failure
