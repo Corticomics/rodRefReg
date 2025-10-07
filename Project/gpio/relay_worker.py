@@ -89,9 +89,21 @@ class RelayWorker(QObject):
         
         # Resolve hardware mode and strategy
         system_settings = self.system_controller.settings
+        
+        # DEBUG: Print actual settings to diagnose hardware_mode issue (use print for immediate output)
+        print(f"\n[DEBUG] ========== HARDWARE MODE DETECTION ==========")
+        print(f"[DEBUG] system_settings type: {type(system_settings)}")
+        print(f"[DEBUG] system_settings.get('hardware_mode'): {system_settings.get('hardware_mode') if isinstance(system_settings, dict) else 'NOT A DICT'}")
+        print(f"[DEBUG] system_settings.get('flow_sensor_type'): {system_settings.get('flow_sensor_type') if isinstance(system_settings, dict) else 'NOT A DICT'}")
+        print(f"[DEBUG] system_settings.get('uart_port'): {system_settings.get('uart_port') if isinstance(system_settings, dict) else 'NOT A DICT'}")
+        
         self.hardware_mode = (system_settings.get('hardware_mode') or 'pump') if isinstance(system_settings, dict) else 'pump'
+        print(f"[DEBUG] Resolved hardware_mode: '{self.hardware_mode}'")
+        print(f"[DEBUG] ===============================================\n")
+        
         # Here we added a check for the hardware mode to be solenoid
         if self.hardware_mode == 'solenoid':
+            self.progress.emit(f"[DEBUG] Entering solenoid mode initialization...")
             # Build solenoid components using factory pattern
             from drivers.flow_sensor_factory import create_flow_sensor
             from drivers.uart_flow_sensor import TeensyUnavailableError
@@ -166,6 +178,8 @@ class RelayWorker(QObject):
                 self.progress.emit(f"✗ Stack trace: {traceback.format_exc()}")
                 raise RuntimeError(f"Flow sensor startup failed: {e}")
         else:
+            # NOT solenoid mode - using pump or other strategy
+            self.progress.emit(f"[DEBUG] NOT in solenoid mode (hardware_mode={self.hardware_mode}), using generic strategy")
             self.strategy = StrategyFactory.create(
                 self.hardware_mode,
                 pump_controller=self.pump_controller,
