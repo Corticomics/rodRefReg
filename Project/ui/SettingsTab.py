@@ -12,6 +12,7 @@ from cryptography.fernet import Fernet
 from datetime import datetime
 import pandas as pd
 from models.animal import Animal
+from ui.PrimingControlWidget import PrimingControlWidget
 
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
@@ -51,6 +52,7 @@ class SettingsTab(QWidget):
         # Create and add settings sub-tabs
         self.hardware_settings = self._create_hardware_settings()
         self.pump_settings = self._create_pump_settings()
+        self.priming_control = self._create_priming_control()
         self.system_settings = self._create_system_settings()
         self.notifications = self._create_notifications()
         self.backup_restore = self._create_backup_restore()
@@ -59,6 +61,7 @@ class SettingsTab(QWidget):
         # Add sub-tabs to settings - CHECK USABILITY OF SYSTEM AND BACKUP/RESTORE
         self.tab_widget.addTab(self.hardware_settings, "Hardware")
         self.tab_widget.addTab(self.pump_settings, "Pump Settings")
+        self.tab_widget.addTab(self.priming_control, "Priming / Manual Control")
         #self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
         #self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
@@ -281,6 +284,27 @@ class SettingsTab(QWidget):
         
         widget.setLayout(layout)
         return widget
+    
+    def _create_priming_control(self):
+        """
+        Create priming control tab using modular PrimingControlWidget.
+        
+        Best Practices:
+        - Composition over inheritance
+        - Single Responsibility Principle
+        - Dependency Injection (passing settings and callback)
+        - Separation of Concerns (priming logic isolated in dedicated widget)
+        """
+        # Instantiate the modular priming control widget
+        priming_widget = PrimingControlWidget(
+            settings=self.settings,
+            print_callback=self.print_to_terminal
+        )
+        
+        # Connect widget signals to parent if needed
+        priming_widget.status_message.connect(self.print_to_terminal)
+        
+        return priming_widget
 
     def _create_system_settings(self):
         """Create system settings tab with proper type handling"""

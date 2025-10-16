@@ -122,7 +122,7 @@ class SolenoidFlowStrategy:
             self._valves.open_cage(cage_id)
             self._logger.info(f"Solenoids opened successfully for cage {cage_id}")
             
-            # CRITICAL: Resume reads IMMEDIATELY after valve switching completes!
+            # CRITICAL: Rescjume reads IMMEDIATELY after valve switching completes!
             # The delivery loop NEEDS sensor data to measure flow
             try:
                 if hasattr(self._sensor, 'suspend_reads'):
