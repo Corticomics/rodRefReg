@@ -226,28 +226,28 @@ class SettingsTab(QWidget):
                                 pong_received = True
                                 self.print_to_terminal(f"✓ Teensy connection OK on {port}")
                                 QMessageBox.information(self, "Connection Test", 
-                                    f"✓ Teensy responded successfully!\nPort: {port}")
+                                    f"Teensy responded successfully!\nPort: {port}")
                                 break  # Exit loop, port closed in finally
                         except json.JSONDecodeError:
                             pass
                 time.sleep(0.1)
             
             if not pong_received:
-                self.print_to_terminal(f"✗ Teensy did not respond on {port}")
+                self.print_to_terminal(f"Teensy did not respond on {port}")
                 QMessageBox.warning(self, "Connection Test", 
                     f"Teensy did not respond.\n\n"
                     f"Troubleshooting:\n"
-                    f"• Verify firmware is uploaded\n"
-                    f"• Check serial port permissions\n"
-                    f"• Try replugging USB cable")
+                    f"- Verify firmware is uploaded\n"
+                    f"- Check serial port permissions\n"
+                    f"- Try replugging USB cable")
                 
         except serial.SerialException as e:
-            self.print_to_terminal(f"✗ Serial error: {e}")
+            self.print_to_terminal(f"Serial error: {e}")
             QMessageBox.critical(self, "Connection Test", 
                 f"Failed to open port:\n{str(e)}\n\n"
                 f"Check that no other program is using {port}")
         except Exception as e:
-            self.print_to_terminal(f"✗ Test error: {e}")
+            self.print_to_terminal(f"Test error: {e}")
             QMessageBox.critical(self, "Connection Test", f"Test failed: {str(e)}")
         finally:
             # CRITICAL: Always close serial port and release file lock
