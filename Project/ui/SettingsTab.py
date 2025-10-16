@@ -61,7 +61,7 @@ class SettingsTab(QWidget):
         # Add sub-tabs to settings - CHECK USABILITY OF SYSTEM AND BACKUP/RESTORE
         self.tab_widget.addTab(self.hardware_settings, "Hardware")
         self.tab_widget.addTab(self.pump_settings, "Pump Settings")
-        self.tab_widget.addTab(self.priming_control, "Priming / Manual Control")
+        self.tab_widget.addTab(self.priming_control, "Priming")
         #self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
         #self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
