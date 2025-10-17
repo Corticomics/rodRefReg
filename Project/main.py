@@ -67,12 +67,21 @@ def setup():
         print(f"Hardware auto-configuration failed: {e}")
         # Continue with existing settings
 
+    # Initialize relay unit manager (mode-aware: pump vs solenoid)
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler = RelayHandler(relay_unit_manager, app_settings['num_hats'])
+    
+    # Store relay_unit_manager in app_settings for UI access
+    # Best Practice: Single source of truth for relay configuration
+    app_settings['relay_unit_manager'] = relay_unit_manager
+    print(f"✓ RelayUnitManager initialized in {relay_unit_manager.get_hardware_mode()} mode with {len(relay_unit_manager.get_all_relay_units())} units")
 
     controller = ProjectsController()
     pump_controller = PumpController(relay_handler, database_handler)
     controller.pump_controller = pump_controller
+    
+    # Store pump_controller in app_settings for UI access
+    app_settings['pump_controller'] = pump_controller
 
     notification_handler = NotificationHandler(
         app_settings.get('slack_token'),

@@ -262,33 +262,53 @@ class SchedulesTab(QWidget):
         """)
 
     def initialize_relay_units(self):
-        """Initialize the relay unit widgets based on the database configuration."""
+        """
+        Initialize relay unit widgets based on hardware mode.
+        
+        Architecture:
+        - Uses RelayUnitManager from settings (mode-aware)
+        - Falls back to database or defaults if manager unavailable
+        - Creates UI widgets for each configured relay unit
+        
+        Best Practices:
+        - Single source of truth (settings/RelayUnitManager)
+        - Graceful degradation (fallbacks for legacy configs)
+        - Separation of concerns (UI widgets vs business logic)
+        """
         # Clear existing relay units
         self.clear_relay_units_layout()
         
-        # Get relay units from database or use defaults if not configured
-        try:
-            # Try to use get_relay_units first
-            relay_units = self.database_handler.get_relay_units()
-        except AttributeError:
-            try:
-                # Fall back to get_all_relay_units if available
-                print("Falling back to get_all_relay_units")
-                relay_units = self.database_handler.get_all_relay_units()
-            except AttributeError:
-                # No relay unit retrieval method available, use defaults
-                print("No relay unit retrieval method available, using defaults")
-                relay_units = []
+        relay_units = []
         
+        # Priority 1: Get relay units from RelayUnitManager in settings (mode-aware)
+        relay_unit_manager = self.settings.get('relay_unit_manager')
+        if relay_unit_manager and hasattr(relay_unit_manager, 'get_all_relay_units'):
+            relay_units = relay_unit_manager.get_all_relay_units()
+            hardware_mode = getattr(relay_unit_manager, 'hardware_mode', 'unknown')
+            print(f"[SchedulesTab] Loaded {len(relay_units)} relay units from RelayUnitManager ({hardware_mode} mode)")
+        
+        # Priority 2: Fall back to database (legacy compatibility)
+        elif not relay_units:
+            try:
+                relay_units = self.database_handler.get_relay_units()
+                print(f"[SchedulesTab] Loaded {len(relay_units)} relay units from database")
+            except AttributeError:
+                try:
+                    relay_units = self.database_handler.get_all_relay_units()
+                    print(f"[SchedulesTab] Loaded {len(relay_units)} relay units from database (alt method)")
+                except AttributeError:
+                    print("[SchedulesTab] No database method available for relay units")
+        
+        # Priority 3: Use hardcoded defaults (pump mode, 6 paired units)
         if not relay_units or len(relay_units) == 0:
-            # Default setup: 6 relay units with 2 relays each
+            print("[SchedulesTab] No relay units found, using default pump mode configuration")
             relay_units = []
             for i in range(1, 7):
                 relay_ids = (i * 2 - 1, i * 2)
                 relay_unit = RelayUnit(i, relay_ids)
                 relay_units.append(relay_unit)
         
-        # Create widgets for each relay unit
+        # Create UI widgets for each relay unit
         for relay_unit in relay_units:
             widget = RelayUnitWidget(
                 relay_unit,
@@ -300,6 +320,8 @@ class SchedulesTab(QWidget):
             widget.set_mode(self.mode_selector.currentText())
             self.relay_units[relay_unit.unit_id] = widget
             self.relay_units_layout.addWidget(widget)
+        
+        print(f"[SchedulesTab] Initialized {len(self.relay_units)} relay unit widgets")
         
     def clear_relay_units_layout(self):
         """Clear all relay unit widgets from the layout."""
