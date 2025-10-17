@@ -99,7 +99,17 @@ class UARTFlowSensor:
         self._frame_timeout_s = 3.0  # No frames for 3s = potential hang
         
     def start(self) -> None:
-        """Start sensor and begin continuous reading."""
+        """Start sensor and begin continuous reading.
+        
+        Best Practices:
+        - Fail-fast: Verify streaming is active before returning
+        - Resource validation: Confirm reader thread is producing data
+        - Clear error messages: Report specific failure modes
+        
+        Raises:
+            TeensyUnavailableError: If sensor doesn't stream within timeout
+            ConnectionError: If serial connection fails
+        """
         try:
             self._logger.info(f"[UART] Starting flow sensor on {self.port} at {self.sampling_hz} Hz")
             
@@ -116,8 +126,29 @@ class UARTFlowSensor:
             self._reader_thread.start()
             self._logger.info(f"[UART] ✓ Reader thread started")
             
+            # CRITICAL: Verify streaming is active (fail-fast principle)
+            # Don't return success until we've confirmed measurements are arriving
+            self._logger.info(f"[UART] Verifying stream health...")
+            verification_timeout_s = 5.0
+            min_frames_required = 5  # ~0.5s at 10 Hz, ~0.1s at 50 Hz
+            
+            if not self.wait_for_frames(min_frames=min_frames_required, timeout_s=verification_timeout_s):
+                error_msg = (
+                    f"Stream verification failed: No measurements received within {verification_timeout_s}s. "
+                    f"Expected {min_frames_required} frames. "
+                    f"Sample count: {self._sample_count}, Error count: {self._error_count}. "
+                    f"Check: 1) I²C wiring (SDA/SCL/GND), 2) Pullup resistors (2kΩ), 3) Teensy firmware loaded."
+                )
+                self._logger.error(f"[UART] {error_msg}")
+                self.stop()
+                raise TeensyUnavailableError(error_msg)
+            
+            self._logger.info(f"[UART] ✓ Stream health verified ({self._sample_count} measurements received)")
             self._logger.info(f"[UART] ✓ Flow sensor fully initialized on {self.port} at {self.sampling_hz} Hz")
             
+        except TeensyUnavailableError:
+            # Re-raise sensor-specific errors without wrapping
+            raise
         except Exception as e:
             self._logger.error(f"[UART] X Failed to start flow sensor: {e}", exc_info=True)
             self.stop()
@@ -358,8 +389,16 @@ class UARTFlowSensor:
                 raise
     
     def _reader_loop(self) -> None:
-        """Background thread to read data from Teensy."""
+        """Background thread to read data from Teensy.
+        
+        Best Practices:
+        - Defensive programming: Handle all exception types gracefully
+        - Observability: Log key metrics (sample rate, queue depth, errors)
+        - Resource management: Monitor frame timeouts for hang detection
+        """
         self._last_frame_time = time.time()  # Initialize frame activity monitor
+        last_stats_log = time.time()  # For periodic health logging
+        stats_interval_s = 10.0  # Log stats every 10 seconds
         
         while self._running:
             try:
@@ -381,6 +420,19 @@ class UARTFlowSensor:
                         self._logger.error("Recovery failed, will retry")
                         time.sleep(1.0)
                     continue
+                
+                # Periodic health stats logging (observability best practice)
+                now = time.time()
+                if now - last_stats_log >= stats_interval_s:
+                    queue_depth = self._data_queue.qsize()
+                    time_since_last_frame = now - self._last_frame_time
+                    avg_rate = self._sample_count / (now - last_stats_log + stats_interval_s) if self._sample_count > 0 else 0
+                    self._logger.debug(
+                        f"Stream health: samples={self._sample_count}, errors={self._error_count}, "
+                        f"queue={queue_depth}/100, last_frame={time_since_last_frame:.1f}s ago, "
+                        f"rate={avg_rate:.1f} Hz"
+                    )
+                    last_stats_log = now
                 
                 # Check for periodic ping
                 if (not self._pings_suspended) and (time.time() - self._last_ping > self._ping_interval):
@@ -584,7 +636,12 @@ class UARTFlowSensor:
             return False
 
     def wait_for_frames(self, min_frames: int = 3, timeout_s: float = 5.0) -> bool:
-        """Wait for at least min_frames new measurements within timeout_s."""
+        """Wait for at least min_frames new measurements within timeout_s.
+        
+        Best Practices:
+        - Polling with timeout: Efficient busy-wait for async operations
+        - Delta-based validation: Count new frames, not total frames
+        """
         start_time = time.time()
         start_count = self._sample_count
         while time.time() - start_time < timeout_s:
@@ -592,6 +649,29 @@ class UARTFlowSensor:
                 return True
             time.sleep(0.01)
         return (self._sample_count - start_count) >= min_frames
+    
+    def clear_queue(self) -> int:
+        """Clear all pending measurements from the data queue.
+        
+        Best Practices:
+        - Idempotent operations: Start each delivery from clean state
+        - Resource cleanup: Prevent stale data from affecting new deliveries
+        
+        Returns:
+            Number of measurements cleared
+        """
+        cleared_count = 0
+        try:
+            while not self._data_queue.empty():
+                self._data_queue.get_nowait()
+                cleared_count += 1
+        except Empty:
+            pass
+        
+        if cleared_count > 0:
+            self._logger.debug(f"Cleared {cleared_count} stale measurements from queue")
+        
+        return cleared_count
 
     def ensure_streaming(self, min_frames: int = 3, timeout_s: float = 2.0) -> bool:
         """Ensure streaming is active; if not, attempt to start and wait for frames."""

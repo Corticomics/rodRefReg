@@ -87,25 +87,48 @@ class SolenoidFlowStrategy:
 
         try:
             self._logger.info(f"Starting delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
+            
+            # CRITICAL: Deterministic stream initialization before EVERY delivery
+            # Best Practices:
+            # - Idempotent operations: Start from known-good state
+            # - Fail-fast: Catch sensor issues before opening valves
+            # - Clear diagnostics: Report specific failure modes
+            self._logger.debug(f"Pre-delivery: Verifying stream health...")
+            
+            # Step 1: Clear stale measurements (ensures fresh data)
+            if hasattr(self._sensor, 'clear_queue'):
+                cleared = self._sensor.clear_queue()
+                if cleared > 0:
+                    self._logger.debug(f"Cleared {cleared} stale measurements from queue")
+            
+            # Step 2: Verify stream is active and healthy
+            if hasattr(self._sensor, 'ensure_streaming'):
+                stream_ok = self._sensor.ensure_streaming(min_frames=5, timeout_s=3.0)
+                if not stream_ok:
+                    self._logger.warning("Stream health check failed, attempting recovery...")
+                    
+                    # Attempt recovery via reset
+                    if hasattr(self._sensor, 'reset'):
+                        try:
+                            self._sensor.reset()
+                            self._logger.info("Sensor reset completed, re-verifying stream...")
+                        except Exception as e:
+                            self._logger.warning(f"Sensor reset failed: {e}")
+                        
+                        # Re-verify after reset
+                        stream_ok = self._sensor.ensure_streaming(min_frames=5, timeout_s=5.0)
+                    
+                    if not stream_ok:
+                        error_msg = (
+                            "Flow stream not available after recovery. "
+                            "Check: 1) Teensy USB connection, 2) I²C wiring, 3) Pullup resistors (2kΩ)"
+                        )
+                        self._logger.error(error_msg)
+                        return False
+                
+                self._logger.info(f"✓ Stream health verified, proceeding with delivery")
+            
             self._logger.debug(f"Opening master solenoid...")
-            # Gate delivery on active stream: require N frames before opening (reads must NOT be suspended)
-            try:
-                if hasattr(self._sensor, 'ensure_streaming'):
-                    if not self._sensor.ensure_streaming(min_frames=3, timeout_s=3.0):
-                        # Attempt datasheet-compliant recovery via reset if available
-                        if hasattr(self._sensor, 'reset'):
-                            try:
-                                self._sensor.reset()
-                            except Exception:
-                                pass
-                            if not self._sensor.ensure_streaming(min_frames=5, timeout_s=5.0):
-                                self._logger.error("Flow stream not available after reset; aborting delivery")
-                                return False
-                        else:
-                            self._logger.error("Flow stream not available; aborting delivery")
-                            return False
-            except Exception as _:
-                pass
             # Suspend UART pings and serial reads during valve switching to reduce contention
             try:
                 if hasattr(self._sensor, '_pings_suspended'):
