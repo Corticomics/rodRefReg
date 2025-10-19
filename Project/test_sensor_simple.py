@@ -25,9 +25,16 @@ except ImportError:
 
 
 def main():
-    port = '/dev/ttyACM0'
-    baud = 115200
-    duration = 30  # seconds
+    import argparse
+    parser = argparse.ArgumentParser(description='Simple Teensy Flow Sensor Test')
+    parser.add_argument('--port', default='/dev/teensy_flow', help='Serial port')
+    parser.add_argument('--baud', type=int, default=115200, help='Baud rate')
+    parser.add_argument('--duration', type=int, default=30, help='Test duration in seconds')
+    args = parser.parse_args()
+    
+    port = args.port
+    baud = args.baud
+    duration = args.duration
     
     print("="*70)
     print("🔬 SIMPLE TEENSY FLOW SENSOR TEST")
