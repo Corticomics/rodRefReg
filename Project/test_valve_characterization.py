@@ -148,6 +148,77 @@ class ValveCharacterizationTest:
         except Exception as e:
             print(f"⚠ Cleanup warning: {e}")
     
+    def ensure_sensor_streaming(self, timeout_s: float = 5.0) -> bool:
+        """
+        Ensure sensor is actively streaming measurements.
+        
+        Best Practices:
+        - Fail-fast: Verify streaming before valve operations
+        - Clear diagnostics: Report specific failure modes
+        
+        Returns:
+            True if sensor streaming, False otherwise
+        """
+        print("  Verifying sensor stream...", end=" ", flush=True)
+        
+        # Clear stale data
+        if hasattr(self.sensor, 'clear_queue'):
+            self.sensor.clear_queue()
+        
+        # Wait for fresh measurements
+        if hasattr(self.sensor, 'wait_for_frames'):
+            if self.sensor.wait_for_frames(min_frames=5, timeout_s=timeout_s):
+                print("✓ Streaming")
+                return True
+            else:
+                print("✗ NOT streaming")
+                return False
+        else:
+            # Fallback: try to read a few samples
+            samples_received = 0
+            start_time = time.perf_counter()
+            while (time.perf_counter() - start_time) < timeout_s:
+                sample = self.sensor.read_one()
+                if sample:
+                    samples_received += 1
+                    if samples_received >= 3:
+                        print("✓ Streaming")
+                        return True
+                time.sleep(0.02)
+            
+            print(f"✗ NOT streaming (only {samples_received} samples)")
+            return False
+    
+    def restart_sensor(self) -> bool:
+        """
+        Stop and restart sensor for clean state between tests.
+        
+        Best Practices:
+        - Idempotent operations: Known-good state for each test
+        - Firmware reset: Clear any hung state
+        """
+        print("  Restarting sensor...", end=" ", flush=True)
+        
+        try:
+            # Stop sensor
+            if hasattr(self.sensor, 'stop'):
+                self.sensor.stop()
+                time.sleep(0.5)
+            
+            # Restart sensor
+            if hasattr(self.sensor, 'start'):
+                self.sensor.start()
+                time.sleep(1.0)  # Allow firmware to initialize
+                print("✓")
+                return True
+            else:
+                print("✗ (no start method)")
+                return False
+                
+        except Exception as e:
+            print(f"✗ {e}")
+            return False
+    
     def read_flow_samples(self, duration_s: float, sample_rate_hz: float = 50.0) -> List[Dict]:
         """
         Read flow sensor samples for specified duration.
@@ -192,6 +263,14 @@ class ValveCharacterizationTest:
         print("Purpose: Measure time from valve open signal to flow detection")
         print("Method: 5 trials, measure time to flow > 0.1 mL/min")
         print()
+        
+        # Restart sensor for clean state
+        if not self.restart_sensor():
+            return {'test_name': 'valve_opening_lag', 'success': False, 'error': 'Sensor restart failed'}
+        
+        # Verify streaming
+        if not self.ensure_sensor_streaming():
+            return {'test_name': 'valve_opening_lag', 'success': False, 'error': 'Sensor not streaming'}
         
         opening_lags = []
         
@@ -289,6 +368,14 @@ class ValveCharacterizationTest:
         print("Method: 5 trials, measure time to flow < 0.05 mL/min")
         print()
         
+        # Restart sensor for clean state
+        if not self.restart_sensor():
+            return {'test_name': 'valve_closing_lag', 'success': False, 'error': 'Sensor restart failed'}
+        
+        # Verify streaming
+        if not self.ensure_sensor_streaming():
+            return {'test_name': 'valve_closing_lag', 'success': False, 'error': 'Sensor not streaming'}
+        
         closing_lags = []
         
         for trial in range(1, 6):
@@ -384,6 +471,14 @@ class ValveCharacterizationTest:
         print("Method: 3-second open, sample at 50 Hz")
         print()
         
+        # Restart sensor for clean state
+        if not self.restart_sensor():
+            return {'test_name': 'continuous_flow_rate', 'success': False, 'error': 'Sensor restart failed'}
+        
+        # Verify streaming
+        if not self.ensure_sensor_streaming():
+            return {'test_name': 'continuous_flow_rate', 'success': False, 'error': 'Sensor not streaming'}
+        
         try:
             # Open valves
             self.controller.open_master()
@@ -473,6 +568,14 @@ class ValveCharacterizationTest:
         print("Purpose: Find minimum stable pulse width per datasheet")
         print("Method: Test 10ms, 20ms, 50ms, 100ms, 200ms, 500ms (3 trials each)")
         print()
+        
+        # Restart sensor for clean state
+        if not self.restart_sensor():
+            return {'test_name': 'pulse_width_sweep', 'success': False, 'error': 'Sensor restart failed'}
+        
+        # Verify streaming
+        if not self.ensure_sensor_streaming():
+            return {'test_name': 'pulse_width_sweep', 'success': False, 'error': 'Sensor not streaming'}
         
         pulse_widths_ms = [10, 20, 50, 100, 200, 500]
         pulse_results = {}
@@ -606,6 +709,14 @@ class ValveCharacterizationTest:
         print("Purpose: Measure time for flow to return to baseline")
         print("Method: 3 trials, measure time to flow < 0.01 mL/min")
         print()
+        
+        # Restart sensor for clean state
+        if not self.restart_sensor():
+            return {'test_name': 'settling_time', 'success': False, 'error': 'Sensor restart failed'}
+        
+        # Verify streaming
+        if not self.ensure_sensor_streaming():
+            return {'test_name': 'settling_time', 'success': False, 'error': 'Sensor not streaming'}
         
         settling_times = []
         
