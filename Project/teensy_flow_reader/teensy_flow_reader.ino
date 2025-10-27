@@ -94,9 +94,10 @@ void setup() {
   Wire.setClock(I2C_CLOCK_HZ);
   Wire.setTimeout(I2C_TIMEOUT_MS);  // Set I2C timeout (Teensy 4.x feature)
   
-  // Initialize hardware watchdog (4 second timeout)
+  // Initialize hardware watchdog (2 second timeout for faster recovery)
   // This will reset the Teensy if firmware hangs
-  watchdog.enable(Watchdog::TIMEOUT_4S);
+  // Using 2s instead of 4s for faster hang detection
+  watchdog.enable(Watchdog::TIMEOUT_2S);
   last_watchdog_feed = millis();
   
   // Initialize sampling interval
@@ -413,6 +414,14 @@ uint8_t calculateCRC8(uint8_t* data, uint8_t len) {
 }
 
 void sendMeasurement(float flow_ml_min, float temp_c) {
+  // CRITICAL: Check if Serial can accept data (non-blocking)
+  // If buffer is full, skip this measurement rather than hanging
+  if (Serial.availableForWrite() < 100) {
+    // Serial buffer nearly full - skip this sample to prevent blocking
+    // This prevents firmware hang during high-rate streaming
+    return;
+  }
+  
   response_doc.clear();
   response_doc["type"] = "measurement";
   response_doc["flow"] = serialized(String(flow_ml_min, 4));  // 4 decimal places

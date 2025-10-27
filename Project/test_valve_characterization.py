@@ -102,9 +102,11 @@ class ValveCharacterizationTest:
             self.controller = SolenoidController(self.relay_handler, master_id, cage_relays)
             
             # Initialize flow sensor
+            # Use 20 Hz instead of 50 Hz to prevent serial buffer overflow
+            # at high flow rates (prevents firmware hang)
             self.sensor = UARTFlowSensor(
                 port=self.sensor_port,
-                sampling_hz=50.0,
+                sampling_hz=20.0,  # Reduced from 50 Hz
                 baud_rate=115200
             )
             self.sensor.start()
@@ -219,7 +221,7 @@ class ValveCharacterizationTest:
             print(f"✗ {e}")
             return False
     
-    def read_flow_samples(self, duration_s: float, sample_rate_hz: float = 50.0) -> List[Dict]:
+    def read_flow_samples(self, duration_s: float, sample_rate_hz: float = 20.0) -> List[Dict]:
         """
         Read flow sensor samples for specified duration.
         
@@ -315,14 +317,14 @@ class ValveCharacterizationTest:
                     time.sleep(0.005)  # 5ms sampling
                 
                 if not flow_detected:
-                    print(f"✗ TIMEOUT (no flow detected after {timeout_s}s)")
+                    print(f"TIMEOUT (no flow detected after {timeout_s}s)")
                 
                 # Close valve
                 self.controller.close_cage(self.cage_id)
                 time.sleep(2.0)  # Wait between trials
                 
             except Exception as e:
-                print(f"✗ FAILED: {e}")
+                print(f"FAILED: {e}")
         
         # Calculate statistics
         if opening_lags:
@@ -413,7 +415,7 @@ class ValveCharacterizationTest:
                     time.sleep(0.005)  # 5ms sampling
                 
                 if not flow_stopped:
-                    print(f"✗ TIMEOUT (flow still detected after {timeout_s}s)")
+                    print(f"TIMEOUT (flow still detected after {timeout_s}s)")
                 
                 # Ensure valves closed
                 try:
@@ -449,7 +451,7 @@ class ValveCharacterizationTest:
         if result.get('success'):
             print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(closing_lags)})")
         else:
-            print(f"\n✗ Test failed: {result.get('error', 'Unknown error')}")
+            print(f"\nTest failed: {result.get('error', 'Unknown error')}")
         
         self.results['tests']['test_2_closing_lag'] = result
         return result
@@ -468,7 +470,7 @@ class ValveCharacterizationTest:
         print("TEST 3: Continuous Flow Rate Measurement")
         print("-"*70)
         print("Purpose: Measure steady-state flow rate")
-        print("Method: 3-second open, sample at 50 Hz")
+        print("Method: 3-second open, sample at 20 Hz")
         print()
         
         # Restart sensor for clean state
@@ -492,7 +494,7 @@ class ValveCharacterizationTest:
             self.controller.open_cage(self.cage_id)
             print("Valve opened, measuring for 3 seconds...")
             
-            samples = self.read_flow_samples(duration_s=3.0, sample_rate_hz=50.0)
+            samples = self.read_flow_samples(duration_s=3.0, sample_rate_hz=20.0)
             
             # Close valve
             self.controller.close_cage(self.cage_id)
@@ -668,9 +670,9 @@ class ValveCharacterizationTest:
                 
                 print(f"  Summary: {mean_vol:.4f} ± {stdev_vol:.4f} mL (CV: {cv_pct:.1f}%)")
                 if cv_pct < 10.0:
-                    print(f"  ✓ STABLE (CV < 10%)")
+                    print(f"  STABLE (CV < 10%)")
                 else:
-                    print(f"  ⚠ UNSTABLE (CV ≥ 10%)")
+                    print(f"  UNSTABLE (CV ≥ 10%)")
         
         # Find minimum stable pulse width
         stable_widths = [pw for pw, res in pulse_results.items() if res['is_stable']]
@@ -760,7 +762,7 @@ class ValveCharacterizationTest:
                     time.sleep(0.01)
                 
                 if not flow_settled:
-                    print(f"✗ TIMEOUT (flow > {threshold_ml_min} mL/min after {timeout_s}s)")
+                    print(f" TIMEOUT (flow > {threshold_ml_min} mL/min after {timeout_s}s)")
                 
                 # Cleanup
                 try:
@@ -796,7 +798,7 @@ class ValveCharacterizationTest:
         if result.get('success'):
             print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(settling_times)})")
         else:
-            print(f"\n✗ Test failed: {result.get('error', 'Unknown error')}")
+            print(f"\n Test failed: {result.get('error', 'Unknown error')}")
         
         self.results['tests']['test_5_settling_time'] = result
         return result
@@ -804,7 +806,7 @@ class ValveCharacterizationTest:
     def run_all_tests(self):
         """Execute complete test suite."""
         if not self.setup():
-            print("\n✗ Hardware setup failed - cannot proceed")
+            print("\n Hardware setup failed - cannot proceed")
             return False
         
         try:
@@ -836,10 +838,10 @@ class ValveCharacterizationTest:
             return True
             
         except KeyboardInterrupt:
-            print("\n\n⚠ Test interrupted by user")
+            print("\n\n Test interrupted by user")
             return False
         except Exception as e:
-            print(f"\n✗ Test suite failed: {e}")
+            print(f"\n Test suite failed: {e}")
             import traceback
             traceback.print_exc()
             return False
@@ -879,7 +881,7 @@ class ValveCharacterizationTest:
                 print(f"  Range: {t3['flow_min']:.3f} - {t3['flow_max']:.3f} mL/min")
                 print(f"  Saturation: {t3['saturation_pct']:.1f}%")
                 if t3['sensor_saturated']:
-                    print(f"  ⚠ WARNING: Sensor SATURATED (actual flow unknown!)")
+                    print(f"  WARNING: Sensor SATURATED (actual flow unknown!)")
             else:
                 print(f"Continuous Flow: FAILED")
         
