@@ -124,12 +124,26 @@ class ValveCharacterizationTest:
         """Safely close all hardware connections."""
         print("\nCleaning up...")
         try:
+            # Close all valves via controller
             if self.controller:
-                self.controller.close_all()
+                try:
+                    self.controller.close_master()
+                except Exception:
+                    pass
+                # Close all cage valves (assuming cage_id is valid)
+                try:
+                    self.controller.close_cage(self.cage_id)
+                except Exception:
+                    pass
+            
+            # Stop sensor
             if self.sensor:
                 self.sensor.stop()
+            
+            # Turn off all relays as final safety
             if self.relay_handler:
                 self.relay_handler.set_all_relays(0)
+            
             print("✓ Cleanup complete")
         except Exception as e:
             print(f"⚠ Cleanup warning: {e}")
@@ -186,7 +200,11 @@ class ValveCharacterizationTest:
             
             try:
                 # Ensure valves closed
-                self.controller.close_all()
+                try:
+                    self.controller.close_cage(self.cage_id)
+                    self.controller.close_master()
+                except Exception:
+                    pass
                 time.sleep(1.0)
                 
                 # Open master first
@@ -246,7 +264,12 @@ class ValveCharacterizationTest:
                 'error': 'No successful measurements'
             }
         
-        print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(opening_lags)})")
+        # Print results (with defensive check for success)
+        if result.get('success'):
+            print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(opening_lags)})")
+        else:
+            print(f"\n✗ Test failed: {result.get('error', 'Unknown error')}")
+        
         self.results['tests']['test_1_opening_lag'] = result
         return result
     
@@ -306,7 +329,11 @@ class ValveCharacterizationTest:
                     print(f"✗ TIMEOUT (flow still detected after {timeout_s}s)")
                 
                 # Ensure valves closed
-                self.controller.close_all()
+                try:
+                    self.controller.close_cage(self.cage_id)
+                    self.controller.close_master()
+                except Exception:
+                    pass
                 time.sleep(2.0)  # Wait between trials
                 
             except Exception as e:
@@ -331,7 +358,12 @@ class ValveCharacterizationTest:
                 'error': 'No successful measurements'
             }
         
-        print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(closing_lags)})")
+        # Print results (with defensive check for success)
+        if result.get('success'):
+            print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(closing_lags)})")
+        else:
+            print(f"\n✗ Test failed: {result.get('error', 'Unknown error')}")
+        
         self.results['tests']['test_2_closing_lag'] = result
         return result
     
@@ -453,8 +485,12 @@ class ValveCharacterizationTest:
                 print(f"  Trial {trial}/3:", end=" ", flush=True)
                 
                 try:
-                    # Prepare
-                    self.controller.close_all()
+                    # Prepare - ensure valves closed
+                    try:
+                        self.controller.close_cage(self.cage_id)
+                        self.controller.close_master()
+                    except Exception:
+                        pass
                     time.sleep(1.0)
                     self.controller.open_master()
                     time.sleep(0.3)
@@ -502,7 +538,11 @@ class ValveCharacterizationTest:
                     print(f"✓ {volume_ml:.4f} mL")
                     
                     # Wait between trials
-                    self.controller.close_all()
+                    try:
+                        self.controller.close_cage(self.cage_id)
+                        self.controller.close_master()
+                    except Exception:
+                        pass
                     time.sleep(2.0)
                     
                 except Exception as e:
@@ -612,7 +652,11 @@ class ValveCharacterizationTest:
                     print(f"✗ TIMEOUT (flow > {threshold_ml_min} mL/min after {timeout_s}s)")
                 
                 # Cleanup
-                self.controller.close_all()
+                try:
+                    self.controller.close_cage(self.cage_id)
+                    self.controller.close_master()
+                except Exception:
+                    pass
                 time.sleep(2.0)
                 
             except Exception as e:
@@ -637,7 +681,12 @@ class ValveCharacterizationTest:
                 'error': 'No successful measurements'
             }
         
-        print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(settling_times)})")
+        # Print results (with defensive check for success)
+        if result.get('success'):
+            print(f"\nResults: {result['mean']:.1f} ± {result['stdev']:.1f}ms (n={len(settling_times)})")
+        else:
+            print(f"\n✗ Test failed: {result.get('error', 'Unknown error')}")
+        
         self.results['tests']['test_5_settling_time'] = result
         return result
     
