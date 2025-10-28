@@ -96,7 +96,7 @@ class UARTFlowSensor:
         
         # Frame activity monitoring (detect firmware hangs)
         self._last_frame_time = 0
-        self._frame_timeout_s = 3.0  # No frames for 3s = potential hang
+        self._frame_timeout_s = 10.0  # No frames for 10s = potential hang (increased for rapid pulse testing)
         
     def start(self) -> None:
         """Start sensor and begin continuous reading.

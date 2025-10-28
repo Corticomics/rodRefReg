@@ -48,7 +48,7 @@ const unsigned long I2C_TIMEOUT_MS = 300;        // Max time for I2C operation
 const unsigned long RESET_WAIT_MS = 30;          // Wait after soft reset (datasheet: min 25ms)
 const unsigned long BUS_RECOVERY_DELAY_MS = 50;  // Time for bus to settle after recovery
 const unsigned long WATCHDOG_FEED_INTERVAL_MS = 500;  // Feed watchdog every 500ms
-const uint16_t MAX_CONSECUTIVE_ERRORS = 50;      // Stop streaming after this many errors
+const uint16_t MAX_CONSECUTIVE_ERRORS = 200;     // Stop streaming after this many errors (increased for rapid pulse testing with EMI)
 
 // I2C Speed (50kHz for maximum reliability with breadboard + EMI from relays)
 const uint32_t I2C_CLOCK_HZ = 50000;
