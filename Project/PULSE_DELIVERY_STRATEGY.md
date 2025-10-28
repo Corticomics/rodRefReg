@@ -40,13 +40,23 @@ if (consecutive_errors >= MAX_CONSECUTIVE_ERRORS) {
 1. Rapid valve switching causes EMI
 2. I²C reads fail (sensor returns wrong byte count)
 3. `consecutive_errors` increments
-4. After 50 errors → **firmware stops streaming**
-5. Python sees "No frames for 3s" → triggers recovery
-6. Recovery fails because firmware already stopped
+4. After 200 errors → **firmware stops streaming**
+5. Firmware still responds to commands but sends `flow=0.0`
+6. Python receives 0.0 mL measurements (not "no frames")
+7. Eventually (~10 trials): Python sees "No frames for 10s" → recovery fails
+
+### **Critical Insight:**
+
+**Firmware DOESN'T crash** - it *gracefully stops streaming* after error limit!
+- ✅ Still responds to stop/start commands
+- ✅ USB connection remains active
+- ❌ But won't send measurements until restarted
+
+**Solution:** Restart sensor between trials to **reset error counter**
 
 ---
 
-## ✅ **THREE FIXES APPLIED**
+## ✅ **FOUR FIXES APPLIED**
 
 ### **Fix 1: Increase Python Frame Timeout**
 
@@ -80,7 +90,33 @@ const uint16_t MAX_CONSECUTIVE_ERRORS = 200;  // 4x tolerance for EMI
 
 ---
 
-### **Fix 3: Already Applied - Cold Start Initialization**
+### **Fix 3: Restart Sensor Between Trials**
+
+**File:** `test_valve_characterization.py`
+
+```python
+for trial in range(1, 4):
+    # CRITICAL: Restart sensor between EACH trial to reset error counter
+    if trial > 1:
+        if not self.restart_sensor():
+            continue
+        if not self.ensure_sensor_streaming():
+            continue
+    
+    # Execute pulse test...
+```
+
+**Reason:** 
+- Each valve switch accumulates ~10-30 I²C errors
+- After 3 trials × 6 pulse widths = 18 tests
+- Total errors: 18 × 20 = 360 errors
+- Exceeds 200 limit → firmware stops!
+
+**Solution:** Reset error counter by restarting sensor between trials
+
+---
+
+### **Fix 4: Cold Start Initialization**
 
 **File:** `teensy_flow_reader.ino` (in `setup()`)
 
@@ -235,8 +271,9 @@ Then I'll:
 
 | Issue | Root Cause | Fix | Impact |
 |-------|------------|-----|--------|
-| Firmware hangs during pulse test | `MAX_CONSECUTIVE_ERRORS = 50` too low | Increased to 200 | ✅ Handles EMI during rapid switching |
-| Python false hang detection | `_frame_timeout_s = 3.0` too aggressive | Increased to 10.0 | ✅ Allows dropped frames during EMI |
+| Firmware stops after ~8 trials | `consecutive_errors` accumulates across trials | Restart sensor between trials | ✅ Resets error counter |
+| Firmware stops too easily | `MAX_CONSECUTIVE_ERRORS = 50` too low | Increased to 200 | ✅ Handles EMI during switching |
+| Python false hang detection | `_frame_timeout_s = 3.0` too aggressive | Increased to 10.0 | ✅ Allows dropped frames |
 | Warm-up delay hangs | 60ms delay on every start | Moved to `setup()` only | ✅ Rapid start/stop works |
 
 ---

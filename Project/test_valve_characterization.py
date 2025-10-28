@@ -596,6 +596,18 @@ class ValveCharacterizationTest:
             for trial in range(1, 4):
                 print(f"  Trial {trial}/3:", end=" ", flush=True)
                 
+                # CRITICAL: Restart sensor between EACH trial to reset error counter
+                # Rapid valve switching accumulates I²C errors → firmware stops after ~200 errors
+                if trial > 1:  # Don't restart before first trial (already restarted for pulse width)
+                    if not self.restart_sensor():
+                        print("Sensor restart failed")
+                        volumes.append(0.0)
+                        continue
+                    if not self.ensure_sensor_streaming():
+                        print("Sensor not streaming")
+                        volumes.append(0.0)
+                        continue
+                
                 try:
                     # Prepare - ensure valves closed
                     try:
