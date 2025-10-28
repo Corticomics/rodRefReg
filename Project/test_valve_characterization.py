@@ -356,7 +356,13 @@ class ValveCharacterizationTest:
     
     def test_2_valve_closing_lag(self) -> Dict:
         """
-        TEST 2: Measure time from valve close signal to zero flow.
+        TEST 2: Measure system equilibrium time (NOT cage delivery cutoff).
+        
+        CRITICAL NOTE:
+        - When cage solenoid closes, flow to cage STOPS IMMEDIATELY
+        - Flow sensor continues reading manifold/tubing pressure equalization
+        - This test measures SYSTEM SETTLING, not delivery endpoint
+        - For delivery strategy: Use TIME-BASED CUTOFF, not flow detection
         
         Methodology:
         - Open cage valve until flow stabilizes
@@ -364,10 +370,11 @@ class ValveCharacterizationTest:
         - Repeat 5 times
         """
         print("\n" + "-"*70)
-        print("TEST 2: Valve Closing Lag Measurement")
+        print("TEST 2: System Equilibrium Time (NOT Delivery Cutoff)")
         print("-"*70)
-        print("Purpose: Measure time from valve close signal to zero flow")
+        print("Purpose: Measure manifold/tubing settling time after cage close")
         print("Method: 5 trials, measure time to flow < 0.05 mL/min")
+        print("⚠ NOTE: Flow after cage close is NOT delivered to cage!")
         print()
         
         # Restart sensor for clean state

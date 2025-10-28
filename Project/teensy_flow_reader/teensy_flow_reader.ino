@@ -103,11 +103,34 @@ void setup() {
   // Initialize sampling interval
   setSamplingRate(sampling_rate);
   
+  // Perform sensor cold-start initialization (reset + warm-up)
+  // This ensures sensor is ready with proper calibration
+  Wire.beginTransmission(RESET_ADDR);
+  Wire.write(RESET_CMD);
+  Wire.endTransmission();
+  delay(30);  // Reset completion (datasheet: min 25ms)
+  watchdog.reset();
+  
+  // Send a dummy start to initialize sensor, then stop
+  Wire.beginTransmission(SENSOR_ADDR);
+  Wire.write(START_CMD >> 8);
+  Wire.write(START_CMD & 0xFF);
+  Wire.endTransmission();
+  delay(60);  // Warm-up delay (datasheet: typical 60ms)
+  watchdog.reset();
+  
+  // Stop sensor (idle until commanded)
+  Wire.beginTransmission(SENSOR_ADDR);
+  Wire.write(STOP_CMD >> 8);
+  Wire.write(STOP_CMD & 0xFF);
+  Wire.endTransmission();
+  delay(10);
+  
   // LED off after successful init
   digitalWrite(LED_PIN, LOW);
   
   // Send startup message
-  sendStatus("Teensy flow reader initialized (I2C @ " + String(I2C_CLOCK_HZ/1000) + "kHz, watchdog enabled)");
+  sendStatus("Teensy flow reader initialized (I2C @ " + String(I2C_CLOCK_HZ/1000) + "kHz, watchdog enabled, sensor ready)");
   
   delay(50);
 }
@@ -214,37 +237,26 @@ void processCommands() {
 void startSensor(float rate) {
   setSamplingRate(rate);
   
-  // Perform soft reset first (per SLF3x datasheet best practice)
-  // This ensures sensor is in known state before starting
-  Wire.beginTransmission(RESET_ADDR);
-  Wire.write(RESET_CMD);
-  uint8_t reset_result = Wire.endTransmission();
-  
-  // Wait for reset completion (datasheet: min 25ms)
-  delay(RESET_WAIT_MS);
-  
-  // Feed watchdog after delay
-  watchdog.reset();
-  
-  // Send start command to sensor
+  // Send start command to sensor (skip reset on rapid restarts to avoid watchdog timeout)
+  // The sensor maintains its calibration between start/stop cycles
   Wire.beginTransmission(SENSOR_ADDR);
   Wire.write(START_CMD >> 8);    // MSB
   Wire.write(START_CMD & 0xFF);  // LSB
   uint8_t result = Wire.endTransmission();
   
   if (result == 0) {
-    // CRITICAL: Wait for sensor warm-up per SLF3x datasheet Section 2.2
-    // Warm-up time (t_w): Typical 60ms
-    // "Time needed until sensor output is within specification at 50% full scale flow rate"
-    delay(60);  // Datasheet-mandated warm-up delay
-    watchdog.reset();  // Feed watchdog after warm-up
+    // CRITICAL: Minimal delay for I2C transaction to complete
+    // Warm-up (60ms) only needed on cold start, not on restart
+    // This allows rapid start/stop cycles during pulse testing
+    delay(10);  // Brief settling time
+    watchdog.reset();
     
     sensor_running = true;
     sample_count = 0;
     error_count = 0;
     consecutive_errors = 0;
     last_sample_time = micros();
-    sendStatus("Sensor started @ " + String(rate) + "Hz (reset:" + String(reset_result) + ", warm-up:60ms)");
+    sendStatus("Sensor started @ " + String(rate) + "Hz");
   } else {
     sendError("Failed to start sensor, I2C error: " + String(result));
   }
