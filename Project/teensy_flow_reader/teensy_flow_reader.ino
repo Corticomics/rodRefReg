@@ -233,25 +233,41 @@ void startSensor(float rate) {
   uint8_t result = Wire.endTransmission();
   
   if (result == 0) {
+    // CRITICAL: Wait for sensor warm-up per SLF3x datasheet Section 2.2
+    // Warm-up time (t_w): Typical 60ms
+    // "Time needed until sensor output is within specification at 50% full scale flow rate"
+    delay(60);  // Datasheet-mandated warm-up delay
+    watchdog.reset();  // Feed watchdog after warm-up
+    
     sensor_running = true;
     sample_count = 0;
     error_count = 0;
     consecutive_errors = 0;
     last_sample_time = micros();
-    sendStatus("Sensor started @ " + String(rate) + "Hz (reset:" + String(reset_result) + ")");
+    sendStatus("Sensor started @ " + String(rate) + "Hz (reset:" + String(reset_result) + ", warm-up:60ms)");
   } else {
     sendError("Failed to start sensor, I2C error: " + String(result));
   }
 }
 
 void stopSensor() {
-  // Send stop command to sensor
+  // CRITICAL: Set flag FIRST to stop sampling loop immediately
+  // This prevents race condition where sampleSensor() continues after stop command
+  sensor_running = false;
+  
+  // Send stop command to sensor hardware
   Wire.beginTransmission(SENSOR_ADDR);
   Wire.write(STOP_CMD >> 8);    // MSB  
   Wire.write(STOP_CMD & 0xFF);  // LSB
   Wire.endTransmission();
   
-  sensor_running = false;
+  // Per SLF3x datasheet: Allow sensor to enter idle mode
+  delay(10);  // Brief settling time
+  
+  // Reset LED to OFF state (critical for diagnostics!)
+  digitalWrite(LED_PIN, LOW);
+  led_state = false;
+  
   sendStatus("Sensor stopped (samples:" + String(sample_count) + ", errors:" + String(error_count) + ")");
 }
 

@@ -114,17 +114,17 @@ class UARTFlowSensor:
             self._logger.info(f"[UART] Starting flow sensor on {self.port} at {self.sampling_hz} Hz")
             
             self._connect()
-            self._logger.info(f"[UART] ✓ Connection established to {self.port}")
+            self._logger.info(f"[UART] Connection established to {self.port}")
             
             self._start_sensor()
-            self._logger.info(f"[UART] ✓ Sensor start command sent")
+            self._logger.info(f"[UART] Sensor start command sent")
             
             self._running = True
             
             # Start reader thread
             self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
             self._reader_thread.start()
-            self._logger.info(f"[UART] ✓ Reader thread started")
+            self._logger.info(f"[UART] Reader thread started")
             
             # CRITICAL: Verify streaming is active (fail-fast principle)
             # Don't return success until we've confirmed measurements are arriving
@@ -143,14 +143,14 @@ class UARTFlowSensor:
                 self.stop()
                 raise TeensyUnavailableError(error_msg)
             
-            self._logger.info(f"[UART] ✓ Stream health verified ({self._sample_count} measurements received)")
-            self._logger.info(f"[UART] ✓ Flow sensor fully initialized on {self.port} at {self.sampling_hz} Hz")
+            self._logger.info(f"[UART] Stream health verified ({self._sample_count} measurements received)")
+            self._logger.info(f"[UART] Flow sensor fully initialized on {self.port} at {self.sampling_hz} Hz")
             
         except TeensyUnavailableError:
             # Re-raise sensor-specific errors without wrapping
             raise
         except Exception as e:
-            self._logger.error(f"[UART] X Failed to start flow sensor: {e}", exc_info=True)
+            self._logger.error(f"[UART] Failed to start flow sensor: {e}", exc_info=True)
             self.stop()
             raise
     
@@ -160,8 +160,18 @@ class UARTFlowSensor:
         
         if self._serial and self._serial.is_open:
             try:
+                # Clear input buffer to ensure stop command is seen
+                try:
+                    self._serial.reset_input_buffer()
+                except Exception:
+                    pass
+                
                 self._send_command({"cmd": "stop"})
-                time.sleep(0.1)  # Allow stop command to process
+                
+                # CRITICAL: Wait for firmware to process stop and turn off LED
+                # At 20 Hz sampling, worst case is 50ms between loop iterations
+                # Plus 10ms sensor settling time = 60ms minimum
+                time.sleep(0.15)  # 150ms to ensure complete stop
             except Exception:
                 pass
         
@@ -206,7 +216,7 @@ class UARTFlowSensor:
                 # Acquire cross-process lock to avoid multiple access on port
                 self._logger.debug(f"[UART] Acquiring file lock for {self.port}")
                 self._acquire_lock()
-                self._logger.debug(f"[UART] ✓ Lock acquired")
+                self._logger.debug(f"[UART] Lock acquired")
 
                 # Open serial connection
                 self._logger.info(f"[UART] Opening serial port {self.port} at {self.baud_rate} baud")
@@ -216,19 +226,19 @@ class UARTFlowSensor:
                     timeout=self.timeout,
                     write_timeout=self.timeout
                 )
-                self._logger.info(f"[UART] ✓ Serial port opened successfully")
+                self._logger.info(f"[UART] Serial port opened successfully")
                 
                 # Teensy USB CDC reset delay (critical for stable communication)
                 # Pi requires longer wait than Mac due to slower USB enumeration
                 self._logger.debug(f"[UART] Waiting 3.5s for Teensy USB CDC enumeration...")
                 time.sleep(3.5)  # Extended wait for Teensy firmware initialization
-                self._logger.debug(f"[UART] ✓ CDC enumeration wait complete")
+                self._logger.debug(f"[UART] CDC enumeration wait complete")
                 
                 # Test connection with multiple ping attempts
                 self._logger.info(f"[UART] Testing connection with ping...")
                 if self._test_connection_robust():
                     self._connected = True
-                    self._logger.info(f"[UART] ✓ Connected to Teensy on {self.port}")
+                    self._logger.info(f"[UART] Connected to Teensy on {self.port}")
                     return
                 else:
                     self._logger.warning(f"[UART] ✗ Ping test failed on {self.port}, attempt {attempt + 1}/{max_retries}")
@@ -275,7 +285,7 @@ class UARTFlowSensor:
                             try:
                                 response = json.loads(line)
                                 if response.get("type") == "pong":
-                                    self._logger.debug(f"✓ Ping successful on attempt {ping_attempt + 1}")
+                                    self._logger.debug(f"Ping successful on attempt {ping_attempt + 1}")
                                     return True
                             except json.JSONDecodeError:
                                 continue
@@ -320,7 +330,7 @@ class UARTFlowSensor:
             lock_path = '/var/lock/teensy_flow.lock'
             os.makedirs('/var/lock', exist_ok=True)
             fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o664)
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_ | fcntl.LOCK_NB)
             os.write(fd, str.encode(self.port))
             self._lock_fd = fd
         except Exception as e:
@@ -353,7 +363,7 @@ class UARTFlowSensor:
             
             if self._test_connection_robust():
                 self._connected = True
-                self._logger.info(f"✓ Connected to Teensy on auto-detected port {port}")
+                self._logger.info(f"Connected to Teensy on auto-detected port {port}")
                 return True
                 
         except Exception as e:
