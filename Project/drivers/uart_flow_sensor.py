@@ -330,7 +330,7 @@ class UARTFlowSensor:
             lock_path = '/var/lock/teensy_flow.lock'
             os.makedirs('/var/lock', exist_ok=True)
             fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o664)
-            fcntl.flock(fd, fcntl.LOCK_ | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             os.write(fd, str.encode(self.port))
             self._lock_fd = fd
         except Exception as e:
