@@ -343,7 +343,11 @@ class SystemController(QObject):
                 'residual_flow_threshold_ml_min': 1.0,
                 'max_consecutive_sensor_errors': 10,
                 'num_hats': 1,
-                # Pulse mode settings (Parker Series 3 valves)
+            }
+            
+            # CRITICAL: Pulse mode settings (ALWAYS enforce these)
+            # These are deployment-specific and must be present for Parker Series 3 valves
+            pulse_mode_settings = {
                 'use_pulse_delivery': True,  # Enable pulse mode by default (safer, more precise)
                 'pulse_width_ms': 20,  # 20ms pulses (empirically validated)
                 'pulse_settling_ms': 100,  # 100ms settling time after pulse
@@ -351,10 +355,19 @@ class SystemController(QObject):
                 'max_pulse_delivery_time_s': 120.0,  # 2 minute timeout
             }
             
+            # Add missing solenoid defaults
             for key, default_value in solenoid_defaults.items():
                 if key not in s:
                     s[key] = default_value
                     settings_changed = True
+            
+            # FORCE-MERGE pulse mode settings (always update, not just when missing)
+            # Reason: These are critical for Parker Series 3 valve operation
+            for key, required_value in pulse_mode_settings.items():
+                if s.get(key) != required_value:
+                    s[key] = required_value
+                    settings_changed = True
+                    self.system_status.emit(f"Set pulse mode parameter: {key}={required_value}")
 
             # If pulse mode is enabled, align sampling rate with pulse integration best practice
             try:
