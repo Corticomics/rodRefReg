@@ -13,7 +13,17 @@ class StrategyFactory:
     - hardware_mode: 'pump' | 'solenoid' | None (defaults to 'pump')
     - pump_controller: required for pump mode
     - volume_calculator: required for pump mode
-    - Additional kwargs are reserved for solenoid strategy (to be added).
+    - solenoid_controller: required for solenoid mode
+    - flow_sensor: required for solenoid mode
+    - calibration_store: optional for solenoid mode
+    - settings: required for all modes
+    
+    Best Practices:
+    - Factory Pattern: Centralized strategy creation
+    - Fail-fast: Validate required dependencies
+    - Backward compatibility: Fallback to pump mode for unknown values
+    
+    Note: SolenoidFlowStrategy auto-detects pulse mode from settings
     """
 
     @staticmethod
@@ -34,8 +44,10 @@ class StrategyFactory:
             return PumpStrategy(pump_controller, volume_calculator)
 
         if mode == "solenoid":
-            if not (solenoid_controller and flow_sensor and calibration_store and settings is not None):
-                raise ValueError("Solenoid strategy requires solenoid_controller, flow_sensor, calibration_store, settings")
+            # Solenoid strategy auto-detects pulse mode from settings
+            # Best Practice: Single strategy handles both continuous and pulse modes
+            if not (solenoid_controller and flow_sensor and settings is not None):
+                raise ValueError("Solenoid strategy requires solenoid_controller, flow_sensor, settings")
             return SolenoidFlowStrategy(
                 solenoid_controller=solenoid_controller,
                 flow_sensor=flow_sensor,

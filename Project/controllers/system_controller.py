@@ -333,7 +333,13 @@ class SystemController(QObject):
                 'residual_check_ms': 200.0,
                 'residual_flow_threshold_ml_min': 1.0,
                 'max_consecutive_sensor_errors': 10,
-                'num_hats': 1
+                'num_hats': 1,
+                # Pulse mode settings (Parker Series 3 valves)
+                'use_pulse_delivery': True,  # Enable pulse mode by default (safer, more precise)
+                'pulse_width_ms': 20,  # 20ms pulses (empirically validated)
+                'pulse_settling_ms': 100,  # 100ms settling time after pulse
+                'max_pulses_per_delivery': 100,  # Safety limit
+                'max_pulse_delivery_time_s': 120.0,  # 2 minute timeout
             }
             
             for key, default_value in solenoid_defaults.items():
