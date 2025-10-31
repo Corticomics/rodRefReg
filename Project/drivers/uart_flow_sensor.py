@@ -684,24 +684,58 @@ class UARTFlowSensor:
         return cleared_count
 
     def ensure_streaming(self, min_frames: int = 3, timeout_s: float = 2.0) -> bool:
-        """Ensure streaming is active; if not, attempt to start and wait for frames."""
-        if not self._running:
-            self.start()
-        # Attempt up to 3 start cycles
-        for attempt in range(3):
-            try:
-                self._send_command({"cmd": "start", "rate": self.sampling_hz})
-            except Exception:
-                pass
+        """Ensure streaming is active; if not, attempt to start and wait for frames.
+        
+        Best Practices:
+        - Idempotent: Safe to call multiple times without I²C conflicts
+        - Defensive: Only restart if actually needed
+        - Fail-fast: Return quickly if already streaming
+        
+        Critical Fix:
+        - DO NOT send multiple "start" commands to a running sensor
+        - Sensirion SLF3x: Sending "start" while already running causes I²C NACK (error 2)
+        - Test file works because it explicitly stops before restarting
+        """
+        # Fast path: If already running and receiving frames, just verify
+        if self._running:
             if self.wait_for_frames(min_frames=min_frames, timeout_s=timeout_s):
+                self._logger.debug("Sensor already streaming, verified frames")
                 return True
-            # Fallback: stop then start with small backoff
+            else:
+                self._logger.warning("Sensor marked running but no frames received, attempting recovery")
+        
+        # Slow path: Start sensor if not running
+        if not self._running:
             try:
-                self._send_command({"cmd": "stop"})
-            except Exception:
-                pass
-            time.sleep(0.2 * (attempt + 1))
-        return False
+                self.start()
+                return self.wait_for_frames(min_frames=min_frames, timeout_s=timeout_s)
+            except Exception as e:
+                self._logger.error(f"Failed to start sensor: {e}")
+                return False
+        
+        # Recovery path: Sensor running but not streaming (firmware hung)
+        # Adopt test file pattern: explicit stop → wait → start
+        self._logger.warning("Sensor running but not streaming, attempting restart recovery...")
+        try:
+            # Stop sensor cleanly
+            self._send_command({"cmd": "stop"})
+            time.sleep(0.5)  # Critical: wait for clean shutdown
+            self._running = False
+            
+            # Fresh start
+            self.start()
+            time.sleep(0.5)  # Critical: wait for sensor warm-up (datasheet: 60ms typical)
+            
+            # Verify streaming
+            if self.wait_for_frames(min_frames=min_frames, timeout_s=timeout_s):
+                self._logger.info("Sensor restart recovery successful")
+                return True
+            else:
+                self._logger.error("Sensor restart recovery failed - no frames after restart")
+                return False
+        except Exception as e:
+            self._logger.error(f"Sensor restart recovery failed: {e}")
+            return False
     def read_one(self) -> Optional[Tuple[float, float, int]]:
         """
         Read one sample from sensor.
