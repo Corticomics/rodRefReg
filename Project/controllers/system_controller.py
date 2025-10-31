@@ -93,6 +93,9 @@ class SystemController(QObject):
             'flow_sampling_hz', 'predictive_close_ms', 'residual_check_ms',
             'residual_flow_threshold_ml_min', 'max_consecutive_sensor_errors',
             'cage_relays',
+            # Pulse-mode persistence (Parker Series 3)
+            'use_pulse_delivery', 'pulse_width_ms', 'pulse_settling_ms',
+            'max_pulses_per_delivery', 'max_pulse_delivery_time_s',
             'debug_mode', 'log_level'
         }
     
@@ -122,6 +125,12 @@ class SystemController(QObject):
             'residual_check_ms': float,
             'residual_flow_threshold_ml_min': float,
             'max_consecutive_sensor_errors': int,
+            # Pulse-mode types
+            'use_pulse_delivery': bool,
+            'pulse_width_ms': int,
+            'pulse_settling_ms': int,
+            'max_pulses_per_delivery': int,
+            'max_pulse_delivery_time_s': float,
         }
         return type_map.get(key, str)
 
@@ -346,6 +355,17 @@ class SystemController(QObject):
                 if key not in s:
                     s[key] = default_value
                     settings_changed = True
+
+            # If pulse mode is enabled, align sampling rate with pulse integration best practice
+            try:
+                if s.get('use_pulse_delivery'):
+                    current_rate = float(s.get('flow_sampling_hz', 50.0))
+                    if current_rate > 20.0:
+                        s['flow_sampling_hz'] = 20.0
+                        settings_changed = True
+                        self.system_status.emit("Adjusted flow_sampling_hz to 20.0 Hz for pulse mode")
+            except Exception:
+                pass
 
             # Build cage map if empty
             cage_map = s.get('cage_relays') or {}

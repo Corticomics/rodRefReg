@@ -4,6 +4,7 @@ import time
 from utils.volume_calculator import VolumeCalculator
 import asyncio
 import logging
+from functools import partial
 from strategies.factory import StrategyFactory
 from drivers.flow_sensor import SLF3S0600FDriver
 from drivers.solenoid_controller import SolenoidController
@@ -808,7 +809,8 @@ class RelayWorker(QObject):
                 }
                 timer = QTimer()
                 timer.setSingleShot(True)
-                timer.timeout.connect(lambda d=delivery_data: self._handle_delivery(d))
+                # Use partial with a copy to avoid closure over loop variable and later mutation
+                timer.timeout.connect(partial(self._handle_delivery, delivery_data.copy()))
                 timer.start(int(cumulative_delay * 1000))
                 self.timers.append(timer)
                 print(f"Scheduled delivery for animal {animal_id}: {cycle_volume}mL in {cumulative_delay}s")
