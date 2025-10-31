@@ -138,6 +138,8 @@ class RelayWorker(QObject):
             print(f"[DEBUG] Step 3a: cage_map from settings: {cage_map}")
             if not cage_map:
                 # Fallback: build sequential single-relay map across all relays, excluding master (16)
+                # NOTE: We do NOT save here - ensure_solenoid_defaults() handles persistence
+                # Saving here was causing pulse mode keys to be deleted during schedule execution
                 try:
                     num_hats = int(system_settings.get('num_hats', 1))
                     total_relays = 16 * num_hats
@@ -150,11 +152,7 @@ class RelayWorker(QObject):
                         seq_map[str(cage_id)] = relay_id
                         cage_id += 1
                     cage_map = seq_map
-                    # Persist to settings for future runs
-                    new_settings = dict(system_settings)
-                    new_settings['cage_relays'] = cage_map
-                    new_settings['global_master_relay_id'] = master_id
-                    self.system_controller.save_settings(new_settings)
+                    print(f"[DEBUG] Built fallback cage_map with {len(cage_map)} cages (not persisting - ensure_solenoid_defaults handles that)")
                 except Exception as e:
                     print(f"Failed to build sequential cage_relays: {e}")
             print(f"[DEBUG] Step 3b: Building SolenoidController...")
