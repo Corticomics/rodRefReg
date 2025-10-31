@@ -846,6 +846,13 @@ class RelayWorker(QObject):
             else:
                 # Non-pump modes should not use trigger_relay; run coroutine in a private loop
                 try:
+                    # CRITICAL DEBUG: Log delivery attempt
+                    self.progress.emit(
+                        f"[DEBUG] Attempting delivery: animal={animal_id}, "
+                        f"cage={delivery_data['relay_unit_id']}, "
+                        f"volume={delivery_data['water_volume']:.3f}mL"
+                    )
+                    
                     loop = asyncio.new_event_loop()
                     try:
                         asyncio.set_event_loop(loop)
@@ -856,11 +863,20 @@ class RelayWorker(QObject):
                                 triggers_hint=delivery_data.get('triggers'),
                             )
                         )
+                        
+                        # CRITICAL DEBUG: Log delivery result
+                        self.progress.emit(
+                            f"[DEBUG] Delivery completed: animal={animal_id}, success={success}"
+                        )
                     finally:
                         loop.close()
                         asyncio.set_event_loop(None)
                 except Exception as e:
-                    self.progress.emit(f"Delivery error: {str(e)}")
+                    # CRITICAL DEBUG: Log full exception details
+                    import traceback
+                    error_details = traceback.format_exc()
+                    self.progress.emit(f"Delivery error for animal {animal_id}: {str(e)}")
+                    self.progress.emit(f"[DEBUG] Exception traceback:\n{error_details}")
                     success = False
             if success:
                 with QMutexLocker(self.mutex):
