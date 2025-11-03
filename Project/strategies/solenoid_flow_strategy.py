@@ -70,6 +70,10 @@ class SolenoidFlowStrategy:
         self._use_pulse_mode = bool(settings.get('use_pulse_delivery', False))
         self._pulse_settling_ms = int(settings.get('pulse_settling_ms', 100))
         
+        # CRITICAL DEBUG: Log pulse mode detection
+        print(f"[PULSE MODE DEBUG] use_pulse_delivery from settings: {settings.get('use_pulse_delivery')}")
+        print(f"[PULSE MODE DEBUG] self._use_pulse_mode: {self._use_pulse_mode}")
+        
         if self._use_pulse_mode:
             # Load pulse calibration (auto-calibrated or hardcoded defaults)
             # Best Practice: Load from persistent storage, not hardcoded in strategy
@@ -124,10 +128,15 @@ class SolenoidFlowStrategy:
         """
         cage_id = int(relay_unit_id)
         
+        # CRITICAL DEBUG: Log routing decision
+        print(f"[DELIVER DEBUG] Routing delivery: cage={cage_id}, vol={target_volume_ml:.3f}mL, pulse_mode={self._use_pulse_mode}")
+        
         # Route to mode-specific delivery method
         if self._use_pulse_mode:
+            print(f"[DELIVER DEBUG] Calling _deliver_pulse_mode()")
             return await self._deliver_pulse_mode(cage_id, target_volume_ml)
         else:
+            print(f"[DELIVER DEBUG] Calling _deliver_continuous_mode()")
             return await self._deliver_continuous_mode(cage_id, target_volume_ml)
     
     async def _deliver_continuous_mode(
@@ -425,6 +434,7 @@ class SolenoidFlowStrategy:
         Returns:
             True if delivery successful, False otherwise
         """
+        print(f"[PULSE MODE] ✓ ENTERED _deliver_pulse_mode: cage={cage_id}, target={target_volume_ml:.3f}mL")
         self._logger.info(f"Starting pulse delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
         
         # Step 1: Verify sensor health (fail-fast)
