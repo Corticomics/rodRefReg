@@ -492,6 +492,8 @@ class SolenoidFlowStrategy:
         delivered_ml = 0.0
         pulse_count = 0
         start_time = asyncio.get_event_loop().time()
+        pulses_since_restart = 0
+        max_pulses_before_restart = 5  # Restart sensor every 5 pulses to prevent firmware hang
         
         try:
             # Open master valve for delivery (stays open during pulses)
@@ -509,6 +511,22 @@ class SolenoidFlowStrategy:
                     self._logger.error(f"Max time ({max_time_s}s) exceeded, aborting")
                     return False
                 
+                # CRITICAL: Restart sensor periodically to reset firmware error counter
+                # Each pulse accumulates ~10-15 I²C errors from EMI
+                # After ~200 errors, firmware stops streaming
+                # Restart every N pulses to keep error count low
+                if pulses_since_restart >= max_pulses_before_restart:
+                    self._logger.debug(f"Periodic restart after {pulses_since_restart} pulses...")
+                    if not await self._restart_sensor():
+                        self._logger.error("Periodic sensor restart failed, aborting")
+                        return False
+                    # Verify health after restart
+                    if not await self._verify_sensor_health():
+                        self._logger.error("Sensor health check failed after restart, aborting")
+                        return False
+                    pulses_since_restart = 0
+                    self._logger.debug("Sensor restarted successfully, resuming delivery")
+                
                 # Execute single pulse
                 try:
                     pulse_volume = await self._execute_single_pulse(cage_id)
@@ -518,6 +536,7 @@ class SolenoidFlowStrategy:
                     
                     delivered_ml += pulse_volume
                     pulse_count += 1
+                    pulses_since_restart += 1
                     
                     # Log progress every 5 pulses
                     if pulse_count % 5 == 0:
