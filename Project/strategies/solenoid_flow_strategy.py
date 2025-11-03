@@ -407,12 +407,13 @@ class SolenoidFlowStrategy:
         Pulse-based delivery for Parker Series 3 valves.
         
         Algorithm:
-        1. Verify sensor health (fail-fast)
-        2. Open master valve (prime manifold)
-        3. Calculate estimated pulses from calibration
-        4. Execute pulses until target reached or max exceeded
-        5. Close all valves
-        6. Log delivery summary
+        1. Restart sensor (reset firmware error counter)
+        2. Verify sensor health (fail-fast)
+        3. Open master valve (prime manifold)
+        4. Calculate estimated pulses from calibration
+        5. Execute pulses until target reached or max exceeded
+        6. Close all valves
+        7. Log delivery summary
         
         Best Practices:
         - Predictive: Use calibrated volumes to estimate pulse count
@@ -420,12 +421,18 @@ class SolenoidFlowStrategy:
         - Fail-safe: Safety limits (max pulses, max time)
         - Observable: Log each pulse for debugging
         - Idempotent: Can retry delivery safely
+        - Sensor lifecycle: Restart between deliveries to prevent firmware hangs
         
         Safety Mechanisms:
         - Max pulses: Prevent infinite loops
         - Max time: Prevent hung deliveries
         - Sensor error limit: Abort if sensor fails
         - Emergency close: Always close valves in finally block
+        
+        Critical Fix:
+        - Restart sensor before EACH delivery to reset firmware I²C error counter
+        - Rapid valve switching accumulates EMI-induced I²C errors
+        - Without restart, firmware stops after ~200 errors (even if watchdog works)
         
         Args:
             cage_id: Target cage
@@ -437,12 +444,19 @@ class SolenoidFlowStrategy:
         print(f"[PULSE MODE] ✓ ENTERED _deliver_pulse_mode: cage={cage_id}, target={target_volume_ml:.3f}mL")
         self._logger.info(f"Starting pulse delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
         
-        # Step 1: Verify sensor health (fail-fast)
+        # Step 1: Restart sensor to reset firmware error counter
+        # This is CRITICAL for pulse mode due to EMI from rapid valve switching
+        # Based on test_valve_characterization.py which restarts between each trial
+        if not await self._restart_sensor():
+            self._logger.error("Sensor restart failed, aborting delivery")
+            return False
+        
+        # Step 2: Verify sensor health (fail-fast)
         if not await self._verify_sensor_health():
             self._logger.error("Sensor health check failed, aborting delivery")
             return False
         
-        # Step 2: Prime manifold (master valve only)
+        # Step 3: Prime manifold (master valve only)
         try:
             self._logger.debug("Priming manifold...")
             self._valves.open_master()
@@ -453,7 +467,7 @@ class SolenoidFlowStrategy:
             self._logger.error(f"Failed to prime manifold: {e}")
             return False
         
-        # Step 3: Calculate estimated pulses from calibration
+        # Step 4: Calculate estimated pulses from calibration
         expected_vol_per_pulse = self._empirical_pulse_volumes[self._pulse_width_ms]
         estimated_pulses = int(target_volume_ml / expected_vol_per_pulse) + 1
         
@@ -463,7 +477,7 @@ class SolenoidFlowStrategy:
             f"pulse_vol={expected_vol_per_pulse:.4f}mL)"
         )
         
-        # Step 4: Safety limits
+        # Step 5: Safety limits
         max_pulses = int(self._settings.get('max_pulses_per_delivery', 100))
         max_time_s = float(self._settings.get('max_pulse_delivery_time_s', 120.0))
         
@@ -474,7 +488,7 @@ class SolenoidFlowStrategy:
             )
             return False
         
-        # Step 5: Execute pulse loop
+        # Step 6: Execute pulse loop
         delivered_ml = 0.0
         pulse_count = 0
         start_time = asyncio.get_event_loop().time()
@@ -527,12 +541,12 @@ class SolenoidFlowStrategy:
                 # Small delay between pulses
                 await asyncio.sleep(0.1)
             
-            # Step 6: Final summary
+            # Step 7: Final summary
             duration_s = asyncio.get_event_loop().time() - start_time
             precision_pct = abs(delivered_ml - target_volume_ml) / target_volume_ml * 100.0
             
             self._logger.info(
-                f"✓ Pulse delivery complete: "
+                f"Pulse delivery complete: "
                 f"delivered={delivered_ml:.3f}mL, "
                 f"target={target_volume_ml:.3f}mL, "
                 f"precision={precision_pct:.1f}%, "
@@ -675,6 +689,48 @@ class SolenoidFlowStrategy:
         )
         
         return delivered_ml
+
+    async def _restart_sensor(self) -> bool:
+        """
+        Restart flow sensor for clean state between deliveries.
+        
+        Best Practices:
+        - Idempotent operations: Known-good state for each delivery
+        - Firmware reset: Clear any accumulated I²C error count
+        - Fail-fast: Return False if restart fails
+        
+        Critical for pulse mode:
+        - Rapid valve switching accumulates EMI-induced I²C errors
+        - Firmware stops streaming after ~200 consecutive errors
+        - Restart resets error counter to zero
+        
+        Based on test_valve_characterization.py which successfully restarts
+        between each trial to prevent firmware hangs.
+        
+        Returns:
+            True if restart successful, False otherwise
+        """
+        self._logger.debug("Restarting sensor to reset firmware state...")
+        
+        try:
+            # Stop sensor
+            if hasattr(self._sensor, 'stop'):
+                self._sensor.stop()
+                await asyncio.sleep(0.5)  # Allow clean shutdown
+            
+            # Start sensor
+            if hasattr(self._sensor, 'start'):
+                self._sensor.start()
+                await asyncio.sleep(1.0)  # Allow firmware initialization (60ms sensor warm-up + margin)
+                self._logger.info("✓ Sensor restarted successfully")
+                return True
+            else:
+                self._logger.error("Sensor missing start() method")
+                return False
+                
+        except Exception as e:
+            self._logger.error(f"Sensor restart failed: {e}")
+            return False
 
     async def _verify_sensor_health(self) -> bool:
         """
