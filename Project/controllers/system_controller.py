@@ -411,6 +411,29 @@ class SystemController(QObject):
             import traceback
             traceback.print_exc()
 
+    def _load_database_settings(self):
+        """Load settings from database.
+        
+        Currently returns empty dict as DB settings storage is not yet implemented.
+        Settings are persisted to JSON file instead.
+        
+        Future implementation: Query database for user preferences, system config, etc.
+        """
+        return {}
+    
+    def _save_database_settings(self, settings_dict):
+        """Save settings to database.
+        
+        Currently no-op as DB settings storage is not yet implemented.
+        Settings are persisted to JSON file instead.
+        
+        Future implementation: Save user preferences, system config to database.
+        
+        Args:
+            settings_dict: Dictionary of settings to save
+        """
+        pass
+
     def get_pump_controller(self):
         """Get or create a pump controller instance"""
         if not hasattr(self, '_pump_controller'):
