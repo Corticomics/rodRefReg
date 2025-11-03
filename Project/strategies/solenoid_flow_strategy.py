@@ -515,20 +515,26 @@ class SolenoidFlowStrategy:
                 # Each pulse accumulates ~10-15 I²C errors from EMI
                 # After ~200 errors, firmware stops streaming
                 # Restart every N pulses to keep error count low
+                print(f"[PERIODIC CHECK] pulse_count={pulse_count}, pulses_since_restart={pulses_since_restart}, max={max_pulses_before_restart}")
                 if pulses_since_restart >= max_pulses_before_restart:
-                    self._logger.debug(f"Periodic restart after {pulses_since_restart} pulses...")
+                    print(f"🔄 PERIODIC RESTART: After {pulses_since_restart} pulses...")
+                    self._logger.info(f"Periodic restart after {pulses_since_restart} pulses...")
                     if not await self._restart_sensor():
                         self._logger.error("Periodic sensor restart failed, aborting")
+                        print(f"❌ Periodic sensor restart FAILED!")
                         return False
                     # Verify health after restart
                     if not await self._verify_sensor_health():
                         self._logger.error("Sensor health check failed after restart, aborting")
+                        print(f"❌ Sensor health check FAILED after restart!")
                         return False
                     pulses_since_restart = 0
-                    self._logger.debug("Sensor restarted successfully, resuming delivery")
+                    print(f"✅ Sensor restarted successfully, resuming delivery")
+                    self._logger.info("Sensor restarted successfully, resuming delivery")
                 
                 # Execute single pulse
                 try:
+                    print(f"[PULSE {pulse_count+1}] Executing... (pulses_since_restart will be {pulses_since_restart+1} after)")
                     pulse_volume = await self._execute_single_pulse(cage_id)
                     
                     if pulse_volume <= 0.0001:
@@ -537,6 +543,7 @@ class SolenoidFlowStrategy:
                     delivered_ml += pulse_volume
                     pulse_count += 1
                     pulses_since_restart += 1
+                    print(f"[PULSE {pulse_count}] Complete: vol={pulse_volume:.4f}mL, total={delivered_ml:.4f}mL, pulses_since_restart={pulses_since_restart}")
                     
                     # Log progress every 5 pulses
                     if pulse_count % 5 == 0:
