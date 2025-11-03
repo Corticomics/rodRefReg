@@ -128,15 +128,10 @@ class SolenoidFlowStrategy:
         """
         cage_id = int(relay_unit_id)
         
-        # CRITICAL DEBUG: Log routing decision
-        print(f"[DELIVER DEBUG] Routing delivery: cage={cage_id}, vol={target_volume_ml:.3f}mL, pulse_mode={self._use_pulse_mode}")
-        
         # Route to mode-specific delivery method
         if self._use_pulse_mode:
-            print(f"[DELIVER DEBUG] Calling _deliver_pulse_mode()")
             return await self._deliver_pulse_mode(cage_id, target_volume_ml)
         else:
-            print(f"[DELIVER DEBUG] Calling _deliver_continuous_mode()")
             return await self._deliver_continuous_mode(cage_id, target_volume_ml)
     
     async def _deliver_continuous_mode(
@@ -406,16 +401,16 @@ class SolenoidFlowStrategy:
         """
         Pulse-based delivery for Parker Series 3 valves.
         
-        Algorithm:
-        1. Restart sensor (reset firmware error counter)
-        2. Verify sensor health (fail-fast)
-        3. Open master valve (prime manifold)
-        4. Calculate estimated pulses from calibration
-        5. Execute pulses until target reached or max exceeded
-        6. Close all valves
-        7. Log delivery summary
-        
-        Best Practices:
+               Algorithm:
+               1. Verify sensor health (fail-fast)
+               2. Open master valve (prime manifold)
+               3. Calculate estimated pulses from calibration
+               4. Execute pulses until target reached or max exceeded
+               5. Restart sensor every 5 pulses to prevent firmware hang
+               6. Close all valves
+               7. Log delivery summary
+               
+               Best Practices:
         - Predictive: Use calibrated volumes to estimate pulse count
         - Adaptive: Adjust based on actual measured volumes
         - Fail-safe: Safety limits (max pulses, max time)
@@ -441,7 +436,6 @@ class SolenoidFlowStrategy:
         Returns:
             True if delivery successful, False otherwise
         """
-        print(f"[PULSE MODE] ✓ ENTERED _deliver_pulse_mode: cage={cage_id}, target={target_volume_ml:.3f}mL")
         self._logger.info(f"Starting pulse delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
         
         # Step 1: Restart sensor to reset firmware error counter
@@ -515,26 +509,20 @@ class SolenoidFlowStrategy:
                 # Each pulse accumulates ~10-15 I²C errors from EMI
                 # After ~200 errors, firmware stops streaming
                 # Restart every N pulses to keep error count low
-                print(f"[PERIODIC CHECK] pulse_count={pulse_count}, pulses_since_restart={pulses_since_restart}, max={max_pulses_before_restart}")
                 if pulses_since_restart >= max_pulses_before_restart:
-                    print(f"🔄 PERIODIC RESTART: After {pulses_since_restart} pulses...")
                     self._logger.info(f"Periodic restart after {pulses_since_restart} pulses...")
                     if not await self._restart_sensor():
                         self._logger.error("Periodic sensor restart failed, aborting")
-                        print(f"❌ Periodic sensor restart FAILED!")
                         return False
                     # Verify health after restart
                     if not await self._verify_sensor_health():
                         self._logger.error("Sensor health check failed after restart, aborting")
-                        print(f"❌ Sensor health check FAILED after restart!")
                         return False
                     pulses_since_restart = 0
-                    print(f"✅ Sensor restarted successfully, resuming delivery")
                     self._logger.info("Sensor restarted successfully, resuming delivery")
                 
                 # Execute single pulse
                 try:
-                    print(f"[PULSE {pulse_count+1}] Executing... (pulses_since_restart will be {pulses_since_restart+1} after)")
                     pulse_volume = await self._execute_single_pulse(cage_id)
                     
                     if pulse_volume <= 0.0001:
@@ -543,10 +531,9 @@ class SolenoidFlowStrategy:
                     delivered_ml += pulse_volume
                     pulse_count += 1
                     pulses_since_restart += 1
-                    print(f"[PULSE {pulse_count}] Complete: vol={pulse_volume:.4f}mL, total={delivered_ml:.4f}mL, pulses_since_restart={pulses_since_restart}")
                     
-                    # Log progress every 5 pulses
-                    if pulse_count % 5 == 0:
+                    # Log progress every 10 pulses
+                    if pulse_count % 10 == 0:
                         self._logger.info(
                             f"Progress: {delivered_ml:.3f}/{target_volume_ml:.3f}mL "
                             f"({pulse_count} pulses)"

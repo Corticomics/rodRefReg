@@ -115,19 +115,19 @@ class RelayWorker(QObject):
             print(f"[DEBUG] Step 1: Importing flow sensor factory...")
             from drivers.flow_sensor_factory import create_flow_sensor
             from drivers.uart_flow_sensor import TeensyUnavailableError
-            print(f"[DEBUG] Step 1: ✓ Imports successful")
+            print(f"[DEBUG] Step 1:  Imports successful")
             
             print(f"[DEBUG] Step 2: Creating flow sensor...")
             try:
                 flow_sensor = create_flow_sensor(system_settings)
-                print(f"[DEBUG] Step 2: ✓ Flow sensor created: {type(flow_sensor)}")
+                print(f"[DEBUG] Step 2:  Flow sensor created: {type(flow_sensor)}")
             except TeensyUnavailableError as e:
-                print(f"[DEBUG] Step 2: ✗ TeensyUnavailableError: {e}")
+                print(f"[DEBUG] Step 2:  TeensyUnavailableError: {e}")
                 self.progress.emit(f"Flow sensor unavailable: {e}")
                 self.progress.emit("Cannot run solenoid schedule without flow sensor. Please check Teensy connection.")
                 raise RuntimeError("Flow sensor required for solenoid mode")
             except Exception as e:
-                print(f"[DEBUG] Step 2: ✗ Exception: {type(e).__name__}: {e}")
+                print(f"[DEBUG] Step 2:  Exception: {type(e).__name__}: {e}")
                 import traceback
                 print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
                 raise
@@ -159,7 +159,7 @@ class RelayWorker(QObject):
             master_id = int(system_settings.get('global_master_relay_id', 16))
             print(f"[DEBUG] Step 3b: master_id={master_id}, cage_map={cage_map}")
             solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
-            print(f"[DEBUG] Step 3b: ✓ SolenoidController created")
+            print(f"[DEBUG] Step 3b:  SolenoidController created")
             
             print(f"[DEBUG] Step 4: Creating strategy...")
             cal_store = CalibrationStore()
@@ -172,16 +172,16 @@ class RelayWorker(QObject):
                 pump_controller=self.pump_controller,
                 volume_calculator=self.volume_calculator,
             )
-            print(f"[DEBUG] Step 4: ✓ Strategy created: {type(self.strategy)}")
+            print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
             
             # Start flow sensor in continuous mode
             print(f"[DEBUG] Step 5: Starting flow sensor...")
             try:
                 print(f"[DEBUG] Step 5a: Checking if flow_sensor has start() method...")
                 if hasattr(flow_sensor, 'start'):
-                    print(f"[DEBUG] Step 5a: ✓ Has start() method, calling it...")
+                    print(f"[DEBUG] Step 5a:  Has start() method, calling it...")
                     flow_sensor.start()
-                    print(f"[DEBUG] Step 5a: ✓ start() completed successfully!")
+                    print(f"[DEBUG] Step 5a:  start() completed successfully!")
                     
                     # CRITICAL: Verify stream health immediately after start (fail-fast principle)
                     # Best Practices:
@@ -196,10 +196,10 @@ class RelayWorker(QObject):
                                 "Check: 1) Teensy USB connection, 2) I²C wiring (SDA/SCL/GND), "
                                 "3) Pullup resistors (2kΩ), 4) Teensy firmware loaded"
                             )
-                            print(f"[DEBUG] Step 5b: ✗ {error_msg}")
+                            print(f"[DEBUG] Step 5b:  {error_msg}")
                             self.progress.emit(f"ERROR: {error_msg}")
                             raise RuntimeError(error_msg)
-                        print(f"[DEBUG] Step 5b: ✓ Stream health verified")
+                        print(f"[DEBUG] Step 5b:  Stream health verified")
                     
                     # Get sensor info for logging
                     if hasattr(flow_sensor, 'port'):
@@ -208,18 +208,18 @@ class RelayWorker(QObject):
                         sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
                     else:
                         sensor_info = f"unknown interface"
-                    print(f"[DEBUG] Step 5c: ✓ Flow sensor fully operational ({sensor_info})")
+                    print(f"[DEBUG] Step 5c:  Flow sensor fully operational ({sensor_info})")
                     self.progress.emit(f"Flow sensor operational: {sensor_info}")
                 else:
-                    print(f"[DEBUG] Step 5a: ✗ Flow sensor has no start() method!")
+                    print(f"[DEBUG] Step 5a:  Flow sensor has no start() method!")
                     raise RuntimeError("Flow sensor missing start() method")
             except TeensyUnavailableError as e:
-                print(f"[DEBUG] Step 5: ✗ TeensyUnavailableError: {e}")
+                print(f"[DEBUG] Step 5:  TeensyUnavailableError: {e}")
                 self.progress.emit(f"Flow sensor unavailable: {e}")
                 raise RuntimeError("Flow sensor required for solenoid mode")
             except Exception as e:
                 # CRITICAL: Don't silently ignore startup failures in production!
-                print(f"[DEBUG] Step 5a: ✗ CRITICAL: Flow sensor start failed: {type(e).__name__}: {e}")
+                print(f"[DEBUG] Step 5a:  CRITICAL: Flow sensor start failed: {type(e).__name__}: {e}")
                 import traceback
                 print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
                 raise RuntimeError(f"Flow sensor startup failed: {e}")
@@ -412,7 +412,8 @@ class RelayWorker(QObject):
             print(f"Active animals: {active_animals.items()}")
             if not active_animals:
                 self.progress.emit("No active animals in current time window")
-                self.check_window_completion()
+                # Check if we need to continue beyond window end to complete deliveries
+                self.check_final_completion()
                 return
             
             success = self.schedule_deliveries(active_animals)
@@ -612,71 +613,196 @@ class RelayWorker(QObject):
             self.progress.emit(f"Error updating progress: {str(e)}")
             print(f"Progress update error details: {e}")
 
-    def check_window_completion(self):
-        """Check if window is complete or needs to continue"""
+    def check_final_completion(self):
+        """
+        Check if schedule should complete, prioritizing volume delivery over time windows.
+        
+        Best Practices:
+        - User requirement: "MUST have delivered the user.desired volume even if that means going over the time window a bit"
+        - Fail-safe: Always complete deliveries before stopping
+        - Observable: Log final delivery status for each animal
+        - Graceful: Clean up all resources (timers, sensors, valves)
+        """
         try:
             current_time = datetime.now()
-            if self.settings['mode'].lower() == 'instant':
-                all_deliveries_complete = all(
-                    datetime.fromisoformat(d['delivery_time'].replace('Z', '+00:00')) <= current_time
-                    for d in self.delivery_instants
+            target_volumes = self.settings.get('target_volumes', self.settings.get('desired_water_outputs', {}))
+            
+            if not target_volumes:
+                self.progress.emit("No target volumes configured, stopping schedule")
+                self.stop()
+                return
+            
+            # Check which animals still need deliveries
+            incomplete_animals = {}
+            for animal_id, target in target_volumes.items():
+                delivered = self.delivered_volumes.get(animal_id, 0)
+                remaining = target - delivered
+                
+                if remaining > 0.01:  # Allow 0.01 mL tolerance for floating point precision
+                    incomplete_animals[animal_id] = {
+                        'delivered': delivered,
+                        'target': target,
+                        'remaining': remaining
+                    }
+            
+            if incomplete_animals:
+                # We need to continue delivering even though time window ended
+                self.progress.emit(
+                    f"⚠️ Time window ended but {len(incomplete_animals)} animal(s) incomplete. "
+                    f"Continuing deliveries to meet target volumes..."
                 )
-                if all_deliveries_complete:
-                    self.progress.emit("All instant deliveries completed")
-                    self.stop()
+                
+                for animal_id, info in incomplete_animals.items():
+                    self.progress.emit(
+                        f"  Animal {animal_id}: {info['delivered']:.3f}/{info['target']:.3f}mL "
+                        f"({info['remaining']:.3f}mL remaining)"
+                    )
+                
+                # Schedule final deliveries for incomplete animals
+                active_animals = {}
+                for animal_id, info in incomplete_animals.items():
+                    relay_unit = self.animal_windows[animal_id]['relay_unit']
+                    active_animals[animal_id] = {
+                        'remaining': info['remaining'],
+                        'last_delivery': self.animal_windows[animal_id]['last_delivery'],
+                        'relay_unit': relay_unit
+                    }
+                
+                # Schedule the final deliveries
+                success = self.schedule_deliveries(active_animals)
+                if success:
+                    # Check again after deliveries complete (give time for execution)
+                    self.main_timer.singleShot(5000, self.check_final_completion)
                 else:
-                    self.main_timer.singleShot(10000, self.check_window_completion)
+                    self.progress.emit("Failed to schedule final deliveries, stopping")
+                    self.stop()
             else:
-                target_volumes = self.settings.get('target_volumes', self.settings.get('desired_water_outputs', {}))
-                if not target_volumes:
-                    if current_time >= self.window_end and self.enforce_window_end:
-                        self.progress.emit("Window time completed")
-                        self.stop()
-                    else:
-                        self.main_timer.singleShot(10000, self.check_window_completion)
-                    return
-                all_volumes_delivered = all(
-                    (target is None or target <= 0) or (self.delivered_volumes.get(aid, 0) >= target)
-                    for aid, target in target_volumes.items()
-                )
-                if all_volumes_delivered or (self.enforce_window_end and current_time >= self.window_end):
-                    for animal_id, target in target_volumes.items():
-                        delivered = self.delivered_volumes.get(animal_id, 0)
-                        self.progress.emit(
-                            f"Final delivery for animal {animal_id}: {delivered:.3f}mL of {target:.3f}mL ({(delivered/target)*100:.1f}%)"
-                        )
-                    self.stop()
-                else:
-                    self.main_timer.singleShot(10000, self.check_window_completion)
+                # All animals have received their target volumes
+                self.progress.emit("✅ All target volumes delivered successfully!")
+                for animal_id, target in target_volumes.items():
+                    delivered = self.delivered_volumes.get(animal_id, 0)
+                    precision = abs(delivered - target) / target * 100.0 if target > 0 else 0.0
+                    self.progress.emit(
+                        f"  Animal {animal_id}: {delivered:.3f}mL delivered "
+                        f"(target: {target:.3f}mL, precision: {precision:.1f}%)"
+                    )
+                self.stop()
+                
         except Exception as e:
-            self.progress.emit(f"Error checking completion: {str(e)}")
-            print(f"Completion check error details: {e}")
+            self.progress.emit(f"Error in final completion check: {str(e)}")
+            print(f"Final completion check error details: {e}")
+            import traceback
+            print(traceback.format_exc())
             self.stop()
+    
+    def check_window_completion(self):
+        """
+        Legacy completion check - now redirects to check_final_completion.
+        Kept for backward compatibility.
+        """
+        self.check_final_completion()
 
     def stop(self):
+        """
+        Gracefully stop the schedule and clean up all resources.
+        
+        Best Practices:
+        - Idempotent: Safe to call multiple times
+        - Comprehensive: Stop all timers, sensors, and valves
+        - Observable: Log each cleanup step
+        - Fail-safe: Continue cleanup even if individual steps fail
+        """
+        print("\n[STOP] ========== SCHEDULE STOP SEQUENCE INITIATED ==========")
+        
         with QMutexLocker(self.mutex):
+            if not self._is_running:
+                print("[STOP] Already stopped, skipping")
+                return
             self._is_running = False
-        self.monitor_timer.stop()
-        self.main_timer.stop()
-        for timer in self.timers:
-            try:
-                timer.stop()  # No need to call deleteLater() since timers are parented.
-            except RuntimeError as ex:
-                self.progress.emit(f"Timer already deleted: {ex}")
-        self.timers.clear()
+            print("[STOP]  Set _is_running = False")
+        
+        # Stop all timers
+        try:
+            self.monitor_timer.stop()
+            print("[STOP]  Monitor timer stopped")
+        except Exception as e:
+            print(f"[STOP]  Monitor timer stop failed: {e}")
+        
+        try:
+            self.main_timer.stop()
+            print("[STOP]  Main timer stopped")
+        except Exception as e:
+            print(f"[STOP]  Main timer stop failed: {e}")
+        
+        # Stop and clear all delivery timers
+        timer_count = len(self.timers)
+        if timer_count > 0:
+            print(f"[STOP] Stopping {timer_count} delivery timer(s)...")
+            for i, timer in enumerate(self.timers):
+                try:
+                    if timer.isActive():
+                        timer.stop()
+                        print(f"[STOP]    Timer {i+1}/{timer_count} stopped")
+                except RuntimeError as ex:
+                    print(f"[STOP]    Timer {i+1}/{timer_count} already deleted: {ex}")
+                except Exception as e:
+                    print(f"[STOP]    Timer {i+1}/{timer_count} error: {e}")
+            self.timers.clear()
+            print(f"[STOP]  All {timer_count} timer(s) cleared")
+        else:
+            print("[STOP] No active delivery timers to stop")
+        
+        # Clear retry timers
+        if hasattr(self, 'retry_timers') and self.retry_timers:
+            retry_count = len(self.retry_timers)
+            print(f"[STOP] Clearing {retry_count} retry timer(s)...")
+            for animal_id, timer in self.retry_timers.items():
+                try:
+                    if timer and timer.isActive():
+                        timer.stop()
+                        print(f"[STOP]    Retry timer for animal {animal_id} stopped")
+                except Exception as e:
+                    print(f"[STOP]    Retry timer for animal {animal_id} error: {e}")
+            self.retry_timers.clear()
+            print(f"[STOP]  All {retry_count} retry timer(s) cleared")
         
         # Stop flow sensor if running in solenoid mode
         if self.hardware_mode == 'solenoid' and hasattr(self, 'strategy'):
+            print("[STOP] Attempting to stop flow sensor...")
             try:
                 # Access flow sensor through strategy if available
                 if hasattr(self.strategy, '_sensor') and hasattr(self.strategy._sensor, 'stop'):
+                    print("[STOP]   Calling sensor.stop()...")
                     self.strategy._sensor.stop()
-                    print("Flow sensor stopped")
+                    print("[STOP]    Flow sensor stop() completed")
+                    
+                    # Wait briefly to ensure sensor stops cleanly
+                    import time
+                    time.sleep(0.5)
+                    
+                    # Verify sensor stopped
+                    if hasattr(self.strategy._sensor, '_running'):
+                        if not self.strategy._sensor._running:
+                            print("[STOP]    Flow sensor confirmed stopped (_running=False)")
+                        else:
+                            print("[STOP]   ⚠️ Warning: sensor._running still True after stop()")
+                    
+                    print("[STOP]  Flow sensor stopped successfully")
+                else:
+                    print("[STOP]   ⚠️ Flow sensor not accessible or no stop() method")
             except Exception as e:
-                print(f"Warning: Flow sensor stop failed: {e}")
+                print(f"[STOP]    Flow sensor stop failed: {e}")
+                import traceback
+                print(f"[STOP]   Stack trace:\n{traceback.format_exc()}")
+        else:
+            print(f"[STOP] Flow sensor stop not needed (hardware_mode={self.hardware_mode})")
         
-        self.progress.emit("RelayWorker stopped")
+        # Final status report
+        print("[STOP] ========== CLEANUP COMPLETE ==========")
+        self.progress.emit("✅ Schedule stopped - All resources cleaned up")
+        print("[STOP] Emitting finished signal...")
         self.finished.emit()
+        print("[STOP] ========== STOP SEQUENCE COMPLETE ==========\n")
     def setup_schedule(self, schedule):
         """Setup delivery windows for each animal"""
         try:
