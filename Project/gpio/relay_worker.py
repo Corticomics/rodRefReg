@@ -622,6 +622,7 @@ class RelayWorker(QObject):
         - Fail-safe: Always complete deliveries before stopping
         - Observable: Log final delivery status for each animal
         - Graceful: Clean up all resources (timers, sensors, valves)
+        - **Circuit Breaker**: Prevent infinite retry loops on sensor failure
         """
         try:
             current_time = datetime.now()
@@ -631,6 +632,10 @@ class RelayWorker(QObject):
                 self.progress.emit("No target volumes configured, stopping schedule")
                 self.stop()
                 return
+            
+            # **CIRCUIT BREAKER**: Track retry attempts per animal to prevent infinite loops
+            if not hasattr(self, '_completion_retry_counts'):
+                self._completion_retry_counts = {}
             
             # Check which animals still need deliveries
             incomplete_animals = {}
@@ -646,9 +651,55 @@ class RelayWorker(QObject):
                     }
             
             if incomplete_animals:
-                # We need to continue delivering even though time window ended
+                # **CIRCUIT BREAKER**: Check if we've exceeded max retry attempts
+                MAX_COMPLETION_RETRIES = 10  # Prevent infinite loop
+                
+                # Check if any animal has exceeded retry limit
+                animals_exceeded_retries = []
+                for animal_id in incomplete_animals.keys():
+                    retry_count = self._completion_retry_counts.get(animal_id, 0)
+                    if retry_count >= MAX_COMPLETION_RETRIES:
+                        animals_exceeded_retries.append(animal_id)
+                
+                if animals_exceeded_retries:
+                    # **CRITICAL**: Stop schedule after max retries to prevent infinite loop
+                    self.progress.emit(
+                        f"SCHEDULE STOPPED: Max retry attempts ({MAX_COMPLETION_RETRIES}) exceeded "
+                        f"for animal(s) {animals_exceeded_retries}"
+                    )
+                    self.progress.emit("⚠️ Possible sensor failure - please check flow sensor connection")
+                    
+                    # Log all incomplete deliveries as failed
+                    for animal_id, info in incomplete_animals.items():
+                        if self.database_handler:
+                            self.database_handler.log_delivery({
+                                'schedule_id': self.schedule_id,
+                                'animal_id': animal_id,
+                                'relay_unit_id': self.animal_windows[animal_id]['relay_unit'],
+                                'volume_delivered': 0,
+                                'timestamp': datetime.now().isoformat(),
+                                'status': 'sensor_failure'
+                            })
+                        
+                        self.progress.emit(
+                            f"  Animal {animal_id}: INCOMPLETE - {info['delivered']:.3f}/{info['target']:.3f}mL "
+                            f"({info['remaining']:.3f}mL NOT delivered due to sensor failure)"
+                        )
+                    
+                    self.stop()
+                    return
+                
+                # Increment retry counters
+                for animal_id in incomplete_animals.keys():
+                    self._completion_retry_counts[animal_id] = self._completion_retry_counts.get(animal_id, 0) + 1
+                
+                # Log retry attempt
+                retry_counts_str = ", ".join([f"animal {k}: retry {v}/{MAX_COMPLETION_RETRIES}" 
+                                             for k, v in self._completion_retry_counts.items()])
+                self.progress.emit(f"Retry delivery attempt ({retry_counts_str})")
+                
                 self.progress.emit(
-                    f"⚠️ Time window ended but {len(incomplete_animals)} animal(s) incomplete. "
+                    f"Time window ended but {len(incomplete_animals)} animal(s) incomplete. "
                     f"Continuing deliveries to meet target volumes..."
                 )
                 

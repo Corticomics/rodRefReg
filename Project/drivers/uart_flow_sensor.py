@@ -241,7 +241,7 @@ class UARTFlowSensor:
                     self._logger.info(f"[UART] Connected to Teensy on {self.port}")
                     return
                 else:
-                    self._logger.warning(f"[UART] ✗ Ping test failed on {self.port}, attempt {attempt + 1}/{max_retries}")
+                    self._logger.warning(f"[UART] Ping test failed on {self.port}, attempt {attempt + 1}/{max_retries}")
                     
             except Exception as e:
                 self._logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
