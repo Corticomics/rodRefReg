@@ -708,7 +708,7 @@ class RelayWorker(QObject):
         
         Best Practices:
         - Idempotent: Safe to call multiple times
-        - Comprehensive: Stop all timers, sensors, and valves
+        - Comprehensive: Stop all timers, sensors, and valdves
         - Observable: Log each cleanup step
         - Fail-safe: Continue cleanup even if individual steps fail
         """
