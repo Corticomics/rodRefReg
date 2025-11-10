@@ -669,7 +669,7 @@ class SolenoidFlowStrategy:
                 try:
                     sample = self._sensor.read_one()
                     if sample and len(sample) >= 2:
-                            elapsed = asyncio.get_event_loop().time() - start_time
+                        elapsed = asyncio.get_event_loop().time() - start_time
                         flow_ul_min = float(sample[0])
                         flow_ml_min = flow_ul_min / 1000.0
                         samples.append({
