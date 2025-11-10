@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QGroupBox, 
     QFormLayout, QLineEdit, QLabel, QPushButton, 
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem
+    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import json
@@ -362,7 +362,7 @@ class SettingsTab(QWidget):
         - Table shows all cages at a glance
         - Click row to launch wizard
         - Real-time status updates
-        - LabAdmin role required
+        - All users can calibrate (logged to database)
         - Visual indicators for calibration quality
         """
         from PyQt5.QtWidgets import (
@@ -482,7 +482,7 @@ class SettingsTab(QWidget):
         button_row.addStretch()
         
         calibrate_all_btn = QPushButton("Calibrate All Uncalibrated")
-        calibrate_all_btn.setToolTip("Run calibration wizard for all uncalibrated valves (admin only)")
+        calibrate_all_btn.setToolTip("Run calibration wizard for all uncalibrated valves (all users)")
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
         
@@ -604,20 +604,14 @@ class SettingsTab(QWidget):
                 self.calibration_table.setCellWidget(row, 5, btn)
     
     def _launch_calibration_wizard(self, cage_id):
-        """Launch calibration wizard for specific cage"""
-        # Check permissions
+        """
+        Launch calibration wizard for specific cage.
+        
+        All users can calibrate - action is logged to database with trainer_id.
+        """
+        # Check if logged in
         if not self.login_system.is_logged_in():
             QMessageBox.warning(self, "Access Denied", "You must be logged in to calibrate valves.")
-            return
-        
-        current_trainer = self.login_system.get_current_trainer()
-        if not current_trainer or current_trainer.get('role') != 'super':
-            QMessageBox.warning(
-                self,
-                "Permission Denied",
-                "Valve calibration requires LabAdmin privileges.\n\n"
-                "Please contact a lab administrator."
-            )
             return
         
         # Check if schedule is running
@@ -654,15 +648,14 @@ class SettingsTab(QWidget):
             )
     
     def _calibrate_all_uncalibrated(self):
-        """Sequentially calibrate all uncalibrated valves"""
-        # Check permissions
+        """
+        Sequentially calibrate all uncalibrated valves.
+        
+        All users can calibrate - actions are logged to database with trainer_id.
+        """
+        # Check if logged in
         if not self.login_system.is_logged_in():
             QMessageBox.warning(self, "Access Denied", "You must be logged in.")
-            return
-        
-        current_trainer = self.login_system.get_current_trainer()
-        if not current_trainer or current_trainer.get('role') != 'super':
-            QMessageBox.warning(self, "Permission Denied", "Requires LabAdmin privileges.")
             return
         
         # Get uncalibrated cages

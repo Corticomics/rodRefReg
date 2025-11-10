@@ -497,6 +497,7 @@ class CalibrationWizard(QDialog):
             # Get current trainer ID
             current_trainer = self.parent().login_system.get_current_trainer() if hasattr(self.parent(), 'login_system') else None
             trainer_id = current_trainer['trainer_id'] if current_trainer else None
+            trainer_name = current_trainer['username'] if current_trainer else 'Unknown'
             
             # Save to database
             relay_id = self.cage_id  # Assuming cage_id == relay_id
@@ -515,7 +516,20 @@ class CalibrationWizard(QDialog):
             )
             
             if cal_id:
+                # Log calibration action to logs table
+                log_details = (
+                    f"Cage {self.cage_id}: {self.calibration_result['volume_per_pulse_ml']:.6f} mL/pulse, "
+                    f"CV: {self.calibration_result['cv_pct']:.2f}%, "
+                    f"Samples: {self.num_pulses}"
+                )
+                self.db.log_action(
+                    super_user_id=trainer_id if trainer_id else 0,
+                    action='valve_calibration',
+                    details=log_details
+                )
+                
                 self.log(f" Calibration saved to database (ID: {cal_id})")
+                self.log(f" Logged action for user: {trainer_name}")
                 self.calibration_complete.emit(self.calibration_result)
                 self.accept()  # Close dialog with success
             else:

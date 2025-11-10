@@ -634,7 +634,7 @@ class SolenoidFlowStrategy:
         settling_duration_s = self._pulse_settling_ms / 1000.0
         total_measurement_s = pulse_duration_s + settling_duration_s + 0.3  # +300ms buffer
         
-        start_time = asyncio.get_event_loop().time()
+            start_time = asyncio.get_event_loop().time()
         
         try:
             # Step 4: Execute pulse while collecting samples
@@ -659,27 +659,27 @@ class SolenoidFlowStrategy:
                     self._logger.debug(f"Sample read error during pulse: {e}")
                 
                 await asyncio.sleep(sample_period_s)
-            
+        
             # Step 5: Close valve
             self._valves.close_cage(cage_id)
             valve_close_time = asyncio.get_event_loop().time()
             
             # Step 6: Continue collecting during settling
             while (asyncio.get_event_loop().time() - start_time) < total_measurement_s:
-                try:
-                    sample = self._sensor.read_one()
-                    if sample and len(sample) >= 2:
+            try:
+                sample = self._sensor.read_one()
+                if sample and len(sample) >= 2:
                         elapsed = asyncio.get_event_loop().time() - start_time
-                        flow_ul_min = float(sample[0])
-                        flow_ml_min = flow_ul_min / 1000.0
-                        samples.append({
-                            'time_s': elapsed,
-                            'flow_ml_min': flow_ml_min
-                        })
-                except Exception as e:
+                    flow_ul_min = float(sample[0])
+                    flow_ml_min = flow_ul_min / 1000.0
+                    samples.append({
+                        'time_s': elapsed,
+                        'flow_ml_min': flow_ml_min
+                    })
+            except Exception as e:
                     self._logger.debug(f"Sample read error during settling: {e}")
-                
-                await asyncio.sleep(sample_period_s)
+            
+            await asyncio.sleep(sample_period_s)
             
         except Exception as e:
             self._logger.error(f"Pulse execution error: {e}")
@@ -776,7 +776,7 @@ class SolenoidFlowStrategy:
                     f"[ADAPTIVE CORRECTION] sensor={delivered_ml:.4f}mL, "
                     f"cal={expected_vol_ml:.4f}mL, deviation={deviation_pct:.1f}%, "
                     f"using={adaptive_volume:.4f}mL (dev={deviation_pct:.1f}%)"
-                )
+            )
             
             delivered_ml = adaptive_volume
         else:

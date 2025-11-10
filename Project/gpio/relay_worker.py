@@ -228,7 +228,7 @@ class RelayWorker(QObject):
             print(f"[DEBUG] ========== SOLENOID INITIALIZATION COMPLETE ==========\n")
         else:
             # NOT solenoid mode - using pump or other strategy
-            print(f"[DEBUG] ❌ ENTERED else block (NOT solenoid mode)!")
+            print(f"[DEBUG] ENTERED else block (NOT solenoid mode)!")
             print(f"[DEBUG] hardware_mode value: '{self.hardware_mode}'")
             self.progress.emit(f"[DEBUG] NOT in solenoid mode (hardware_mode={self.hardware_mode}), using generic strategy")
             self.strategy = StrategyFactory.create(
@@ -664,11 +664,11 @@ class RelayWorker(QObject):
                 
                 if animals_exceeded_retries:
                     # **CRITICAL**: Stop schedule after max retries to prevent infinite loop
-                    self.progress.emit(
+                self.progress.emit(
                         f"SCHEDULE STOPPED: Max retry attempts ({MAX_COMPLETION_RETRIES}) exceeded "
                         f"for animal(s) {animals_exceeded_retries}"
                     )
-                    self.progress.emit("⚠️ Possible sensor failure - please check flow sensor connection")
+                    self.progress.emit("Possible sensor failure - please check flow sensor connection")
                     
                     # Log all incomplete deliveries as failed
                     for animal_id, info in incomplete_animals.items():
@@ -837,11 +837,11 @@ class RelayWorker(QObject):
                         if not self.strategy._sensor._running:
                             print("[STOP]    Flow sensor confirmed stopped (_running=False)")
                         else:
-                            print("[STOP]   ⚠️ Warning: sensor._running still True after stop()")
+                            print("[STOP]   Warning: sensor._running still True after stop()")
                     
                     print("[STOP]  Flow sensor stopped successfully")
                 else:
-                    print("[STOP]   ⚠️ Flow sensor not accessible or no stop() method")
+                    print("[STOP]  Flow sensor not accessible or no stop() method")
             except Exception as e:
                 print(f"[STOP]    Flow sensor stop failed: {e}")
                 import traceback
