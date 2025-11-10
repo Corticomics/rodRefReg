@@ -287,6 +287,7 @@ class CalibrationWizard(QDialog):
             # Import required modules
             from drivers.solenoid_controller import SolenoidController
             from gpio.gpio_handler import RelayHandler
+            from models.relay_unit_manager import RelayUnitManager
             import time
             
             # Get cage map from settings
@@ -294,11 +295,11 @@ class CalibrationWizard(QDialog):
             cage_map = {str(i): i for i in range(1, 16)}
             master_id = int(system_settings.get('global_master_relay_id', 16))
             
-            # Create relay handler and solenoid controller
-            relay_handler = RelayHandler(
-                self.system_controller.relay_unit_manager,
-                system_settings['num_hats']
-            )
+            # Create relay unit manager and handler
+            relay_unit_manager = RelayUnitManager(system_settings)
+            relay_handler = RelayHandler(relay_unit_manager, system_settings['num_hats'])
+            
+            # Create solenoid controller
             solenoid = SolenoidController(relay_handler, master_id, cage_map)
             
             self.log(" Hardware initialized")
