@@ -1,9 +1,11 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, 
                              QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, 
-                             QHBoxLayout, QMessageBox, QComboBox, QDialog, QListWidget)
+                             QHBoxLayout, QMessageBox, QComboBox, QDialog, QListWidget,
+                             QStackedWidget)
 from PyQt5.QtCore import QDateTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
+from .ScheduleProgressTracker import ScheduleProgressTracker
 from gpio.relay_worker import RelayWorker
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication
@@ -80,13 +82,24 @@ class RunStopSection(QWidget):
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
 
+        # Create stacked widget to switch between schedule table and progress tracker
+        self.content_stack = QStackedWidget()
+        
+        # Schedule drop area (table view)
         self.schedule_drop_area = ScheduleDropArea()
-        # Connect to the schedule_dropped signal explicitly using the pyqtSlot decorator
         self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         print("Connected schedule_dropped signal to on_schedule_dropped slot")
+        self.content_stack.addWidget(self.schedule_drop_area)
+        
+        # Progress tracker (card view for running schedule)
+        self.progress_tracker = ScheduleProgressTracker()
+        self.content_stack.addWidget(self.progress_tracker)
+        
+        # Start with schedule table visible
+        self.content_stack.setCurrentWidget(self.schedule_drop_area)
         
         self.layout.addLayout(self.button_layout)
-        self.layout.addWidget(self.schedule_drop_area)
+        self.layout.addWidget(self.content_stack)
         self.layout.addStretch()
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -222,6 +235,9 @@ class RunStopSection(QWidget):
             self.job_in_progress = True
             self.update_button_states()
             
+            # Show progress tracker with Material Design cards
+            self.show_progress_tracker(schedule)
+            
             QTimer.singleShot(0, lambda: self._execute_program(
                 schedule, mode, window_start, window_end
             ))
@@ -293,6 +309,8 @@ class RunStopSection(QWidget):
         self.job_in_progress = False
         self.update_button_states()
         self.stop_button.setText("Stop")
+        # Switch back to schedule table
+        self.content_stack.setCurrentWidget(self.schedule_drop_area)
 
     def change_relay_hats(self):
         try:
@@ -342,3 +360,40 @@ class RunStopSection(QWidget):
         self.current_schedule = updated_schedule
         self.schedule_drop_area.update_table(updated_schedule)
         self.schedule_updated.emit(updated_schedule.schedule_id)
+    
+    def show_progress_tracker(self, schedule):
+        """
+        Switch from schedule table to progress tracker when schedule starts.
+        
+        Best Practices:
+        - Clear visual transition for user
+        - Initialize progress cards for all animals in schedule
+        """
+        # Initialize progress tracker with schedule animals
+        animal_ids = schedule.animals if hasattr(schedule, 'animals') else []
+        relay_assignments = schedule.relay_unit_assignments if hasattr(schedule, 'relay_unit_assignments') else {}
+        desired_outputs = schedule.desired_water_outputs if hasattr(schedule, 'desired_water_outputs') else {}
+        
+        self.progress_tracker.initialize_schedule(animal_ids, relay_assignments, desired_outputs)
+        
+        # Switch to progress tracker view
+        self.content_stack.setCurrentWidget(self.progress_tracker)
+    
+    def hide_progress_tracker(self):
+        """
+        Switch back to schedule table when schedule completes.
+        """
+        # Switch back to schedule table
+        self.content_stack.setCurrentWidget(self.schedule_drop_area)
+        
+        # Schedule cleanup of progress cards (10-second auto-dismiss as per design)
+        QTimer.singleShot(10000, self.progress_tracker.clear_all_cards)
+    
+    def get_progress_tracker(self):
+        """
+        Provide access to progress tracker for signal connections.
+        
+        Returns:
+            ScheduleProgressTracker: The progress tracker instance
+        """
+        return self.progress_tracker

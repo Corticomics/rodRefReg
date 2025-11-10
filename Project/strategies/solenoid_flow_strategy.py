@@ -693,21 +693,59 @@ class SolenoidFlowStrategy:
         delivered_ml = 0.0
         
         if len(samples) >= 2:
+            # Calculate flow statistics for debugging
+            flow_rates = [s['flow_ml_min'] for s in samples]
+            min_flow = min(flow_rates)
+            max_flow = max(flow_rates)
+            avg_flow = sum(flow_rates) / len(flow_rates)
+            
+            # Trapezoidal integration
             for i in range(1, len(samples)):
                 dt_s = samples[i]['time_s'] - samples[i-1]['time_s']
                 dt_min = dt_s / 60.0
-                avg_flow = (samples[i]['flow_ml_min'] + samples[i-1]['flow_ml_min']) / 2.0
-                delivered_ml += avg_flow * dt_min
+                avg_flow_segment = (samples[i]['flow_ml_min'] + samples[i-1]['flow_ml_min']) / 2.0
+                delivered_ml += avg_flow_segment * dt_min
             
-            self._logger.debug(
-                f"Integrated {len(samples)} samples over {samples[-1]['time_s']:.3f}s: "
-                f"{delivered_ml:.4f}mL"
+            # Calculate actual vs expected sample rate
+            actual_duration_s = samples[-1]['time_s'] if samples else 0.0
+            expected_samples = sampling_hz * actual_duration_s
+            sample_rate_pct = (len(samples) / expected_samples * 100.0) if expected_samples > 0 else 0.0
+            
+            # Enhanced debugging output
+            self._logger.info(
+                f"[PULSE DEBUG] Cage={cage_id} | "
+                f"Samples={len(samples)} (expected ~{expected_samples:.0f}, {sample_rate_pct:.0f}% rate) | "
+                f"Duration={actual_duration_s:.3f}s | "
+                f"Flow: min={min_flow:.3f}, max={max_flow:.3f}, avg={avg_flow:.3f} mL/min | "
+                f"Integrated volume={delivered_ml:.4f}mL | "
+                f"Expected (calibration)={expected_vol_ml:.4f}mL"
             )
+            
+            # Check for potential issues
+            if len(samples) < (expected_samples * 0.5):
+                self._logger.warning(
+                    f"[PULSE WARNING] Only {len(samples)} samples collected "
+                    f"(expected ~{expected_samples:.0f}). Sensor may be unresponsive or sampling rate too low."
+                )
+            
+            if max_flow >= 3.2:
+                self._logger.warning(
+                    f"[PULSE WARNING] Flow sensor may be SATURATED (max={max_flow:.3f} mL/min, "
+                    f"sensor cap is 3.25 mL/min). Actual flow may be higher!"
+                )
+            
+            if avg_flow < 0.1:
+                self._logger.warning(
+                    f"[PULSE WARNING] Very low average flow ({avg_flow:.3f} mL/min). "
+                    f"Check: valve opening, pressure, blockage, or sensor zero offset."
+                )
+            
         else:
             # Fallback: No flow measurements, use per-valve calibration
             self._logger.warning(
-                f"No flow measurements during pulse, using calibrated value: "
-                f"{expected_vol_ml:.4f}mL"
+                f"[PULSE FALLBACK] No flow measurements during pulse (0-{len(samples)} samples), "
+                f"using calibrated value: {expected_vol_ml:.4f}mL. "
+                f"Check sensor connection and streaming status."
             )
             delivered_ml = expected_vol_ml
         
@@ -719,8 +757,10 @@ class SolenoidFlowStrategy:
         if len(samples) >= 5 and deviation_pct > 50.0:
             # Sensor reading differs too much from calibration - likely sensor error
             self._logger.warning(
-                f"Sensor measurement ({delivered_ml:.4f}mL) differs >50% from "
-                f"calibration ({expected_vol_ml:.4f}mL). Using calibration."
+                f"[ADAPTIVE CORRECTION] Sensor measurement ({delivered_ml:.4f}mL) differs >50% from "
+                f"calibration ({expected_vol_ml:.4f}mL, deviation={deviation_pct:.1f}%). "
+                f"Using calibration. REASON: Large discrepancy suggests sensor integration issue, "
+                f"missing flow peak, or incorrect calibration. Run valve calibration wizard to update."
             )
             delivered_ml = expected_vol_ml
         elif len(samples) >= 5:
@@ -733,8 +773,8 @@ class SolenoidFlowStrategy:
             
             if deviation_pct > 20.0:
                 self._logger.info(
-                    f"Adaptive correction: sensor={delivered_ml:.4f}mL, "
-                    f"cal={expected_vol_ml:.4f}mL, "
+                    f"[ADAPTIVE CORRECTION] sensor={delivered_ml:.4f}mL, "
+                    f"cal={expected_vol_ml:.4f}mL, deviation={deviation_pct:.1f}%, "
                     f"using={adaptive_volume:.4f}mL (dev={deviation_pct:.1f}%)"
                 )
             

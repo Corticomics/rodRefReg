@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QGroupBox, 
     QFormLayout, QLineEdit, QLabel, QPushButton, 
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem
+    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import json
@@ -391,10 +391,73 @@ class SettingsTab(QWidget):
             "Cage", "Status", "Volume/Pulse (mL)", "Quality (CV%)", "Date", "Action"
         ])
         
-        # Table styling
+        # Table styling - Match app's Material Design theme
         self.calibration_table.setAlternatingRowColors(True)
         self.calibration_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.calibration_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.calibration_table.setShowGrid(True)
+        self.calibration_table.verticalHeader().setVisible(False)
+        self.calibration_table.verticalHeader().setDefaultSectionSize(45)
+        self.calibration_table.setMinimumHeight(300)
+        
+        # Apply Material Design styling matching schedule_table.py
+        self.calibration_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #ffffff;
+                alternate-background-color: #f5f5f5;
+                border: 1px solid #1a73e8;
+                border-radius: 6px;
+                gridline-color: #d0d0d0;
+                font-size: 13px;
+            }
+            QHeaderView::section {
+                background-color: #e8f0fe;
+                color: #1a73e8;
+                padding: 10px 8px;
+                border: 1px solid #1a73e8;
+                border-bottom: 2px solid #1a73e8;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #e0e4e8;
+                color: #333333;
+                font-weight: 500;
+            }
+            QTableWidget::item:selected {
+                background-color: #e8f0fe;
+                color: #1a73e8;
+            }
+            QScrollBar:horizontal {
+                height: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar:vertical {
+                width: 8px;
+                background: transparent;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
+                background: rgba(26, 115, 232, 0.2);
+                border-radius: 4px;
+            }
+            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
+                background: rgba(26, 115, 232, 0.5);
+            }
+            QScrollBar::add-line, QScrollBar::sub-line {
+                width: 0px;
+                height: 0px;
+            }
+            QScrollBar::add-page, QScrollBar::sub-page {
+                background: transparent;
+            }
+        """)
+        
+        # Column resize modes
         self.calibration_table.horizontalHeader().setStretchLastSection(False)
         self.calibration_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.calibration_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
