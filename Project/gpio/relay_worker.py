@@ -171,6 +171,7 @@ class RelayWorker(QObject):
                 settings=system_settings,
                 pump_controller=self.pump_controller,
                 volume_calculator=self.volume_calculator,
+                database_handler=self.system_controller.database_handler,  # For per-valve calibration
             )
             print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
             

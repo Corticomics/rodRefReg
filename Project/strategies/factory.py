@@ -36,6 +36,7 @@ class StrategyFactory:
         flow_sensor=None,
         calibration_store=None,
         settings=None,
+        database_handler=None,
         **kwargs,
     ):
         mode = (hardware_mode or "pump").strip().lower()
@@ -53,6 +54,7 @@ class StrategyFactory:
                 flow_sensor=flow_sensor,
                 calibration_store=calibration_store,
                 settings=settings,
+                database_handler=database_handler,  # For per-valve calibration
             )
 
         # Fallback to pump mode for unknown values to preserve current behavior.

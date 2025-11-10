@@ -203,6 +203,42 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Add valve_calibration table for per-valve empirical calibration
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS valve_calibration (
+                        calibration_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cage_id INTEGER NOT NULL UNIQUE,
+                        relay_id INTEGER NOT NULL,
+                        pulse_width_ms INTEGER NOT NULL,
+                        volume_per_pulse_ml REAL NOT NULL,
+                        stddev_ml REAL,
+                        coefficient_of_variation_pct REAL,
+                        num_samples INTEGER NOT NULL,
+                        calibration_date TEXT NOT NULL,
+                        calibrated_by INTEGER,
+                        notes TEXT,
+                        FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+                
+                # Add valve_calibration_history table for tracking changes
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS valve_calibration_history (
+                        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cage_id INTEGER NOT NULL,
+                        relay_id INTEGER NOT NULL,
+                        pulse_width_ms INTEGER NOT NULL,
+                        volume_per_pulse_ml REAL NOT NULL,
+                        stddev_ml REAL,
+                        coefficient_of_variation_pct REAL,
+                        num_samples INTEGER NOT NULL,
+                        calibration_date TEXT NOT NULL,
+                        calibrated_by INTEGER,
+                        notes TEXT,
+                        FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+
                 # Add sex column to animals table if it doesn't exist
                 cursor.execute("PRAGMA table_info(animals)")
                 columns = [col[1] for col in cursor.fetchall()]
@@ -1418,3 +1454,183 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             print(f"Error updating system setting: {e}")
             return False
+    
+    # ==================== VALVE CALIBRATION METHODS ====================
+    
+    def save_valve_calibration(self, cage_id, relay_id, pulse_width_ms, 
+                               volume_per_pulse_ml, stddev_ml, cv_pct, 
+                               num_samples, calibrated_by=None, notes=None):
+        """
+        Save valve calibration data (per-valve empirical calibration).
+        
+        Args:
+            cage_id: Cage identifier
+            relay_id: Physical relay ID
+            pulse_width_ms: Pulse width used for calibration
+            volume_per_pulse_ml: Measured volume per pulse
+            stddev_ml: Standard deviation of measurements
+            cv_pct: Coefficient of variation percentage
+            num_samples: Number of pulses measured
+            calibrated_by: Trainer ID who performed calibration
+            notes: Optional notes
+        
+        Returns:
+            calibration_id if successful, None otherwise
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                calibration_date = datetime.now().isoformat()
+                
+                # Insert into history first
+                cursor.execute('''
+                    INSERT INTO valve_calibration_history 
+                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml, 
+                     stddev_ml, coefficient_of_variation_pct, num_samples, 
+                     calibration_date, calibrated_by, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+                      stddev_ml, cv_pct, num_samples, calibration_date,
+                      calibrated_by, notes))
+                
+                # Update or insert current calibration
+                cursor.execute('''
+                    INSERT OR REPLACE INTO valve_calibration 
+                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml, 
+                     stddev_ml, coefficient_of_variation_pct, num_samples, 
+                     calibration_date, calibrated_by, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+                      stddev_ml, cv_pct, num_samples, calibration_date,
+                      calibrated_by, notes))
+                
+                conn.commit()
+                calibration_id = cursor.lastrowid
+                
+                print(f"Valve calibration saved: cage={cage_id}, "
+                      f"{volume_per_pulse_ml:.6f}mL/pulse (CV: {cv_pct:.1f}%)")
+                
+                return calibration_id
+                
+        except sqlite3.Error as e:
+            print(f"Error saving valve calibration: {e}")
+            traceback.print_exc()
+            return None
+    
+    def get_valve_calibration(self, cage_id):
+        """
+        Get current calibration for a specific cage.
+        
+        Returns:
+            dict with calibration data, or None if not calibrated
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT calibration_id, cage_id, relay_id, pulse_width_ms,
+                           volume_per_pulse_ml, stddev_ml, 
+                           coefficient_of_variation_pct, num_samples,
+                           calibration_date, calibrated_by, notes
+                    FROM valve_calibration
+                    WHERE cage_id = ?
+                ''', (cage_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'calibration_id': row[0],
+                        'cage_id': row[1],
+                        'relay_id': row[2],
+                        'pulse_width_ms': row[3],
+                        'volume_per_pulse_ml': row[4],
+                        'stddev_ml': row[5],
+                        'coefficient_of_variation_pct': row[6],
+                        'num_samples': row[7],
+                        'calibration_date': row[8],
+                        'calibrated_by': row[9],
+                        'notes': row[10]
+                    }
+                return None
+                
+        except sqlite3.Error as e:
+            print(f"Error getting valve calibration: {e}")
+            return None
+    
+    def get_all_valve_calibrations(self):
+        """
+        Get calibration data for all valves.
+        
+        Returns:
+            dict mapping cage_id to calibration data
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT cage_id, relay_id, pulse_width_ms,
+                           volume_per_pulse_ml, stddev_ml,
+                           coefficient_of_variation_pct, num_samples,
+                           calibration_date, calibrated_by, notes
+                    FROM valve_calibration
+                    ORDER BY cage_id
+                ''')
+                
+                calibrations = {}
+                for row in cursor.fetchall():
+                    calibrations[row[0]] = {
+                        'cage_id': row[0],
+                        'relay_id': row[1],
+                        'pulse_width_ms': row[2],
+                        'volume_per_pulse_ml': row[3],
+                        'stddev_ml': row[4],
+                        'coefficient_of_variation_pct': row[5],
+                        'num_samples': row[6],
+                        'calibration_date': row[7],
+                        'calibrated_by': row[8],
+                        'notes': row[9]
+                    }
+                
+                return calibrations
+                
+        except sqlite3.Error as e:
+            print(f"Error getting valve calibrations: {e}")
+            return {}
+    
+    def get_valve_calibration_history(self, cage_id, limit=10):
+        """Get calibration history for a cage"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT history_id, cage_id, relay_id, pulse_width_ms,
+                           volume_per_pulse_ml, stddev_ml,
+                           coefficient_of_variation_pct, num_samples,
+                           calibration_date, calibrated_by, notes
+                    FROM valve_calibration_history
+                    WHERE cage_id = ?
+                    ORDER BY calibration_date DESC
+                    LIMIT ?
+                ''', (cage_id, limit))
+                
+                history = []
+                for row in cursor.fetchall():
+                    history.append({
+                        'history_id': row[0],
+                        'cage_id': row[1],
+                        'relay_id': row[2],
+                        'pulse_width_ms': row[3],
+                        'volume_per_pulse_ml': row[4],
+                        'stddev_ml': row[5],
+                        'coefficient_of_variation_pct': row[6],
+                        'num_samples': row[7],
+                        'calibration_date': row[8],
+                        'calibrated_by': row[9],
+                        'notes': row[10]
+                    })
+                
+                return history
+                
+        except sqlite3.Error as e:
+            print(f"Error getting valve calibration history: {e}")
+            return []

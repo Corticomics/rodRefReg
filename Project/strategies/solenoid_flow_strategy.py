@@ -58,12 +58,14 @@ class SolenoidFlowStrategy:
         settings: Dict,
         *,
         prime_ms: int = 200,
+        database_handler=None,
     ) -> None:
         self._valves = solenoid_controller
         self._sensor = flow_sensor
         self._cal = calibration_store
         self._settings = settings
         self._prime_ms = int(prime_ms)
+        self._db = database_handler  # For per-valve calibration lookup
         self._logger = logging.getLogger(self.__class__.__name__)
         
         # Pulse mode detection (from empirical characterization tests)
@@ -586,91 +588,108 @@ class SolenoidFlowStrategy:
         """
         Execute a single valve pulse and measure delivered volume.
         
-        Algorithm (from test_valve_characterization.py):
+        CRITICAL FIX: Capture FULL flow curve, not just tail
+        =====================================================
+        Previous version only measured AFTER pulse completed, missing bulk flow.
+        This version measures DURING and AFTER pulse for complete integration.
+        
+        Algorithm (fixed):
         1. Clear sensor queue (fresh data)
-        2. Open cage valve for self._pulse_width_ms
-        3. Close cage valve
-        4. Wait self._pulse_settling_ms for flow to settle
-        5. Collect flow samples during settling period
-        6. Integrate using trapezoidal rule
-        7. Return measured volume
+        2. Start collecting samples BEFORE pulse
+        3. Open cage valve (samples continue)
+        4. Wait pulse_width_ms (samples continue)
+        5. Close cage valve (samples continue)
+        6. Wait settling time (samples continue)
+        7. Integrate ENTIRE flow curve
+        8. Fallback to per-valve calibration if sensor fails
         
         Best Practices:
         - Atomic: One pulse = one measurement
         - Defensive: Handle sensor failures gracefully
-        - Empirical: Cross-validate with calibrated expectations
-        - Observable: Log warnings if volume differs from calibration
+        - Per-valve calibration: Use cage-specific empirical values
+        - Observable: Log warnings if volume differs significantly
         
         Args:
             cage_id: Cage to pulse
         
         Returns:
-            Delivered volume in mL (0.0 if measurement failed)
+            Delivered volume in mL (uses per-valve calibration as fallback)
         """
-        # Safety: Get expected volume from calibration
-        expected_vol_ml = self._empirical_pulse_volumes.get(
-            self._pulse_width_ms, 
-            0.026  # Fallback to 20ms default
-        )
+        # Step 1: Get expected volume from per-valve calibration (database)
+        # Fallback to global calibration if cage not calibrated
+        expected_vol_ml = await self._get_valve_calibration_value(cage_id)
         
-        # Step 1: Clear sensor queue for fresh data
+        # Step 2: Clear sensor queue for fresh data
         if hasattr(self._sensor, 'clear_queue'):
             self._sensor.clear_queue()
         
-        # Step 2: Suspend sensor communications during valve switching (EMI reduction)
-        try:
-            if hasattr(self._sensor, '_pings_suspended'):
-                self._sensor._pings_suspended = True
-            if hasattr(self._sensor, 'suspend_reads'):
-                self._sensor.suspend_reads(True)
-        except Exception:
-            pass
-        
-        # Step 3: Execute pulse
-        try:
-            start_time = asyncio.get_event_loop().time()
-            
-            self._valves.open_cage(cage_id)
-            await asyncio.sleep(self._pulse_width_ms / 1000.0)
-            self._valves.close_cage(cage_id)
-            
-        finally:
-            # Resume sensor immediately after valve operation
-            try:
-                if hasattr(self._sensor, 'suspend_reads'):
-                    self._sensor.suspend_reads(False)
-                if hasattr(self._sensor, '_pings_suspended'):
-                    self._sensor._pings_suspended = False
-            except Exception:
-                pass
-        
-        # Step 4: Wait for flow to settle
-        await asyncio.sleep(self._pulse_settling_ms / 1000.0)
-        
-        # Step 5: Collect flow samples
+        # Step 3: Setup sampling parameters
         samples = []
         sampling_hz = float(self._settings.get('flow_sampling_hz', 20.0))
         sample_period_s = 1.0 / sampling_hz
-        measurement_duration_s = 0.5  # 500ms measurement window
         
-        elapsed = 0.0
-        while elapsed < measurement_duration_s:
-            try:
-                sample = self._sensor.read_one()
-                if sample and len(sample) >= 2:
-                    flow_ul_min = float(sample[0])
-                    flow_ml_min = flow_ul_min / 1000.0
-                    samples.append({
-                        'time_s': elapsed,
-                        'flow_ml_min': flow_ml_min
-                    })
-            except Exception as e:
-                self._logger.debug(f"Sample read error: {e}")
+        # Total measurement window = pulse + settling
+        # Extended settling for Parker valves (slower closing than Lee valves)
+        pulse_duration_s = self._pulse_width_ms / 1000.0
+        settling_duration_s = self._pulse_settling_ms / 1000.0
+        total_measurement_s = pulse_duration_s + settling_duration_s + 0.3  # +300ms buffer
+        
+        start_time = asyncio.get_event_loop().time()
+        
+        try:
+            # Step 4: Execute pulse while collecting samples
+            # DO NOT suspend reads - we need continuous measurement!
             
-            await asyncio.sleep(sample_period_s)
-            elapsed += sample_period_s
+            self._valves.open_cage(cage_id)
+            valve_open_time = asyncio.get_event_loop().time()
+            
+            # Collect samples during pulse
+            while (asyncio.get_event_loop().time() - valve_open_time) < pulse_duration_s:
+                try:
+                    sample = self._sensor.read_one()
+                    if sample and len(sample) >= 2:
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        flow_ul_min = float(sample[0])
+                        flow_ml_min = flow_ul_min / 1000.0
+                        samples.append({
+                            'time_s': elapsed,
+                            'flow_ml_min': flow_ml_min
+                        })
+                except Exception as e:
+                    self._logger.debug(f"Sample read error during pulse: {e}")
+                
+                await asyncio.sleep(sample_period_s)
+            
+            # Step 5: Close valve
+            self._valves.close_cage(cage_id)
+            valve_close_time = asyncio.get_event_loop().time()
+            
+            # Step 6: Continue collecting during settling
+            while (asyncio.get_event_loop().time() - start_time) < total_measurement_s:
+                try:
+                    sample = self._sensor.read_one()
+                    if sample and len(sample) >= 2:
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        flow_ul_min = float(sample[0])
+                        flow_ml_min = flow_ul_min / 1000.0
+                        samples.append({
+                            'time_s': elapsed,
+                            'flow_ml_min': flow_ml_min
+                        })
+                except Exception as e:
+                    self._logger.debug(f"Sample read error during settling: {e}")
+                
+                await asyncio.sleep(sample_period_s)
+            
+        except Exception as e:
+            self._logger.error(f"Pulse execution error: {e}")
+            # Ensure valve is closed
+            try:
+                self._valves.close_cage(cage_id)
+            except:
+                pass
         
-        # Step 6: Integrate flow to get volume (trapezoidal rule)
+        # Step 7: Integrate flow to get volume (trapezoidal rule)
         delivered_ml = 0.0
         
         if len(samples) >= 2:
@@ -679,29 +698,86 @@ class SolenoidFlowStrategy:
                 dt_min = dt_s / 60.0
                 avg_flow = (samples[i]['flow_ml_min'] + samples[i-1]['flow_ml_min']) / 2.0
                 delivered_ml += avg_flow * dt_min
+            
+            self._logger.debug(
+                f"Integrated {len(samples)} samples over {samples[-1]['time_s']:.3f}s: "
+                f"{delivered_ml:.4f}mL"
+            )
         else:
-            # Fallback: No flow measurements, use calibrated value
+            # Fallback: No flow measurements, use per-valve calibration
             self._logger.warning(
                 f"No flow measurements during pulse, using calibrated value: "
                 f"{expected_vol_ml:.4f}mL"
             )
             delivered_ml = expected_vol_ml
         
-        # Step 7: Validate against calibration (sanity check)
+        # Step 8: Adaptive correction - compare sensor vs calibration
+        # If sensor measurement seems reasonable, trust it
+        # If sensor fails or reads nonsense, use calibration
         deviation_pct = abs(delivered_ml - expected_vol_ml) / expected_vol_ml * 100.0 if expected_vol_ml > 0 else 0.0
         
-        if deviation_pct > 20.0:
+        if len(samples) >= 5 and deviation_pct > 50.0:
+            # Sensor reading differs too much from calibration - likely sensor error
             self._logger.warning(
-                f"Pulse volume deviation: measured={delivered_ml:.4f}mL, "
-                f"expected={expected_vol_ml:.4f}mL ({deviation_pct:.1f}% diff)"
+                f"Sensor measurement ({delivered_ml:.4f}mL) differs >50% from "
+                f"calibration ({expected_vol_ml:.4f}mL). Using calibration."
             )
+            delivered_ml = expected_vol_ml
+        elif len(samples) >= 5:
+            # Good sensor data - use it with adaptive weighting
+            # Trust sensor more when deviation is small
+            weight_sensor = min(1.0, 1.0 / (1.0 + deviation_pct / 100.0))
+            weight_cal = 1.0 - weight_sensor
+            
+            adaptive_volume = (delivered_ml * weight_sensor) + (expected_vol_ml * weight_cal)
+            
+            if deviation_pct > 20.0:
+                self._logger.info(
+                    f"Adaptive correction: sensor={delivered_ml:.4f}mL, "
+                    f"cal={expected_vol_ml:.4f}mL, "
+                    f"using={adaptive_volume:.4f}mL (dev={deviation_pct:.1f}%)"
+                )
+            
+            delivered_ml = adaptive_volume
+        else:
+            # Too few samples - use calibration
+            delivered_ml = expected_vol_ml
         
         self._logger.debug(
             f"Pulse delivered: {delivered_ml:.4f}mL "
-            f"(expected: {expected_vol_ml:.4f}mL, {len(samples)} samples)"
+            f"(calibration: {expected_vol_ml:.4f}mL, {len(samples)} samples)"
         )
         
         return delivered_ml
+    
+    async def _get_valve_calibration_value(self, cage_id: int) -> float:
+        """
+        Get per-valve calibrated volume from database.
+        
+        Args:
+            cage_id: Cage identifier
+        
+        Returns:
+            Volume per pulse in mL (from database or fallback to global)
+        """
+        try:
+            # Try to get per-valve calibration from database
+            if hasattr(self, '_db'):
+                cal = self._db.get_valve_calibration(cage_id)
+                if cal and cal['pulse_width_ms'] == self._pulse_width_ms:
+                    self._logger.debug(
+                        f"Using per-valve calibration for cage {cage_id}: "
+                        f"{cal['volume_per_pulse_ml']:.6f}mL/pulse"
+                    )
+                    return cal['volume_per_pulse_ml']
+        except Exception as e:
+            self._logger.debug(f"Could not load per-valve calibration: {e}")
+        
+        # Fallback to global calibration
+        return self._empirical_pulse_volumes.get(
+            self._pulse_width_ms, 
+            0.026  # Ultimate fallback
+        )
 
     async def _restart_sensor(self) -> bool:
         """

@@ -50,21 +50,19 @@ class SettingsTab(QWidget):
         self.tab_widget = QTabWidget()
         
         # Create and add settings sub-tabs
-        self.hardware_settings = self._create_hardware_settings()
-        self.pump_settings = self._create_pump_settings()
+        self.hardware_pump_settings = self._create_hardware_pump_settings()  # MERGED
+        self.calibration_tab = self._create_calibration_tab()  # NEW
         self.priming_control = self._create_priming_control()
         self.system_settings = self._create_system_settings()
         self.notifications = self._create_notifications()
         self.backup_restore = self._create_backup_restore()
         self.data_import_export = self._create_data_import_export()
         
-        # Add sub-tabs to settings - CHECK USABILITY OF SYSTEM AND BACKUP/RESTORE
-        self.tab_widget.addTab(self.hardware_settings, "Hardware")
-        self.tab_widget.addTab(self.pump_settings, "Pump Settings")
+        # Add sub-tabs to settings
+        self.tab_widget.addTab(self.hardware_pump_settings, "Hardware & Delivery")
+        self.tab_widget.addTab(self.calibration_tab, "Valve Calibration")
         self.tab_widget.addTab(self.priming_control, "Priming")
-        #self.tab_widget.addTab(self.system_settings, "System")
         self.tab_widget.addTab(self.notifications, "Notifications")
-        #self.tab_widget.addTab(self.backup_restore, "Backup/Restore")
         self.tab_widget.addTab(self.data_import_export, "Import/Export")
         
         layout.addWidget(self.tab_widget)
@@ -74,86 +72,155 @@ class SettingsTab(QWidget):
         save_button.clicked.connect(self._save_all_settings)
         layout.addWidget(save_button)
 
-    def _create_hardware_settings(self):
-        """Create hardware configuration tab for pump/solenoid mode selection"""
+    def _create_hardware_pump_settings(self):
+        """
+        MERGED: Hardware + Pump settings in one tab
+        
+        Best Practices:
+        - Single Responsibility: One place for all delivery hardware config
+        - Progressive Disclosure: Show only relevant settings per mode
+        - Safety: Prevent mode switching during active schedule
+        """
         widget = QWidget()
         layout = QVBoxLayout()
         
-        # Hardware Mode Group
+        # ==================== MODE SELECTION ====================
         mode_group = QGroupBox("Delivery Hardware Mode")
         mode_layout = QFormLayout()
         
         self.hardware_mode_combo = QComboBox()
-        self.hardware_mode_combo.addItems(['solenoid', 'pump'])  # Solenoid first (default per requirements)
+        self.hardware_mode_combo.addItems(['solenoid', 'pump'])
         current_mode = self.settings.get('hardware_mode', 'solenoid')
         self.hardware_mode_combo.setCurrentText(current_mode)
         self.hardware_mode_combo.currentTextChanged.connect(self._on_hardware_mode_changed)
         mode_layout.addRow("Hardware Mode:", self.hardware_mode_combo)
         
         mode_help = QLabel(
-            "• <b>Solenoid</b> (default): Flow sensor-based volumetric control\n"
-            "• <b>Pump</b>: Time-based peristaltic pump control"
+            "• <b>Solenoid</b> (default): Flow sensor-based volumetric control with real-time feedback\n"
+            "• <b>Pump</b>: Time-based peristaltic pump control (legacy mode)"
         )
         mode_help.setWordWrap(True)
+        mode_help.setStyleSheet("color: #666; font-size: 10pt; padding: 5px;")
         mode_layout.addRow("", mode_help)
         
         mode_group.setLayout(mode_layout)
         layout.addWidget(mode_group)
         
-        # Flow Sensor Configuration Group (only visible in solenoid mode)
-        self.flow_sensor_group = QGroupBox("Flow Sensor Configuration (Teensy Bridge)")
-        flow_layout = QFormLayout()
+        # ==================== SOLENOID MODE SETTINGS ====================
+        self.solenoid_group = QGroupBox("Solenoid Mode Settings")
+        solenoid_layout = QVBoxLayout()
+        
+        # Flow Sensor Configuration
+        sensor_group = QGroupBox("Flow Sensor (Teensy Bridge)")
+        sensor_layout = QFormLayout()
         
         # Teensy port selection
         port_row = QHBoxLayout()
         self.teensy_port_edit = QLineEdit()
-        self.teensy_port_edit.setText(self.settings.get('uart_port', '/dev/ttyACM0'))
-        self.teensy_port_edit.setPlaceholderText("/dev/ttyACM0 or auto-detect")
+        self.teensy_port_edit.setText(self.settings.get('uart_port', '/dev/teensy_flow'))
+        self.teensy_port_edit.setPlaceholderText("/dev/teensy_flow (symlink) or /dev/ttyACM0")
         port_row.addWidget(self.teensy_port_edit)
         
         detect_button = QPushButton("Auto-Detect")
+        detect_button.setToolTip("Automatically find Teensy USB port")
         detect_button.clicked.connect(self._auto_detect_teensy)
         port_row.addWidget(detect_button)
         
-        test_button = QPushButton("Test Connection")
+        test_button = QPushButton("Test")
+        test_button.setToolTip("Test connection to Teensy (sends ping)")
         test_button.clicked.connect(self._test_teensy_connection)
         port_row.addWidget(test_button)
         
-        flow_layout.addRow("Teensy Port:", port_row)
+        sensor_layout.addRow("Teensy Port:", port_row)
         
         # Sampling rate
         self.flow_sampling_hz = QDoubleSpinBox()
         self.flow_sampling_hz.setRange(1.0, 100.0)
         self.flow_sampling_hz.setValue(self.settings.get('flow_sampling_hz', 50.0))
         self.flow_sampling_hz.setSuffix(" Hz")
-        self.flow_sampling_hz.setToolTip("Sensor measurement frequency (default: 50 Hz)")
-        flow_layout.addRow("Sampling Rate:", self.flow_sampling_hz)
+        self.flow_sampling_hz.setToolTip("Sensor measurement frequency (default: 50 Hz, max: 100 Hz)")
+        sensor_layout.addRow("Sampling Rate:", self.flow_sampling_hz)
         
-        # Safety timeouts
+        sensor_group.setLayout(sensor_layout)
+        solenoid_layout.addWidget(sensor_group)
+        
+        # Valve Safety Settings
+        safety_group = QGroupBox("Safety Settings")
+        safety_layout = QFormLayout()
+        
         self.max_valve_open_s = QDoubleSpinBox()
         self.max_valve_open_s.setRange(1.0, 60.0)
         self.max_valve_open_s.setValue(self.settings.get('max_valve_open_s', 20.0))
         self.max_valve_open_s.setSuffix(" s")
-        self.max_valve_open_s.setToolTip("Maximum time valve can remain open (safety cutoff)")
-        flow_layout.addRow("Max Valve Open Time:", self.max_valve_open_s)
+        self.max_valve_open_s.setToolTip("Maximum time valve can remain open (emergency cutoff)")
+        safety_layout.addRow("Max Valve Open Time:", self.max_valve_open_s)
         
         self.no_flow_timeout_s = QDoubleSpinBox()
         self.no_flow_timeout_s.setRange(0.5, 10.0)
         self.no_flow_timeout_s.setValue(self.settings.get('no_flow_timeout_s', 3.5))
         self.no_flow_timeout_s.setSuffix(" s")
         self.no_flow_timeout_s.setToolTip("Abort delivery if no flow detected for this duration")
-        flow_layout.addRow("No-Flow Timeout:", self.no_flow_timeout_s)
+        safety_layout.addRow("No-Flow Timeout:", self.no_flow_timeout_s)
         
-        # Predictive cutoff
         self.predictive_close_ms = QDoubleSpinBox()
         self.predictive_close_ms.setRange(0.0, 100.0)
         self.predictive_close_ms.setValue(self.settings.get('predictive_close_ms', 10.0))
         self.predictive_close_ms.setSuffix(" ms")
         self.predictive_close_ms.setToolTip("Valve close lag compensation (reduces overshoot)")
-        flow_layout.addRow("Predictive Close Lag:", self.predictive_close_ms)
+        safety_layout.addRow("Predictive Close Lag:", self.predictive_close_ms)
         
-        self.flow_sensor_group.setLayout(flow_layout)
-        layout.addWidget(self.flow_sensor_group)
+        safety_group.setLayout(safety_layout)
+        solenoid_layout.addWidget(safety_group)
+        
+        # Pulse Mode Settings
+        pulse_group = QGroupBox("Pulse Mode (Parker Series 3 Valves)")
+        pulse_layout = QFormLayout()
+        
+        self.use_pulse_delivery = QCheckBox("Enable Pulse Mode")
+        self.use_pulse_delivery.setChecked(self.settings.get('use_pulse_delivery', True))
+        self.use_pulse_delivery.setToolTip("Use micro-pulse delivery for precision (recommended)")
+        pulse_layout.addRow("", self.use_pulse_delivery)
+        
+        self.pulse_width_ms = QSpinBox()
+        self.pulse_width_ms.setRange(10, 500)
+        self.pulse_width_ms.setValue(self.settings.get('pulse_width_ms', 20))
+        self.pulse_width_ms.setSuffix(" ms")
+        self.pulse_width_ms.setToolTip("Pulse duration (default: 20ms for Parker Series 3)")
+        pulse_layout.addRow("Pulse Width:", self.pulse_width_ms)
+        
+        pulse_group.setLayout(pulse_layout)
+        solenoid_layout.addWidget(pulse_group)
+        
+        self.solenoid_group.setLayout(solenoid_layout)
+        layout.addWidget(self.solenoid_group)
+        
+        # ==================== PUMP MODE SETTINGS ====================
+        self.pump_group = QGroupBox("Pump Mode Settings")
+        pump_layout = QFormLayout()
+        
+        self.pump_volume = QDoubleSpinBox()
+        self.pump_volume.setRange(0, 1000)
+        self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
+        self.pump_volume.setSuffix(" µL")
+        self.pump_volume.setToolTip("Volume delivered per pump trigger")
+        pump_layout.addRow("Pump Output Volume:", self.pump_volume)
+        
+        self.calibration_factor = QDoubleSpinBox()
+        self.calibration_factor.setRange(0.1, 10.0)
+        self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
+        self.calibration_factor.setSingleStep(0.1)
+        self.calibration_factor.setDecimals(2)
+        self.calibration_factor.setToolTip("Calibration multiplier to adjust for pump variance")
+        pump_layout.addRow("Calibration Factor:", self.calibration_factor)
+        
+        self.min_triggers = QSpinBox()
+        self.min_triggers.setRange(1, 100)
+        self.min_triggers.setValue(self.settings.get('min_triggers', 1))
+        self.min_triggers.setToolTip("Minimum number of pump triggers per delivery")
+        pump_layout.addRow("Min Triggers:", self.min_triggers)
+        
+        self.pump_group.setLayout(pump_layout)
+        layout.addWidget(self.pump_group)
         
         # Update visibility based on current mode
         self._update_hardware_ui_visibility()
@@ -165,14 +232,42 @@ class SettingsTab(QWidget):
         return widget
 
     def _on_hardware_mode_changed(self, mode):
-        """Handle hardware mode change"""
+        """
+        Handle hardware mode change with safety check.
+        
+        Best Practices:
+        - Prevent mode switching during active schedule
+        - Provide clear feedback to user
+        - Maintain system safety
+        """
+        # Check if schedule is running
+        if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
+            if self.run_stop_section.worker and self.run_stop_section.worker.isRunning():
+                QMessageBox.warning(
+                    self,
+                    "Cannot Change Mode",
+                    "Cannot change hardware mode while a schedule is running.\n\n"
+                    "Please stop the current schedule first."
+                )
+                # Revert to previous mode
+                old_mode = self.settings.get('hardware_mode', 'solenoid')
+                self.hardware_mode_combo.blockSignals(True)
+                self.hardware_mode_combo.setCurrentText(old_mode)
+                self.hardware_mode_combo.blockSignals(False)
+                return
+        
         self._update_hardware_ui_visibility()
         self.print_to_terminal(f"Hardware mode changed to: {mode}")
     
     def _update_hardware_ui_visibility(self):
-        """Show/hide flow sensor settings based on hardware mode"""
+        """
+        Show/hide settings groups based on hardware mode.
+        
+        Progressive Disclosure: Only show relevant settings
+        """
         is_solenoid = self.hardware_mode_combo.currentText() == 'solenoid'
-        self.flow_sensor_group.setVisible(is_solenoid)
+        self.solenoid_group.setVisible(is_solenoid)
+        self.pump_group.setVisible(not is_solenoid)
     
     def _auto_detect_teensy(self):
         """Auto-detect Teensy port using system controller"""
@@ -259,31 +354,313 @@ class SettingsTab(QWidget):
                 except Exception as cleanup_error:
                     self.print_to_terminal(f"Warning: Error during port cleanup: {cleanup_error}")
 
-    def _create_pump_settings(self):
+    def _create_calibration_tab(self):
+        """
+        Integrated Calibration UI (Option A)
+        
+        Best Practices:
+        - Table shows all cages at a glance
+        - Click row to launch wizard
+        - Real-time status updates
+        - LabAdmin role required
+        - Visual indicators for calibration quality
+        """
+        from PyQt5.QtWidgets import (
+            QTableWidget, QTableWidgetItem, QHeaderView, 
+            QAbstractItemView, QPushButton, QDialog, QDialogButtonBox,
+            QProgressBar
+        )
+        from PyQt5.QtGui import QColor
+        from PyQt5.QtCore import Qt
+        
         widget = QWidget()
         layout = QVBoxLayout()
         
-        # Pump Configuration Group
-        pump_group = QGroupBox("Pump Configuration")
-        pump_layout = QFormLayout()
+        # Header with info
+        header = QLabel(
+            "<b>Valve Calibration Manager</b><br>"
+            "<span style='color: #666;'>Per-valve empirical calibration for precision water delivery</span>"
+        )
+        header.setWordWrap(True)
+        layout.addWidget(header)
         
-        self.pump_volume = QDoubleSpinBox()
-        self.pump_volume.setRange(0, 1000)
-        self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
-        self.pump_volume.setSuffix(" µL")
-        pump_layout.addRow("Pump Output Volume:", self.pump_volume)
+        # Calibration table
+        self.calibration_table = QTableWidget()
+        self.calibration_table.setColumnCount(6)
+        self.calibration_table.setHorizontalHeaderLabels([
+            "Cage", "Status", "Volume/Pulse (mL)", "Quality (CV%)", "Date", "Action"
+        ])
         
-        self.calibration_factor = QDoubleSpinBox()
-        self.calibration_factor.setRange(0.1, 10.0)
-        self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
-        self.calibration_factor.setSingleStep(0.1)
-        pump_layout.addRow("Calibration Factor:", self.calibration_factor)
+        # Table styling
+        self.calibration_table.setAlternatingRowColors(True)
+        self.calibration_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.calibration_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.calibration_table.horizontalHeader().setStretchLastSection(False)
+        self.calibration_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.calibration_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.calibration_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.calibration_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.calibration_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.calibration_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         
-        pump_group.setLayout(pump_layout)
-        layout.addWidget(pump_group)
+        # Populate table with 15 cages
+        self._populate_calibration_table()
+        
+        layout.addWidget(self.calibration_table)
+        
+        # Action buttons
+        button_row = QHBoxLayout()
+        
+        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn.setToolTip("Reload calibration data from database")
+        refresh_btn.clicked.connect(self._populate_calibration_table)
+        button_row.addWidget(refresh_btn)
+        
+        button_row.addStretch()
+        
+        calibrate_all_btn = QPushButton("Calibrate All Uncalibrated")
+        calibrate_all_btn.setToolTip("Run calibration wizard for all uncalibrated valves (admin only)")
+        calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
+        button_row.addWidget(calibrate_all_btn)
+        
+        export_btn = QPushButton("📊 Export Report")
+        export_btn.setToolTip("Export calibration data to CSV")
+        export_btn.clicked.connect(self._export_calibration_report)
+        button_row.addWidget(export_btn)
+        
+        layout.addLayout(button_row)
+        
+        # Help text
+        help_text = QLabel(
+            "<span style='color: #666; font-size: 9pt;'>"
+            "💡 <b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
+            "Requires lab scale (±0.001g). CV% <5% = production ready."
+            "</span>"
+        )
+        help_text.setWordWrap(True)
+        layout.addWidget(help_text)
         
         widget.setLayout(layout)
         return widget
+    
+    def _populate_calibration_table(self):
+        """Load calibration data from database and populate table"""
+        from PyQt5.QtWidgets import QPushButton
+        from PyQt5.QtGui import QColor
+        from PyQt5.QtCore import Qt
+        from datetime import datetime
+        
+        self.calibration_table.setRowCount(15)  # 15 cages
+        
+        # Get all calibrations from database
+        calibrations = {}
+        try:
+            calibrations = self.database_handler.get_all_valve_calibrations()
+        except Exception as e:
+            self.print_to_terminal(f"Error loading calibrations: {e}")
+        
+        for cage_id in range(1, 16):
+            row = cage_id - 1
+            cal = calibrations.get(cage_id)
+            
+            # Cage number
+            cage_item = QTableWidgetItem(f"Cage {cage_id}")
+            cage_item.setTextAlignment(Qt.AlignCenter)
+            self.calibration_table.setItem(row, 0, cage_item)
+            
+            if cal:
+                # Calibrated - show data
+                status_item = QTableWidgetItem("✅ Calibrated")
+                status_item.setForeground(QColor(0, 150, 0))
+                
+                volume_item = QTableWidgetItem(f"{cal['volume_per_pulse_ml']:.6f}")
+                volume_item.setTextAlignment(Qt.AlignCenter)
+                
+                cv_pct = cal['coefficient_of_variation_pct']
+                cv_item = QTableWidgetItem(f"{cv_pct:.2f}%")
+                cv_item.setTextAlignment(Qt.AlignCenter)
+                
+                # Color code quality
+                if cv_pct < 1.0:
+                    cv_item.setForeground(QColor(0, 150, 0))  # Excellent - green
+                elif cv_pct < 3.0:
+                    cv_item.setForeground(QColor(50, 150, 50))  # Good - lighter green
+                elif cv_pct < 5.0:
+                    cv_item.setForeground(QColor(200, 150, 0))  # Acceptable - yellow
+                else:
+                    cv_item.setForeground(QColor(200, 0, 0))  # Poor - red
+                
+                # Format date
+                try:
+                    date_obj = datetime.fromisoformat(cal['calibration_date'])
+                    date_str = date_obj.strftime('%Y-%m-%d')
+                except:
+                    date_str = cal['calibration_date'][:10]
+                
+                date_item = QTableWidgetItem(date_str)
+                date_item.setTextAlignment(Qt.AlignCenter)
+                
+                self.calibration_table.setItem(row, 1, status_item)
+                self.calibration_table.setItem(row, 2, volume_item)
+                self.calibration_table.setItem(row, 3, cv_item)
+                self.calibration_table.setItem(row, 4, date_item)
+                
+                # Action button - Recalibrate
+                btn = QPushButton("🔄 Recalibrate")
+                btn.setToolTip(f"Recalibrate cage {cage_id}")
+                btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
+                self.calibration_table.setCellWidget(row, 5, btn)
+                
+            else:
+                # Not calibrated - show warning
+                status_item = QTableWidgetItem("❌ Not Calibrated")
+                status_item.setForeground(QColor(200, 0, 0))
+                
+                volume_item = QTableWidgetItem("—")
+                volume_item.setTextAlignment(Qt.AlignCenter)
+                volume_item.setForeground(QColor(150, 150, 150))
+                
+                cv_item = QTableWidgetItem("—")
+                cv_item.setTextAlignment(Qt.AlignCenter)
+                cv_item.setForeground(QColor(150, 150, 150))
+                
+                date_item = QTableWidgetItem("—")
+                date_item.setTextAlignment(Qt.AlignCenter)
+                date_item.setForeground(QColor(150, 150, 150))
+                
+                self.calibration_table.setItem(row, 1, status_item)
+                self.calibration_table.setItem(row, 2, volume_item)
+                self.calibration_table.setItem(row, 3, cv_item)
+                self.calibration_table.setItem(row, 4, date_item)
+                
+                # Action button - Calibrate
+                btn = QPushButton("⚙️ Calibrate")
+                btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+                btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
+                btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
+                self.calibration_table.setCellWidget(row, 5, btn)
+    
+    def _launch_calibration_wizard(self, cage_id):
+        """Launch calibration wizard for specific cage"""
+        # Check permissions
+        if not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Access Denied", "You must be logged in to calibrate valves.")
+            return
+        
+        current_trainer = self.login_system.get_current_trainer()
+        if not current_trainer or current_trainer.get('role') != 'super':
+            QMessageBox.warning(
+                self,
+                "Permission Denied",
+                "Valve calibration requires LabAdmin privileges.\n\n"
+                "Please contact a lab administrator."
+            )
+            return
+        
+        # Check if schedule is running
+        if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
+            if self.run_stop_section.worker and self.run_stop_section.worker.isRunning():
+                QMessageBox.warning(
+                    self,
+                    "Schedule Running",
+                    "Cannot calibrate while a schedule is running.\n\n"
+                    "Please stop the schedule first."
+                )
+                return
+        
+        # Import wizard dialog
+        from ui.CalibrationWizard import CalibrationWizard
+        
+        wizard = CalibrationWizard(
+            cage_id=cage_id,
+            database_handler=self.database_handler,
+            system_controller=self.system_controller,
+            parent=self
+        )
+        
+        if wizard.exec_() == QDialog.Accepted:
+            # Calibration completed successfully
+            self.print_to_terminal(f"✓ Cage {cage_id} calibration completed")
+            self._populate_calibration_table()  # Refresh table
+            QMessageBox.information(
+                self,
+                "Calibration Complete",
+                f"Cage {cage_id} has been successfully calibrated!\n\n"
+                "The new calibration is now active and will be used "
+                "in all future deliveries."
+            )
+    
+    def _calibrate_all_uncalibrated(self):
+        """Sequentially calibrate all uncalibrated valves"""
+        # Check permissions
+        if not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Access Denied", "You must be logged in.")
+            return
+        
+        current_trainer = self.login_system.get_current_trainer()
+        if not current_trainer or current_trainer.get('role') != 'super':
+            QMessageBox.warning(self, "Permission Denied", "Requires LabAdmin privileges.")
+            return
+        
+        # Get uncalibrated cages
+        calibrations = self.database_handler.get_all_valve_calibrations()
+        uncalibrated = [c for c in range(1, 16) if c not in calibrations]
+        
+        if not uncalibrated:
+            QMessageBox.information(self, "All Calibrated", "All valves are already calibrated!")
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "Calibrate All",
+            f"Found {len(uncalibrated)} uncalibrated valves:\n{uncalibrated}\n\n"
+            f"This will take approximately {len(uncalibrated) * 10} minutes.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            for cage_id in uncalibrated:
+                self._launch_calibration_wizard(cage_id)
+                # If user cancels one, stop the batch
+                if not hasattr(self, '_last_calibration_success'):
+                    break
+    
+    def _export_calibration_report(self):
+        """Export calibration data to CSV"""
+        try:
+            from datetime import datetime
+            
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Calibration Report",
+                f"calibration_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                "CSV Files (*.csv)"
+            )
+            
+            if not file_path:
+                return
+            
+            calibrations = self.database_handler.get_all_valve_calibrations()
+            
+            with open(file_path, 'w') as f:
+                f.write("Cage,Status,Volume_per_Pulse_mL,CV_Percent,Num_Samples,Calibration_Date,Notes\n")
+                
+                for cage_id in range(1, 16):
+                    if cage_id in calibrations:
+                        cal = calibrations[cage_id]
+                        f.write(f"{cage_id},Calibrated,{cal['volume_per_pulse_ml']:.6f},"
+                               f"{cal['coefficient_of_variation_pct']:.2f},"
+                               f"{cal['num_samples']},{cal['calibration_date']},"
+                               f"\"{cal.get('notes', '')}\"\n")
+                    else:
+                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—\n")
+            
+            self.print_to_terminal(f"Calibration report exported to {file_path}")
+            QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
     
     def _create_priming_control(self):
         """
@@ -474,24 +851,29 @@ class SettingsTab(QWidget):
         try:
             # Build updated settings dictionary
             updated_settings = {
-                # Hardware settings
+                # Hardware mode
                 'hardware_mode': self.hardware_mode_combo.currentText(),
-                'uart_port': self.teensy_port_edit.text(),  # Canonical key for flow sensor factory
+                
+                # Solenoid settings
+                'uart_port': self.teensy_port_edit.text(),
                 'flow_sampling_hz': self.flow_sampling_hz.value(),
                 'max_valve_open_s': self.max_valve_open_s.value(),
                 'no_flow_timeout_s': self.no_flow_timeout_s.value(),
                 'predictive_close_ms': self.predictive_close_ms.value(),
+                'use_pulse_delivery': self.use_pulse_delivery.isChecked(),
+                'pulse_width_ms': self.pulse_width_ms.value(),
                 
                 # Pump settings
                 'pump_volume_ul': self.pump_volume.value(),
                 'calibration_factor': self.calibration_factor.value(),
+                'min_triggers': self.min_triggers.value(),
                 
                 # Notifications
-                'slack_token': self._encrypt_sensitive_data(self.slack_token.text()),
-                'channel_id': self.slack_channel.text(),
+                'slack_token': self._encrypt_sensitive_data(self.slack_token.text()) if hasattr(self, 'slack_token') else '',
+                'channel_id': self.slack_channel.text() if hasattr(self, 'slack_channel') else '',
                 
                 # System
-                'log_level': self.log_level.value()
+                'log_level': self.log_level.value() if hasattr(self, 'log_level') else 2
             }
             
             # Update settings via system controller (ensures persistence)
@@ -501,8 +883,8 @@ class SettingsTab(QWidget):
             # Emit signal for other components
             self.settings_updated.emit(self.settings)
             
-            self.print_to_terminal(f"✓ Settings saved (mode: {updated_settings['hardware_mode']})")
-            QMessageBox.information(self, "Success", "Settings saved successfully")
+            self.print_to_terminal(f"✓ Settings saved (mode: {updated_settings['hardware_mode']}, pulse mode: {updated_settings['use_pulse_delivery']})")
+            QMessageBox.information(self, "Success", "Settings saved successfully!\n\nChanges will take effect on next schedule run.")
             
         except Exception as e:
             self.print_to_terminal(f"✗ Settings save failed: {e}")
