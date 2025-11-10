@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QGroupBox, 
     QFormLayout, QLineEdit, QLabel, QPushButton, 
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit
+    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import json
@@ -576,7 +576,7 @@ class SettingsTab(QWidget):
                 
             else:
                 # Not calibrated - show warning
-                status_item = QTableWidgetItem("❌ Not Calibrated")
+                status_item = QTableWidgetItem("Not Calibrated")
                 status_item.setForeground(QColor(200, 0, 0))
                 
                 volume_item = QTableWidgetItem("—")
