@@ -664,7 +664,7 @@ class RelayWorker(QObject):
                 
                 if animals_exceeded_retries:
                     # **CRITICAL**: Stop schedule after max retries to prevent infinite loop
-                self.progress.emit(
+                    self.progress.emit(
                         f"SCHEDULE STOPPED: Max retry attempts ({MAX_COMPLETION_RETRIES}) exceeded "
                         f"for animal(s) {animals_exceeded_retries}"
                     )
