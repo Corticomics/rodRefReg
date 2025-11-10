@@ -634,7 +634,7 @@ class SolenoidFlowStrategy:
         settling_duration_s = self._pulse_settling_ms / 1000.0
         total_measurement_s = pulse_duration_s + settling_duration_s + 0.3  # +300ms buffer
         
-            start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_event_loop().time()
         
         try:
             # Step 4: Execute pulse while collecting samples
