@@ -666,18 +666,18 @@ class SolenoidFlowStrategy:
             
             # Step 6: Continue collecting during settling
             while (asyncio.get_event_loop().time() - start_time) < total_measurement_s:
-            try:
-                sample = self._sensor.read_one()
-                if sample and len(sample) >= 2:
-                        elapsed = asyncio.get_event_loop().time() - start_time
-                    flow_ul_min = float(sample[0])
-                    flow_ml_min = flow_ul_min / 1000.0
-                    samples.append({
-                        'time_s': elapsed,
-                        'flow_ml_min': flow_ml_min
-                    })
-            except Exception as e:
-                    self._logger.debug(f"Sample read error during settling: {e}")
+                try:
+                    sample = self._sensor.read_one()
+                    if sample and len(sample) >= 2:
+                            elapsed = asyncio.get_event_loop().time() - start_time
+                        flow_ul_min = float(sample[0])
+                        flow_ml_min = flow_ul_min / 1000.0
+                        samples.append({
+                            'time_s': elapsed,
+                            'flow_ml_min': flow_ml_min
+                        })
+                except Exception as e:
+                        self._logger.debug(f"Sample read error during settling: {e}")
             
             await asyncio.sleep(sample_period_s)
             
