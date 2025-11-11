@@ -641,15 +641,23 @@ class CalibrationWizard(QDialog):
             self.log(f"  Volume/pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL")
             self.log(f"  Quality (CV): {self.calibration_result['cv_pct']:.2f}%")
             
-            # Emit signal (separate try block)
-            try:
-                self.calibration_complete.emit(self.calibration_result)
-            except Exception as signal_error:
-                self.log(f"Warning: Signal emission failed: {signal_error}")
+            # DON'T emit signal - can cause Qt event loop issues
+            # Parent will know success from dialog result (QDialog.Accepted)
             
-            # Close dialog immediately - parent will show success message
-            # This avoids Qt event loop issues from modal dialogs
-            self.accept()
+            # Store cage_id for parent to access
+            self.success_cage_id = self.cage_id
+            
+            # Close dialog immediately
+            # Parent will handle success message AFTER dialog fully closes
+            try:
+                self.accept()
+            except Exception as accept_error:
+                self.log(f"Error calling accept(): {accept_error}")
+                # Try alternative close
+                try:
+                    self.done(QDialog.Accepted)
+                except:
+                    pass
                 
         except Exception as e:
             import traceback
