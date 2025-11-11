@@ -496,31 +496,68 @@ class CalibrationWizard(QDialog):
             self.show_step(self.current_step - 1)
     
     def _save_and_finish(self):
-        """Save calibration to database and close wizard"""
+        """
+        Save calibration to database and close wizard.
+        
+        Best Practices:
+        - Defensive checks for all external references
+        - Comprehensive error logging
+        - Safe dialog closing
+        - Database transaction safety
+        """
         try:
-            # Get current trainer ID
-            current_trainer = self.parent().login_system.get_current_trainer() if hasattr(self.parent(), 'login_system') else None
-            trainer_id = current_trainer['trainer_id'] if current_trainer else None
-            trainer_name = current_trainer['username'] if current_trainer else 'Unknown'
+            # Get current trainer ID with defensive checks
+            trainer_id = None
+            trainer_name = 'Unknown'
+            
+            try:
+                parent = self.parent()
+                if parent and hasattr(parent, 'login_system'):
+                    login_system = parent.login_system
+                    if login_system and hasattr(login_system, 'get_current_trainer'):
+                        current_trainer = login_system.get_current_trainer()
+                        if current_trainer:
+                            trainer_id = current_trainer.get('trainer_id')
+                            trainer_name = current_trainer.get('username', 'Unknown')
+            except Exception as e:
+                self.log(f"Warning: Could not get trainer info: {e}")
+                # Continue with None trainer_id - this is acceptable
+            
+            # Validate calibration result exists
+            if not self.calibration_result:
+                raise ValueError("Calibration result is missing")
+            
+            # Validate required fields
+            required_fields = ['volume_per_pulse_ml', 'stddev_ml', 'cv_pct']
+            for field in required_fields:
+                if field not in self.calibration_result:
+                    raise ValueError(f"Missing required field: {field}")
             
             # Save to database
             relay_id = self.cage_id  # Assuming cage_id == relay_id
             notes = f"Wizard calibration: {self.num_pulses} pulses @ {self.pulse_width_ms}ms"
             
+            self.log("Saving calibration to database...")
+            
             cal_id = self.db.save_valve_calibration(
                 cage_id=self.cage_id,
                 relay_id=relay_id,
                 pulse_width_ms=self.pulse_width_ms,
-                volume_per_pulse_ml=self.calibration_result['volume_per_pulse_ml'],
-                stddev_ml=self.calibration_result['stddev_ml'],
-                cv_pct=self.calibration_result['cv_pct'],
-                num_samples=self.num_pulses,
+                volume_per_pulse_ml=float(self.calibration_result['volume_per_pulse_ml']),
+                stddev_ml=float(self.calibration_result['stddev_ml']),
+                cv_pct=float(self.calibration_result['cv_pct']),
+                num_samples=int(self.num_pulses),
                 calibrated_by=trainer_id,
                 notes=notes
             )
             
-            if cal_id:
-                # Log calibration action to logs table
+            if not cal_id:
+                raise Exception("Database returned None - save may have failed")
+            
+            self.log(f"Calibration saved to database (ID: {cal_id})")
+            
+            # Log calibration action to logs table (separate try block)
+            try:
                 log_details = (
                     f"Cage {self.cage_id}: {self.calibration_result['volume_per_pulse_ml']:.6f} mL/pulse, "
                     f"CV: {self.calibration_result['cv_pct']:.2f}%, "
@@ -531,20 +568,41 @@ class CalibrationWizard(QDialog):
                     action='valve_calibration',
                     details=log_details
                 )
-                
-                self.log(f" Calibration saved to database (ID: {cal_id})")
-                self.log(f" Logged action for user: {trainer_name}")
+                self.log(f"Logged action for user: {trainer_name}")
+            except Exception as log_error:
+                # Log action failure is non-critical
+                self.log(f"Warning: Failed to log action: {log_error}")
+            
+            # Emit signal (separate try block)
+            try:
                 self.calibration_complete.emit(self.calibration_result)
-                self.accept()  # Close dialog with success
-            else:
-                raise Exception("Failed to save to database")
+            except Exception as signal_error:
+                self.log(f"Warning: Signal emission failed: {signal_error}")
+            
+            # Show success message
+            QMessageBox.information(
+                self,
+                "Calibration Saved",
+                f"Calibration for Cage {self.cage_id} saved successfully!\n\n"
+                f"Volume per pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL\n"
+                f"Quality (CV): {self.calibration_result['cv_pct']:.2f}%"
+            )
+            
+            # Close dialog
+            self.accept()
                 
         except Exception as e:
-            self.log(f"Save failed: {str(e)}")
+            import traceback
+            error_details = traceback.format_exc()
+            
+            self.log(f"CRITICAL ERROR during save: {str(e)}")
+            self.log(f"Traceback:\n{error_details}")
+            
             QMessageBox.critical(
                 self,
                 "Save Failed",
                 f"Failed to save calibration:\n\n{str(e)}\n\n"
-                "The calibration data was not saved. Please try again."
+                "Check the log output for details.\n"
+                "The calibration data was not saved."
             )
 

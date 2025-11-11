@@ -576,7 +576,7 @@ class SettingsTab(QWidget):
                 
             else:
                 # Not calibrated - show warning
-                status_item = QTableWidgetItem("Not Calibrated")
+                status_item = QTableWidgetItem("❌ Not Calibrated")
                 status_item.setForeground(QColor(200, 0, 0))
                 
                 volume_item = QTableWidgetItem("—")
@@ -639,13 +639,8 @@ class SettingsTab(QWidget):
             # Calibration completed successfully
             self.print_to_terminal(f"✓ Cage {cage_id} calibration completed")
             self._populate_calibration_table()  # Refresh table
-            QMessageBox.information(
-                self,
-                "Calibration Complete",
-                f"Cage {cage_id} has been successfully calibrated!\n\n"
-                "The new calibration is now active and will be used "
-                "in all future deliveries."
-            )
+            # Note: Success message is now shown by the wizard itself
+            # to avoid duplicate message boxes that could cause Qt event issues
     
     def _calibrate_all_uncalibrated(self):
         """
