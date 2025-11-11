@@ -634,39 +634,38 @@ class CalibrationWizard(QDialog):
             self.log("   Calibration saved successfully!")
             self.log(f"  Volume/pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL")
             self.log(f"  Quality (CV): {self.calibration_result['cv_pct']:.2f}%")
-            self.log("Closing wizard...")
             
             # DON'T emit signal - can cause Qt event loop issues
+            # DON'T use QTimer from within dialog - causes async close corruption
             # Parent will know success from dialog result (QDialog.Accepted)
             
             # Store cage_id for parent to access
             self.success_cage_id = self.cage_id
             
-            # Use QTimer to delay the dialog close
-            # This allows all Qt events to finish processing first
-            def close_dialog():
-                try:
-                    self.log("Calling accept() to close dialog")
-                    self.accept()
-                except Exception as accept_error:
-                    self.log(f"Error calling accept(): {accept_error}")
-                    import traceback
-                    self.log(traceback.format_exc())
-                    # Try alternative close methods
-                    try:
-                        self.log("Trying done(QDialog.Accepted)")
-                        self.done(QDialog.Accepted)
-                    except Exception as done_error:
-                        self.log(f"Error calling done(): {done_error}")
-                        try:
-                            self.log("Trying close()")
-                            self.close()
-                        except Exception as close_error:
-                            self.log(f"Error calling close(): {close_error}")
+            # Close dialog IMMEDIATELY and SYNCHRONOUSLY
+            # Qt will handle the event loop cleanup internally
+            # The parent has QTimer delays for its post-close operations
+            self.log("Closing wizard now...")
             
-            # Schedule close for next event loop iteration
-            from PyQt5.QtCore import QTimer
-            QTimer.singleShot(100, close_dialog)
+            try:
+                self.accept()  # Close immediately, don't delay
+                self.log("Dialog closed successfully")
+            except Exception as accept_error:
+                self.log(f"Error calling accept(): {accept_error}")
+                import traceback
+                self.log(traceback.format_exc())
+                # Try alternative close methods
+                try:
+                    self.log("Trying done(QDialog.Accepted)")
+                    self.done(QDialog.Accepted)
+                except Exception as done_error:
+                    self.log(f"Error calling done(): {done_error}")
+                    # Last resort
+                    try:
+                        self.log("Trying close()")
+                        self.close()
+                    except Exception as close_error:
+                        self.log(f"CRITICAL: All close methods failed: {close_error}")
                 
         except Exception as e:
             import traceback
