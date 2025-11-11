@@ -43,7 +43,7 @@ class CalibrationWizard(QDialog):
         as sys.stderr is redirected through Qt signals which can corrupt during 
         dialog destruction. Use self.log() instead for user-visible output.
         """
-            super().__init__(parent)
+        super().__init__(parent)
         
         # CRITICAL: Use default QDialog behavior - don't modify window flags!
         # The working test_dialog_crash.py proves this is all we need:
@@ -51,32 +51,32 @@ class CalibrationWizard(QDialog):
         # - Has close button by default
         # - Won't trigger app quit when closed
         # - Doesn't need WA_DeleteOnClose flag
-            
-            # Set modal to block interaction with parent while wizard is open
-            self.setModal(True)
+        
+        # Set modal to block interaction with parent while wizard is open
+        self.setModal(True)
             
         # Store references
-            self.cage_id = cage_id
-            self.db = database_handler
-            self.system_controller = system_controller
+        self.cage_id = cage_id
+        self.db = database_handler
+        self.system_controller = system_controller
             
         # Calibration parameters
-            self.num_pulses = 250  # Default
-            self.pulse_width_ms = 20  # Default
-            self.measured_volume_ml = 0.0
-            self.calibration_result = None
+        self.num_pulses = 250  # Default
+        self.pulse_width_ms = 20  # Default
+        self.measured_volume_ml = 0.0
+        self.calibration_result = None
             
         # Window properties
-            self.setWindowTitle(f"Valve Calibration Wizard - Cage {cage_id}")
-            self.setMinimumWidth(600)
-            self.setMinimumHeight(500)
+        self.setWindowTitle(f"Valve Calibration Wizard - Cage {cage_id}")
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(500)
             
         # Initialize UI
-            self.init_ui()
+        self.init_ui()
     
     def init_ui(self):
         """Initialize multi-step wizard UI"""
-            layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
         
         # Header
         header = QLabel(f"<h2>Calibrate Cage {self.cage_id}</h2>")
@@ -511,7 +511,7 @@ class CalibrationWizard(QDialog):
         elif self.current_step == 3:
             self.show_step(4)
         elif self.current_step == 4:
-                self._save_and_finish()
+            self._save_and_finish()
     
     def go_back(self):
         """Handle back button click"""
@@ -537,9 +537,9 @@ class CalibrationWizard(QDialog):
                 f.write(f"{ts} [RRR] Wizard closeEvent (X button)\n")
         except Exception:
             pass
-            # Just accept the close - dialog will be marked as rejected automatically
-            # by Qt when closed via X button (not accept() or reject())
-            event.accept()
+        # Just accept the close - dialog will be marked as rejected automatically
+        # by Qt when closed via X button (not accept() or reject())
+        event.accept()
     
     def _safe_cancel(self):
         """
@@ -559,14 +559,14 @@ class CalibrationWizard(QDialog):
         except Exception:
             pass
         # Log state for user (visible in dialog log)
-            if self.calibration_result:
+        if self.calibration_result:
             self.log("User cancelled - calibration data will NOT be saved")
-            else:
-                self.log("User cancelled calibration wizard")
+        else:
+            self.log("User cancelled calibration wizard")
             
         # Close dialog immediately - user pressed cancel, they mean it
         # Use simple reject() - Qt will handle cleanup
-                self.reject()
+        self.reject()
     
     def _save_and_finish(self):
         """
