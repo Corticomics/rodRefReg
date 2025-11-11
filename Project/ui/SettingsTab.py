@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QGroupBox, 
     QFormLayout, QLineEdit, QLabel, QPushButton, 
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem
+    QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 import json
