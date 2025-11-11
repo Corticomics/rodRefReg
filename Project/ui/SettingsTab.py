@@ -635,7 +635,16 @@ class SettingsTab(QWidget):
             parent=self
         )
         
-        if wizard.exec_() == QDialog.Accepted:
+        # Execute wizard and check result
+        try:
+            result = wizard.exec_()
+        except Exception as e:
+            self.print_to_terminal(f"Error: Calibration wizard error: {e}")
+            import traceback
+            traceback.print_exc()
+            return
+        
+        if result == QDialog.Accepted:
             # Calibration completed successfully
             self.print_to_terminal(f"✓ Cage {cage_id} calibration completed")
             self._populate_calibration_table()  # Refresh table

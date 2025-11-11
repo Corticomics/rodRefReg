@@ -97,7 +97,7 @@ class CalibrationWizard(QDialog):
         button_layout.addStretch()
         
         self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.clicked.connect(self.reject)
+        self.cancel_btn.clicked.connect(self._safe_cancel)
         button_layout.addWidget(self.cancel_btn)
         
         self.next_btn = QPushButton("Next →")
@@ -495,6 +495,69 @@ class CalibrationWizard(QDialog):
         if self.current_step > 0:
             self.show_step(self.current_step - 1)
     
+    def _safe_cancel(self):
+        """
+        Safely cancel the calibration wizard.
+        
+        Best Practices:
+        - Confirm cancellation if data exists
+        - Clean shutdown without Qt event loop issues
+        - No modal dialogs before reject()
+        """
+        try:
+            # If we have calibration results, confirm discard
+            if self.calibration_result:
+                # Log to wizard (no modal dialog!)
+                self.log("User requested to discard calibration")
+                self.log("WARNING: Calibration will NOT be saved")
+                
+                # Ask for confirmation using a simple approach
+                # Store answer to avoid nested modals
+                confirm = True  # Default to allowing cancel
+                
+                try:
+                    reply = QMessageBox.question(
+                        self,
+                        "Discard Calibration?",
+                        f"Discard calibration for Cage {self.cage_id}?\n\n"
+                        f"Volume per pulse: {self.calibration_result.get('volume_per_pulse_ml', 0):.6f} mL\n"
+                        f"Quality (CV): {self.calibration_result.get('cv_pct', 0):.2f}%\n\n"
+                        "This data will NOT be saved.",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.No  # Default to No
+                    )
+                    confirm = (reply == QMessageBox.Yes)
+                except Exception as e:
+                    self.log(f"Warning: Confirmation dialog failed: {e}")
+                    # If dialog fails, allow cancel anyway
+                    confirm = True
+                
+                if not confirm:
+                    # User chose not to discard
+                    return
+            
+            # Log cancellation
+            self.log("Calibration wizard cancelled by user")
+            
+            # Close dialog immediately (no modal dialogs after this!)
+            self.reject()
+            
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            self.log(f"Error during cancellation: {e}")
+            self.log(f"Traceback:\n{error_details}")
+            
+            # Still try to close dialog even if error occurred
+            try:
+                self.reject()
+            except:
+                # Last resort: close anyway
+                try:
+                    self.close()
+                except:
+                    pass
+    
     def _save_and_finish(self):
         """
         Save calibration to database and close wizard.
@@ -573,22 +636,19 @@ class CalibrationWizard(QDialog):
                 # Log action failure is non-critical
                 self.log(f"Warning: Failed to log action: {log_error}")
             
+            # Log success to wizard output
+            self.log("   Calibration saved successfully!")
+            self.log(f"  Volume/pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL")
+            self.log(f"  Quality (CV): {self.calibration_result['cv_pct']:.2f}%")
+            
             # Emit signal (separate try block)
             try:
                 self.calibration_complete.emit(self.calibration_result)
             except Exception as signal_error:
                 self.log(f"Warning: Signal emission failed: {signal_error}")
             
-            # Show success message
-            QMessageBox.information(
-                self,
-                "Calibration Saved",
-                f"Calibration for Cage {self.cage_id} saved successfully!\n\n"
-                f"Volume per pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL\n"
-                f"Quality (CV): {self.calibration_result['cv_pct']:.2f}%"
-            )
-            
-            # Close dialog
+            # Close dialog immediately - parent will show success message
+            # This avoids Qt event loop issues from modal dialogs
             self.accept()
                 
         except Exception as e:
