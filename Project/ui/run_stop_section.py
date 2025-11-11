@@ -374,7 +374,24 @@ class RunStopSection(QWidget):
         relay_assignments = schedule.relay_unit_assignments if hasattr(schedule, 'relay_unit_assignments') else {}
         desired_outputs = schedule.desired_water_outputs if hasattr(schedule, 'desired_water_outputs') else {}
         
-        self.progress_tracker.initialize_schedule(animal_ids, relay_assignments, desired_outputs)
+        # Build animals_data: {animal_id: {'cage_id': int, 'target_volume': float}}
+        animals_data = {}
+        for animal_id in animal_ids:
+            key_str = str(animal_id)
+            relay_unit_id = relay_assignments.get(key_str) or relay_assignments.get(animal_id)
+            if relay_unit_id is None:
+                continue
+            # In solenoid mode relay_unit_id maps to cage_id 1:1
+            cage_id = int(relay_unit_id)
+            target_volume = desired_outputs.get(key_str, schedule.water_volume)
+            animals_data[animal_id] = {
+                'cage_id': cage_id,
+                'target_volume': float(target_volume) if target_volume is not None else 0.0
+            }
+        
+        # Start the tracker
+        schedule_name = getattr(schedule, 'name', 'Untitled Schedule')
+        self.progress_tracker.start_schedule(schedule_name, animals_data)
         
         # Switch to progress tracker view
         self.content_stack.setCurrentWidget(self.progress_tracker)
@@ -387,7 +404,7 @@ class RunStopSection(QWidget):
         self.content_stack.setCurrentWidget(self.schedule_drop_area)
         
         # Schedule cleanup of progress cards (10-second auto-dismiss as per design)
-        QTimer.singleShot(10000, self.progress_tracker.clear_all_cards)
+        QTimer.singleShot(10000, self.progress_tracker.clear_cards)
     
     def get_progress_tracker(self):
         """
