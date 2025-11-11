@@ -21,8 +21,24 @@ from ui.SettingsTab import SettingsTab
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
 # =============================================================================
+import os
+from datetime import datetime
+
+_DEBUG_LOG_PATH = os.path.expanduser('~/rrr_app_debug.log')
+
+def _dbg(message: str):
+    try:
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        with open(_DEBUG_LOG_PATH, 'a', encoding='utf-8') as f:
+            f.write(f"{ts} [RRR] {message}\n")
+    except Exception:
+        # Never raise from debug logging
+        pass
+
 def exception_hook(exctype, value, tb):
-    print("".join(traceback.format_exception(exctype, value, tb)))
+    msg = "".join(traceback.format_exception(exctype, value, tb))
+    print(msg)
+    _dbg(f"UNHANDLED EXCEPTION: {msg}")
     sys.exit(1)
 sys.excepthook = exception_hook
 
@@ -360,13 +376,13 @@ def main():
     # Observe application lifecycle and screen changes
     try:
         QGuiApplication.instance().applicationStateChanged.connect(
-            lambda state: print(f"[DEBUG] Application state changed: {state}")
+            lambda state: (print(f"[DEBUG] Application state changed: {state}"), _dbg(f"applicationStateChanged: {state}"))
         )
-        app.lastWindowClosed.connect(lambda: print("[DEBUG] lastWindowClosed emitted"))
+        app.lastWindowClosed.connect(lambda: (print("[DEBUG] lastWindowClosed emitted"), _dbg("lastWindowClosed emitted")))
         # Log aboutToQuit to detect who is ending the loop
-        app.aboutToQuit.connect(lambda: print("[DEBUG] aboutToQuit emitted"))
-        app.screenAdded.connect(lambda scr: print(f"[DEBUG] screenAdded: {getattr(scr, 'name', lambda: 'unknown')()}"))
-        app.screenRemoved.connect(lambda scr: print(f"[DEBUG] screenRemoved: {getattr(scr, 'name', lambda: 'unknown')()}"))
+        app.aboutToQuit.connect(lambda: (print("[DEBUG] aboutToQuit emitted"), _dbg("aboutToQuit emitted")))
+        app.screenAdded.connect(lambda scr: (print(f"[DEBUG] screenAdded: {getattr(scr, 'name', lambda: 'unknown')()}"), _dbg("screenAdded")))
+        app.screenRemoved.connect(lambda scr: (print(f"[DEBUG] screenRemoved: {getattr(scr, 'name', lambda: 'unknown')()}"), _dbg("screenRemoved")))
     except Exception:
         pass
     # Global close-event logger to identify unexpected window closes
@@ -378,6 +394,7 @@ def main():
                     if event.type() == QEvent.Close:
                         name = getattr(obj, 'objectName', lambda: '')() or obj.__class__.__name__
                         print(f"[DEBUG] Close event on: {name}")
+                        _dbg(f"Close event on: {name}")
                 except Exception:
                     pass
                 return False

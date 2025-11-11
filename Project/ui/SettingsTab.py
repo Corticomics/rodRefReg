@@ -649,8 +649,28 @@ class SettingsTab(QWidget):
         # it's redirected through Qt signals which can corrupt during dialog close!
         try:
             self.print_to_terminal(f"Opening calibration wizard for Cage {cage_id}...")
+            # File log (safe) before exec_
+            try:
+                import os
+                from datetime import datetime
+                path = os.path.expanduser('~/rrr_app_debug.log')
+                ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                with open(path, 'a', encoding='utf-8') as f:
+                    f.write(f"{ts} [RRR] SettingsTab: calling wizard.exec_() for cage {cage_id}\n")
+            except Exception:
+                pass
             result = wizard.exec_()
             self.print_to_terminal(f"Wizard completed with result: {result}")
+            # File log (safe) after exec_
+            try:
+                import os
+                from datetime import datetime
+                path = os.path.expanduser('~/rrr_app_debug.log')
+                ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                with open(path, 'a', encoding='utf-8') as f:
+                    f.write(f"{ts} [RRR] SettingsTab: wizard.exec_() returned {result}\n")
+            except Exception:
+                pass
         except Exception as e:
             import traceback
             traceback.print_exc()
