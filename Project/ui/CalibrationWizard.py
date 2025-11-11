@@ -113,10 +113,14 @@ class CalibrationWizard(QDialog):
     def log(self, message):
         """Add message to log output"""
         timestamp = datetime.now().strftime("%H:%M:%S")
-        self.log_output.append(f"[{timestamp}] {message}")
+        formatted = f"[{timestamp}] {message}"
+        self.log_output.append(formatted)
         self.log_output.verticalScrollBar().setValue(
             self.log_output.verticalScrollBar().maximum()
         )
+        # Also print to stderr (unbuffered) for debugging
+        import sys
+        print(formatted, file=sys.stderr, flush=True)
     
     def show_step(self, step):
         """Display specific wizard step"""
@@ -480,6 +484,10 @@ class CalibrationWizard(QDialog):
     
     def go_next(self):
         """Handle next button click"""
+        import sys
+        print(f"[WIZARD go_next] Current step: {self.current_step}", file=sys.stderr, flush=True)
+        self.log(f"DEBUG: go_next() called, current_step={self.current_step}")
+        
         if self.current_step == 0:
             self.show_step(1)
         elif self.current_step == 1:
@@ -489,7 +497,18 @@ class CalibrationWizard(QDialog):
         elif self.current_step == 3:
             self.show_step(4)
         elif self.current_step == 4:
-            self._save_and_finish()
+            print("[WIZARD go_next] About to call _save_and_finish()", file=sys.stderr, flush=True)
+            self.log("DEBUG: About to call _save_and_finish()")
+            try:
+                self._save_and_finish()
+                print("[WIZARD go_next] _save_and_finish() returned", file=sys.stderr, flush=True)
+                self.log("DEBUG: _save_and_finish() returned")
+            except Exception as e:
+                print(f"[WIZARD go_next] EXCEPTION in _save_and_finish(): {e}", file=sys.stderr, flush=True)
+                self.log(f"DEBUG: EXCEPTION in _save_and_finish(): {e}")
+                import traceback
+                traceback.print_exc()
+                raise
     
     def go_back(self):
         """Handle back button click"""
@@ -562,56 +581,74 @@ class CalibrationWizard(QDialog):
         - Safe dialog closing
         - Database transaction safety
         """
-        print("=" * 70)
-        print("[WIZARD] _save_and_finish() called")
-        print("=" * 70)
+        import sys
+        print("=" * 70, file=sys.stderr, flush=True)
+        print("[WIZARD] _save_and_finish() called", file=sys.stderr, flush=True)
+        print("=" * 70, file=sys.stderr, flush=True)
+        self.log("=" * 50)
+        self.log("SAVE & FINISH - Starting")
+        self.log("=" * 50)
         
         try:
-            print("[WIZARD] Step 1: Starting save process...")
+            print("[WIZARD] Step 1: Starting save process...", file=sys.stderr, flush=True)
+            self.log("Step 1: Starting save process...")
             # Get current trainer ID with defensive checks
-            print("[WIZARD] Step 2: Getting trainer info...")
+            print("[WIZARD] Step 2: Getting trainer info...", file=sys.stderr, flush=True)
+            self.log("Step 2: Getting trainer info...")
             trainer_id = None
             trainer_name = 'Unknown'
             
             try:
                 parent = self.parent()
-                print(f"[WIZARD]   Parent: {type(parent).__name__ if parent else 'None'}")
+                parent_name = type(parent).__name__ if parent else 'None'
+                print(f"[WIZARD]   Parent: {parent_name}", file=sys.stderr, flush=True)
+                self.log(f"  Parent: {parent_name}")
                 if parent and hasattr(parent, 'login_system'):
                     login_system = parent.login_system
-                    print(f"[WIZARD]   Login system: {type(login_system).__name__}")
+                    login_sys_name = type(login_system).__name__
+                    print(f"[WIZARD]   Login system: {login_sys_name}", file=sys.stderr, flush=True)
+                    self.log(f"  Login system: {login_sys_name}")
                     if login_system and hasattr(login_system, 'get_current_trainer'):
                         current_trainer = login_system.get_current_trainer()
                         if current_trainer:
                             trainer_id = current_trainer.get('trainer_id')
                             trainer_name = current_trainer.get('username', 'Unknown')
-                            print(f"[WIZARD]   Trainer: {trainer_name} (ID: {trainer_id})")
+                            print(f"[WIZARD]   Trainer: {trainer_name} (ID: {trainer_id})", file=sys.stderr, flush=True)
+                            self.log(f"  Trainer: {trainer_name} (ID: {trainer_id})")
                 else:
-                    print("[WIZARD]   No login system found")
+                    print("[WIZARD]   No login system found", file=sys.stderr, flush=True)
+                    self.log("  No login system found")
             except Exception as e:
-                print(f"[WIZARD]   Warning: Could not get trainer info: {e}")
-                self.log(f"Warning: Could not get trainer info: {e}")
+                error_msg = f"Warning: Could not get trainer info: {e}"
+                print(f"[WIZARD]   {error_msg}", file=sys.stderr, flush=True)
+                self.log(error_msg)
                 # Continue with None trainer_id - this is acceptable
             
             # Validate calibration result exists
-            print("[WIZARD] Step 3: Validating calibration result...")
+            print("[WIZARD] Step 3: Validating calibration result...", file=sys.stderr, flush=True)
+            self.log("Step 3: Validating calibration result...")
             if not self.calibration_result:
                 raise ValueError("Calibration result is missing")
-            print(f"[WIZARD]   Calibration result exists: {list(self.calibration_result.keys())}")
+            keys_list = list(self.calibration_result.keys())
+            print(f"[WIZARD]   Calibration result exists: {keys_list}", file=sys.stderr, flush=True)
+            self.log(f"  Calibration result keys: {keys_list}")
             
             # Validate required fields
             required_fields = ['volume_per_pulse_ml', 'stddev_ml', 'cv_pct']
             for field in required_fields:
                 if field not in self.calibration_result:
                     raise ValueError(f"Missing required field: {field}")
-            print("[WIZARD]   All required fields present")
+            print("[WIZARD]   All required fields present", file=sys.stderr, flush=True)
+            self.log("  All required fields present")
             
             # Save to database
-            print("[WIZARD] Step 4: Preparing database save...")
+            print("[WIZARD] Step 4: Preparing database save...", file=sys.stderr, flush=True)
+            self.log("Step 4: Preparing database save...")
             relay_id = self.cage_id  # Assuming cage_id == relay_id
             notes = f"Wizard calibration: {self.num_pulses} pulses @ {self.pulse_width_ms}ms"
             
-            self.log("Saving calibration to database...")
-            print("[WIZARD]   Calling save_valve_calibration()...")
+            self.log("  Calling save_valve_calibration()...")
+            print("[WIZARD]   Calling save_valve_calibration()...", file=sys.stderr, flush=True)
             
             cal_id = self.db.save_valve_calibration(
                 cage_id=self.cage_id,
@@ -625,16 +662,18 @@ class CalibrationWizard(QDialog):
                 notes=notes
             )
             
-            print(f"[WIZARD]   save_valve_calibration() returned: {cal_id}")
+            print(f"[WIZARD]   save_valve_calibration() returned: {cal_id}", file=sys.stderr, flush=True)
+            self.log(f"  Returned calibration ID: {cal_id}")
             
             if not cal_id:
                 raise Exception("Database returned None - save may have failed")
             
-            self.log(f"Calibration saved to database (ID: {cal_id})")
-            print(f"[WIZARD] Step 5: Database save successful (ID: {cal_id})")
+            self.log(f"  SUCCESS: Saved to database (ID: {cal_id})")
+            print(f"[WIZARD] Step 5: Database save successful (ID: {cal_id})", file=sys.stderr, flush=True)
             
             # Log calibration action to logs table (separate try block)
-            print("[WIZARD] Step 6: Logging action...")
+            print("[WIZARD] Step 6: Logging action...", file=sys.stderr, flush=True)
+            self.log("Step 6: Logging action...")
             try:
                 log_details = (
                     f"Cage {self.cage_id}: {self.calibration_result['volume_per_pulse_ml']:.6f} mL/pulse, "
@@ -647,15 +686,17 @@ class CalibrationWizard(QDialog):
                     action='valve_calibration',
                     details=log_details
                 )
-                print("[WIZARD]   Action logged successfully")
-                self.log(f"Logged action for user: {trainer_name}")
+                print("[WIZARD]   Action logged successfully", file=sys.stderr, flush=True)
+                self.log("  Action logged successfully")
             except Exception as log_error:
                 # Log action failure is non-critical
-                print(f"[WIZARD]   Warning: Failed to log action: {log_error}")
-                self.log(f"Warning: Failed to log action: {log_error}")
+                error_msg = f"Warning: Failed to log action: {log_error}"
+                print(f"[WIZARD]   {error_msg}", file=sys.stderr, flush=True)
+                self.log(error_msg)
             
             # Log success to wizard output
-            print("[WIZARD] Step 7: Finalizing...")
+            print("[WIZARD] Step 7: Finalizing...", file=sys.stderr, flush=True)
+            self.log("Step 7: Finalizing...")
             self.log("   Calibration saved successfully!")
             self.log(f"  Volume/pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL")
             self.log(f"  Quality (CV): {self.calibration_result['cv_pct']:.2f}%")
@@ -670,18 +711,21 @@ class CalibrationWizard(QDialog):
             # Close dialog IMMEDIATELY and SYNCHRONOUSLY
             # Qt will handle the event loop cleanup internally
             # The parent has QTimer delays for its post-close operations
-            print("=" * 70)
-            print("[WIZARD] Step 8: CLOSING DIALOG")
-            print("=" * 70)
-            self.log("Closing wizard now...")
-            print("[WIZARD] About to call self.accept()...")
+            print("=" * 70, file=sys.stderr, flush=True)
+            print("[WIZARD] Step 8: CLOSING DIALOG", file=sys.stderr, flush=True)
+            print("=" * 70, file=sys.stderr, flush=True)
+            self.log("=" * 50)
+            self.log("Step 8: CLOSING DIALOG")
+            self.log("=" * 50)
+            print("[WIZARD] About to call self.accept()...", file=sys.stderr, flush=True)
+            self.log("About to call self.accept()...")
             
             try:
                 self.accept()  # Close immediately, don't delay
-                print("[WIZARD] self.accept() returned successfully")
-                self.log("Dialog closed successfully")
+                print("[WIZARD] self.accept() returned successfully", file=sys.stderr, flush=True)
+                self.log("self.accept() returned successfully")
             except Exception as accept_error:
-                print(f"[WIZARD] ERROR in self.accept(): {accept_error}")
+                print(f"[WIZARD] ERROR in self.accept(): {accept_error}", file=sys.stderr, flush=True)
                 self.log(f"Error calling accept(): {accept_error}")
                 import traceback
                 self.log(traceback.format_exc())
@@ -696,16 +740,16 @@ class CalibrationWizard(QDialog):
                         self.log("Trying close()")
                         self.close()
                     except Exception as close_error:
-                        print(f"[WIZARD] CRITICAL: All close methods failed: {close_error}")
+                        print(f"[WIZARD] CRITICAL: All close methods failed: {close_error}", file=sys.stderr, flush=True)
                         self.log(f"CRITICAL: All close methods failed: {close_error}")
                 
         except Exception as e:
-            print("=" * 70)
-            print(f"[WIZARD] EXCEPTION in _save_and_finish(): {e}")
-            print("=" * 70)
+            print("=" * 70, file=sys.stderr, flush=True)
+            print(f"[WIZARD] EXCEPTION in _save_and_finish(): {e}", file=sys.stderr, flush=True)
+            print("=" * 70, file=sys.stderr, flush=True)
             import traceback
             error_details = traceback.format_exc()
-            print(error_details)
+            print(error_details, file=sys.stderr, flush=True)
             
             self.log(f"CRITICAL ERROR during save: {str(e)}")
             self.log(f"Traceback:\n{error_details}")
@@ -718,7 +762,8 @@ class CalibrationWizard(QDialog):
                 "The calibration data was not saved."
             )
         
-        print("=" * 70)
-        print("[WIZARD] _save_and_finish() exiting")
-        print("=" * 70)
+        print("=" * 70, file=sys.stderr, flush=True)
+        print("[WIZARD] _save_and_finish() exiting", file=sys.stderr, flush=True)
+        print("=" * 70, file=sys.stderr, flush=True)
+        self.log("_save_and_finish() exiting")
 
