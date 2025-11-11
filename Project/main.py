@@ -208,6 +208,31 @@ def run_program(schedule, mode, window_start, window_end):
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
 
+        # Wire worker progress into the UI progress tracker (if available)
+        try:
+            if gui and hasattr(gui, 'run_stop_section') and hasattr(gui.run_stop_section, 'progress_tracker'):
+                tracker = gui.run_stop_section.progress_tracker
+                # Volume updates: update per-animal progress
+                def _on_volume_updated(animal_id_str: str, total_ml: float):
+                    try:
+                        animal_id = int(animal_id_str)
+                    except Exception:
+                        # Fallback: ignore bad ids
+                        return
+                    try:
+                        tracker.update_animal_progress(animal_id, total_ml, status="Delivering")
+                    except Exception:
+                        pass
+                try:
+                    worker.volume_updated.disconnect()
+                except Exception:
+                    pass
+                worker.volume_updated.connect(_on_volume_updated)
+                # Finished: mark schedule complete in tracker
+                worker.finished.connect(lambda: getattr(tracker, 'schedule_complete', lambda: None)())
+        except Exception:
+            pass
+
         # Ensure stop requests are delivered to the worker's thread (Qt.QueuedConnection)
         try:
             control_signals.stop_requested.disconnect()

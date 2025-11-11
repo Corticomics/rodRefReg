@@ -84,6 +84,7 @@ class RunStopSection(QWidget):
 
         # Create stacked widget to switch between schedule table and progress tracker
         self.content_stack = QStackedWidget()
+        self.content_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         
         # Schedule drop area (table view)
         self.schedule_drop_area = ScheduleDropArea()
@@ -93,6 +94,7 @@ class RunStopSection(QWidget):
         
         # Progress tracker (card view for running schedule)
         self.progress_tracker = ScheduleProgressTracker()
+        self.progress_tracker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.content_stack.addWidget(self.progress_tracker)
         
         # Start with schedule table visible

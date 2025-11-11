@@ -147,6 +147,10 @@ class SolenoidFlowStrategy:
         """
         snap = self._get_snapshot_entry(cage_id)
         if snap:
+            try:
+                print(f"[CAL RESOLVE] cage={cage_id} using snapshot width={snap[0]}ms vol={snap[1]:.6f} mL/pulse", flush=True)
+            except Exception:
+                pass
             return snap
         try:
             if self._db:
@@ -164,6 +168,10 @@ class SolenoidFlowStrategy:
                         f"Using DB calibration (read-through) for cage {cage_id}: "
                         f"{vol:.6f} mL/pulse @ {pw}ms"
                     )
+                    try:
+                        print(f"[CAL RESOLVE] cage={cage_id} using DB width={pw}ms vol={vol:.6f} mL/pulse", flush=True)
+                    except Exception:
+                        pass
                     return (pw, vol)
         except Exception as e:
             self._logger.debug(f"DB calibration read-through failed for cage {cage_id}: {e}")
@@ -193,6 +201,10 @@ class SolenoidFlowStrategy:
                     'id': cal.get('calibration_id', 0),
                     'volume_per_pulse_ml': vol,
                 }
+                try:
+                    print(f"[CAL SNAPSHOT] cage={cage_id} width={pw}ms vol={vol:.6f} mL/pulse", flush=True)
+                except Exception:
+                    pass
             self._logger.info(
                 f"Calibration snapshot loaded for {len(self._cal_snapshot)} cages"
             )
@@ -549,11 +561,13 @@ class SolenoidFlowStrategy:
         cage_pw_ms, expected_vol_per_pulse = await self._get_cage_calibration(cage_id)
         estimated_pulses = int(target_volume_ml / expected_vol_per_pulse) + 1
         
-        self._logger.info(
-            f"Estimated pulses: {estimated_pulses} "
-            f"(target={target_volume_ml:.3f}mL, "
-            f"pulse_vol={expected_vol_per_pulse:.4f}mL @ {cage_pw_ms}ms)"
-        )
+        est_msg = (f"[EST PULSES] cage={cage_id} target={target_volume_ml:.3f}mL "
+                   f"pulse_vol={expected_vol_per_pulse:.4f}mL @ {cage_pw_ms}ms → est={estimated_pulses}")
+        self._logger.info(est_msg)
+        try:
+            print(est_msg, flush=True)
+        except Exception:
+            pass
         
         # Step 5: Safety limits
         max_pulses = int(self._settings.get('max_pulses_per_delivery', 100))
