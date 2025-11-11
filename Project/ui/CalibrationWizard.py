@@ -36,26 +36,60 @@ class CalibrationWizard(QDialog):
     calibration_complete = pyqtSignal(dict)  # Emits calibration results
     
     def __init__(self, cage_id, database_handler, system_controller, parent=None):
-        super().__init__(parent)
+        import sys
+        print("=" * 70, file=sys.stderr, flush=True)
+        print(f"[WIZARD __init__] Creating CalibrationWizard for cage {cage_id}", file=sys.stderr, flush=True)
+        print("=" * 70, file=sys.stderr, flush=True)
         
-        self.cage_id = cage_id
-        self.db = database_handler
-        self.system_controller = system_controller
-        
-        self.num_pulses = 250  # Default
-        self.pulse_width_ms = 20  # Default
-        self.measured_volume_ml = 0.0
-        self.calibration_result = None
-        
-        self.setWindowTitle(f"Valve Calibration Wizard - Cage {cage_id}")
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(500)
-        
-        self.init_ui()
+        try:
+            print("[WIZARD __init__] Calling super().__init__()", file=sys.stderr, flush=True)
+            super().__init__(parent)
+            print("[WIZARD __init__] super().__init__() completed", file=sys.stderr, flush=True)
+            
+            print("[WIZARD __init__] Setting instance variables...", file=sys.stderr, flush=True)
+            self.cage_id = cage_id
+            self.db = database_handler
+            self.system_controller = system_controller
+            
+            self.num_pulses = 250  # Default
+            self.pulse_width_ms = 20  # Default
+            self.measured_volume_ml = 0.0
+            self.calibration_result = None
+            print("[WIZARD __init__] Instance variables set", file=sys.stderr, flush=True)
+            
+            print("[WIZARD __init__] Setting window properties...", file=sys.stderr, flush=True)
+            self.setWindowTitle(f"Valve Calibration Wizard - Cage {cage_id}")
+            self.setMinimumWidth(600)
+            self.setMinimumHeight(500)
+            print("[WIZARD __init__] Window properties set", file=sys.stderr, flush=True)
+            
+            print("[WIZARD __init__] Calling init_ui()...", file=sys.stderr, flush=True)
+            self.init_ui()
+            print("[WIZARD __init__] init_ui() completed", file=sys.stderr, flush=True)
+            print("=" * 70, file=sys.stderr, flush=True)
+            print("[WIZARD __init__] CalibrationWizard initialization complete", file=sys.stderr, flush=True)
+            print("=" * 70, file=sys.stderr, flush=True)
+            
+        except Exception as e:
+            print("=" * 70, file=sys.stderr, flush=True)
+            print(f"[WIZARD __init__] EXCEPTION during initialization: {e}", file=sys.stderr, flush=True)
+            print("=" * 70, file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
+            raise
     
     def init_ui(self):
         """Initialize multi-step wizard UI"""
-        layout = QVBoxLayout(self)
+        import sys
+        print("[WIZARD init_ui] Starting UI initialization...", file=sys.stderr, flush=True)
+        
+        try:
+            print("[WIZARD init_ui] Creating main layout...", file=sys.stderr, flush=True)
+            layout = QVBoxLayout(self)
+            print("[WIZARD init_ui] Main layout created", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"[WIZARD init_ui] ERROR creating layout: {e}", file=sys.stderr, flush=True)
+            raise
         
         # Header
         header = QLabel(f"<h2>Calibrate Cage {self.cage_id}</h2>")
@@ -107,8 +141,11 @@ class CalibrationWizard(QDialog):
         layout.addLayout(button_layout)
         
         # Start with step 1
+        print("[WIZARD init_ui] Setting initial step...", file=sys.stderr, flush=True)
         self.current_step = 0
+        print("[WIZARD init_ui] Calling show_step(0)...", file=sys.stderr, flush=True)
         self.show_step(0)
+        print("[WIZARD init_ui] UI initialization complete", file=sys.stderr, flush=True)
     
     def log(self, message):
         """Add message to log output"""

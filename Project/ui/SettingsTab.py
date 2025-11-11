@@ -569,14 +569,14 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 4, date_item)
                 
                 # Action button - Recalibrate
-                btn = QPushButton("Recalibrate")
+                btn = QPushButton("🔄 Recalibrate")
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
                 
             else:
                 # Not calibrated - show warning
-                status_item = QTableWidgetItem("Not Calibrated")
+                status_item = QTableWidgetItem("❌ Not Calibrated")
                 status_item.setForeground(QColor(200, 0, 0))
                 
                 volume_item = QTableWidgetItem("—")
@@ -597,7 +597,7 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 4, date_item)
                 
                 # Action button - Calibrate
-                btn = QPushButton("Calibrate")
+                btn = QPushButton("⚙️ Calibrate")
                 btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
@@ -609,10 +609,18 @@ class SettingsTab(QWidget):
         
         All users can calibrate - action is logged to database with trainer_id.
         """
+        import sys
+        print("=" * 70, file=sys.stderr, flush=True)
+        print(f"[SETTINGS] _launch_calibration_wizard called for cage {cage_id}", file=sys.stderr, flush=True)
+        print("=" * 70, file=sys.stderr, flush=True)
+        
         # Check if logged in
+        print("[SETTINGS] Checking login status...", file=sys.stderr, flush=True)
         if not self.login_system.is_logged_in():
+            print("[SETTINGS] Not logged in, showing warning", file=sys.stderr, flush=True)
             QMessageBox.warning(self, "Access Denied", "You must be logged in to calibrate valves.")
             return
+        print("[SETTINGS] Login check passed", file=sys.stderr, flush=True)
         
         # Check if schedule is running
         if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
@@ -626,21 +634,37 @@ class SettingsTab(QWidget):
                 return
         
         # Import wizard dialog
+        print("[SETTINGS] Importing CalibrationWizard...", file=sys.stderr, flush=True)
         from ui.CalibrationWizard import CalibrationWizard
+        print("[SETTINGS] CalibrationWizard imported successfully", file=sys.stderr, flush=True)
         
-        wizard = CalibrationWizard(
-            cage_id=cage_id,
-            database_handler=self.database_handler,
-            system_controller=self.system_controller,
-            parent=self
-        )
+        print("[SETTINGS] Creating CalibrationWizard instance...", file=sys.stderr, flush=True)
+        try:
+            wizard = CalibrationWizard(
+                cage_id=cage_id,
+                database_handler=self.database_handler,
+                system_controller=self.system_controller,
+                parent=self
+            )
+            print("[SETTINGS] CalibrationWizard instance created successfully", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"[SETTINGS] ERROR creating CalibrationWizard: {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
+            self.print_to_terminal(f"CRITICAL: Failed to create calibration wizard: {e}")
+            raise
         
         # Execute wizard and check result
         try:
             self.print_to_terminal(f"Opening calibration wizard for Cage {cage_id}...")
+            print(f"[SETTINGS] About to call wizard.exec_()...", file=sys.stderr, flush=True)
             result = wizard.exec_()
+            print(f"[SETTINGS] wizard.exec_() returned: {result}", file=sys.stderr, flush=True)
             self.print_to_terminal(f"Wizard exec_() completed with result: {result}")
         except Exception as e:
+            print(f"[SETTINGS] ERROR in wizard.exec_(): {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
             self.print_to_terminal(f"CRITICAL: Calibration wizard crashed during exec_(): {e}")
             import traceback
             error_trace = traceback.format_exc()
