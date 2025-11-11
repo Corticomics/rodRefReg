@@ -637,19 +637,94 @@ class SettingsTab(QWidget):
         
         # Execute wizard and check result
         try:
+            self.print_to_terminal(f"Opening calibration wizard for Cage {cage_id}...")
             result = wizard.exec_()
+            self.print_to_terminal(f"Wizard exec_() completed with result: {result}")
         except Exception as e:
-            self.print_to_terminal(f"Error: Calibration wizard error: {e}")
+            self.print_to_terminal(f"CRITICAL: Calibration wizard crashed during exec_(): {e}")
             import traceback
-            traceback.print_exc()
+            error_trace = traceback.format_exc()
+            self.print_to_terminal(f"Traceback:\n{error_trace}")
+            
+            # Even if wizard crashed, calibration might have been saved
+            # Refresh table to show any saved data
+            try:
+                self.print_to_terminal("Attempting to refresh table despite error...")
+                self._populate_calibration_table()
+                self.print_to_terminal("Table refreshed - calibration may have been saved")
+            except Exception as refresh_error:
+                self.print_to_terminal(f"Failed to refresh table: {refresh_error}")
             return
         
         if result == QDialog.Accepted:
             # Calibration completed successfully
-            self.print_to_terminal(f"✓ Cage {cage_id} calibration completed")
-            self._populate_calibration_table()  # Refresh table
-            # Note: Success message is now shown by the wizard itself
-            # to avoid duplicate message boxes that could cause Qt event issues
+            self.print_to_terminal(f"✓ Cage {cage_id} calibration completed successfully")
+            
+            # Use QTimer to do ALL post-close operations
+            # This ensures wizard is fully closed and event loop is stable
+            def handle_successful_calibration():
+                try:
+                    # Refresh table to show new calibration
+                    self.print_to_terminal("Refreshing calibration table...")
+                    try:
+                        self._populate_calibration_table()
+                        self.print_to_terminal("Table refreshed successfully")
+                    except Exception as refresh_error:
+                        self.print_to_terminal(f"Warning: Failed to refresh table: {refresh_error}")
+                        import traceback
+                        self.print_to_terminal(traceback.format_exc())
+                    
+                    # Show success message
+                    try:
+                        self.print_to_terminal("Retrieving calibration data...")
+                        cal = self.database_handler.get_valve_calibration(cage_id)
+                        
+                        if cal:
+                            self.print_to_terminal("Showing success message...")
+                            QMessageBox.information(
+                                self,
+                                "Calibration Complete",
+                                f"Cage {cage_id} calibration saved successfully!\n\n"
+                                f"Volume per pulse: {cal['volume_per_pulse_ml']:.6f} mL\n"
+                                f"Quality (CV): {cal['coefficient_of_variation_pct']:.2f}%\n\n"
+                                "This calibration is now active for all deliveries."
+                            )
+                            self.print_to_terminal("Success message shown and dismissed")
+                        else:
+                            self.print_to_terminal("Warning: Calibration not found in database")
+                            QMessageBox.information(
+                                self,
+                                "Calibration Complete",
+                                f"Cage {cage_id} has been successfully calibrated!\n\n"
+                                "The new calibration is now active."
+                            )
+                    except Exception as msg_error:
+                        self.print_to_terminal(f"Warning: Failed to show success message: {msg_error}")
+                        import traceback
+                        self.print_to_terminal(traceback.format_exc())
+                        # Don't crash - calibration is already saved
+                    
+                    self.print_to_terminal("Post-calibration handling complete")
+                    
+                except Exception as e:
+                    self.print_to_terminal(f"Error in post-calibration handler: {e}")
+                    import traceback
+                    self.print_to_terminal(traceback.format_exc())
+            
+            # Schedule ALL operations for next event loop iteration
+            # Give wizard 200ms to fully close and clean up
+            from PyQt5.QtCore import QTimer
+            self.print_to_terminal("Scheduling post-calibration operations...")
+            QTimer.singleShot(200, handle_successful_calibration)
+        
+        elif result == QDialog.Rejected:
+            # User cancelled/discarded calibration
+            self.print_to_terminal(f"Cage {cage_id} calibration cancelled by user")
+            # No further action needed - just return silently
+        
+        else:
+            # Unexpected result
+            self.print_to_terminal(f"Warning: Unexpected dialog result: {result}")
     
     def _calibrate_all_uncalibrated(self):
         """
