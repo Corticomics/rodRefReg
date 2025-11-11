@@ -351,6 +351,11 @@ def main():
     # Prevent implicit quit when the last window is closed (Wayland hotplug resilience)
     # Qt docs: QGuiApplication::quitOnLastWindowClosed
     QGuiApplication.setQuitOnLastWindowClosed(False)
+    try:
+        # Also set on the instance to be absolutely explicit across platforms
+        app.setQuitOnLastWindowClosed(False)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
     # Observe application lifecycle and screen changes
     try:
@@ -358,8 +363,26 @@ def main():
             lambda state: print(f"[DEBUG] Application state changed: {state}")
         )
         app.lastWindowClosed.connect(lambda: print("[DEBUG] lastWindowClosed emitted"))
+        # Log aboutToQuit to detect who is ending the loop
+        app.aboutToQuit.connect(lambda: print("[DEBUG] aboutToQuit emitted"))
         app.screenAdded.connect(lambda scr: print(f"[DEBUG] screenAdded: {getattr(scr, 'name', lambda: 'unknown')()}"))
         app.screenRemoved.connect(lambda scr: print(f"[DEBUG] screenRemoved: {getattr(scr, 'name', lambda: 'unknown')()}"))
+    except Exception:
+        pass
+    # Global close-event logger to identify unexpected window closes
+    try:
+        from PyQt5.QtCore import QObject, QEvent
+        class _CloseLogger(QObject):
+            def eventFilter(self, obj, event):
+                try:
+                    if event.type() == QEvent.Close:
+                        name = getattr(obj, 'objectName', lambda: '')() or obj.__class__.__name__
+                        print(f"[DEBUG] Close event on: {name}")
+                except Exception:
+                    pass
+                return False
+        _close_logger = _CloseLogger()
+        app.installEventFilter(_close_logger)
     except Exception:
         pass
     setup()
