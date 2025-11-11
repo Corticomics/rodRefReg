@@ -405,8 +405,8 @@ def main():
     setup()
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
-    #sys.stdout = redirector
-    #sys.stderr = redirector
+    sys.stdout = redirector
+    sys.stderr = redirector
     
     # Check for UI updates
     try:
