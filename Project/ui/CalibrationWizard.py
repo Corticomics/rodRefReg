@@ -46,15 +46,21 @@ class CalibrationWizard(QDialog):
             super().__init__(parent)
             print("[WIZARD __init__] super().__init__() completed", file=sys.stderr, flush=True)
             
-            # CRITICAL: Set window flags to prevent dialog close from closing parent
-            print("[WIZARD __init__] Setting Qt.Window flag to prevent parent close", file=sys.stderr, flush=True)
-            self.setWindowFlags(self.windowFlags() | Qt.Window)
-            print("[WIZARD __init__] Window flags set", file=sys.stderr, flush=True)
+            # CRITICAL FIX: Keep dialog as child window, NOT standalone
+            # Qt.Window flag was causing app to quit when dialog closed!
+            print("[WIZARD __init__] Setting dialog flags...", file=sys.stderr, flush=True)
+            self.setWindowFlags(Qt.Dialog | Qt.WindowCloseButtonHint)
+            print("[WIZARD __init__] Dialog flags set (child dialog mode)", file=sys.stderr, flush=True)
             
             # CRITICAL: Prevent dialog deletion on close (keeps app alive)
             print("[WIZARD __init__] Setting WA_DeleteOnClose to False", file=sys.stderr, flush=True)
             self.setAttribute(Qt.WA_DeleteOnClose, False)
             print("[WIZARD __init__] WA_DeleteOnClose attribute set", file=sys.stderr, flush=True)
+            
+            # Set modal to block interaction with parent while wizard is open
+            print("[WIZARD __init__] Setting modal=True", file=sys.stderr, flush=True)
+            self.setModal(True)
+            print("[WIZARD __init__] Modal flag set", file=sys.stderr, flush=True)
             
             print("[WIZARD __init__] Setting instance variables...", file=sys.stderr, flush=True)
             self.cage_id = cage_id
@@ -564,19 +570,20 @@ class CalibrationWizard(QDialog):
     
     def closeEvent(self, event):
         """
-        Override close event to prevent application quit.
+        Override close event to handle X button properly.
         
-        CRITICAL: This prevents the dialog's close from propagating to parent window.
+        CRITICAL: Accept the event and let Qt handle dialog cleanup.
+        Don't call reject() here - it causes recursion!
         """
         import sys
-        print("[WIZARD closeEvent] Close event triggered", file=sys.stderr, flush=True)
-        self.log("DEBUG: closeEvent triggered")
+        print("[WIZARD closeEvent] Close event triggered (X button clicked)", file=sys.stderr, flush=True)
+        self.log("DEBUG: closeEvent triggered (X button)")
         
         try:
-            # Just reject the dialog, don't propagate to parent
-            event.accept()  # Accept the close event
-            self.reject()   # Set dialog result to Rejected
-            print("[WIZARD closeEvent] Dialog closed successfully", file=sys.stderr, flush=True)
+            # Just accept the close - dialog will be marked as rejected automatically
+            # by Qt when closed via X button (not accept() or reject())
+            event.accept()
+            print("[WIZARD closeEvent] Event accepted, Qt handling cleanup", file=sys.stderr, flush=True)
         except Exception as e:
             print(f"[WIZARD closeEvent] ERROR: {e}", file=sys.stderr, flush=True)
             event.accept()  # Still accept the event to close
