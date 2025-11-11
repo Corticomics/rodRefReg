@@ -67,6 +67,8 @@ class SolenoidFlowStrategy:
         self._prime_ms = int(prime_ms)
         self._db = database_handler  # For per-valve calibration lookup
         self._logger = logging.getLogger(self.__class__.__name__)
+        # Per-run calibration snapshot (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml}})
+        self._cal_snapshot: Dict[int, Dict[int, Dict[str, float]]] = {}
         
         # Pulse mode detection (from empirical characterization tests)
         self._use_pulse_mode = bool(settings.get('use_pulse_delivery', False))
@@ -116,6 +118,86 @@ class SolenoidFlowStrategy:
         else:
             self._logger.info("Continuous flow mode enabled (legacy)")
 
+        # Build a per-run calibration snapshot to avoid DB lookups in the hot path.
+        # Best practice: deterministic run – use values saved prior to run.
+        self._build_calibration_snapshot()
+
+    def _get_snapshot_entry(self, cage_id: int) -> Optional[Tuple[int, float]]:
+        """
+        Get (pulse_width_ms, volume_per_pulse_ml) for a cage from the snapshot.
+        Returns None if not present.
+        """
+        by_pw = self._cal_snapshot.get(cage_id)
+        if not by_pw:
+            return None
+        if self._pulse_width_ms in by_pw:
+            entry = by_pw[self._pulse_width_ms]
+            return (self._pulse_width_ms, float(entry.get('volume_per_pulse_ml', 0.0)))
+        selected_pw = sorted(by_pw.keys())[0]
+        entry = by_pw[selected_pw]
+        return (selected_pw, float(entry.get('volume_per_pulse_ml', 0.0)))
+
+    async def _get_cage_calibration(self, cage_id: int) -> Tuple[int, float]:
+        """
+        Resolve the cage-specific calibration (pulse_width_ms, volume_per_pulse_ml).
+        Order:
+          1) Snapshot (deterministic per-run)
+          2) Read-through DB (cache into snapshot)
+          3) Fallback to empirical default at runtime pulse width
+        """
+        snap = self._get_snapshot_entry(cage_id)
+        if snap:
+            return snap
+        try:
+            if self._db:
+                cal = self._db.get_valve_calibration(cage_id)
+                if cal:
+                    pw = int(cal.get('pulse_width_ms', self._pulse_width_ms))
+                    vol = float(cal.get('volume_per_pulse_ml', 0.0))
+                    if not self._cal_snapshot.get(cage_id):
+                        self._cal_snapshot[cage_id] = {}
+                    self._cal_snapshot[cage_id][pw] = {
+                        'id': cal.get('calibration_id', 0),
+                        'volume_per_pulse_ml': vol,
+                    }
+                    self._logger.debug(
+                        f"Using DB calibration (read-through) for cage {cage_id}: "
+                        f"{vol:.6f} mL/pulse @ {pw}ms"
+                    )
+                    return (pw, vol)
+        except Exception as e:
+            self._logger.debug(f"DB calibration read-through failed for cage {cage_id}: {e}")
+        return (
+            self._pulse_width_ms,
+            self._empirical_pulse_volumes.get(self._pulse_width_ms, 0.026),
+        )
+
+    def _build_calibration_snapshot(self) -> None:
+        """
+        Build in-memory snapshot of per-cage calibration for the current run.
+        - Snapshot is per-run to ensure determinism (no mid-run changes).
+        - Stores by cage_id and pulse_width_ms.
+        """
+        self._cal_snapshot = {}
+        if not self._db:
+            return
+        try:
+            all_cals = self._db.get_all_valve_calibrations()  # {cage_id: {...}}
+            for cage_id, cal in all_cals.items():
+                pw = int(cal.get('pulse_width_ms') or 0)
+                vol = float(cal.get('volume_per_pulse_ml') or 0.0)
+                cid = float(cal.get('cage_id') or cage_id)
+                if not self._cal_snapshot.get(cage_id):
+                    self._cal_snapshot[cage_id] = {}
+                self._cal_snapshot[cage_id][pw] = {
+                    'id': cal.get('calibration_id', 0),
+                    'volume_per_pulse_ml': vol,
+                }
+            self._logger.info(
+                f"Calibration snapshot loaded for {len(self._cal_snapshot)} cages"
+            )
+        except Exception as e:
+            self._logger.warning(f"Failed to build calibration snapshot: {e}")
 
     async def deliver(
         self,
@@ -463,14 +545,14 @@ class SolenoidFlowStrategy:
             self._logger.error(f"Failed to prime manifold: {e}")
             return False
         
-        # Step 4: Calculate estimated pulses from calibration
-        expected_vol_per_pulse = self._empirical_pulse_volumes[self._pulse_width_ms]
+        # Step 4: Calculate estimated pulses from cage-specific calibration
+        cage_pw_ms, expected_vol_per_pulse = await self._get_cage_calibration(cage_id)
         estimated_pulses = int(target_volume_ml / expected_vol_per_pulse) + 1
         
         self._logger.info(
             f"Estimated pulses: {estimated_pulses} "
             f"(target={target_volume_ml:.3f}mL, "
-            f"pulse_vol={expected_vol_per_pulse:.4f}mL)"
+            f"pulse_vol={expected_vol_per_pulse:.4f}mL @ {cage_pw_ms}ms)"
         )
         
         # Step 5: Safety limits
@@ -615,9 +697,8 @@ class SolenoidFlowStrategy:
         Returns:
             Delivered volume in mL (uses per-valve calibration as fallback)
         """
-        # Step 1: Get expected volume from per-valve calibration (database)
-        # Fallback to global calibration if cage not calibrated
-        expected_vol_ml = await self._get_valve_calibration_value(cage_id)
+        # Step 1: Get cage-specific calibration (pulse width + expected volume)
+        cage_pw_ms, expected_vol_ml = await self._get_cage_calibration(cage_id)
         
         # Step 2: Clear sensor queue for fresh data
         if hasattr(self._sensor, 'clear_queue'):
@@ -630,7 +711,7 @@ class SolenoidFlowStrategy:
         
         # Total measurement window = pulse + settling
         # Extended settling for Parker valves (slower closing than Lee valves)
-        pulse_duration_s = self._pulse_width_ms / 1000.0
+        pulse_duration_s = cage_pw_ms / 1000.0
         settling_duration_s = self._pulse_settling_ms / 1000.0
         total_measurement_s = pulse_duration_s + settling_duration_s + 0.3  # +300ms buffer
         
@@ -718,7 +799,7 @@ class SolenoidFlowStrategy:
                 f"Duration={actual_duration_s:.3f}s | "
                 f"Flow: min={min_flow:.3f}, max={max_flow:.3f}, avg={avg_flow:.3f} mL/min | "
                 f"Integrated volume={delivered_ml:.4f}mL | "
-                f"Expected (calibration)={expected_vol_ml:.4f}mL"
+                f"Expected (calibration)={expected_vol_ml:.4f}mL @ {cage_pw_ms}ms"
             )
             
             # Check for potential issues
@@ -800,18 +881,38 @@ class SolenoidFlowStrategy:
         Returns:
             Volume per pulse in mL (from database or fallback to global)
         """
+        # 1) Snapshot first (deterministic per-run)
         try:
-            # Try to get per-valve calibration from database
-            if hasattr(self, '_db'):
-                cal = self._db.get_valve_calibration(cage_id)
-                if cal and cal['pulse_width_ms'] == self._pulse_width_ms:
-                    self._logger.debug(
-                        f"Using per-valve calibration for cage {cage_id}: "
-                        f"{cal['volume_per_pulse_ml']:.6f}mL/pulse"
-                    )
-                    return cal['volume_per_pulse_ml']
+            by_pw = self._cal_snapshot.get(cage_id) if isinstance(self._cal_snapshot, dict) else None
+            if by_pw and self._pulse_width_ms in by_pw:
+                vol = float(by_pw[self._pulse_width_ms]['volume_per_pulse_ml'])
+                self._logger.debug(
+                    f"Using snapshot calibration for cage {cage_id} @ {self._pulse_width_ms}ms: {vol:.6f} mL/pulse"
+                )
+                return vol
         except Exception as e:
-            self._logger.debug(f"Could not load per-valve calibration: {e}")
+            self._logger.debug(f"Snapshot calibration lookup failed for cage {cage_id}: {e}")
+
+        # 2) Read-through cache (single fetch, then store), avoiding per-pulse DB hits
+        #    Only if snapshot was missing that cage/pulse width.
+        try:
+            if self._db:
+                cal = self._db.get_valve_calibration(cage_id)
+                if cal and int(cal.get('pulse_width_ms', -1)) == self._pulse_width_ms:
+                    vol = float(cal['volume_per_pulse_ml'])
+                    # Store into snapshot for subsequent pulses
+                    if not self._cal_snapshot.get(cage_id):
+                        self._cal_snapshot[cage_id] = {}
+                    self._cal_snapshot[cage_id][self._pulse_width_ms] = {
+                        'id': cal.get('calibration_id', 0),
+                        'volume_per_pulse_ml': vol,
+                    }
+                    self._logger.debug(
+                        f"Using DB calibration (read-through) for cage {cage_id} @ {self._pulse_width_ms}ms: {vol:.6f} mL/pulse"
+                    )
+                    return vol
+        except Exception as e:
+            self._logger.debug(f"DB calibration read-through failed for cage {cage_id}: {e}")
         
         # Fallback to global calibration
         return self._empirical_pulse_volumes.get(
