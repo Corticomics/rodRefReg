@@ -353,7 +353,8 @@ class CalibrationWizard(QDialog):
                 "• No other processes are using the hardware\n"
                 "• System permissions are correct"
             )
-            self.reject()
+            # Use safe cancel instead of direct reject()
+            self._safe_cancel()
     
     def _show_measurement(self):
         """Step 4: User measures output"""
@@ -500,59 +501,52 @@ class CalibrationWizard(QDialog):
         Safely cancel the calibration wizard.
         
         Best Practices:
-        - Confirm cancellation if data exists
-        - Clean shutdown without Qt event loop issues
-        - No modal dialogs before reject()
+        - No nested modal dialogs during close (causes Qt event loop deadlock)
+        - Comprehensive error handling with fallbacks
+        - Clean shutdown
         """
         try:
-            # If we have calibration results, confirm discard
+            # Log state for debugging
             if self.calibration_result:
-                # Log to wizard (no modal dialog!)
-                self.log("User requested to discard calibration")
-                self.log("WARNING: Calibration will NOT be saved")
-                
-                # Ask for confirmation using a simple approach
-                # Store answer to avoid nested modals
-                confirm = True  # Default to allowing cancel
-                
-                try:
-                    reply = QMessageBox.question(
-                        self,
-                        "Discard Calibration?",
-                        f"Discard calibration for Cage {self.cage_id}?\n\n"
-                        f"Volume per pulse: {self.calibration_result.get('volume_per_pulse_ml', 0):.6f} mL\n"
-                        f"Quality (CV): {self.calibration_result.get('cv_pct', 0):.2f}%\n\n"
-                        "This data will NOT be saved.",
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.No  # Default to No
-                    )
-                    confirm = (reply == QMessageBox.Yes)
-                except Exception as e:
-                    self.log(f"Warning: Confirmation dialog failed: {e}")
-                    # If dialog fails, allow cancel anyway
-                    confirm = True
-                
-                if not confirm:
-                    # User chose not to discard
-                    return
+                self.log("User cancelled after results calculated")
+                self.log(f"WARNING: Calibration data will NOT be saved:")
+                self.log(f"  Volume/pulse: {self.calibration_result.get('volume_per_pulse_ml', 0):.6f} mL")
+                self.log(f"  Quality (CV): {self.calibration_result.get('cv_pct', 0):.2f}%")
+            else:
+                self.log("User cancelled calibration wizard")
             
-            # Log cancellation
-            self.log("Calibration wizard cancelled by user")
+            # DON'T show confirmation dialog - causes Qt event loop issues
+            # Just close immediately - user pressed cancel, they mean it
             
-            # Close dialog immediately (no modal dialogs after this!)
-            self.reject()
-            
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            self.log(f"Error during cancellation: {e}")
-            self.log(f"Traceback:\n{error_details}")
-            
-            # Still try to close dialog even if error occurred
+            # Close dialog with comprehensive fallback chain
             try:
                 self.reject()
+            except Exception as reject_error:
+                self.log(f"Error calling reject(): {reject_error}")
+                # Try alternative close method
+                try:
+                    self.done(QDialog.Rejected)
+                except Exception as done_error:
+                    self.log(f"Error calling done(): {done_error}")
+                    # Last resort: force close
+                    try:
+                        self.close()
+                    except Exception as close_error:
+                        self.log(f"Error calling close(): {close_error}")
+                        # If even close() fails, at least we tried
+                        pass
+            
+        except Exception as e:
+            # Outer error handler for any unexpected issues
+            import traceback
+            error_details = traceback.format_exc()
+            self.log(f"CRITICAL: Error during safe cancel: {e}")
+            self.log(f"Traceback:\n{error_details}")
+            
+            # Still try to close no matter what
+            try:
+                self.done(QDialog.Rejected)
             except:
-                # Last resort: close anyway
                 try:
                     self.close()
                 except:
