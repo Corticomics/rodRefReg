@@ -720,7 +720,10 @@ class SolenoidFlowStrategy:
         
         # Step 3: Setup sampling parameters
         samples = []
-        sampling_hz = float(self._settings.get('flow_sampling_hz', 20.0))
+        base_sampling_hz = float(self._settings.get('flow_sampling_hz', 20.0))
+        # Ensure adequate sampling during short pulses (aim ≥4 samples within pulse window)
+        min_hz_for_pulse = max(50.0, (1000.0 / max(5.0, cage_pw_ms)) * 4.0)  # e.g., 20ms → ≥200Hz
+        sampling_hz = max(base_sampling_hz, min_hz_for_pulse)
         sample_period_s = 1.0 / sampling_hz
         
         # Total measurement window = pulse + settling
@@ -737,8 +740,16 @@ class SolenoidFlowStrategy:
             
             self._valves.open_cage(cage_id)
             valve_open_time = asyncio.get_event_loop().time()
+            # Schedule precise close independent of sampling cadence
+            async def _close_after():
+                await asyncio.sleep(pulse_duration_s)
+                try:
+                    self._valves.close_cage(cage_id)
+                except Exception:
+                    pass
+            close_task = asyncio.create_task(_close_after())
             
-            # Collect samples during pulse
+            # Collect samples during pulse (high cadence)
             while (asyncio.get_event_loop().time() - valve_open_time) < pulse_duration_s:
                 try:
                     sample = self._sensor.read_one()
@@ -752,11 +763,14 @@ class SolenoidFlowStrategy:
                         })
                 except Exception as e:
                     self._logger.debug(f"Sample read error during pulse: {e}")
-                
+                # Use the computed period; for very short pulses this is already high (e.g., 200Hz)
                 await asyncio.sleep(sample_period_s)
         
-            # Step 5: Close valve
-            self._valves.close_cage(cage_id)
+            # Ensure close has happened
+            try:
+                await close_task
+            except Exception:
+                pass
             valve_close_time = asyncio.get_event_loop().time()
             
             # Step 6: Continue collecting during settling
