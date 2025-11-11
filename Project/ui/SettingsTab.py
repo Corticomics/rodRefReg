@@ -569,14 +569,14 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 4, date_item)
                 
                 # Action button - Recalibrate
-                btn = QPushButton("🔄 Recalibrate")
+                btn = QPushButton("Recalibrate")
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
                 
             else:
                 # Not calibrated - show warning
-                status_item = QTableWidgetItem("❌ Not Calibrated")
+                status_item = QTableWidgetItem("Not Calibrated")
                 status_item.setForeground(QColor(200, 0, 0))
                 
                 volume_item = QTableWidgetItem("—")
@@ -597,7 +597,7 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 4, date_item)
                 
                 # Action button - Calibrate
-                btn = QPushButton("⚙️ Calibrate")
+                btn = QPushButton("Calibrate")
                 btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
