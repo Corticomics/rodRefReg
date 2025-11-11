@@ -129,7 +129,7 @@ class TestCalibrationDialog(QDialog):
                 pulse_width_ms=50,
                 volume_per_pulse_ml=volume_per_pulse,
                 stddev_ml=0.000128,
-                coefficient_of_variation_pct=0.85,
+                cv_pct=0.85,  # Correct parameter name: cv_pct (not coefficient_of_variation_pct)
                 num_samples=num_pulses,
                 calibrated_by=None,
                 notes=f"Test calibration from test_dialog_crash.py"
@@ -144,9 +144,10 @@ class TestCalibrationDialog(QDialog):
             # Step 3: Log action
             self.log("Step 3: Logging action...")
             try:
+                # Correct parameter names: super_user_id, action, details
                 self.db.log_action(
-                    trainer_id=None,
-                    action_type='test_calibration',
+                    super_user_id=0,  # Use 0 for system/test actions
+                    action='test_calibration',
                     details=f"Test calibration for Cage {self.cage_id}"
                 )
                 self.log("  Action logged")

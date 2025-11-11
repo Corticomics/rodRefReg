@@ -620,6 +620,7 @@ class CalibrationWizard(QDialog):
                     f"CV: {self.calibration_result['cv_pct']:.2f}%, "
                     f"Samples: {self.num_pulses}"
                 )
+                # Use correct parameter names: super_user_id, action, details
                 self.db.log_action(
                     super_user_id=trainer_id if trainer_id else 0,
                     action='valve_calibration',
