@@ -608,19 +608,14 @@ class SettingsTab(QWidget):
         Launch calibration wizard for specific cage.
         
         All users can calibrate - action is logged to database with trainer_id.
-        """
-        import sys
-        print("=" * 70, file=sys.stderr, flush=True)
-        print(f"[SETTINGS] _launch_calibration_wizard called for cage {cage_id}", file=sys.stderr, flush=True)
-        print("=" * 70, file=sys.stderr, flush=True)
         
+        CRITICAL: Don't use print() to sys.stderr in this method - it's redirected
+        through Qt signals which can corrupt during dialog operations.
+        """
         # Check if logged in
-        print("[SETTINGS] Checking login status...", file=sys.stderr, flush=True)
         if not self.login_system.is_logged_in():
-            print("[SETTINGS] Not logged in, showing warning", file=sys.stderr, flush=True)
             QMessageBox.warning(self, "Access Denied", "You must be logged in to calibrate valves.")
             return
-        print("[SETTINGS] Login check passed", file=sys.stderr, flush=True)
         
         # Check if schedule is running
         if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
@@ -633,12 +628,9 @@ class SettingsTab(QWidget):
                 )
                 return
         
-        # Import wizard dialog
-        print("[SETTINGS] Importing CalibrationWizard...", file=sys.stderr, flush=True)
+        # Import and create wizard dialog
         from ui.CalibrationWizard import CalibrationWizard
-        print("[SETTINGS] CalibrationWizard imported successfully", file=sys.stderr, flush=True)
         
-        print("[SETTINGS] Creating CalibrationWizard instance...", file=sys.stderr, flush=True)
         try:
             wizard = CalibrationWizard(
                 cage_id=cage_id,
@@ -646,23 +638,20 @@ class SettingsTab(QWidget):
                 system_controller=self.system_controller,
                 parent=self
             )
-            print("[SETTINGS] CalibrationWizard instance created successfully", file=sys.stderr, flush=True)
         except Exception as e:
-            print(f"[SETTINGS] ERROR creating CalibrationWizard: {e}", file=sys.stderr, flush=True)
             import traceback
             traceback.print_exc()
             self.print_to_terminal(f"CRITICAL: Failed to create calibration wizard: {e}")
             raise
         
         # Execute wizard and check result
+        # CRITICAL: Don't use print() to sys.stderr around dialog.exec_() - 
+        # it's redirected through Qt signals which can corrupt during dialog close!
         try:
             self.print_to_terminal(f"Opening calibration wizard for Cage {cage_id}...")
-            print(f"[SETTINGS] About to call wizard.exec_()...", file=sys.stderr, flush=True)
             result = wizard.exec_()
-            print(f"[SETTINGS] wizard.exec_() returned: {result}", file=sys.stderr, flush=True)
-            self.print_to_terminal(f"Wizard exec_() completed with result: {result}")
+            self.print_to_terminal(f"Wizard completed with result: {result}")
         except Exception as e:
-            print(f"[SETTINGS] ERROR in wizard.exec_(): {e}", file=sys.stderr, flush=True)
             import traceback
             traceback.print_exc()
             self.print_to_terminal(f"CRITICAL: Calibration wizard crashed during exec_(): {e}")

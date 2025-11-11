@@ -121,7 +121,7 @@ class CalibrationWizard(QDialog):
         self.cancel_btn.clicked.connect(self._safe_cancel)
         button_layout.addWidget(self.cancel_btn)
         
-        self.next_btn = QPushButton("Next →")
+        self.next_btn = QPushButton("Next")
         self.next_btn.clicked.connect(self.go_next)
         button_layout.addWidget(self.next_btn)
         
