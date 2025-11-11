@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QSpinBox, QDoubleSpinBox, QTextEdit, QProgressBar,
     QGroupBox, QFormLayout, QMessageBox, QWizard, QWizardPage
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QEvent
 from PyQt5.QtGui import QFont
 import asyncio
 from datetime import datetime
@@ -45,6 +45,16 @@ class CalibrationWizard(QDialog):
             print("[WIZARD __init__] Calling super().__init__()", file=sys.stderr, flush=True)
             super().__init__(parent)
             print("[WIZARD __init__] super().__init__() completed", file=sys.stderr, flush=True)
+            
+            # CRITICAL: Set window flags to prevent dialog close from closing parent
+            print("[WIZARD __init__] Setting Qt.Window flag to prevent parent close", file=sys.stderr, flush=True)
+            self.setWindowFlags(self.windowFlags() | Qt.Window)
+            print("[WIZARD __init__] Window flags set", file=sys.stderr, flush=True)
+            
+            # CRITICAL: Prevent dialog deletion on close (keeps app alive)
+            print("[WIZARD __init__] Setting WA_DeleteOnClose to False", file=sys.stderr, flush=True)
+            self.setAttribute(Qt.WA_DeleteOnClose, False)
+            print("[WIZARD __init__] WA_DeleteOnClose attribute set", file=sys.stderr, flush=True)
             
             print("[WIZARD __init__] Setting instance variables...", file=sys.stderr, flush=True)
             self.cage_id = cage_id
@@ -551,6 +561,25 @@ class CalibrationWizard(QDialog):
         """Handle back button click"""
         if self.current_step > 0:
             self.show_step(self.current_step - 1)
+    
+    def closeEvent(self, event):
+        """
+        Override close event to prevent application quit.
+        
+        CRITICAL: This prevents the dialog's close from propagating to parent window.
+        """
+        import sys
+        print("[WIZARD closeEvent] Close event triggered", file=sys.stderr, flush=True)
+        self.log("DEBUG: closeEvent triggered")
+        
+        try:
+            # Just reject the dialog, don't propagate to parent
+            event.accept()  # Accept the close event
+            self.reject()   # Set dialog result to Rejected
+            print("[WIZARD closeEvent] Dialog closed successfully", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"[WIZARD closeEvent] ERROR: {e}", file=sys.stderr, flush=True)
+            event.accept()  # Still accept the event to close
     
     def _safe_cancel(self):
         """
