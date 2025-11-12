@@ -22,6 +22,7 @@ class LoginDialog(QDialog):
         layout.addWidget(self.password_input)
 
         self.login_button = QPushButton("Log In")
+        self.login_button.setProperty("variant", "primary")
         self.login_button.clicked.connect(self.authenticate)
         layout.addWidget(self.login_button)
 

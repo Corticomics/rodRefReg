@@ -23,6 +23,7 @@ QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     border-radius: 8px;
     padding: 6px 8px;
 }
+QComboBox { min-height: 32px; }
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
     border: 1px solid #F9A51B;
 }
@@ -33,6 +34,8 @@ QPushButton {
     border: 1px solid #DBDBD9;
     border-radius: 8px;
     padding: 8px 12px;
+    min-height: 32px;
+    font-weight: 500;
 }
 QPushButton:hover { border-color: #CFCFCB; }
 QPushButton:pressed { background: #F2F2F1; }
@@ -125,9 +128,23 @@ QGroupBox {
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    padding: 4px 8px;
+    padding: 4px 10px;
     color: #919A9F;
+    font-weight: 600;
     background: transparent;
+}
+
+/* Lists */
+QListWidget {
+    background: #FFFFFF;
+    border: 1px solid #DBDBD9;
+    border-radius: 8px;
+    padding: 6px;
+}
+QListWidget::item { padding: 6px 8px; }
+QListWidget::item:selected {
+    background: #EDE7D9;
+    color: #131313;
 }
 
 /* Scrollbars: minimal for performance */
@@ -161,6 +178,30 @@ QWidget#DropArea[state="drag"] {
     background: #FFF8E8;          /* soft highlight */
     border: 3px solid #F9A51B;
     border-radius: 10px;
+}
+
+/* Wizard visuals */
+QLabel#Subheader {
+    color: #919A9F;
+    padding: 6px 0;
+}
+QTextEdit#WizardLog {
+    background: #F5F5F5;
+    border: 1px solid #DBDBD9;
+    border-radius: 8px;
+}
+QLabel[variant="warning"] {
+    background: #FFF3E0;
+    color: #8A4B00;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+QLabel[variant="success"] {
+    color: #2E7D32;
+    font-weight: 600;
+}
+QLabel#ChecklistItem {
+    padding: 6px 4px;
 }
 
 

@@ -35,6 +35,8 @@ class SchedulesTab(QWidget):
         self.available_animals_list = AvailableAnimalsList(self.database_handler, self)
         available_animals_group = QGroupBox("Available Animals")
         available_animals_layout = QVBoxLayout()
+        available_animals_layout.setContentsMargins(12, 12, 12, 12)
+        available_animals_layout.setSpacing(8)
         
         # Add mode selector at the top
         mode_layout = QHBoxLayout()
@@ -60,6 +62,8 @@ class SchedulesTab(QWidget):
         
         relay_units_group = QGroupBox("Relay Units")
         relay_units_group_layout = QVBoxLayout()
+        relay_units_group_layout.setContentsMargins(12, 12, 12, 12)
+        relay_units_group_layout.setSpacing(8)
         
         # Add Clear All Assignments button at the top
         self.clear_assignments_button = QPushButton("Clear All Assignments")
@@ -72,6 +76,8 @@ class SchedulesTab(QWidget):
         # Saved schedules section (right column)
         schedules_group = QGroupBox("Saved Schedules")
         schedules_layout = QVBoxLayout()
+        schedules_layout.setContentsMargins(12, 12, 12, 12)
+        schedules_layout.setSpacing(8)
         
         # Schedule list widget with improved styling
         self.schedule_list = QListWidget()

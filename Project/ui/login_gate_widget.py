@@ -47,21 +47,7 @@ class LoginGateWidget(QStackedWidget):
         login_button.setFixedWidth(200)
         login_button.setFixedHeight(40)
         login_button.clicked.connect(self._show_login_dialog)
-        login_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-            QPushButton:pressed {
-                background-color: #004085;
-            }
-        """)
+        login_button.setProperty("variant", "primary")
         
         # Add widgets to layout with spacing
         layout.addStretch()

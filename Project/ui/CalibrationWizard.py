@@ -86,7 +86,7 @@ class CalibrationWizard(QDialog):
         # Current step indicator
         self.step_label = QLabel()
         self.step_label.setAlignment(Qt.AlignCenter)
-        self.step_label.setStyleSheet("font-size: 12pt; color: #666; padding: 10px;")
+        self.step_label.setObjectName("Subheader")
         layout.addWidget(self.step_label)
         
         # Content area (changes per step)
@@ -104,7 +104,7 @@ class CalibrationWizard(QDialog):
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
         self.log_output.setMaximumHeight(150)
-        self.log_output.setStyleSheet("font-family: 'Courier New'; font-size: 9pt; background-color: #f5f5f5;")
+        self.log_output.setObjectName("WizardLog")
         layout.addWidget(self.log_output)
         
         # Button bar
@@ -191,18 +191,15 @@ class CalibrationWizard(QDialog):
         
         for check in checks:
             label = QLabel(check)
-            label.setStyleSheet("padding: 5px; font-size: 11pt;")
+            label.setObjectName("ChecklistItem")
             checklist_layout.addWidget(label)
         
         checklist_group.setLayout(checklist_layout)
         self.content_layout.addWidget(checklist_group)
         
-        warning = QLabel(
-            "<span style='color: #f57c00; font-weight: bold;'>⚠ Warning:</span> "
-            "This process will take ~8-10 minutes and cannot be paused once started."
-        )
+        warning = QLabel("This process will take ~8-10 minutes and cannot be paused once started.")
         warning.setWordWrap(True)
-        warning.setStyleSheet("background-color: #fff3e0; padding: 10px; border-radius: 5px;")
+        warning.setProperty("variant", "warning")
         self.content_layout.addWidget(warning)
         
         self.content_layout.addStretch()
@@ -243,11 +240,8 @@ class CalibrationWizard(QDialog):
         config_group.setLayout(config_layout)
         self.content_layout.addWidget(config_group)
         
-        info = QLabel(
-            "<b>Recommended:</b> Use default values (250 pulses @ 20ms) for best accuracy."
-        )
+        info = QLabel("Recommended: Use default values (250 pulses @ 20ms) for best accuracy.")
         info.setWordWrap(True)
-        info.setStyleSheet("color: #666; padding: 10px;")
         self.content_layout.addWidget(info)
         
         self.content_layout.addStretch()
@@ -276,7 +270,6 @@ class CalibrationWizard(QDialog):
             "<b>Do not disturb</b> the setup during this process."
         )
         status.setWordWrap(True)
-        status.setStyleSheet("font-size: 11pt; padding: 20px;")
         self.content_layout.addWidget(status)
         
         self.progress_bar.setVisible(True)
@@ -392,14 +385,14 @@ class CalibrationWizard(QDialog):
         self.content_layout.addWidget(instruction)
         
         steps = QLabel(
-            "1. Remove the collection beaker from under Cage " + str(self.cage_id) + "<br>"
-            "2. Place beaker on lab scale<br>"
-            "3. Read the weight in grams<br>"
-            "4. For water: 1 gram ≈ 1 mL (at room temperature)<br>"
-            "5. Enter the measured volume below"
+            "1. Remove the collection beaker from under Cage "
+            + str(self.cage_id)
+            + "\n2. Place beaker on lab scale"
+            + "\n3. Read the weight in grams"
+            + "\n4. For water: 1 gram ≈ 1 mL (at room temperature)"
+            + "\n5. Enter the measured volume below"
         )
         steps.setWordWrap(True)
-        steps.setStyleSheet("padding: 15px; background-color: #f5f5f5; border-radius: 5px; font-size: 11pt;")
         self.content_layout.addWidget(steps)
         
         # Input group
@@ -411,7 +404,6 @@ class CalibrationWizard(QDialog):
         self.volume_input.setDecimals(3)
         self.volume_input.setSuffix(" mL")
         self.volume_input.setValue(0.0)
-        self.volume_input.setStyleSheet("font-size: 14pt; padding: 5px;")
         input_layout.addRow("Measured Volume:", self.volume_input)
         
         input_group.setLayout(input_layout)
@@ -458,7 +450,9 @@ class CalibrationWizard(QDialog):
         
         results_layout.addRow("Total Volume:", QLabel(f"<b>{self.measured_volume_ml:.4f} mL</b>"))
         results_layout.addRow("Number of Pulses:", QLabel(f"<b>{self.num_pulses}</b>"))
-        results_layout.addRow("Volume per Pulse:", QLabel(f"<b style='font-size: 14pt; color: #4CAF50;'>{volume_per_pulse:.6f} mL</b>"))
+        vpp = QLabel(f"Volume per Pulse: {volume_per_pulse:.6f} mL")
+        vpp.setProperty("variant", "success")
+        results_layout.addRow("", vpp)
         results_layout.addRow("Estimated CV:", QLabel(f"<b>{cv_pct:.2f}%</b>"))
         
         results_group.setLayout(results_layout)
@@ -478,17 +472,14 @@ class CalibrationWizard(QDialog):
             quality = "POOR"
             color = "#F44336"
         
-        quality_label = QLabel(f"<b style='font-size: 14pt; color: {color};'>Quality: {quality}</b>")
+        quality_label = QLabel(f"Quality: {quality}")
         quality_label.setAlignment(Qt.AlignCenter)
-        quality_label.setStyleSheet(f"background-color: {color}22; padding: 15px; border-radius: 5px; margin: 10px;")
         self.content_layout.addWidget(quality_label)
         
         if cv_pct >= 5.0:
-            warning = QLabel(
-                "<b>Poor quality detected.</b> Consider recalibrating with more pulses (300+)"
-            )
+            warning = QLabel("Poor quality detected. Consider recalibrating with more pulses (300+)")
             warning.setWordWrap(True)
-            warning.setStyleSheet("color: #F44336; padding: 10px;")
+            warning.setProperty("variant", "warning")
             self.content_layout.addWidget(warning)
         
         self.content_layout.addStretch()

@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, 
                              QDateTimeEdit, QTabWidget, QFormLayout, QSizePolicy, 
                              QHBoxLayout, QMessageBox, QComboBox, QDialog, QListWidget,
-                             QStackedWidget)
+                             QStackedWidget, QGroupBox)
 from PyQt5.QtCore import QDateTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
@@ -58,13 +58,22 @@ class RunStopSection(QWidget):
         self.stop_button.clicked.connect(self.stop_program)
         self.relay_hats_button.clicked.connect(self.change_relay_hats)
 
+        # Controls group as a card container
+        controls_group = QGroupBox("Controls")
         self.button_layout = QHBoxLayout()
-        self.button_layout.setSpacing(5)
+        self.button_layout.setSpacing(8)
+        self.button_layout.setContentsMargins(12, 8, 12, 8)
         self.button_layout.addWidget(self.edit_button)
         self.button_layout.addWidget(self.run_button)
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
+        controls_group.setLayout(self.button_layout)
 
+        # Execution group wrapping the stacked content
+        exec_group = QGroupBox("Execution")
+        exec_layout = QVBoxLayout()
+        exec_layout.setContentsMargins(12, 12, 12, 12)
+        exec_layout.setSpacing(8)
         # Create stacked widget to switch between schedule table and progress tracker
         self.content_stack = QStackedWidget()
         self.content_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -82,10 +91,11 @@ class RunStopSection(QWidget):
         
         # Start with schedule table visible
         self.content_stack.setCurrentWidget(self.schedule_drop_area)
+        exec_layout.addWidget(self.content_stack)
+        exec_group.setLayout(exec_layout)
         
-        self.layout.addLayout(self.button_layout)
-        self.layout.addWidget(self.content_stack)
-        self.layout.addStretch()
+        self.layout.addWidget(controls_group)
+        self.layout.addWidget(exec_group)
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.run_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
