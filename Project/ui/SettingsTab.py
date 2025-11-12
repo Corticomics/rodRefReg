@@ -54,17 +54,15 @@ class SettingsTab(QWidget):
         self.hardware_pump_settings = self._create_hardware_pump_settings()  # MERGED
         self.calibration_tab = self._create_calibration_tab()  # NEW
         self.priming_control = self._create_priming_control()
+        self.general_tab = self._create_general_tab()
         self.system_settings = self._create_system_settings()
-        self.notifications = self._create_notifications()
-        self.backup_restore = self._create_backup_restore()
-        self.data_import_export = self._create_data_import_export()
         
         # Add sub-tabs to settings
         self.tab_widget.addTab(self.hardware_pump_settings, "Hardware & Delivery")
         self.tab_widget.addTab(self.calibration_tab, "Valve Calibration")
         self.tab_widget.addTab(self.priming_control, "Priming")
-        self.tab_widget.addTab(self.notifications, "Notifications")
-        self.tab_widget.addTab(self.data_import_export, "Import/Export")
+        self.tab_widget.addTab(self.general_tab, "General")
+        self.tab_widget.addTab(self.system_settings, "System")
         
         layout.addWidget(self.tab_widget)
         
@@ -857,16 +855,6 @@ class SettingsTab(QWidget):
         system_tab = QWidget()
         layout = QFormLayout()
 
-        # Theme selection (Light/Dark)
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["light", "dark"])
-        try:
-            self.theme_combo.setCurrentText(self.settings.get('theme', 'light'))
-        except Exception:
-            self.theme_combo.setCurrentText("light")
-        self.theme_combo.currentTextChanged.connect(self._theme_changed)
-        layout.addRow("Theme:", self.theme_combo)
-
         # Log Level Spinner with proper type handling
         self.log_level = QSpinBox()
         self.log_level.setRange(0, 4)  # 0=DEBUG to 4=CRITICAL
@@ -957,6 +945,38 @@ class SettingsTab(QWidget):
         layout.addWidget(import_btn, 0, 1)
         
         widget.setLayout(layout)
+        return widget
+    
+    def _create_general_tab(self):
+        """
+        Merge Notifications, Import/Export, and Theme selection into one tab.
+        """
+        widget = QWidget()
+        v = QVBoxLayout()
+        
+        # Appearance group (Theme)
+        appearance = QGroupBox("Appearance")
+        appearance_form = QFormLayout()
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["light", "dark"])
+        try:
+            self.theme_combo.setCurrentText(self.settings.get('theme', 'light'))
+        except Exception:
+            self.theme_combo.setCurrentText("light")
+        self.theme_combo.currentTextChanged.connect(self._theme_changed)
+        appearance_form.addRow("Theme:", self.theme_combo)
+        appearance.setLayout(appearance_form)
+        v.addWidget(appearance)
+        
+        # Notifications (Slack)
+        v.addWidget(self._create_notifications())
+        
+        # Backup/Restore and Import/Export
+        v.addWidget(self._create_backup_restore())
+        v.addWidget(self._create_data_import_export())
+        
+        v.addStretch()
+        widget.setLayout(v)
         return widget
 
     def _get_or_create_key(self):
