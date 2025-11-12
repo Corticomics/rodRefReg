@@ -23,25 +23,13 @@ class ScheduleDropArea(QWidget):
         
         # Drop area
         self.drop_widget = QWidget()
-        self.drop_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; 
-                border: 2px dashed #1a73e8;
-                border-radius: 4px;
-                min-height: 80px;
-            }
-        """)
+        self.drop_widget.setObjectName("DropArea")
+        self.drop_widget.setProperty("state", "idle")
         self.drop_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         # Placeholder label
         self.placeholder = QLabel("Drop Schedule Here")
         self.placeholder.setAlignment(Qt.AlignCenter)
-        self.placeholder.setStyleSheet("""
-            border: none; 
-            background: none;
-            font-size: 14px;
-            color: #5f6368;
-        """)
         
         drop_layout = QVBoxLayout()
         drop_layout.addWidget(self.placeholder)
@@ -53,42 +41,7 @@ class ScheduleDropArea(QWidget):
         self.schedule_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.schedule_table.hide()
         
-        # Apply custom scrollbar style to the entire widget
-        self.setStyleSheet("""
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QWidget:hover QScrollBar::handle:horizontal, 
-            QWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on widget hover */
-            }
-        """)
+        # Scrollbars inherit from app QSS
         
         self.layout.addWidget(self.drop_widget)
         self.layout.addWidget(self.schedule_table)
@@ -108,27 +61,15 @@ class ScheduleDropArea(QWidget):
         
         if mime_data.hasFormat('application/x-schedule'):
             print(f"Accepting drag with schedule data")
-            # Change the appearance to indicate a valid drop target
-            self.drop_widget.setStyleSheet("""
-                QWidget {
-                    background-color: #e8f0fe; 
-                    border: 3px solid #1a73e8;
-                    border-radius: 4px;
-                    min-height: 80px;
-                }
-            """)
+            self.drop_widget.setProperty("state", "drag")
+            self.drop_widget.style().unpolish(self.drop_widget)
+            self.drop_widget.style().polish(self.drop_widget)
             event.acceptProposedAction()
         elif mime_data.hasText():
             print(f"Accepting drag with text: {mime_data.text()}")
-            # Change the appearance to indicate a valid drop target
-            self.drop_widget.setStyleSheet("""
-                QWidget {
-                    background-color: #e8f0fe; 
-                    border: 3px solid #1a73e8;
-                    border-radius: 4px;
-                    min-height: 80px;
-                }
-            """)
+            self.drop_widget.setProperty("state", "drag")
+            self.drop_widget.style().unpolish(self.drop_widget)
+            self.drop_widget.style().polish(self.drop_widget)
             event.acceptProposedAction()
         else:
             print(f"Rejecting drag - no recognized format")
@@ -136,15 +77,9 @@ class ScheduleDropArea(QWidget):
     def dragLeaveEvent(self, event):
         """Reset appearance when drag leaves the area"""
         print("Drag left the drop area")
-        # Reset the appearance
-        self.drop_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; 
-                border: 2px dashed #1a73e8;
-                border-radius: 4px;
-                min-height: 80px;
-            }
-        """)
+        self.drop_widget.setProperty("state", "idle")
+        self.drop_widget.style().unpolish(self.drop_widget)
+        self.drop_widget.style().polish(self.drop_widget)
             
     def dropEvent(self, event):
         print(f"Drop event received")
@@ -152,15 +87,9 @@ class ScheduleDropArea(QWidget):
         formats = data.formats()
         print(f"Available formats: {formats}")
         
-        # Reset the appearance
-        self.drop_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; 
-                border: 2px dashed #1a73e8;
-                border-radius: 4px;
-                min-height: 80px;
-            }
-        """)
+        self.drop_widget.setProperty("state", "idle")
+        self.drop_widget.style().unpolish(self.drop_widget)
+        self.drop_widget.style().polish(self.drop_widget)
         
         if data.hasFormat('application/x-schedule'):
             try:

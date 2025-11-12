@@ -45,6 +45,7 @@ class RunStopSection(QWidget):
         self.layout.setSpacing(12)
 
         self.run_button = QPushButton("Run", self)
+        self.run_button.setProperty("variant", "primary")
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
         self.edit_button = QPushButton("Edit Schedule")
@@ -52,24 +53,6 @@ class RunStopSection(QWidget):
         self.edit_button.setObjectName("edit_button")
         self.edit_button.setEnabled(False)
         self.edit_button.clicked.connect(self.edit_current_schedule)
-        self.edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-                min-width: 80px;
-                max-height: 24px;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-            QPushButton:disabled {
-                background-color: #87c4cb;
-            }
-        """)
 
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
@@ -123,29 +106,15 @@ class RunStopSection(QWidget):
         self.stop_button.setEnabled(self.job_in_progress)
         self.relay_hats_button.setEnabled(not self.job_in_progress)
         if self.job_in_progress:
-            self.run_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #cccccc;
-                    color: #666666;
-                }
-            """)
             self.run_button.setToolTip("Job in progress")
             self.relay_hats_button.setToolTip("Cannot change relay hats during a job")
         else:
-            self.run_button.setStyleSheet("")
             self.run_button.setToolTip("")
             self.relay_hats_button.setToolTip("")
 
         if not self.job_in_progress:
-            self.stop_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #cccccc;
-                    color: #666666;
-                }
-            """)
             self.stop_button.setToolTip("No job in progress to stop")
         else:
-            self.stop_button.setStyleSheet("")
             self.stop_button.setToolTip("")
 
     def run_program(self):
@@ -342,21 +311,7 @@ class RunStopSection(QWidget):
         print(f"Schedule dropped: {schedule.name if schedule else 'None'}")
         self.current_schedule = schedule
         self.edit_button.setEnabled(True)
-        self.edit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-                min-width: 80px;
-                max-height: 24px;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-        """)
+        # Use theme defaults (no inline styles)
 
     def on_schedule_updated(self, updated_schedule):
         self.current_schedule = updated_schedule
