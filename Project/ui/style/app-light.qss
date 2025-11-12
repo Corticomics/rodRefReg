@@ -115,6 +115,21 @@ QProgressBar::chunk {
     border-radius: 8px;
 }
 
+/* Group boxes as cards for clear visual separation */
+QGroupBox {
+    background: #FFFFFF;
+    border: 1px solid #DBDBD9;
+    border-radius: 10px;
+    margin-top: 12px;        /* space for title */
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 4px 8px;
+    color: #919A9F;
+    background: transparent;
+}
+
 /* Scrollbars: minimal for performance */
 QScrollBar:vertical {
     background: transparent;

@@ -55,14 +55,12 @@ class SettingsTab(QWidget):
         self.calibration_tab = self._create_calibration_tab()  # NEW
         self.priming_control = self._create_priming_control()
         self.general_tab = self._create_general_tab()
-        self.system_settings = self._create_system_settings()
         
         # Add sub-tabs to settings
         self.tab_widget.addTab(self.hardware_pump_settings, "Hardware & Delivery")
         self.tab_widget.addTab(self.calibration_tab, "Valve Calibration")
         self.tab_widget.addTab(self.priming_control, "Priming")
         self.tab_widget.addTab(self.general_tab, "General")
-        self.tab_widget.addTab(self.system_settings, "System")
         
         layout.addWidget(self.tab_widget)
         
@@ -974,6 +972,9 @@ class SettingsTab(QWidget):
         # Backup/Restore and Import/Export
         v.addWidget(self._create_backup_restore())
         v.addWidget(self._create_data_import_export())
+        
+        # System settings (e.g., log level) merged here for clarity
+        v.addWidget(self._create_system_settings())
         
         v.addStretch()
         widget.setLayout(v)
