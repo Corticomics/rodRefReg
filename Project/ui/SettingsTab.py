@@ -13,6 +13,7 @@ from datetime import datetime
 import pandas as pd
 from models.animal import Animal
 from ui.PrimingControlWidget import PrimingControlWidget
+from PyQt5.QtWidgets import QApplication
 
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
@@ -856,6 +857,16 @@ class SettingsTab(QWidget):
         system_tab = QWidget()
         layout = QFormLayout()
 
+        # Theme selection (Light/Dark)
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItems(["light", "dark"])
+        try:
+            self.theme_combo.setCurrentText(self.settings.get('theme', 'light'))
+        except Exception:
+            self.theme_combo.setCurrentText("light")
+        self.theme_combo.currentTextChanged.connect(self._theme_changed)
+        layout.addRow("Theme:", self.theme_combo)
+
         # Log Level Spinner with proper type handling
         self.log_level = QSpinBox()
         self.log_level.setRange(0, 4)  # 0=DEBUG to 4=CRITICAL
@@ -878,6 +889,16 @@ class SettingsTab(QWidget):
         self.settings['log_level'] = value
         if self.push_callback:
             self.push_callback()
+
+    def _theme_changed(self, theme: str):
+        """Apply theme immediately and persist in settings."""
+        self.settings['theme'] = theme
+        try:
+            style_mgr = QApplication.instance().property('style_manager')
+            if style_mgr:
+                style_mgr.apply(theme)
+        except Exception:
+            pass
 
     def _create_notifications(self):
         widget = QWidget()
@@ -1021,6 +1042,8 @@ class SettingsTab(QWidget):
             updated_settings = {
                 # Hardware mode
                 'hardware_mode': self.hardware_mode_combo.currentText(),
+                # Theme
+                'theme': self.theme_combo.currentText(),
                 
                 # Solenoid settings
                 'uart_port': self.teensy_port_edit.text(),

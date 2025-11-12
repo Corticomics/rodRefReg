@@ -17,6 +17,7 @@ from controllers.system_controller import SystemController
 from controllers.pump_controller import PumpController
 from models.relay_unit_manager import RelayUnitManager
 from ui.SettingsTab import SettingsTab
+from ui.style.theme import StyleManager
 
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
@@ -389,6 +390,13 @@ def main():
     socket.abort()
 
     app = QApplication(sys.argv)
+    # Centralized theming: create StyleManager and expose on the app for runtime toggling
+    try:
+        _style_manager = StyleManager(app)
+        app.setProperty('style_manager', _style_manager)
+        _style_manager.apply("light")
+    except Exception:
+        pass
     # Prevent implicit quit when the last window is closed (Wayland hotplug resilience)
     # Qt docs: QGuiApplication::quitOnLastWindowClosed
     QGuiApplication.setQuitOnLastWindowClosed(False)
@@ -428,6 +436,18 @@ def main():
     except Exception:
         pass
     setup()
+    # After settings are loaded in setup(), apply persisted theme if available
+    try:
+        style_mgr = app.property('style_manager')
+        if style_mgr:
+            desired_theme = "light"
+            try:
+                desired_theme = system_controller.settings.get('theme', 'light')  # type: ignore[name-defined]
+            except Exception:
+                pass
+            style_mgr.apply(desired_theme)
+    except Exception:
+        pass
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
     sys.stdout = redirector

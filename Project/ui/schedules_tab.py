@@ -29,29 +29,11 @@ class SchedulesTab(QWidget):
 
         # Main layout
         main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(10, 10, 10, 10)  # Restore reasonable margins
-        
-        # Common GroupBox style for all columns
-        groupbox_style = """
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #e0e4e8;
-                border-radius: 8px;
-                margin-top: 1.5ex;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top center;
-                padding: 0 5px;
-                background-color: white;
-            }
-        """
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Available animals section (left column)
         self.available_animals_list = AvailableAnimalsList(self.database_handler, self)
         available_animals_group = QGroupBox("Available Animals")
-        available_animals_group.setStyleSheet(groupbox_style)
         available_animals_layout = QVBoxLayout()
         
         # Add mode selector at the top
@@ -60,21 +42,6 @@ class SchedulesTab(QWidget):
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
-        self.mode_selector.setStyleSheet("""
-            QComboBox {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-width: 120px;
-                font-size: 12px;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-        """)
         mode_layout.addWidget(mode_label)
         mode_layout.addWidget(self.mode_selector)
         available_animals_layout.addLayout(mode_layout)
@@ -92,28 +59,11 @@ class SchedulesTab(QWidget):
         self.relay_units_container.setWidget(relay_units_widget)
         
         relay_units_group = QGroupBox("Relay Units")
-        relay_units_group.setStyleSheet(groupbox_style)
         relay_units_group_layout = QVBoxLayout()
         
         # Add Clear All Assignments button at the top
         self.clear_assignments_button = QPushButton("Clear All Assignments")
-        self.clear_assignments_button.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
+        self.clear_assignments_button.setProperty("variant", "danger")
         self.clear_assignments_button.clicked.connect(self.clear_all)
         relay_units_group_layout.addWidget(self.clear_assignments_button)
         relay_units_group_layout.addWidget(self.relay_units_container)
@@ -121,7 +71,6 @@ class SchedulesTab(QWidget):
         
         # Saved schedules section (right column)
         schedules_group = QGroupBox("Saved Schedules")
-        schedules_group.setStyleSheet(groupbox_style)
         schedules_layout = QVBoxLayout()
         
         # Schedule list widget with improved styling
@@ -131,45 +80,12 @@ class SchedulesTab(QWidget):
         # Connect mousePressEvent to handle dragging schedules
         self.schedule_list.mousePressEvent = self.schedule_list_mouse_press
         self.schedule_list.setDragEnabled(True)  # Enable dragging from the list
-        self.schedule_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 5px;
-                margin-bottom: 10px;
-                background-color: #f8f9fa;
-            }
-            QListWidget::item {
-                border-bottom: 1px solid #f0f0f0;
-                padding: 5px;
-            }
-            QListWidget::item:selected {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-            }
-        """)
         schedules_layout.addWidget(self.schedule_list)
         
         # Save Schedule button - the only button we'll keep
         self.save_button = QPushButton("Save Schedule")
         self.save_button.setMinimumHeight(40)
-        self.save_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1666d4;
-            }
-            QPushButton:pressed {
-                background-color: #125bbf;
-            }
-        """)
+        self.save_button.setProperty("variant", "primary")
         self.save_button.clicked.connect(self.save_current_schedule)
         schedules_layout.addWidget(self.save_button)
         
@@ -199,67 +115,7 @@ class SchedulesTab(QWidget):
         # Connect assignments_cleared signal to refresh method
         self.assignments_cleared.connect(self.refresh)
 
-        # Refine table headers styling
-        self.setStyleSheet("""
-            QHeaderView::section {
-                background-color: #f8f9fa;
-                color: #5f6368;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #e0e4e8;
-                font-weight: 500;
-                font-size: 12px;
-            }
-            
-            QTableWidget {
-                gridline-color: #f0f0f0;
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-            }
-            
-            QTableWidget::item {
-                padding: 4px 8px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QScrollArea:hover QScrollBar::handle:horizontal, 
-            QScrollArea:hover QScrollBar::handle:vertical,
-            QListWidget:hover QScrollBar::handle:horizontal,
-            QListWidget:hover QScrollBar::handle:vertical,
-            QTableWidget:hover QScrollBar::handle:horizontal, 
-            QTableWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on hover */
-            }
-        """)
+        # Inherit table and scrollbar styling from app QSS (no per-widget CSS)
 
     def initialize_relay_units(self):
         """
