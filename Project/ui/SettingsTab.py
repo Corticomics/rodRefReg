@@ -80,10 +80,14 @@ class SettingsTab(QWidget):
         """
         widget = QWidget()
         layout = QVBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
         
         # ==================== MODE SELECTION ====================
         mode_group = QGroupBox("Delivery Hardware Mode")
         mode_layout = QFormLayout()
+        mode_layout.setContentsMargins(12, 12, 12, 12)
+        mode_layout.setSpacing(8)
         
         self.hardware_mode_combo = QComboBox()
         self.hardware_mode_combo.addItems(['solenoid', 'pump'])
@@ -106,10 +110,14 @@ class SettingsTab(QWidget):
         # ==================== SOLENOID MODE SETTINGS ====================
         self.solenoid_group = QGroupBox("Solenoid Mode Settings")
         solenoid_layout = QVBoxLayout()
+        solenoid_layout.setContentsMargins(12, 12, 12, 12)
+        solenoid_layout.setSpacing(12)
         
         # Flow Sensor Configuration
         sensor_group = QGroupBox("Flow Sensor (Teensy Bridge)")
         sensor_layout = QFormLayout()
+        sensor_layout.setContentsMargins(12, 12, 12, 12)
+        sensor_layout.setSpacing(8)
         
         # Teensy port selection
         port_row = QHBoxLayout()
@@ -144,6 +152,8 @@ class SettingsTab(QWidget):
         # Valve Safety Settings
         safety_group = QGroupBox("Safety Settings")
         safety_layout = QFormLayout()
+        safety_layout.setContentsMargins(12, 12, 12, 12)
+        safety_layout.setSpacing(8)
         
         self.max_valve_open_s = QDoubleSpinBox()
         self.max_valve_open_s.setRange(1.0, 60.0)
@@ -172,6 +182,8 @@ class SettingsTab(QWidget):
         # Pulse Mode Settings
         pulse_group = QGroupBox("Pulse Mode (Parker Series 3 Valves)")
         pulse_layout = QFormLayout()
+        pulse_layout.setContentsMargins(12, 12, 12, 12)
+        pulse_layout.setSpacing(8)
         
         self.use_pulse_delivery = QCheckBox("Enable Pulse Mode")
         self.use_pulse_delivery.setChecked(self.settings.get('use_pulse_delivery', True))
@@ -194,6 +206,8 @@ class SettingsTab(QWidget):
         # ==================== PUMP MODE SETTINGS ====================
         self.pump_group = QGroupBox("Pump Mode Settings")
         pump_layout = QFormLayout()
+        pump_layout.setContentsMargins(12, 12, 12, 12)
+        pump_layout.setSpacing(8)
         
         self.pump_volume = QDoubleSpinBox()
         self.pump_volume.setRange(0, 1000)
