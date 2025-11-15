@@ -442,7 +442,7 @@ class SettingsTab(QWidget):
         
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("CompactButton")
-        refresh_btn.setFixedHeight(14)
+        refresh_btn.setFixedHeight(28)
         refresh_btn.setToolTip("Reload calibration data from database")
         refresh_btn.clicked.connect(self._populate_calibration_table)
         button_row.addWidget(refresh_btn)
@@ -451,14 +451,14 @@ class SettingsTab(QWidget):
         
         calibrate_all_btn = QPushButton("Calibrate All Uncalibrated")
         calibrate_all_btn.setObjectName("CompactButton")
-        calibrate_all_btn.setFixedHeight(14)
+        calibrate_all_btn.setFixedHeight(28)
         calibrate_all_btn.setToolTip("Run calibration wizard for all uncalibrated valves (all users)")
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
         
         export_btn = QPushButton("Export Report")
         export_btn.setObjectName("CompactButton")
-        export_btn.setFixedHeight(14)
+        export_btn.setFixedHeight(28)
         export_btn.setToolTip("Export calibration data to CSV")
         export_btn.clicked.connect(self._export_calibration_report)
         button_row.addWidget(export_btn)
