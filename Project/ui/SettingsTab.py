@@ -412,6 +412,8 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
         self.calibration_table.setMaximumHeight(420)  # Allow internal scroll for last rows
+        # Provide breathing room at the bottom so the last row scrolls fully above the action bar
+        self.calibration_table.setViewportMargins(0, 0, 0, 48)
         self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
@@ -469,7 +471,7 @@ class SettingsTab(QWidget):
         
         # Help text
         help_text = QLabel(
-            "💡 <b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
+            "<b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
             "Requires lab scale (±0.001g). CV% <5% = production ready."
         )
         help_text.setWordWrap(True)
