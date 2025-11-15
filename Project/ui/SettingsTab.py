@@ -411,7 +411,6 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
-        self.calibration_table.setMaximumHeight(420)  # Prevent table from growing too large
         
         # Rely on global QSS styling
         
