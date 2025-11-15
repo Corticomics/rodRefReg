@@ -123,13 +123,15 @@ QGroupBox {
     background: #FFFFFF;
     border: 1px solid #DBDBD9;
     border-radius: 10px;
-    margin-top: 12px;        /* space for title */
-    padding-top: 20px;       /* keep content below the title */
+    margin-top: 18px;        /* space for title (increased to prevent overlap) */
+    padding: 24px 12px 12px 12px; /* top padding ensures content below title */
 }
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    padding: 4px 10px;
+    left: 10px;              /* horizontal position within margin */
+    top: 6px;                /* vertical offset to sit properly in margin */
+    padding: 0 4px;          /* minimal padding around text */
     color: #919A9F;
     font-weight: 600;
     background: transparent;
@@ -203,6 +205,26 @@ QLabel[variant="success"] {
 }
 QLabel#ChecklistItem {
     padding: 6px 4px;
+}
+
+/* UserTab specific styles */
+QLabel#InfoBanner {
+    background: #FFF8E8;
+    color: #8A4B00;
+    padding: 12px;
+    border-radius: 8px;
+}
+QLabel#ProfileWelcome {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 8px 0;
+}
+QLabel#LinkLabel {
+    color: #F9A51B;
+    font-size: 11px;
+}
+QLabel#LinkLabel:hover {
+    text-decoration: underline;
 }
 
 
