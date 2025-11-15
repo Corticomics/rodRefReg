@@ -380,7 +380,7 @@ class SettingsTab(QWidget):
         from PyQt5.QtWidgets import (
             QTableWidget, QTableWidgetItem, QHeaderView,
             QAbstractItemView, QPushButton, QDialog, QDialogButtonBox,
-            QProgressBar
+            QProgressBar, QScrollArea, QFrame
         )
         from PyQt5.QtGui import QColor
         from PyQt5.QtCore import Qt
@@ -411,10 +411,9 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
-        # Calculate actual needed height: 15 rows * 36px + header ~30px + frame ~4px = ~584px
-        # Set to 590 to ensure all 15 rows are fully visible without cutting off Cage 15
-        self.calibration_table.setMaximumHeight(590)
-        self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # Don't set maxHeight - let the parent scroll area handle overflow
+        # This ensures the table displays naturally and the tab scrolls when needed
+        self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # Tab scrolls instead
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         # Rely on global QSS styling
@@ -479,7 +478,13 @@ class SettingsTab(QWidget):
         layout.addWidget(help_text)
         
         widget.setLayout(layout)
-        return widget
+        
+        # Wrap in scroll area so content can overflow properly
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        scroll.setFrameShape(QFrame.NoFrame)  # Remove border for cleaner look
+        return scroll
     
     def _populate_calibration_table(self):
         """Load calibration data from database and populate table"""
