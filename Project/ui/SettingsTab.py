@@ -411,6 +411,7 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
+        self.calibration_table.setViewportMargins(0, 0, 0, 48)  # Leave room for action bar below when scrolled to bottom
         self.calibration_table.setMaximumHeight(440)
         # Rely on global QSS styling
         
