@@ -55,6 +55,14 @@ QTableWidget QPushButton[variant="primary"] {
     max-height: 28px;
 }
 
+/* Compact buttons for action rows (below tables, toolbars, etc) */
+QPushButton#CompactButton {
+    padding: 6px 10px;
+    min-height: 28px;
+    max-height: 32px;
+    font-size: 12px;
+}
+
 /* Primary CTA */
 QPushButton[variant="primary"] {
     background: #F9A51B;
