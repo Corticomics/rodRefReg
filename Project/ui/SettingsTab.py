@@ -378,9 +378,9 @@ class SettingsTab(QWidget):
         - Visual indicators for calibration quality
         """
         from PyQt5.QtWidgets import (
-            QTableWidget, QTableWidgetItem, QHeaderView, 
+            QTableWidget, QTableWidgetItem, QHeaderView,
             QAbstractItemView, QPushButton, QDialog, QDialogButtonBox,
-            QProgressBar, QSizePolicy
+            QProgressBar
         )
         from PyQt5.QtGui import QColor
         from PyQt5.QtCore import Qt
@@ -410,13 +410,9 @@ class SettingsTab(QWidget):
         self.calibration_table.setShowGrid(True)
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
-        self.calibration_table.setMinimumHeight(300)
-        self.calibration_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
-        # Let the layout manage spacing instead of shrinking the viewport, so all 15
-        # cages remain visible when scrolling.
+        self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         # Rely on global QSS styling
         
         # Column resize modes
@@ -430,6 +426,7 @@ class SettingsTab(QWidget):
         
         # Populate table with 15 cages
         self._populate_calibration_table()
+        self._resize_calibration_table_to_content()
         
         layout.addWidget(self.calibration_table)
         
@@ -582,39 +579,20 @@ class SettingsTab(QWidget):
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
 
-        # Debug diagnostics so we can verify the table isn't being clipped.
-        margins = self.calibration_table.viewportMargins()
-        self.print_to_terminal(
-            f"[CalibrationTab] viewport margins L{margins.left()} T{margins.top()} "
-            f"R{margins.right()} B{margins.bottom()}"
-        )
-        self.print_to_terminal(
-            f"[CalibrationTab] height constraints min={self.calibration_table.minimumHeight()} "
-            f"max={self.calibration_table.maximumHeight()} "
-            f"rows={self.calibration_table.rowCount()} "
-            f"rowHeight={self.calibration_table.verticalHeader().defaultSectionSize()}"
-        )
-        self.print_to_terminal(
-            f"[CalibrationTab] current height={self.calibration_table.height()} "
-            f"sizeHint={self.calibration_table.sizeHint().height()}"
-        )
-        viewport = self.calibration_table.viewport()
-        vh = self.calibration_table.verticalHeader()
-        last_row = self.calibration_table.rowCount() - 1
-        last_row_item = self.calibration_table.item(last_row, 0)
-        self.print_to_terminal(
-            f"[CalibrationTab] viewport height={viewport.height()} header length={vh.length()}"
-        )
-        self.print_to_terminal(
-            f"[CalibrationTab] last row text={last_row_item.text() if last_row_item else 'None'} "
-            f"rowHeight={self.calibration_table.rowHeight(last_row)} "
-            f"rowPos={self.calibration_table.rowViewportPosition(last_row)}"
-        )
-        scrollbar = self.calibration_table.verticalScrollBar()
-        self.print_to_terminal(
-            f"[CalibrationTab] scrollbar range {scrollbar.minimum()}-{scrollbar.maximum()} "
-            f"pageStep={scrollbar.pageStep()} value={scrollbar.value()}"
-        )
+    def _resize_calibration_table_to_content(self):
+        """Ensure the calibration table is tall enough to show all cages without clipping."""
+        if not hasattr(self, "calibration_table"):
+            return
+
+        row_height = self.calibration_table.verticalHeader().defaultSectionSize()
+        row_count = self.calibration_table.rowCount()
+        header_height = self.calibration_table.horizontalHeader().height()
+        frame = self.calibration_table.frameWidth() * 2  # top + bottom
+        padding = 8  # breathing room
+
+        target_height = header_height + (row_height * row_count) + frame + padding
+        self.calibration_table.setMinimumHeight(target_height)
+        self.calibration_table.setMaximumHeight(target_height)
     
     def _launch_calibration_wizard(self, cage_id):
         """
