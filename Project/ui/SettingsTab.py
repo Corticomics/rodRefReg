@@ -241,7 +241,15 @@ class SettingsTab(QWidget):
         layout.addStretch()
         
         widget.setLayout(layout)
-        return widget
+        
+        # Wrap in scroll area for proper overflow handling
+        from PyQt5.QtWidgets import QScrollArea, QFrame
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        scroll.setFrameShape(QFrame.NoFrame)
+        
+        return scroll
 
     def _on_hardware_mode_changed(self, mode):
         """
@@ -825,6 +833,8 @@ class SettingsTab(QWidget):
         - Dependency Injection (passing settings and callback)
         - Separation of Concerns (priming logic isolated in dedicated widget)
         """
+        from PyQt5.QtWidgets import QScrollArea, QFrame
+        
         # Instantiate the modular priming control widget
         priming_widget = PrimingControlWidget(
             settings=self.settings,
@@ -834,7 +844,13 @@ class SettingsTab(QWidget):
         # Connect widget signals to parent if needed
         priming_widget.status_message.connect(self.print_to_terminal)
         
-        return priming_widget
+        # Wrap in scroll area for proper overflow handling
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(priming_widget)
+        scroll.setFrameShape(QFrame.NoFrame)
+        
+        return scroll
 
     def _create_system_settings(self):
         """Create system settings tab with proper type handling"""
@@ -965,7 +981,15 @@ class SettingsTab(QWidget):
         
         v.addStretch()
         widget.setLayout(v)
-        return widget
+        
+        # Wrap in scroll area for proper overflow handling
+        from PyQt5.QtWidgets import QScrollArea, QFrame
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        scroll.setFrameShape(QFrame.NoFrame)
+        
+        return scroll
 
     def _get_or_create_key(self):
         key_file = "settings_key.key"
