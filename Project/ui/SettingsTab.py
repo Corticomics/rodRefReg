@@ -409,8 +409,9 @@ class SettingsTab(QWidget):
         self.calibration_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.calibration_table.setShowGrid(True)
         self.calibration_table.verticalHeader().setVisible(False)
-        self.calibration_table.verticalHeader().setDefaultSectionSize(45)
+        self.calibration_table.verticalHeader().setDefaultSectionSize(40)  # Reduced from 45
         self.calibration_table.setMinimumHeight(300)
+        self.calibration_table.setMaximumHeight(450)  # Prevent table from growing too large
         
         # Rely on global QSS styling
         
@@ -428,8 +429,12 @@ class SettingsTab(QWidget):
         
         layout.addWidget(self.calibration_table)
         
+        # Add spacing before action buttons to prevent invasion
+        layout.addSpacing(12)
+        
         # Action buttons
         button_row = QHBoxLayout()
+        button_row.setSpacing(8)
         
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setToolTip("Reload calibration data from database")
@@ -526,6 +531,8 @@ class SettingsTab(QWidget):
                 
                 # Action button - Recalibrate
                 btn = QPushButton("Recalibrate")
+                btn.setMaximumHeight(28)  # Compact button for table
+                btn.setMaximumWidth(100)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
@@ -555,6 +562,8 @@ class SettingsTab(QWidget):
                 # Action button - Calibrate
                 btn = QPushButton("Calibrate")
                 btn.setProperty("variant", "primary")
+                btn.setMaximumHeight(28)  # Compact button for table
+                btn.setMaximumWidth(100)
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)

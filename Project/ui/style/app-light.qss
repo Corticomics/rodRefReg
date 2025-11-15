@@ -132,9 +132,26 @@ QGroupBox::title {
     left: 10px;              /* horizontal position within margin */
     top: 6px;                /* vertical offset to sit properly in margin */
     padding: 0 4px;          /* minimal padding around text */
-    color: #919A9F;
+    color: #131313;          /* Darker for better readability */
     font-weight: 600;
+    font-size: 13px;
     background: transparent;
+}
+
+/* Nested QGroupBox (inside another QGroupBox) - more subtle styling */
+QGroupBox QGroupBox {
+    background: #F9F9F8;     /* Slightly different from parent */
+    border: 1px solid #E6E6E3;
+    border-radius: 8px;
+    margin-top: 16px;
+    padding: 20px 10px 10px 10px;
+}
+QGroupBox QGroupBox::title {
+    color: #131313;          /* Same as parent for consistency */
+    font-weight: 600;
+    font-size: 12px;
+    left: 8px;
+    top: 4px;
 }
 
 /* Lists */
@@ -229,9 +246,10 @@ QLabel#LinkLabel:hover {
 
 /* Help text styling (used in forms) */
 QLabel#HelpText {
-    color: #919A9F;
+    color: #5f6368;          /* Darker for better readability */
     font-size: 12px;
     padding: 4px 0;
+    line-height: 1.4;
 }
 
 /* Status labels for priming widget */
