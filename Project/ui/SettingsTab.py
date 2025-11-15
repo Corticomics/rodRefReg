@@ -413,7 +413,7 @@ class SettingsTab(QWidget):
         self.calibration_table.setMinimumHeight(300)
         self.calibration_table.setMaximumHeight(420)  # Allow internal scroll for last rows
         # Provide breathing room at the bottom so the last row scrolls fully above the action bar
-        self.calibration_table.setViewportMargins(0, 0, 0, 48)
+        self.calibration_table.setViewportMargins(0, 0, 0, 52)
         self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
