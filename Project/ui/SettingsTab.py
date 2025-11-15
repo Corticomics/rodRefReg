@@ -432,13 +432,16 @@ class SettingsTab(QWidget):
         # Add significant spacing before action buttons to prevent invasion
         layout.addSpacing(16)
         
-        # Action buttons - make them more compact with objectName for specific styling
-        button_row = QHBoxLayout()
+        # Action buttons - wrap in container to enforce spacing from table
+        actions_container = QWidget()
+        actions_container.setObjectName("TableActionBar")
+        button_row = QHBoxLayout(actions_container)
         button_row.setSpacing(8)
         button_row.setContentsMargins(0, 0, 0, 0)
         
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setObjectName("CompactButton")
+        refresh_btn.setFixedHeight(28)
         refresh_btn.setToolTip("Reload calibration data from database")
         refresh_btn.clicked.connect(self._populate_calibration_table)
         button_row.addWidget(refresh_btn)
@@ -447,17 +450,19 @@ class SettingsTab(QWidget):
         
         calibrate_all_btn = QPushButton("Calibrate All Uncalibrated")
         calibrate_all_btn.setObjectName("CompactButton")
+        calibrate_all_btn.setFixedHeight(28)
         calibrate_all_btn.setToolTip("Run calibration wizard for all uncalibrated valves (all users)")
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
         
         export_btn = QPushButton("Export Report")
         export_btn.setObjectName("CompactButton")
+        export_btn.setFixedHeight(28)
         export_btn.setToolTip("Export calibration data to CSV")
         export_btn.clicked.connect(self._export_calibration_report)
         button_row.addWidget(export_btn)
         
-        layout.addLayout(button_row)
+        layout.addWidget(actions_container)
         
         # Help text
         help_text = QLabel(

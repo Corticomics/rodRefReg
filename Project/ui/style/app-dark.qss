@@ -65,6 +65,10 @@ QPushButton#CompactButton {
     font-size: 12px;
 }
 
+QWidget#TableActionBar {
+    padding-top: 8px;
+}
+
 QPushButton[variant="primary"] {
     background: #F9A51B;
     border: 1px solid #F9A51B;

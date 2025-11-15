@@ -63,6 +63,10 @@ QPushButton#CompactButton {
     font-size: 12px;
 }
 
+QWidget#TableActionBar {
+    padding-top: 8px;
+}
+
 /* Primary CTA */
 QPushButton[variant="primary"] {
     background: #F9A51B;
