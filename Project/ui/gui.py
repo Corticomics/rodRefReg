@@ -87,6 +87,7 @@ class RodentRefreshmentGUI(QWidget):
         # Right side
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
+        self.right_layout = right_layout
         
         # Create Run/Stop section first
         self.run_stop_section = RunStopSection(
@@ -133,8 +134,13 @@ class RodentRefreshmentGUI(QWidget):
         # Set the initial tab to Profile
         self.main_tab_widget.setCurrentWidget(self.user_tab)
         
+        # Make run/stop section expand when needed
+        self.run_stop_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(self.main_tab_widget)
         right_layout.addWidget(self.run_stop_section)
+        # Default stretch favors tab content; adjusted dynamically below
+        right_layout.setStretch(0, 3)
+        right_layout.setStretch(1, 1)
         
         # Add to content layout
         content_layout.addWidget(left_widget, 3)
@@ -153,9 +159,48 @@ class RodentRefreshmentGUI(QWidget):
             self.run_stop_section._on_mode_changed
         )
         
+        # Reactive layout: adjust stretches when main tab or settings subtabs change
+        self.main_tab_widget.currentChanged.connect(self._on_main_tab_changed)
+        try:
+            self.settings_tab.tab_widget.currentChanged.connect(self._on_settings_subtab_changed)
+        except Exception:
+            pass
+
         # Initialize
         self.load_animals_tab()
         self.showMaximized()
+    
+    def _apply_right_stretch(self):
+        """Adjust right column stretches based on active tab and settings sub-tab."""
+        current = self.main_tab_widget.currentWidget()
+        if current is self.user_tab:
+            # Profile has sparse content; give more height to Run/Stop
+            self.right_layout.setStretch(0, 2)
+            self.right_layout.setStretch(1, 2)
+        elif current is self.settings_tab:
+            # If Valve Calibration is selected, prioritize tab content
+            try:
+                idx = self.settings_tab.tab_widget.currentIndex()
+                cal_idx = self.settings_tab.tab_widget.indexOf(self.settings_tab.calibration_tab)
+                if idx == cal_idx:
+                    self.right_layout.setStretch(0, 4)
+                    self.right_layout.setStretch(1, 1)
+                else:
+                    self.right_layout.setStretch(0, 3)
+                    self.right_layout.setStretch(1, 1)
+            except Exception:
+                self.right_layout.setStretch(0, 3)
+                self.right_layout.setStretch(1, 1)
+        else:
+            # Help or others
+            self.right_layout.setStretch(0, 3)
+            self.right_layout.setStretch(1, 1)
+
+    def _on_main_tab_changed(self, _index: int):
+        self._apply_right_stretch()
+
+    def _on_settings_subtab_changed(self, _index: int):
+        self._apply_right_stretch()
     
     def toggle_mode(self):
         try:

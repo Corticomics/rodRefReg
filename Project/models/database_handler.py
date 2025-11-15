@@ -835,7 +835,7 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                timestamp = datetime.datetime.now().isoformat()
+                timestamp = datetime.now().isoformat()
                 cursor.execute('''
                     INSERT INTO logs (timestamp, action, super_user_id, details)
                     VALUES (?, ?, ?, ?)

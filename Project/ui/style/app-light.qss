@@ -124,7 +124,7 @@ QGroupBox {
     border: 1px solid #DBDBD9;
     border-radius: 10px;
     margin-top: 12px;        /* space for title */
-    padding-top: 16px;       /* keep content below the title */
+    padding-top: 20px;       /* keep content below the title */
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -171,7 +171,7 @@ QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
 
 /* Drop area states */
 QWidget#DropArea[state="idle"] {
-    background: #F9F9F8;
+    background: #FFFFFF;
     border: 2px dashed #DBDBD9;
     border-radius: 10px;
 }
