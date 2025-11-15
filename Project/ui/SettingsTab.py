@@ -594,10 +594,17 @@ class SettingsTab(QWidget):
             f"[CalibrationTab] current height={self.calibration_table.height()} "
             f"sizeHint={self.calibration_table.sizeHint().height()}"
         )
-        last_row_item = self.calibration_table.item(self.calibration_table.rowCount() - 1, 0)
+        viewport = self.calibration_table.viewport()
+        vh = self.calibration_table.verticalHeader()
+        last_row = self.calibration_table.rowCount() - 1
+        last_row_item = self.calibration_table.item(last_row, 0)
+        self.print_to_terminal(
+            f"[CalibrationTab] viewport height={viewport.height()} header length={vh.length()}"
+        )
         self.print_to_terminal(
             f"[CalibrationTab] last row text={last_row_item.text() if last_row_item else 'None'} "
-            f"rowHeight={self.calibration_table.rowHeight(self.calibration_table.rowCount() - 1)}"
+            f"rowHeight={self.calibration_table.rowHeight(last_row)} "
+            f"rowPos={self.calibration_table.rowViewportPosition(last_row)}"
         )
         scrollbar = self.calibration_table.verticalScrollBar()
         self.print_to_terminal(
