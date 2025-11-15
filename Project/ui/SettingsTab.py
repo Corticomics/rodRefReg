@@ -594,6 +594,16 @@ class SettingsTab(QWidget):
             f"[CalibrationTab] current height={self.calibration_table.height()} "
             f"sizeHint={self.calibration_table.sizeHint().height()}"
         )
+        last_row_item = self.calibration_table.item(self.calibration_table.rowCount() - 1, 0)
+        self.print_to_terminal(
+            f"[CalibrationTab] last row text={last_row_item.text() if last_row_item else 'None'} "
+            f"rowHeight={self.calibration_table.rowHeight(self.calibration_table.rowCount() - 1)}"
+        )
+        scrollbar = self.calibration_table.verticalScrollBar()
+        self.print_to_terminal(
+            f"[CalibrationTab] scrollbar range {scrollbar.minimum()}-{scrollbar.maximum()} "
+            f"pageStep={scrollbar.pageStep()} value={scrollbar.value()}"
+        )
     
     def _launch_calibration_wizard(self, cage_id):
         """
