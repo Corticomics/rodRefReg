@@ -577,6 +577,23 @@ class SettingsTab(QWidget):
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
+
+        # Debug diagnostics so we can verify the table isn't being clipped.
+        margins = self.calibration_table.viewportMargins()
+        self.print_to_terminal(
+            f"[CalibrationTab] viewport margins L{margins.left()} T{margins.top()} "
+            f"R{margins.right()} B{margins.bottom()}"
+        )
+        self.print_to_terminal(
+            f"[CalibrationTab] height constraints min={self.calibration_table.minimumHeight()} "
+            f"max={self.calibration_table.maximumHeight()} "
+            f"rows={self.calibration_table.rowCount()} "
+            f"rowHeight={self.calibration_table.verticalHeader().defaultSectionSize()}"
+        )
+        self.print_to_terminal(
+            f"[CalibrationTab] current height={self.calibration_table.height()} "
+            f"sizeHint={self.calibration_table.sizeHint().height()}"
+        )
     
     def _launch_calibration_wizard(self, cage_id):
         """
