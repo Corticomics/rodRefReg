@@ -411,9 +411,9 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
-        self.calibration_table.setMaximumHeight(420)  # Allow internal scroll for last rows
-        # Provide breathing room at the bottom so the last row scrolls fully above the action bar
-        self.calibration_table.setViewportMargins(0, 0, 0, 52)
+        # Calculate actual needed height: 15 rows * 36px + header ~30px + frame ~4px = ~584px
+        # Set to 590 to ensure all 15 rows are fully visible without cutting off Cage 15
+        self.calibration_table.setMaximumHeight(590)
         self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
