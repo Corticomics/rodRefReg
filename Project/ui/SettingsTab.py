@@ -399,6 +399,7 @@ class SettingsTab(QWidget):
         # Calibration table
         self.calibration_table = QTableWidget()
         self.calibration_table.setColumnCount(6)
+        self.calibration_table.setObjectName("CalibrationTable")
         self.calibration_table.setHorizontalHeaderLabels([
             "Cage", "Status", "Volume/Pulse (mL)", "Quality (CV%)", "Date", "Action"
         ])

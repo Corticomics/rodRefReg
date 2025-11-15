@@ -57,6 +57,70 @@ QTableWidget QPushButton[variant="primary"] {
     max-height: 28px;
 }
 
+/* Calibration table legacy styling (dark mode adjustments) */
+QTableWidget#CalibrationTable {
+    background-color: #1C1C1C;
+    alternate-background-color: #222222;
+    border: 1px solid #1A73E8;
+    border-radius: 6px;
+    gridline-color: #2F2F2F;
+    font-size: 13px;
+    color: #F2F2F2;
+}
+QTableWidget#CalibrationTable::item {
+    padding: 6px;
+    border-bottom: 1px solid #2F2F2F;
+    color: #E0E0E0;
+    font-weight: 500;
+}
+QTableWidget#CalibrationTable::item:selected {
+    background-color: rgba(26, 115, 232, 0.25);
+    color: #FFFFFF;
+}
+QTableWidget#CalibrationTable QHeaderView::section {
+    background-color: rgba(26, 115, 232, 0.15);
+    color: #A8C7FA;
+    padding: 8px 6px;
+    border: 1px solid #1A73E8;
+    border-bottom: 2px solid #1A73E8;
+    font-weight: 600;
+    font-size: 13px;
+}
+QTableWidget#CalibrationTable QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:vertical {
+    background: rgba(26, 115, 232, 0.25);
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:vertical:hover {
+    background: rgba(26, 115, 232, 0.5);
+}
+QTableWidget#CalibrationTable QScrollBar:horizontal {
+    background: transparent;
+    height: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:horizontal {
+    background: rgba(26, 115, 232, 0.25);
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:horizontal:hover {
+    background: rgba(26, 115, 232, 0.5);
+}
+QTableWidget#CalibrationTable QScrollBar::add-line,
+QTableWidget#CalibrationTable QScrollBar::sub-line,
+QTableWidget#CalibrationTable QScrollBar::add-page,
+QTableWidget#CalibrationTable QScrollBar::sub-page {
+    width: 0px;
+    height: 0px;
+    background: transparent;
+}
+
 /* Compact buttons for action rows (below tables, toolbars, etc) */
 QPushButton#CompactButton {
     padding: 6px 10px;

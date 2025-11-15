@@ -55,6 +55,69 @@ QTableWidget QPushButton[variant="primary"] {
     max-height: 28px;
 }
 
+/* Calibration table legacy styling */
+QTableWidget#CalibrationTable {
+    background-color: #FFFFFF;
+    alternate-background-color: #F5F5F5;
+    border: 1px solid #1A73E8;
+    border-radius: 6px;
+    gridline-color: #D0D0D0;
+    font-size: 13px;
+}
+QTableWidget#CalibrationTable::item {
+    padding: 6px;
+    border-bottom: 1px solid #E0E4E8;
+    color: #333333;
+    font-weight: 500;
+}
+QTableWidget#CalibrationTable::item:selected {
+    background-color: #E8F0FE;
+    color: #1A73E8;
+}
+QTableWidget#CalibrationTable QHeaderView::section {
+    background-color: #E8F0FE;
+    color: #1A73E8;
+    padding: 8px 6px;
+    border: 1px solid #1A73E8;
+    border-bottom: 2px solid #1A73E8;
+    font-weight: 600;
+    font-size: 13px;
+}
+QTableWidget#CalibrationTable QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:vertical {
+    background: rgba(26, 115, 232, 0.2);
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:vertical:hover {
+    background: rgba(26, 115, 232, 0.5);
+}
+QTableWidget#CalibrationTable QScrollBar:horizontal {
+    background: transparent;
+    height: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:horizontal {
+    background: rgba(26, 115, 232, 0.2);
+    border-radius: 4px;
+}
+QTableWidget#CalibrationTable QScrollBar::handle:horizontal:hover {
+    background: rgba(26, 115, 232, 0.5);
+}
+QTableWidget#CalibrationTable QScrollBar::add-line,
+QTableWidget#CalibrationTable QScrollBar::sub-line,
+QTableWidget#CalibrationTable QScrollBar::add-page,
+QTableWidget#CalibrationTable QScrollBar::sub-page {
+    width: 0px;
+    height: 0px;
+    background: transparent;
+}
+
 /* Compact buttons for action rows (below tables, toolbars, etc) */
 QPushButton#CompactButton {
     padding: 6px 10px;
