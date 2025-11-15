@@ -223,4 +223,35 @@ QLabel#LinkLabel:hover {
     text-decoration: underline;
 }
 
+/* Help text styling (used in forms) */
+QLabel#HelpText {
+    color: #919A9F;
+    font-size: 12px;
+    padding: 4px 0;
+}
+
+/* Status labels for priming widget */
+QLabel#StatusLabel {
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 600;
+    font-size: 13px;
+}
+QLabel#StatusLabel[status="closed"] {
+    background: #2A2A2A;
+    color: #919A9F;
+}
+QLabel#StatusLabel[status="open"] {
+    background: #4CAF50;
+    color: #FFFFFF;
+}
+
+/* Form labels within QGroupBox - ensure proper contrast */
+QGroupBox QLabel {
+    background: transparent;  /* Inherit parent background */
+}
+QGroupBox QFormLayout QLabel {
+    padding: 4px 0;
+}
+
 

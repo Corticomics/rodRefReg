@@ -66,6 +66,7 @@ class SettingsTab(QWidget):
         
         # Add save button at bottom of settings
         save_button = QPushButton("Save All Settings")
+        save_button.setProperty("variant", "primary")
         save_button.clicked.connect(self._save_all_settings)
         layout.addWidget(save_button)
 
@@ -101,7 +102,7 @@ class SettingsTab(QWidget):
             "• <b>Pump</b>: Time-based peristaltic pump control (legacy mode)"
         )
         mode_help.setWordWrap(True)
-        mode_help.setStyleSheet("color: #666; font-size: 10pt; padding: 5px;")
+        mode_help.setObjectName("HelpText")
         mode_layout.addRow("", mode_help)
         
         mode_group.setLayout(mode_layout)
@@ -411,62 +412,7 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setDefaultSectionSize(45)
         self.calibration_table.setMinimumHeight(300)
         
-        # Apply Material Design styling matching schedule_table.py
-        self.calibration_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #ffffff;
-                alternate-background-color: #f5f5f5;
-                border: 1px solid #1a73e8;
-                border-radius: 6px;
-                gridline-color: #d0d0d0;
-                font-size: 13px;
-            }
-            QHeaderView::section {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-                padding: 10px 8px;
-                border: 1px solid #1a73e8;
-                border-bottom: 2px solid #1a73e8;
-                font-weight: 600;
-                font-size: 13px;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #e0e4e8;
-                color: #333333;
-                font-weight: 500;
-            }
-            QTableWidget::item:selected {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-            }
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);
-            }
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-        """)
+        # Rely on global QSS styling
         
         # Column resize modes
         self.calibration_table.horizontalHeader().setStretchLastSection(False)
@@ -485,7 +431,7 @@ class SettingsTab(QWidget):
         # Action buttons
         button_row = QHBoxLayout()
         
-        refresh_btn = QPushButton("🔄 Refresh")
+        refresh_btn = QPushButton("Refresh")
         refresh_btn.setToolTip("Reload calibration data from database")
         refresh_btn.clicked.connect(self._populate_calibration_table)
         button_row.addWidget(refresh_btn)
@@ -497,7 +443,7 @@ class SettingsTab(QWidget):
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
         
-        export_btn = QPushButton("📊 Export Report")
+        export_btn = QPushButton("Export Report")
         export_btn.setToolTip("Export calibration data to CSV")
         export_btn.clicked.connect(self._export_calibration_report)
         button_row.addWidget(export_btn)
@@ -506,12 +452,11 @@ class SettingsTab(QWidget):
         
         # Help text
         help_text = QLabel(
-            "<span style='color: #666; font-size: 9pt;'>"
             "💡 <b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
             "Requires lab scale (±0.001g). CV% <5% = production ready."
-            "</span>"
         )
         help_text.setWordWrap(True)
+        help_text.setObjectName("HelpText")
         layout.addWidget(help_text)
         
         widget.setLayout(layout)
@@ -580,7 +525,7 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 4, date_item)
                 
                 # Action button - Recalibrate
-                btn = QPushButton("🔄 Recalibrate")
+                btn = QPushButton("Recalibrate")
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
@@ -608,8 +553,8 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 4, date_item)
                 
                 # Action button - Calibrate
-                btn = QPushButton("⚙️ Calibrate")
-                btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+                btn = QPushButton("Calibrate")
+                btn.setProperty("variant", "primary")
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
@@ -864,8 +809,10 @@ class SettingsTab(QWidget):
 
     def _create_system_settings(self):
         """Create system settings tab with proper type handling"""
-        system_tab = QWidget()
+        system_group = QGroupBox("System Settings")
         layout = QFormLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         # Log Level Spinner with proper type handling
         self.log_level = QSpinBox()
@@ -880,9 +827,8 @@ class SettingsTab(QWidget):
         
         layout.addRow("Log Level:", self.log_level)
         
-        # Rest of the system settings...
-        system_tab.setLayout(layout)
-        return system_tab
+        system_group.setLayout(layout)
+        return system_group
 
     def _log_level_changed(self, value):
         """Handle log level changes"""
@@ -901,11 +847,10 @@ class SettingsTab(QWidget):
             pass
 
     def _create_notifications(self):
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
         slack_group = QGroupBox("Slack Integration")
         slack_layout = QFormLayout()
+        slack_layout.setContentsMargins(12, 12, 12, 12)
+        slack_layout.setSpacing(8)
         
         self.slack_token = QLineEdit()
         self.slack_token.setText(self._decrypt_sensitive_data(
@@ -918,17 +863,13 @@ class SettingsTab(QWidget):
         slack_layout.addRow("Channel ID:", self.slack_channel)
         
         slack_group.setLayout(slack_layout)
-        layout.addWidget(slack_group)
-        
-        widget.setLayout(layout)
-        return widget
+        return slack_group
 
     def _create_backup_restore(self):
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
         backup_group = QGroupBox("Backup and Restore")
         backup_layout = QVBoxLayout()
+        backup_layout.setContentsMargins(12, 12, 12, 12)
+        backup_layout.setSpacing(8)
         
         backup_button = QPushButton("Create Backup")
         backup_button.clicked.connect(self.create_backup)
@@ -939,14 +880,13 @@ class SettingsTab(QWidget):
         backup_layout.addWidget(restore_button)
         
         backup_group.setLayout(backup_layout)
-        layout.addWidget(backup_group)
-        
-        widget.setLayout(layout)
-        return widget
+        return backup_group
 
     def _create_data_import_export(self):
-        widget = QWidget()
+        import_export_group = QGroupBox("Data Import/Export")
         layout = QGridLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
         
         export_btn = QPushButton("Export Animals to CSV")
         export_btn.clicked.connect(self.export_animals)
@@ -956,8 +896,8 @@ class SettingsTab(QWidget):
         layout.addWidget(export_btn, 0, 0)
         layout.addWidget(import_btn, 0, 1)
         
-        widget.setLayout(layout)
-        return widget
+        import_export_group.setLayout(layout)
+        return import_export_group
     
     def _create_general_tab(self):
         """
@@ -965,10 +905,14 @@ class SettingsTab(QWidget):
         """
         widget = QWidget()
         v = QVBoxLayout()
+        v.setContentsMargins(12, 12, 12, 12)
+        v.setSpacing(12)
         
         # Appearance group (Theme)
         appearance = QGroupBox("Appearance")
         appearance_form = QFormLayout()
+        appearance_form.setContentsMargins(12, 12, 12, 12)
+        appearance_form.setSpacing(8)
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["light", "dark"])
         try:

@@ -164,16 +164,7 @@ class PrimingControlWidget(QWidget):
             "Use this panel to prime tubes and test hardware.<br>"
             "Ensure water reservoir is connected before opening valves."
         )
-        warning_label.setStyleSheet("""
-            QLabel {
-                background-color: #fff3cd;
-                color: #856404;
-                border: 1px solid #ffeaa7;
-                border-radius: 4px;
-                padding: 12px;
-                font-size: 13px;
-            }
-        """)
+        warning_label.setProperty("variant", "warning")
         warning_label.setWordWrap(True)
         return warning_label
     
@@ -184,19 +175,20 @@ class PrimingControlWidget(QWidget):
         
         # Status indicator
         self.master_status_label = QLabel("Status: CLOSED")
-        self.master_status_label.setStyleSheet(self._get_status_style(False))
+        self.master_status_label.setObjectName("StatusLabel")
+        self.master_status_label.setProperty("status", "closed")
         layout.addWidget(self.master_status_label)
         
         # Control buttons
         btn_layout = QHBoxLayout()
         
         self.master_open_btn = QPushButton("Open Master")
-        self.master_open_btn.setStyleSheet(self._get_button_style("green"))
+        self.master_open_btn.setProperty("variant", "primary")
         self.master_open_btn.clicked.connect(self._on_open_master_clicked)
         btn_layout.addWidget(self.master_open_btn)
         
         self.master_close_btn = QPushButton("Close Master")
-        self.master_close_btn.setStyleSheet(self._get_button_style("red"))
+        self.master_close_btn.setProperty("variant", "danger")
         self.master_close_btn.clicked.connect(self._on_close_master_clicked)
         self.master_close_btn.setEnabled(False)
         btn_layout.addWidget(self.master_close_btn)
@@ -212,7 +204,7 @@ class PrimingControlWidget(QWidget):
         
         # Info label
         info = QLabel("Select a cage relay to control. Master must be open first.")
-        info.setStyleSheet("color: #5f6368; font-size: 12px;")
+        info.setObjectName("HelpText")
         layout.addWidget(info)
         
         # Selector and controls
@@ -225,13 +217,12 @@ class PrimingControlWidget(QWidget):
         control_layout.addWidget(self.cage_selector)
         
         self.cage_open_btn = QPushButton("Open Selected")
-        self.cage_open_btn.setStyleSheet(self._get_button_style("blue"))
+        self.cage_open_btn.setProperty("variant", "primary")
         self.cage_open_btn.clicked.connect(self._on_open_cage_clicked)
         self.cage_open_btn.setEnabled(False)
         control_layout.addWidget(self.cage_open_btn)
         
         self.cage_close_btn = QPushButton("Close Selected")
-        self.cage_close_btn.setStyleSheet(self._get_button_style("gray"))
         self.cage_close_btn.clicked.connect(self._on_close_cage_clicked)
         self.cage_close_btn.setEnabled(False)
         control_layout.addWidget(self.cage_close_btn)
@@ -250,7 +241,7 @@ class PrimingControlWidget(QWidget):
         layout = QHBoxLayout()
         
         self.emergency_btn = QPushButton("⛔ CLOSE ALL RELAYS")
-        self.emergency_btn.setStyleSheet(self._get_button_style("emergency"))
+        self.emergency_btn.setProperty("variant", "danger")
         self.emergency_btn.clicked.connect(self._on_emergency_stop_clicked)
         layout.addWidget(self.emergency_btn)
         layout.addStretch()
@@ -266,17 +257,7 @@ class PrimingControlWidget(QWidget):
         self.status_log = QTextEdit()
         self.status_log.setReadOnly(True)
         self.status_log.setMaximumHeight(120)
-        self.status_log.setStyleSheet("""
-            QTextEdit {
-                background-color: #f8f9fa;
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 8px;
-                font-family: 'Courier New', monospace;
-                font-size: 12px;
-                color: #202124;
-            }
-        """)
+        self.status_log.setObjectName("WizardLog")  # Reuse existing style
         layout.addWidget(self.status_log)
         
         group.setLayout(layout)
@@ -472,12 +453,16 @@ class PrimingControlWidget(QWidget):
         """Handle master state changes from model."""
         if is_open:
             self.master_status_label.setText("Status: OPEN ✓")
-            self.master_status_label.setStyleSheet(self._get_status_style(True))
+            self.master_status_label.setProperty("status", "open")
+            self.master_status_label.style().unpolish(self.master_status_label)
+            self.master_status_label.style().polish(self.master_status_label)
             self.master_open_btn.setEnabled(False)
             self.master_close_btn.setEnabled(True)
         else:
             self.master_status_label.setText("Status: CLOSED")
-            self.master_status_label.setStyleSheet(self._get_status_style(False))
+            self.master_status_label.setProperty("status", "closed")
+            self.master_status_label.style().unpolish(self.master_status_label)
+            self.master_status_label.style().polish(self.master_status_label)
             self.master_open_btn.setEnabled(True)
             self.master_close_btn.setEnabled(False)
         
@@ -548,116 +533,6 @@ class PrimingControlWidget(QWidget):
         """Auto-scroll log to bottom."""
         scrollbar = self.status_log.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
-    
-    # ==================== Styling Methods ====================
-    
-    @staticmethod
-    def _get_status_style(is_open: bool) -> str:
-        """Get stylesheet for status label based on state."""
-        if is_open:
-            return """
-                QLabel {
-                    background-color: #34a853;
-                    color: white;
-                    border-radius: 4px;
-                    padding: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-            """
-        else:
-            return """
-                QLabel {
-                    background-color: #e0e4e8;
-                    color: #5f6368;
-                    border-radius: 4px;
-                    padding: 8px;
-                    font-weight: bold;
-                    font-size: 14px;
-                }
-            """
-    
-    @staticmethod
-    def _get_button_style(color: str) -> str:
-        """Get stylesheet for buttons based on color theme."""
-        styles = {
-            "green": """
-                QPushButton {
-                    background-color: #34a853;
-                    color: white;
-                    font-weight: bold;
-                    padding: 12px;
-                    min-width: 150px;
-                }
-                QPushButton:hover {
-                    background-color: #2d8e47;
-                }
-                QPushButton:disabled {
-                    background-color: #e0e4e8;
-                    color: #9aa0a6;
-                }
-            """,
-            "red": """
-                QPushButton {
-                    background-color: #ea4335;
-                    color: white;
-                    font-weight: bold;
-                    padding: 12px;
-                    min-width: 150px;
-                }
-                QPushButton:hover {
-                    background-color: #d33828;
-                }
-                QPushButton:disabled {
-                    background-color: #e0e4e8;
-                    color: #9aa0a6;
-                }
-            """,
-            "blue": """
-                QPushButton {
-                    background-color: #1a73e8;
-                    color: white;
-                    font-weight: 500;
-                    padding: 8px 16px;
-                }
-                QPushButton:hover {
-                    background-color: #1557b0;
-                }
-                QPushButton:disabled {
-                    background-color: #e0e4e8;
-                    color: #9aa0a6;
-                }
-            """,
-            "gray": """
-                QPushButton {
-                    background-color: #5f6368;
-                    color: white;
-                    font-weight: 500;
-                    padding: 8px 16px;
-                }
-                QPushButton:hover {
-                    background-color: #4a4f54;
-                }
-                QPushButton:disabled {
-                    background-color: #e0e4e8;
-                    color: #9aa0a6;
-                }
-            """,
-            "emergency": """
-                QPushButton {
-                    background-color: #d93025;
-                    color: white;
-                    font-weight: bold;
-                    font-size: 14px;
-                    padding: 12px;
-                    min-width: 200px;
-                }
-                QPushButton:hover {
-                    background-color: #b71c1c;
-                }
-            """
-        }
-        return styles.get(color, "")
     
     # ==================== Public API ====================
     
