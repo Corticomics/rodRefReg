@@ -411,7 +411,6 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
-        self.calibration_table.setMaximumHeight(440)  # Prevent table from growing too large
         
         # Rely on global QSS styling
         
@@ -435,6 +434,7 @@ class SettingsTab(QWidget):
         # Action buttons - wrap in container to enforce spacing from table
         actions_container = QWidget()
         actions_container.setObjectName("TableActionBar")
+        actions_container.setContentsMargins(0, 12, 0, 0)
         button_row = QHBoxLayout(actions_container)
         button_row.setSpacing(8)
         button_row.setContentsMargins(0, 0, 0, 0)
