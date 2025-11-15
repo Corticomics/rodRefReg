@@ -43,6 +43,20 @@ QPushButton:hover { border-color: #3A3A3A; }
 QPushButton:pressed { background: #181818; }
 QPushButton:disabled { color: #919A9F; }
 
+/* Compact buttons for table cells */
+QTableWidget QPushButton {
+    padding: 4px 8px;
+    min-height: 24px;
+    max-height: 28px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+QTableWidget QPushButton[variant="primary"] {
+    padding: 4px 8px;
+    min-height: 24px;
+    max-height: 28px;
+}
+
 QPushButton[variant="primary"] {
     background: #F9A51B;
     border: 1px solid #F9A51B;

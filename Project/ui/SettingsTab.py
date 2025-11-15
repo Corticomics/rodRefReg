@@ -409,9 +409,9 @@ class SettingsTab(QWidget):
         self.calibration_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.calibration_table.setShowGrid(True)
         self.calibration_table.verticalHeader().setVisible(False)
-        self.calibration_table.verticalHeader().setDefaultSectionSize(40)  # Reduced from 45
+        self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
-        self.calibration_table.setMaximumHeight(450)  # Prevent table from growing too large
+        self.calibration_table.setMaximumHeight(420)  # Prevent table from growing too large
         
         # Rely on global QSS styling
         
@@ -429,12 +429,13 @@ class SettingsTab(QWidget):
         
         layout.addWidget(self.calibration_table)
         
-        # Add spacing before action buttons to prevent invasion
-        layout.addSpacing(12)
+        # Add significant spacing before action buttons to prevent invasion
+        layout.addSpacing(20)
         
         # Action buttons
         button_row = QHBoxLayout()
-        button_row.setSpacing(8)
+        button_row.setSpacing(12)
+        button_row.setContentsMargins(0, 0, 0, 0)
         
         refresh_btn = QPushButton("Refresh")
         refresh_btn.setToolTip("Reload calibration data from database")
@@ -529,10 +530,10 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 3, cv_item)
                 self.calibration_table.setItem(row, 4, date_item)
                 
-                # Action button - Recalibrate
+                # Action button - Recalibrate (compact for table)
                 btn = QPushButton("Recalibrate")
-                btn.setMaximumHeight(28)  # Compact button for table
-                btn.setMaximumWidth(100)
+                btn.setFixedHeight(26)  # Force compact height
+                btn.setMaximumWidth(95)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
@@ -559,11 +560,11 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 3, cv_item)
                 self.calibration_table.setItem(row, 4, date_item)
                 
-                # Action button - Calibrate
+                # Action button - Calibrate (compact for table)
                 btn = QPushButton("Calibrate")
                 btn.setProperty("variant", "primary")
-                btn.setMaximumHeight(28)  # Compact button for table
-                btn.setMaximumWidth(100)
+                btn.setFixedHeight(26)  # Force compact height
+                btn.setMaximumWidth(95)
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
