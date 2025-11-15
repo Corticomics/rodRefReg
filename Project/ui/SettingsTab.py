@@ -380,7 +380,7 @@ class SettingsTab(QWidget):
         from PyQt5.QtWidgets import (
             QTableWidget, QTableWidgetItem, QHeaderView, 
             QAbstractItemView, QPushButton, QDialog, QDialogButtonBox,
-            QProgressBar
+            QProgressBar, QSizePolicy
         )
         from PyQt5.QtGui import QColor
         from PyQt5.QtCore import Qt
@@ -411,6 +411,10 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
         self.calibration_table.setMinimumHeight(300)
+        self.calibration_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
         # Let the layout manage spacing instead of shrinking the viewport, so all 15
         # cages remain visible when scrolling.
         # Rely on global QSS styling
