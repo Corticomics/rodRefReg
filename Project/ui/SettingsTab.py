@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
+from ui.widgets.safe_spinbox import SafeSpinBox, SafeDoubleSpinBox
 import json
 import os
 import base64
@@ -224,8 +225,8 @@ class SettingsTab(QWidget):
         
         sensor_layout.addRow("Teensy Port:", port_row)
         
-        # Sampling rate
-        self.flow_sampling_hz = QDoubleSpinBox()
+        # Sampling rate (SafeDoubleSpinBox prevents accidental scroll changes)
+        self.flow_sampling_hz = SafeDoubleSpinBox()
         self.flow_sampling_hz.setRange(1.0, 100.0)
         self.flow_sampling_hz.setValue(self.settings.get('flow_sampling_hz', 50.0))
         self.flow_sampling_hz.setSuffix(" Hz")
@@ -241,21 +242,21 @@ class SettingsTab(QWidget):
         safety_layout.setContentsMargins(12, 12, 12, 12)
         safety_layout.setSpacing(8)
         
-        self.max_valve_open_s = QDoubleSpinBox()
+        self.max_valve_open_s = SafeDoubleSpinBox()
         self.max_valve_open_s.setRange(1.0, 60.0)
         self.max_valve_open_s.setValue(self.settings.get('max_valve_open_s', 20.0))
         self.max_valve_open_s.setSuffix(" s")
         self.max_valve_open_s.setToolTip("Maximum time valve can remain open (emergency cutoff)")
         safety_layout.addRow("Max Valve Open Time:", self.max_valve_open_s)
         
-        self.no_flow_timeout_s = QDoubleSpinBox()
+        self.no_flow_timeout_s = SafeDoubleSpinBox()
         self.no_flow_timeout_s.setRange(0.5, 10.0)
         self.no_flow_timeout_s.setValue(self.settings.get('no_flow_timeout_s', 3.5))
         self.no_flow_timeout_s.setSuffix(" s")
         self.no_flow_timeout_s.setToolTip("Abort delivery if no flow detected for this duration")
         safety_layout.addRow("No-Flow Timeout:", self.no_flow_timeout_s)
         
-        self.predictive_close_ms = QDoubleSpinBox()
+        self.predictive_close_ms = SafeDoubleSpinBox()
         self.predictive_close_ms.setRange(0.0, 100.0)
         self.predictive_close_ms.setValue(self.settings.get('predictive_close_ms', 10.0))
         self.predictive_close_ms.setSuffix(" ms")
@@ -276,7 +277,7 @@ class SettingsTab(QWidget):
         self.use_pulse_delivery.setToolTip("Use micro-pulse delivery for precision (recommended)")
         pulse_layout.addRow("", self.use_pulse_delivery)
         
-        self.pulse_width_ms = QSpinBox()
+        self.pulse_width_ms = SafeSpinBox()
         self.pulse_width_ms.setRange(10, 500)
         self.pulse_width_ms.setValue(self.settings.get('pulse_width_ms', 20))
         self.pulse_width_ms.setSuffix(" ms")
@@ -295,14 +296,14 @@ class SettingsTab(QWidget):
         pump_layout.setContentsMargins(12, 12, 12, 12)
         pump_layout.setSpacing(8)
         
-        self.pump_volume = QDoubleSpinBox()
+        self.pump_volume = SafeDoubleSpinBox()
         self.pump_volume.setRange(0, 1000)
         self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
         self.pump_volume.setSuffix(" µL")
         self.pump_volume.setToolTip("Volume delivered per pump trigger")
         pump_layout.addRow("Pump Output Volume:", self.pump_volume)
         
-        self.calibration_factor = QDoubleSpinBox()
+        self.calibration_factor = SafeDoubleSpinBox()
         self.calibration_factor.setRange(0.1, 10.0)
         self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
         self.calibration_factor.setSingleStep(0.1)
@@ -310,7 +311,7 @@ class SettingsTab(QWidget):
         self.calibration_factor.setToolTip("Calibration multiplier to adjust for pump variance")
         pump_layout.addRow("Calibration Factor:", self.calibration_factor)
         
-        self.min_triggers = QSpinBox()
+        self.min_triggers = SafeSpinBox()
         self.min_triggers.setRange(1, 100)
         self.min_triggers.setValue(self.settings.get('min_triggers', 1))
         self.min_triggers.setToolTip("Minimum number of pump triggers per delivery")
@@ -947,7 +948,7 @@ class SettingsTab(QWidget):
         layout.setSpacing(8)
 
         # Log Level Spinner with proper type handling
-        self.log_level = QSpinBox()
+        self.log_level = SafeSpinBox()
         self.log_level.setRange(0, 4)  # 0=DEBUG to 4=CRITICAL
         self.log_level.setValue(int(self.settings.get('log_level', 2)))
         self.log_level.valueChanged.connect(self._log_level_changed)

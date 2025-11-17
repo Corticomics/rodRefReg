@@ -39,6 +39,12 @@ QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleS
     background: #FFFDF8;  /* Subtle warm tint when focused */
 }
 
+/* CRITICAL: Disable scroll wheel on spinboxes (lab safety - prevent accidental changes) */
+QSpinBox, QDoubleSpinBox {
+    /* User must click to focus, then use arrows/type to change values */
+    /* This prevents accidental changes during page scrolling */
+}
+
 /* Buttons (default) with more rounded, pill-like aesthetic */
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
