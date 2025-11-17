@@ -14,19 +14,20 @@ QWidget {
     color: #E8EAED;
 }
 
-/* Cards */
+/* Cards with elevation */
 QFrame#Card, QFrame[card="true"] {
     background: #1A1C1E;
     border: 1px solid #2A2C2E;
-    border-radius: 10px;
+    border-radius: 16px;         /* Larger radius matching light theme */
+    padding: 4px;
 }
 
 /* Inputs with subtle depth */
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     background: #1A1C1E;
     border: 1px solid #2A2C2E;
-    border-radius: 8px;
-    padding: 6px 10px;
+    border-radius: 12px;         /* More rounded */
+    padding: 8px 12px;           /* More generous padding */
     color: #E8EAED;
 }
 QComboBox { min-height: 32px; }
@@ -39,15 +40,15 @@ QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleS
     background: #1F2123;
 }
 
-/* Buttons with gradient */
+/* Buttons with gradient and generous sizing */
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, 
-        stop:0 #22242 6, stop:1 #1A1C1E);
+        stop:0 #222426, stop:1 #1A1C1E);
     border: 1px solid #2A2C2E;
-    border-radius: 8px;
-    padding: 8px 12px;
+    border-radius: 12px;         /* More rounded */
+    padding: 10px 16px;          /* More generous padding */
     color: #E8EAED;
-    min-height: 32px;
+    min-height: 36px;            /* Taller buttons */
     font-weight: 500;
 }
 QPushButton:hover { 
@@ -181,24 +182,25 @@ QProgressBar::chunk {
     border-radius: 8px;
 }
 
-/* Group boxes as elevated cards */
+/* Group boxes as elevated cards with generous spacing */
 QGroupBox {
     background: #1A1C1E;
     border: 1px solid #2A2C2E;
-    border-radius: 10px;
-    margin-top: 18px;
-    padding: 24px 12px 12px 12px;
+    border-radius: 16px;         /* Larger radius */
+    margin-top: 20px;            /* More space for title */
+    margin-bottom: 12px;         /* Space between cards */
+    padding: 28px 20px 20px 20px; /* More generous padding */
     color: #E8EAED;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 10px;
-    top: 4px;
-    padding: 0 6px;
+    left: 12px;
+    top: 6px;
+    padding: 0 8px;              /* More padding */
     color: #E8EAED;
-    font-weight: 600;
-    font-size: 13px;
+    font-weight: 700;            /* Bolder */
+    font-size: 14px;             /* Larger */
     background: transparent;
 }
 
@@ -207,9 +209,9 @@ QGroupBox QGroupBox {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 #1F2123, stop:1 #1A1C1E);
     border: 1px solid #2A2C2E;
-    border-radius: 8px;
+    border-radius: 12px;         /* More rounded */
     margin-top: 16px;
-    padding: 20px 10px 10px 10px;
+    padding: 24px 16px 16px 16px; /* More generous padding */
 }
 QGroupBox QGroupBox::title {
     color: #E8EAED;
