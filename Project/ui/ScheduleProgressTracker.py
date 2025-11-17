@@ -310,9 +310,8 @@ class ScheduleProgressTracker(QWidget):
         scroll_area.setWidget(self.cards_container)
         layout.addWidget(scroll_area)
         
-        # Start elapsed time timer
-        self.elapsed_timer = QTimer()
-        self.elapsed_timer.timeout.connect(self._update_elapsed_time)
+        # Timer will be created when schedule starts (avoid cross-thread issues)
+        self.elapsed_timer = None
     
     def start_schedule(self, schedule_name, animals_data):
         """
@@ -351,7 +350,13 @@ class ScheduleProgressTracker(QWidget):
                 col = 0
                 row += 1
         
-        # Start elapsed time tracking
+        # CRITICAL: Create timer fresh each time (avoid cross-thread killTimer issues)
+        if self.elapsed_timer:
+            self.elapsed_timer.stop()
+            self.elapsed_timer.deleteLater()
+        
+        self.elapsed_timer = QTimer(self)  # Explicit parent = this widget (GUI thread)
+        self.elapsed_timer.timeout.connect(self._update_elapsed_time)
         self.elapsed_timer.start(1000)  # Update every second
     
     def update_animal_progress(self, animal_id, delivered_ml, status="Delivering", 
@@ -370,18 +375,20 @@ class ScheduleProgressTracker(QWidget):
     
     def schedule_complete(self):
         """Handle schedule completion"""
-        self.elapsed_timer.stop()
+        if self.elapsed_timer:
+            self.elapsed_timer.stop()
         
         # Update all cards to complete
         for card in self.cards.values():
             if card.delivered_volume_ml >= card.target_volume_ml * 0.95:  # 95% threshold
                 card.update_progress(card.delivered_volume_ml, "Complete")
         
-        # Auto-dismiss after 10 seconds
+        # Auto-dismiss after 10 seconds (create timer fresh to avoid cross-thread issues)
         if self.auto_dismiss_timer:
             self.auto_dismiss_timer.stop()
+            self.auto_dismiss_timer.deleteLater()
         
-        self.auto_dismiss_timer = QTimer()
+        self.auto_dismiss_timer = QTimer(self)  # Explicit parent
         self.auto_dismiss_timer.timeout.connect(self._auto_dismiss)
         self.auto_dismiss_timer.setSingleShot(True)
         self.auto_dismiss_timer.start(10000)  # 10 seconds
@@ -414,7 +421,8 @@ class ScheduleProgressTracker(QWidget):
     
     def stop(self):
         """Stop tracking and clean up"""
-        self.elapsed_timer.stop()
+        if self.elapsed_timer:
+            self.elapsed_timer.stop()
         if self.auto_dismiss_timer:
             self.auto_dismiss_timer.stop()
 
