@@ -210,6 +210,7 @@ def run_program(schedule, mode, window_start, window_end):
         worker.progress.connect(lambda message: print(message))
 
         # Wire worker progress into the UI progress tracker (if available)
+        # CRITICAL: Use Qt.QueuedConnection to ensure GUI updates happen in GUI thread
         try:
             if gui and hasattr(gui, 'run_stop_section') and hasattr(gui.run_stop_section, 'progress_tracker'):
                 tracker = gui.run_stop_section.progress_tracker
@@ -228,9 +229,10 @@ def run_program(schedule, mode, window_start, window_end):
                     worker.volume_updated.disconnect()
                 except Exception:
                     pass
-                worker.volume_updated.connect(_on_volume_updated)
-                # Finished: mark schedule complete in tracker
-                worker.finished.connect(lambda: getattr(tracker, 'schedule_complete', lambda: None)())
+                # Use QueuedConnection to ensure tracker updates happen in GUI thread
+                worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)
+                # Finished: mark schedule complete in tracker (also queued to GUI thread)
+                worker.finished.connect(lambda: getattr(tracker, 'schedule_complete', lambda: None)(), Qt.QueuedConnection)
         except Exception:
             pass
 
