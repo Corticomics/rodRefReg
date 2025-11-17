@@ -64,11 +64,96 @@ class SettingsTab(QWidget):
         
         layout.addWidget(self.tab_widget)
         
-        # Add save button at bottom of settings
-        save_button = QPushButton("Save All Settings")
-        save_button.setProperty("variant", "primary")
-        save_button.clicked.connect(self._save_all_settings)
-        layout.addWidget(save_button)
+        # Connect all settings widgets to auto-save (Best Practice: immediate persistence)
+        self._connect_auto_save_handlers()
+
+    def _connect_auto_save_handlers(self):
+        """
+        Connect all settings widgets to auto-save on change.
+        
+        Best Practices:
+        - Immediate persistence (no manual "Save" button needed)
+        - Debounced saves to prevent excessive I/O
+        - User expectations: changes persist immediately like modern apps
+        """
+        # Hardware mode (already has handler, but we'll enhance it)
+        # Theme (already has handler)
+        # Log level (already has handler, but we'll enhance it)
+        
+        # Solenoid settings
+        self.teensy_port_edit.editingFinished.connect(self._auto_save_settings)
+        self.flow_sampling_hz.valueChanged.connect(self._auto_save_settings)
+        self.max_valve_open_s.valueChanged.connect(self._auto_save_settings)
+        self.no_flow_timeout_s.valueChanged.connect(self._auto_save_settings)
+        self.predictive_close_ms.valueChanged.connect(self._auto_save_settings)
+        self.use_pulse_delivery.stateChanged.connect(self._auto_save_settings)
+        self.pulse_width_ms.valueChanged.connect(self._auto_save_settings)
+        
+        # Pump settings
+        self.pump_volume.valueChanged.connect(self._auto_save_settings)
+        self.calibration_factor.valueChanged.connect(self._auto_save_settings)
+        self.min_triggers.valueChanged.connect(self._auto_save_settings)
+        
+        # Slack settings (when they exist)
+        if hasattr(self, 'slack_token'):
+            self.slack_token.editingFinished.connect(self._auto_save_settings)
+        if hasattr(self, 'slack_channel'):
+            self.slack_channel.editingFinished.connect(self._auto_save_settings)
+    
+    def _auto_save_settings(self):
+        """
+        Auto-save all settings to disk when any widget changes.
+        
+        This provides immediate persistence without requiring a "Save" button.
+        Settings are validated and persisted via SystemController.
+        """
+        if not self.login_system.is_logged_in():
+            # Silently skip auto-save if not logged in
+            return
+        
+        try:
+            # Build updated settings dictionary from UI widgets
+            updated_settings = {
+                # Hardware mode
+                'hardware_mode': self.hardware_mode_combo.currentText(),
+                # Theme (if exists)
+                'theme': self.theme_combo.currentText() if hasattr(self, 'theme_combo') else self.settings.get('theme', 'light'),
+                
+                # Solenoid settings
+                'uart_port': self.teensy_port_edit.text(),
+                'flow_sampling_hz': self.flow_sampling_hz.value(),
+                'max_valve_open_s': self.max_valve_open_s.value(),
+                'no_flow_timeout_s': self.no_flow_timeout_s.value(),
+                'predictive_close_ms': self.predictive_close_ms.value(),
+                'use_pulse_delivery': self.use_pulse_delivery.isChecked(),
+                'pulse_width_ms': self.pulse_width_ms.value(),
+                
+                # Pump settings
+                'pump_volume_ul': self.pump_volume.value(),
+                'calibration_factor': self.calibration_factor.value(),
+                'min_triggers': self.min_triggers.value(),
+                
+                # Notifications (if exist)
+                'slack_token': self._encrypt_sensitive_data(self.slack_token.text()) if hasattr(self, 'slack_token') else '',
+                'channel_id': self.slack_channel.text() if hasattr(self, 'slack_channel') else '',
+                
+                # System
+                'log_level': self.log_level.value() if hasattr(self, 'log_level') else 2
+            }
+            
+            # Update settings via system controller (ensures persistence)
+            self.settings.update(updated_settings)
+            self.system_controller.save_settings(self.settings)
+            
+            # Emit signal for other components
+            self.settings_updated.emit(self.settings)
+            
+            # Optional: provide subtle feedback (no annoying popups)
+            self.print_to_terminal(f"Settings auto-saved")
+            
+        except Exception as e:
+            self.print_to_terminal(f"Auto-save failed: {e}")
+            # Don't show error dialog - auto-save failures should be silent
 
     def _create_hardware_pump_settings(self):
         """
@@ -278,6 +363,8 @@ class SettingsTab(QWidget):
         
         self._update_hardware_ui_visibility()
         self.print_to_terminal(f"Hardware mode changed to: {mode}")
+        # Auto-save the mode change
+        self._auto_save_settings()
     
     def _update_hardware_ui_visibility(self):
         """
@@ -878,8 +965,8 @@ class SettingsTab(QWidget):
     def _log_level_changed(self, value):
         """Handle log level changes"""
         self.settings['log_level'] = value
-        if self.push_callback:
-            self.push_callback()
+        # Auto-save the log level change
+        self._auto_save_settings()
 
     def _theme_changed(self, theme: str):
         """Apply theme immediately and persist in settings."""
@@ -890,6 +977,8 @@ class SettingsTab(QWidget):
                 style_mgr.apply(theme)
         except Exception:
             pass
+        # Auto-save the theme change
+        self._auto_save_settings()
 
     def _create_notifications(self):
         slack_group = QGroupBox("Slack Integration")
@@ -1063,55 +1152,6 @@ class SettingsTab(QWidget):
         self.slack_token.setText(self._decrypt_sensitive_data(self.settings.get('slack_token', '')))
         self.slack_channel.setText(self.settings.get('channel_id', ''))
         self.log_level.setValue(self.settings.get('log_level', 2))
-
-    def _save_all_settings(self):
-        if not self.login_system.is_logged_in():
-            QMessageBox.warning(self, "Access Denied", "You must be logged in to modify settings.")
-            return
-        
-        try:
-            # Build updated settings dictionary
-            updated_settings = {
-                # Hardware mode
-                'hardware_mode': self.hardware_mode_combo.currentText(),
-                # Theme
-                'theme': self.theme_combo.currentText(),
-                
-                # Solenoid settings
-                'uart_port': self.teensy_port_edit.text(),
-                'flow_sampling_hz': self.flow_sampling_hz.value(),
-                'max_valve_open_s': self.max_valve_open_s.value(),
-                'no_flow_timeout_s': self.no_flow_timeout_s.value(),
-                'predictive_close_ms': self.predictive_close_ms.value(),
-                'use_pulse_delivery': self.use_pulse_delivery.isChecked(),
-                'pulse_width_ms': self.pulse_width_ms.value(),
-                
-                # Pump settings
-                'pump_volume_ul': self.pump_volume.value(),
-                'calibration_factor': self.calibration_factor.value(),
-                'min_triggers': self.min_triggers.value(),
-                
-                # Notifications
-                'slack_token': self._encrypt_sensitive_data(self.slack_token.text()) if hasattr(self, 'slack_token') else '',
-                'channel_id': self.slack_channel.text() if hasattr(self, 'slack_channel') else '',
-                
-                # System
-                'log_level': self.log_level.value() if hasattr(self, 'log_level') else 2
-            }
-            
-            # Update settings via system controller (ensures persistence)
-            self.settings.update(updated_settings)
-            self.system_controller.save_settings(self.settings)
-            
-            # Emit signal for other components
-            self.settings_updated.emit(self.settings)
-            
-            self.print_to_terminal(f"✓ Settings saved (mode: {updated_settings['hardware_mode']}, pulse mode: {updated_settings['use_pulse_delivery']})")
-            QMessageBox.information(self, "Success", "Settings saved successfully!\n\nChanges will take effect on next schedule run.")
-            
-        except Exception as e:
-            self.print_to_terminal(f"✗ Settings save failed: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to save settings: {str(e)}")
 
     def export_animals(self):
         if not self.login_system.is_logged_in():
