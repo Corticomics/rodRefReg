@@ -124,19 +124,21 @@ QPushButton[variant="danger"]:hover {
 /* Tabs with depth */
 QTabWidget::pane {
     border: 1px solid #2A2C2E;
-    border-radius: 8px;
+    border-radius: 12px;         /* Match light theme */
     background: #1A1C1E;
+    margin-top: 4px;
 }
 QTabBar::tab {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #22242 6, stop:1 #1A1C1E);
+        stop:0 #222426, stop:1 #1A1C1E);
     border: 1px solid #2A2C2E;
     border-bottom: none;
-    padding: 8px 16px;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-    margin-right: 2px;
+    padding: 8px 16px;           /* Delicate padding */
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    margin-right: 3px;           /* More spacing */
     color: #E8EAED;
+    font-size: 13px;             /* Standard size, not enlarged */
     font-weight: 500;
 }
 QTabBar::tab:hover {
@@ -146,7 +148,7 @@ QTabBar::tab:hover {
 QTabBar::tab:selected {
     background: #1A1C1E;
     border-bottom-color: #1A1C1E;
-    font-weight: 600;
+    font-weight: 600;            /* Moderately bold, not too heavy */
 }
 
 /* Tables */
@@ -199,8 +201,8 @@ QGroupBox::title {
     top: 6px;
     padding: 0 8px;              /* More padding */
     color: #E8EAED;
-    font-weight: 700;            /* Bolder */
-    font-size: 14px;             /* Larger */
+    font-weight: 600;            /* Medium-bold, more delicate */
+    font-size: 13px;             /* Standard size for subtlety */
     background: transparent;
 }
 

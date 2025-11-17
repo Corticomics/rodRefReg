@@ -40,9 +40,27 @@ class RunStopSection(QWidget):
         print("RunStopSection initialized")
 
     def init_ui(self):
-        self.layout = QVBoxLayout()
+        """
+        Initialize UI with split-pane layout following lab software best practices.
+        
+        Architecture:
+        - Left pane: Schedule queue and controls (persistent)
+        - Right pane: Real-time execution monitoring (persistent)
+        
+        Benefits:
+        - Persistent visibility of both queue and execution
+        - Follows industry standards (LabVIEW, CellProfiler patterns)
+        - Reduces cognitive load (no context switching)
+        """
+        self.layout = QHBoxLayout()  # Horizontal split instead of vertical
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(12)
+
+        # === LEFT PANE: Schedule Queue & Controls ===
+        left_pane = QWidget()
+        left_layout = QVBoxLayout(left_pane)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(12)
 
         self.run_button = QPushButton("Run", self)
         self.run_button.setProperty("variant", "primary")
@@ -58,7 +76,7 @@ class RunStopSection(QWidget):
         self.stop_button.clicked.connect(self.stop_program)
         self.relay_hats_button.clicked.connect(self.change_relay_hats)
 
-        # Controls group as a card container
+        # Controls group
         controls_group = QGroupBox("Controls")
         self.button_layout = QHBoxLayout()
         self.button_layout.setSpacing(8)
@@ -69,35 +87,40 @@ class RunStopSection(QWidget):
         self.button_layout.addWidget(self.relay_hats_button)
         controls_group.setLayout(self.button_layout)
 
-        # Execution group wrapping the stacked content
-        exec_group = QGroupBox("Execution")
-        exec_layout = QVBoxLayout()
-        exec_layout.setContentsMargins(12, 12, 12, 12)
-        exec_layout.setSpacing(8)
-        # Create stacked widget to switch between schedule table and progress tracker
-        self.content_stack = QStackedWidget()
-        self.content_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        
-        # Schedule drop area (table view)
+        # Schedule drop area (always visible)
+        schedule_group = QGroupBox("Schedule Queue")
+        schedule_layout = QVBoxLayout()
+        schedule_layout.setContentsMargins(12, 12, 12, 12)
         self.schedule_drop_area = ScheduleDropArea()
         self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         print("Connected schedule_dropped signal to on_schedule_dropped slot")
-        self.content_stack.addWidget(self.schedule_drop_area)
+        schedule_layout.addWidget(self.schedule_drop_area)
+        schedule_group.setLayout(schedule_layout)
         
-        # Progress tracker (card view for running schedule)
+        left_layout.addWidget(controls_group)
+        left_layout.addWidget(schedule_group)
+        
+        # === RIGHT PANE: Real-Time Monitoring ===
+        right_pane = QWidget()
+        right_layout = QVBoxLayout(right_pane)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Progress tracker (always visible, starts empty)
+        monitor_group = QGroupBox("Execution Monitor")
+        monitor_layout = QVBoxLayout()
+        monitor_layout.setContentsMargins(12, 12, 12, 12)
         self.progress_tracker = ScheduleProgressTracker()
         self.progress_tracker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.content_stack.addWidget(self.progress_tracker)
+        monitor_layout.addWidget(self.progress_tracker)
+        monitor_group.setLayout(monitor_layout)
         
-        # Start with schedule table visible
-        self.content_stack.setCurrentWidget(self.schedule_drop_area)
-        exec_layout.addWidget(self.content_stack)
-        exec_group.setLayout(exec_layout)
+        right_layout.addWidget(monitor_group)
         
-        self.layout.addWidget(controls_group)
-        self.layout.addWidget(exec_group)
+        # Add panes to main layout (60/40 split)
+        self.layout.addWidget(left_pane, 60)   # 60% for queue
+        self.layout.addWidget(right_pane, 40)  # 40% for monitoring
         
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.run_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.relay_hats_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -287,11 +310,11 @@ class RunStopSection(QWidget):
             self.update_button_states()
 
     def reset_ui(self):
+        """Reset UI state after schedule completion."""
         self.job_in_progress = False
         self.update_button_states()
         self.stop_button.setText("Stop")
-        # Switch back to schedule table
-        self.content_stack.setCurrentWidget(self.schedule_drop_area)
+        # No need to switch views - both panes persist
 
     def change_relay_hats(self):
         try:
@@ -330,11 +353,12 @@ class RunStopSection(QWidget):
     
     def show_progress_tracker(self, schedule):
         """
-        Switch from schedule table to progress tracker when schedule starts.
+        Initialize progress tracker with schedule data.
         
-        Best Practices:
-        - Clear visual transition for user
-        - Initialize progress cards for all animals in schedule
+        Best Practices (Lab Software Pattern):
+        - No view switching - both queue and monitor visible
+        - Real-time updates in persistent right pane
+        - Follows LabVIEW/CellProfiler monitoring patterns
         """
         # Initialize progress tracker with schedule animals
         animal_ids = schedule.animals if hasattr(schedule, 'animals') else []
@@ -356,21 +380,17 @@ class RunStopSection(QWidget):
                 'target_volume': float(target_volume) if target_volume is not None else 0.0
             }
         
-        # Start the tracker
+        # Start the tracker (no view switching - it's already visible in right pane)
         schedule_name = getattr(schedule, 'name', 'Untitled Schedule')
         self.progress_tracker.start_schedule(schedule_name, animals_data)
-        
-        # Switch to progress tracker view
-        self.content_stack.setCurrentWidget(self.progress_tracker)
     
     def hide_progress_tracker(self):
         """
-        Switch back to schedule table when schedule completes.
-        """
-        # Switch back to schedule table
-        self.content_stack.setCurrentWidget(self.schedule_drop_area)
+        Clear progress tracker after schedule completion.
         
-        # Schedule cleanup of progress cards (10-second auto-dismiss as per design)
+        Note: No view switching - progress cards fade out in-place.
+        """
+        # Schedule cleanup of progress cards (10-second auto-dismiss)
         QTimer.singleShot(10000, self.progress_tracker.clear_cards)
     
     def get_progress_tracker(self):

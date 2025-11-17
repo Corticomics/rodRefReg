@@ -136,10 +136,11 @@ QTabBar::tab {
         stop:0 #FEFDFB, stop:1 #F5F3EF);   /* Warm gradient */
     border: 1px solid #E8E6E0;
     border-bottom: none;
-    padding: 10px 20px;          /* More generous padding */
+    padding: 8px 16px;           /* More delicate padding */
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
     margin-right: 3px;           /* More spacing between tabs */
+    font-size: 13px;             /* Standard size, not enlarged */
     font-weight: 500;
 }
 QTabBar::tab:hover {
@@ -149,7 +150,7 @@ QTabBar::tab:hover {
 QTabBar::tab:selected {
     background: #FFFFFF;
     border-bottom-color: #FFFFFF;
-    font-weight: 700;            /* Bolder when selected */
+    font-weight: 600;            /* Moderately bold, not too heavy */
 }
 
 /* Tables with warmth */
@@ -198,8 +199,8 @@ QGroupBox::title {
     top: 6px;                /* vertical offset to sit properly in margin */
     padding: 0 8px;          /* more padding around text */
     color: #131313;          /* Darker for better readability */
-    font-weight: 700;        /* Bolder titles */
-    font-size: 14px;         /* Larger titles */
+    font-weight: 600;        /* Medium-bold, more delicate */
+    font-size: 13px;         /* Standard size for subtlety */
     background: transparent;
 }
 
