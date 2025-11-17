@@ -321,6 +321,10 @@ class ScheduleProgressTracker(QWidget):
             schedule_name: Name of the schedule
             animals_data: Dict {animal_id: {'cage_id': int, 'target_volume': float}}
         """
+        print(f"[ProgressTracker] start_schedule called: {schedule_name}")
+        print(f"[ProgressTracker] animals_data: {animals_data}")
+        print(f"[ProgressTracker] widget visible: {self.isVisible()}, parent: {self.parent()}")
+        
         self.schedule_name = schedule_name
         self.schedule_start_time = datetime.now()
         
@@ -335,6 +339,7 @@ class ScheduleProgressTracker(QWidget):
         max_cols = 3  # 3 cards per row
         
         for animal_id, data in animals_data.items():
+            print(f"[ProgressTracker] Creating card for animal {animal_id}: cage={data['cage_id']}, target={data['target_volume']}")
             card = MaterialCard(
                 animal_id=animal_id,
                 cage_id=data['cage_id'],
@@ -344,11 +349,14 @@ class ScheduleProgressTracker(QWidget):
             
             self.cards[animal_id] = card
             self.cards_layout.addWidget(card, row, col)
+            print(f"[ProgressTracker] Card added to grid at row={row}, col={col}")
             
             col += 1
             if col >= max_cols:
                 col = 0
                 row += 1
+        
+        print(f"[ProgressTracker] Total cards created: {len(self.cards)}")
         
         # CRITICAL: Create timer fresh each time (avoid cross-thread killTimer issues)
         if self.elapsed_timer:

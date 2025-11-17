@@ -360,10 +360,16 @@ class RunStopSection(QWidget):
         - Real-time updates in persistent right pane
         - Follows LabVIEW/CellProfiler monitoring patterns
         """
+        print(f"\n[RunStopSection] show_progress_tracker called for: {getattr(schedule, 'name', 'Unknown')}")
+        
         # Initialize progress tracker with schedule animals
         animal_ids = schedule.animals if hasattr(schedule, 'animals') else []
         relay_assignments = schedule.relay_unit_assignments if hasattr(schedule, 'relay_unit_assignments') else {}
         desired_outputs = schedule.desired_water_outputs if hasattr(schedule, 'desired_water_outputs') else {}
+        
+        print(f"[RunStopSection] animal_ids: {animal_ids}")
+        print(f"[RunStopSection] relay_assignments: {relay_assignments}")
+        print(f"[RunStopSection] desired_outputs: {desired_outputs}")
         
         # Build animals_data: {animal_id: {'cage_id': int, 'target_volume': float}}
         animals_data = {}
@@ -371,6 +377,7 @@ class RunStopSection(QWidget):
             key_str = str(animal_id)
             relay_unit_id = relay_assignments.get(key_str) or relay_assignments.get(animal_id)
             if relay_unit_id is None:
+                print(f"[RunStopSection] WARNING: No relay assignment for animal {animal_id}")
                 continue
             # In solenoid mode relay_unit_id maps to cage_id 1:1
             cage_id = int(relay_unit_id)
@@ -379,10 +386,16 @@ class RunStopSection(QWidget):
                 'cage_id': cage_id,
                 'target_volume': float(target_volume) if target_volume is not None else 0.0
             }
+            print(f"[RunStopSection] Mapped animal {animal_id} → cage {cage_id}, target {target_volume}ml")
+        
+        print(f"[RunStopSection] Final animals_data: {animals_data}")
+        print(f"[RunStopSection] Calling progress_tracker.start_schedule()...")
         
         # Start the tracker (no view switching - it's already visible in right pane)
         schedule_name = getattr(schedule, 'name', 'Untitled Schedule')
         self.progress_tracker.start_schedule(schedule_name, animals_data)
+        
+        print(f"[RunStopSection] Progress tracker started successfully")
     
     def hide_progress_tracker(self):
         """
