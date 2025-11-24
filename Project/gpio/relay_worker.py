@@ -238,9 +238,11 @@ class RelayWorker(QObject):
             )
 
         # Start progress monitoring timer
-        self.monitor_timer = QTimer()
+        # CRITICAL: Parent to self so it moves to thread with worker
+        self.monitor_timer = QTimer(self)
         self.monitor_timer.timeout.connect(self.update_window_progress)
-        self.monitor_timer.start(10000)  # Update every 10 seconds
+        # Don't start here - start in run_cycle to ensure thread affinity
+        # self.monitor_timer.start(10000)
         
         self.progress.emit(f"Initialized RelayWorker with settings: {settings}")
         
@@ -260,6 +262,10 @@ class RelayWorker(QObject):
         """Main entry point for starting the worker"""
         self._is_running = True  # Set to True when we actually start
         self.progress.emit(f"Starting {self.mode} cycle")
+        
+        # Start monitoring timer (safe to start here in worker thread)
+        if not self.monitor_timer.isActive():
+            self.monitor_timer.start(10000)
         
         if self.mode == 'instant':
             self.run_instant_cycle()
