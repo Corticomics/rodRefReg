@@ -3,7 +3,7 @@
 import argparse
 import sys
 import time
-import RPi.GPIO as GPIO
+# import RPi.GPIO as GPIO  # Not needed for I2C relay hat
 import SM16relind
 
 
@@ -50,10 +50,12 @@ def test_relay_hat():
     finally:
         # Ensure all relays are turned off
         try:
-            relay_hat.set_all(0)
+            if 'relay_hat' in locals():
+                relay_hat.set_all(0)
         except Exception:
             pass
-        GPIO.cleanup()
+        # NOTE: SM16relind uses I2C, so RPi.GPIO.cleanup() is not needed 
+        # and causes RuntimeWarning if no GPIOs were used.
 
 
 def cli_control():
@@ -125,10 +127,11 @@ def cli_control():
         except Exception:
             pass
         if not args.no_cleanup:
-            try:
-                GPIO.cleanup()
-            except Exception:
-                pass
+            # try:
+            #     GPIO.cleanup()
+            # except Exception:
+            #     pass
+            pass
 
 
 if __name__ == "__main__":
