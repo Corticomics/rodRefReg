@@ -131,7 +131,7 @@ def cli_control():
             #     GPIO.cleanup()
             # except Exception:
             #     pass
-            pass
+                pass
 
 
 if __name__ == "__main__":

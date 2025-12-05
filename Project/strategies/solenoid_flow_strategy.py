@@ -243,8 +243,70 @@ class SolenoidFlowStrategy:
         """
         Legacy continuous flow delivery (Lee Company LHD valves).
         
-        Kept for backward compatibility with existing installations.
+        Supports two modes:
+        1. **WITH SENSOR**: Real-time flow feedback
+        2. **WITHOUT SENSOR**: Time-based delivery using calibration
         """
+        mode_str = "WITH SENSOR" if self._sensor_available else "CALIBRATION-ONLY"
+        self._logger.info(f"Starting continuous delivery for cage {cage_id}: {target_volume_ml:.3f}mL ({mode_str})")
+        
+        # ================================================================
+        # FAST PATH: Calibration-only mode (no sensor)
+        # Uses time-based delivery based on expected flow rate
+        # ================================================================
+        if not self._sensor_available or self._sensor is None:
+            self._logger.info(f"[CALIBRATION-ONLY] Time-based delivery for cage {cage_id}")
+            
+            # Get expected flow rate from settings or use conservative default
+            # Conservative: ~60 mL/min typical for Lee LHD valves at ~5 PSI
+            expected_flow_ml_min = float(self._settings.get('expected_flow_ml_min', 60.0))
+            max_valve_open_s = float(self._settings.get('max_valve_open_s', 20.0))
+            
+            # Calculate valve open time needed
+            if expected_flow_ml_min > 0:
+                valve_open_s = (target_volume_ml / expected_flow_ml_min) * 60.0  # Convert to seconds
+            else:
+                valve_open_s = max_valve_open_s  # Fallback to max
+            
+            # Apply safety cap
+            valve_open_s = min(valve_open_s, max_valve_open_s)
+            
+            self._logger.info(
+                f"[CALIBRATION-ONLY] Expected flow: {expected_flow_ml_min:.1f} mL/min, "
+                f"valve open time: {valve_open_s:.2f}s for {target_volume_ml:.3f}mL"
+            )
+            
+            try:
+                # Prime manifold
+                self._valves.open_master()
+                await asyncio.sleep(self._prime_ms / 1000.0)
+                
+                # Deliver
+                self._valves.open_cage(cage_id)
+                await asyncio.sleep(valve_open_s)
+                self._valves.close_cage(cage_id)
+                
+                # Close master
+                self._valves.close_master()
+                
+                self._logger.info(
+                    f"[CALIBRATION-ONLY] Delivery complete: "
+                    f"valve was open {valve_open_s:.2f}s, estimated {target_volume_ml:.3f}mL delivered"
+                )
+                return True
+                
+            except Exception as e:
+                self._logger.error(f"[CALIBRATION-ONLY] Delivery failed: {e}")
+                try:
+                    self._valves.close_cage(cage_id)
+                    self._valves.close_master()
+                except:
+                    pass
+                return False
+        
+        # ================================================================
+        # FULL PATH: Sensor-based delivery (original implementation)
+        # ================================================================
 
         # Strategy parameters
         sampling_hz = float(self._settings.get('flow_sampling_hz', 50.0))
@@ -699,18 +761,32 @@ class SolenoidFlowStrategy:
         
         # FAST PATH: If no sensor available, just do the pulse and return calibrated volume
         if not self._sensor_available or self._sensor is None:
-            self._logger.debug(f"Calibration-only pulse for cage {cage_id}: {cage_pw_ms}ms → {expected_vol_ml:.4f}mL")
-            
             pulse_duration_s = cage_pw_ms / 1000.0
             settling_ms = self._pulse_settling_ms
             
+            # DIAGNOSTIC: Log all valve operations
+            print(f"[CALIBRATION-ONLY PULSE] cage={cage_id}, pulse={cage_pw_ms}ms, expected_vol={expected_vol_ml:.4f}mL")
+            self._logger.info(f"[CALIBRATION-ONLY PULSE] cage={cage_id}, pulse={cage_pw_ms}ms ({pulse_duration_s:.3f}s)")
+            
             try:
+                print(f"[VALVE] Opening cage {cage_id}...")
                 self._valves.open_cage(cage_id)
+                print(f"[VALVE] Cage {cage_id} OPEN, sleeping {pulse_duration_s:.3f}s")
+                
                 await asyncio.sleep(pulse_duration_s)
+                
+                print(f"[VALVE] Closing cage {cage_id}...")
                 self._valves.close_cage(cage_id)
+                print(f"[VALVE] Cage {cage_id} CLOSED, settling {settling_ms}ms")
+                
                 await asyncio.sleep(settling_ms / 1000.0)  # Settling time
+                
+                print(f"[CALIBRATION-ONLY PULSE] Complete, returning {expected_vol_ml:.4f}mL")
             except Exception as e:
                 self._logger.error(f"Pulse execution error (calibration-only): {e}")
+                print(f"[VALVE ERROR] Exception during pulse: {e}")
+                import traceback
+                print(f"[VALVE ERROR] Traceback:\n{traceback.format_exc()}")
                 try:
                     self._valves.close_cage(cage_id)
                 except:

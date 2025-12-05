@@ -47,11 +47,12 @@ class StrategyFactory:
         if mode == "solenoid":
             # Solenoid strategy auto-detects pulse mode from settings
             # Best Practice: Single strategy handles both continuous and pulse modes
-            if not (solenoid_controller and flow_sensor and settings is not None):
-                raise ValueError("Solenoid strategy requires solenoid_controller, flow_sensor, settings")
+            # Note: flow_sensor can be None for calibration-only mode
+            if not (solenoid_controller and settings is not None):
+                raise ValueError("Solenoid strategy requires solenoid_controller and settings")
             return SolenoidFlowStrategy(
                 solenoid_controller=solenoid_controller,
-                flow_sensor=flow_sensor,
+                flow_sensor=flow_sensor,  # Can be None for calibration-only mode
                 calibration_store=calibration_store,
                 settings=settings,
                 database_handler=database_handler,  # For per-valve calibration
