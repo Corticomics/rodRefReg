@@ -61,7 +61,7 @@ class SolenoidFlowStrategy:
         database_handler=None,
     ) -> None:
         self._valves = solenoid_controller
-        self._sensor = flow_sensor
+        self._sensor = flow_sensor  # Can be None for calibration-only mode
         self._cal = calibration_store
         self._settings = settings
         self._prime_ms = int(prime_ms)
@@ -69,6 +69,11 @@ class SolenoidFlowStrategy:
         self._logger = logging.getLogger(self.__class__.__name__)
         # Per-run calibration snapshot (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml}})
         self._cal_snapshot: Dict[int, Dict[int, Dict[str, float]]] = {}
+        
+        # NEW: Track if sensor is available for guardrail mode
+        self._sensor_available = flow_sensor is not None
+        if not self._sensor_available:
+            self._logger.info("Running in CALIBRATION-ONLY mode (no flow sensor)")
         
         # Pulse mode detection (from empirical characterization tests)
         self._use_pulse_mode = bool(settings.get('use_pulse_delivery', False))
@@ -497,33 +502,18 @@ class SolenoidFlowStrategy:
         """
         Pulse-based delivery for Parker Series 3 valves.
         
-               Algorithm:
-               1. Verify sensor health (fail-fast)
-               2. Open master valve (prime manifold)
-               3. Calculate estimated pulses from calibration
-               4. Execute pulses until target reached or max exceeded
-               5. Restart sensor every 5 pulses to prevent firmware hang
-               6. Close all valves
-               7. Log delivery summary
-               
-               Best Practices:
-        - Predictive: Use calibrated volumes to estimate pulse count
-        - Adaptive: Adjust based on actual measured volumes
-        - Fail-safe: Safety limits (max pulses, max time)
-        - Observable: Log each pulse for debugging
-        - Idempotent: Can retry delivery safely
-        - Sensor lifecycle: Restart between deliveries to prevent firmware hangs
+        Supports two modes:
+        1. **WITH SENSOR**: Real-time flow feedback (guardrail mode)
+        2. **WITHOUT SENSOR**: Pure calibration-based delivery
         
-        Safety Mechanisms:
-        - Max pulses: Prevent infinite loops
-        - Max time: Prevent hung deliveries
-        - Sensor error limit: Abort if sensor fails
-        - Emergency close: Always close valves in finally block
-        
-        Critical Fix:
-        - Restart sensor before EACH delivery to reset firmware I²C error counter
-        - Rapid valve switching accumulates EMI-induced I²C errors
-        - Without restart, firmware stops after ~200 errors (even if watchdog works)
+        Algorithm:
+        1. Verify sensor health (if available)
+        2. Open master valve (prime manifold)
+        3. Calculate estimated pulses from calibration
+        4. Execute pulses until target reached or max exceeded
+        5. Restart sensor every 5 pulses to prevent firmware hang (if available)
+        6. Close all valves
+        7. Log delivery summary
         
         Args:
             cage_id: Target cage
@@ -532,19 +522,19 @@ class SolenoidFlowStrategy:
         Returns:
             True if delivery successful, False otherwise
         """
-        self._logger.info(f"Starting pulse delivery for cage {cage_id}: {target_volume_ml:.3f}mL")
+        mode_str = "WITH SENSOR" if self._sensor_available else "CALIBRATION-ONLY"
+        self._logger.info(f"Starting pulse delivery for cage {cage_id}: {target_volume_ml:.3f}mL ({mode_str})")
         
-        # Step 1: Restart sensor to reset firmware error counter
-        # This is CRITICAL for pulse mode due to EMI from rapid valve switching
-        # Based on test_valve_characterization.py which restarts between each trial
-        if not await self._restart_sensor():
-            self._logger.error("Sensor restart failed, aborting delivery")
-            return False
-        
-        # Step 2: Verify sensor health (fail-fast)
-        if not await self._verify_sensor_health():
-            self._logger.error("Sensor health check failed, aborting delivery")
-            return False
+        # Step 1: Restart sensor to reset firmware error counter (only if sensor available)
+        if self._sensor_available and self._sensor is not None:
+            if not await self._restart_sensor():
+                self._logger.warning("Sensor restart failed, switching to CALIBRATION-ONLY mode")
+                self._sensor_available = False
+            
+            # Step 2: Verify sensor health (fail-fast, but don't abort if optional)
+            if self._sensor_available and not await self._verify_sensor_health():
+                self._logger.warning("Sensor health check failed, switching to CALIBRATION-ONLY mode")
+                self._sensor_available = False
         
         # Step 3: Prime manifold (master valve only)
         try:
@@ -607,17 +597,20 @@ class SolenoidFlowStrategy:
                 # Each pulse accumulates ~10-15 I²C errors from EMI
                 # After ~200 errors, firmware stops streaming
                 # Restart every N pulses to keep error count low
-                if pulses_since_restart >= max_pulses_before_restart:
+                # ONLY if sensor is available!
+                if self._sensor_available and pulses_since_restart >= max_pulses_before_restart:
                     self._logger.info(f"Periodic restart after {pulses_since_restart} pulses...")
                     if not await self._restart_sensor():
-                        self._logger.error("Periodic sensor restart failed, aborting")
-                        return False
-                    # Verify health after restart
-                    if not await self._verify_sensor_health():
-                        self._logger.error("Sensor health check failed after restart, aborting")
-                        return False
+                        self._logger.warning("Periodic sensor restart failed, continuing without sensor")
+                        self._sensor_available = False
+                    else:
+                        # Verify health after restart
+                        if not await self._verify_sensor_health():
+                            self._logger.warning("Sensor health check failed after restart, continuing without sensor")
+                            self._sensor_available = False
+                        else:
+                            self._logger.info("Sensor restarted successfully, resuming delivery")
                     pulses_since_restart = 0
-                    self._logger.info("Sensor restarted successfully, resuming delivery")
                 
                 # Execute single pulse
                 try:
@@ -684,36 +677,48 @@ class SolenoidFlowStrategy:
         """
         Execute a single valve pulse and measure delivered volume.
         
-        CRITICAL FIX: Capture FULL flow curve, not just tail
-        =====================================================
-        Previous version only measured AFTER pulse completed, missing bulk flow.
-        This version measures DURING and AFTER pulse for complete integration.
+        Supports two modes:
+        1. **WITH SENSOR**: Full flow curve integration
+        2. **WITHOUT SENSOR**: Pure calibration-based (blind delivery)
         
-        Algorithm (fixed):
-        1. Clear sensor queue (fresh data)
-        2. Start collecting samples BEFORE pulse
-        3. Open cage valve (samples continue)
-        4. Wait pulse_width_ms (samples continue)
-        5. Close cage valve (samples continue)
-        6. Wait settling time (samples continue)
-        7. Integrate ENTIRE flow curve
-        8. Fallback to per-valve calibration if sensor fails
-        
-        Best Practices:
-        - Atomic: One pulse = one measurement
-        - Defensive: Handle sensor failures gracefully
-        - Per-valve calibration: Use cage-specific empirical values
-        - Observable: Log warnings if volume differs significantly
+        Algorithm:
+        1. Get cage-specific calibration (pulse width + expected volume)
+        2. If sensor available: measure flow during pulse
+        3. If sensor unavailable: use calibrated volume directly
+        4. Execute pulse (open/close valve)
+        5. Return measured or calibrated volume
         
         Args:
             cage_id: Cage to pulse
         
         Returns:
-            Delivered volume in mL (uses per-valve calibration as fallback)
+            Delivered volume in mL
         """
         # Step 1: Get cage-specific calibration (pulse width + expected volume)
         cage_pw_ms, expected_vol_ml = await self._get_cage_calibration(cage_id)
         
+        # FAST PATH: If no sensor available, just do the pulse and return calibrated volume
+        if not self._sensor_available or self._sensor is None:
+            self._logger.debug(f"Calibration-only pulse for cage {cage_id}: {cage_pw_ms}ms → {expected_vol_ml:.4f}mL")
+            
+            pulse_duration_s = cage_pw_ms / 1000.0
+            settling_ms = self._pulse_settling_ms
+            
+            try:
+                self._valves.open_cage(cage_id)
+                await asyncio.sleep(pulse_duration_s)
+                self._valves.close_cage(cage_id)
+                await asyncio.sleep(settling_ms / 1000.0)  # Settling time
+            except Exception as e:
+                self._logger.error(f"Pulse execution error (calibration-only): {e}")
+                try:
+                    self._valves.close_cage(cage_id)
+                except:
+                    pass
+            
+            return expected_vol_ml  # Return calibrated volume
+        
+        # FULL PATH: Sensor available - measure actual flow
         # Step 2: Clear sensor queue for fresh data
         if hasattr(self._sensor, 'clear_queue'):
             self._sensor.clear_queue()
@@ -956,18 +961,16 @@ class SolenoidFlowStrategy:
         - Idempotent operations: Known-good state for each delivery
         - Firmware reset: Clear any accumulated I²C error count
         - Fail-fast: Return False if restart fails
-        
-        Critical for pulse mode:
-        - Rapid valve switching accumulates EMI-induced I²C errors
-        - Firmware stops streaming after ~200 consecutive errors
-        - Restart resets error counter to zero
-        
-        Based on test_valve_characterization.py which successfully restarts
-        between each trial to prevent firmware hangs.
+        - Graceful: Return True if no sensor available (calibration-only mode)
         
         Returns:
-            True if restart successful, False otherwise
+            True if restart successful or no sensor, False on error
         """
+        # No-op if sensor not available
+        if not self._sensor_available or self._sensor is None:
+            self._logger.debug("No sensor to restart (calibration-only mode)")
+            return True
+        
         self._logger.debug("Restarting sensor to reset firmware state...")
         
         try:
@@ -983,7 +986,7 @@ class SolenoidFlowStrategy:
                 self._logger.info("✓ Sensor restarted successfully")
                 return True
             else:
-                self._logger.error("Sensor missing start() method")
+                self._logger.warning("Sensor missing start() method")
                 return False
                 
         except Exception as e:
@@ -998,11 +1001,16 @@ class SolenoidFlowStrategy:
         - DRY: Extracted from continuous mode for reuse
         - Fail-fast: Return False if sensor not ready
         - Self-healing: Attempt reset if initial check fails
-        - Observable: Log all operations
+        - Graceful: Return True if no sensor available (calibration-only mode)
         
         Returns:
-            True if sensor ready, False otherwise
+            True if sensor ready or no sensor, False on error
         """
+        # No-op if sensor not available
+        if not self._sensor_available or self._sensor is None:
+            self._logger.debug("No sensor to verify (calibration-only mode)")
+            return True
+        
         self._logger.debug("Verifying sensor health...")
         
         # Step 1: Clear stale measurements

@@ -83,6 +83,7 @@ class SettingsTab(QWidget):
         
         # Solenoid settings
         self.teensy_port_edit.editingFinished.connect(self._auto_save_settings)
+        self.flow_sensor_optional.stateChanged.connect(self._auto_save_settings)
         self.flow_sampling_hz.valueChanged.connect(self._auto_save_settings)
         self.max_valve_open_s.valueChanged.connect(self._auto_save_settings)
         self.no_flow_timeout_s.valueChanged.connect(self._auto_save_settings)
@@ -122,6 +123,7 @@ class SettingsTab(QWidget):
                 
                 # Solenoid settings
                 'uart_port': self.teensy_port_edit.text(),
+                'flow_sensor_optional': self.flow_sensor_optional.isChecked(),
                 'flow_sampling_hz': self.flow_sampling_hz.value(),
                 'max_valve_open_s': self.max_valve_open_s.value(),
                 'no_flow_timeout_s': self.no_flow_timeout_s.value(),
@@ -224,6 +226,23 @@ class SettingsTab(QWidget):
         port_row.addWidget(test_button)
         
         sensor_layout.addRow("Teensy Port:", port_row)
+        
+        # Flow sensor optional toggle (NEW: enables calibration-only mode)
+        self.flow_sensor_optional = QCheckBox("Allow schedules without flow sensor")
+        self.flow_sensor_optional.setChecked(self.settings.get('flow_sensor_optional', True))
+        self.flow_sensor_optional.setToolTip(
+            "If enabled, schedules can run using calibration values when flow sensor is unavailable.\n"
+            "The sensor acts as a 'guardrail' - comparing expected vs actual delivery when connected.\n"
+            "If disabled, schedules will fail if the flow sensor is not connected."
+        )
+        sensor_layout.addRow("", self.flow_sensor_optional)
+        
+        sensor_optional_help = QLabel(
+            "<i>When sensor unavailable, deliveries use per-valve calibration (pulse count × volume/pulse)</i>"
+        )
+        sensor_optional_help.setObjectName("HelpText")
+        sensor_optional_help.setWordWrap(True)
+        sensor_layout.addRow("", sensor_optional_help)
         
         # Sampling rate (SafeDoubleSpinBox prevents accidental scroll changes)
         self.flow_sampling_hz = SafeDoubleSpinBox()

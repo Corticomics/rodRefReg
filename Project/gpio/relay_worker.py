@@ -107,9 +107,15 @@ class RelayWorker(QObject):
         
         # Here we added a check for the hardware mode to be solenoid
         print(f"[DEBUG] About to check: if self.hardware_mode == 'solenoid':")
+        
+        # NEW: Check if flow sensor is optional (default: True for robustness)
+        self.flow_sensor_optional = bool(system_settings.get('flow_sensor_optional', True))
+        self.flow_sensor_available = False
+        
         if self.hardware_mode == 'solenoid':
             print(f"[DEBUG] ✅ ENTERED solenoid mode block!")
             print(f"[DEBUG] Entering solenoid mode initialization...")
+            print(f"[DEBUG] flow_sensor_optional: {self.flow_sensor_optional}")
             
             # Build solenoid components using factory pattern
             print(f"[DEBUG] Step 1: Importing flow sensor factory...")
@@ -118,19 +124,30 @@ class RelayWorker(QObject):
             print(f"[DEBUG] Step 1:  Imports successful")
             
             print(f"[DEBUG] Step 2: Creating flow sensor...")
+            flow_sensor = None
             try:
                 flow_sensor = create_flow_sensor(system_settings)
+                self.flow_sensor_available = True
                 print(f"[DEBUG] Step 2:  Flow sensor created: {type(flow_sensor)}")
             except TeensyUnavailableError as e:
                 print(f"[DEBUG] Step 2:  TeensyUnavailableError: {e}")
-                self.progress.emit(f"Flow sensor unavailable: {e}")
-                self.progress.emit("Cannot run solenoid schedule without flow sensor. Please check Teensy connection.")
-                raise RuntimeError("Flow sensor required for solenoid mode")
+                self.progress.emit(f"⚠️ Flow sensor unavailable: {e}")
+                if not self.flow_sensor_optional:
+                    self.progress.emit("Cannot run solenoid schedule without flow sensor. Please check Teensy connection.")
+                    raise RuntimeError("Flow sensor required for solenoid mode (flow_sensor_optional=False)")
+                else:
+                    self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no real-time flow feedback)")
+                    flow_sensor = None
             except Exception as e:
                 print(f"[DEBUG] Step 2:  Exception: {type(e).__name__}: {e}")
                 import traceback
                 print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
-                raise
+                if not self.flow_sensor_optional:
+                    raise
+                else:
+                    self.progress.emit(f"⚠️ Flow sensor init failed: {e}")
+                    self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no real-time flow feedback)")
+                    flow_sensor = None
 
             # Build cage map and solenoid controller
             print(f"[DEBUG] Step 3: Building cage map and solenoid controller...")
@@ -175,57 +192,85 @@ class RelayWorker(QObject):
             )
             print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
             
-            # Start flow sensor in continuous mode
+            # Start flow sensor in continuous mode (only if available)
             print(f"[DEBUG] Step 5: Starting flow sensor...")
-            try:
-                print(f"[DEBUG] Step 5a: Checking if flow_sensor has start() method...")
-                if hasattr(flow_sensor, 'start'):
-                    print(f"[DEBUG] Step 5a:  Has start() method, calling it...")
-                    flow_sensor.start()
-                    print(f"[DEBUG] Step 5a:  start() completed successfully!")
-                    
-                    # CRITICAL: Verify stream health immediately after start (fail-fast principle)
-                    # Best Practices:
-                    # - Contract programming: Establish preconditions before execution
-                    # - Fail-fast: Report sensor issues during initialization, not mid-delivery
-                    print(f"[DEBUG] Step 5b: Verifying stream health...")
-                    if hasattr(flow_sensor, 'wait_for_frames'):
-                        if not flow_sensor.wait_for_frames(min_frames=5, timeout_s=5.0):
-                            error_msg = (
-                                "Flow sensor started but not streaming measurements. "
-                                "Cannot proceed with solenoid schedule. "
-                                "Check: 1) Teensy USB connection, 2) I²C wiring (SDA/SCL/GND), "
-                                "3) Pullup resistors (2kΩ), 4) Teensy firmware loaded"
-                            )
-                            print(f"[DEBUG] Step 5b:  {error_msg}")
-                            self.progress.emit(f"ERROR: {error_msg}")
-                            raise RuntimeError(error_msg)
-                        print(f"[DEBUG] Step 5b:  Stream health verified")
-                    
-                    # Get sensor info for logging
-                    if hasattr(flow_sensor, 'port'):
-                        sensor_info = f"uart on {flow_sensor.port}"
-                    elif hasattr(flow_sensor, 'bus_id'):
-                        sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
+            if flow_sensor is not None:
+                try:
+                    print(f"[DEBUG] Step 5a: Checking if flow_sensor has start() method...")
+                    if hasattr(flow_sensor, 'start'):
+                        print(f"[DEBUG] Step 5a:  Has start() method, calling it...")
+                        flow_sensor.start()
+                        print(f"[DEBUG] Step 5a:  start() completed successfully!")
+                        
+                        # Verify stream health immediately after start
+                        print(f"[DEBUG] Step 5b: Verifying stream health...")
+                        if hasattr(flow_sensor, 'wait_for_frames'):
+                            if not flow_sensor.wait_for_frames(min_frames=5, timeout_s=5.0):
+                                warning_msg = (
+                                    "Flow sensor started but not streaming measurements. "
+                                    "Check: 1) Teensy USB connection, 2) I²C wiring (SDA/SCL/GND), "
+                                    "3) Pullup resistors (2kΩ), 4) Teensy firmware loaded"
+                                )
+                                print(f"[DEBUG] Step 5b:  {warning_msg}")
+                                self.progress.emit(f"⚠️ WARNING: {warning_msg}")
+                                
+                                if not self.flow_sensor_optional:
+                                    raise RuntimeError(warning_msg)
+                                else:
+                                    self.progress.emit("ℹ️ Continuing with CALIBRATION-ONLY mode")
+                                    self.flow_sensor_available = False
+                            else:
+                                print(f"[DEBUG] Step 5b:  Stream health verified")
+                                self.flow_sensor_available = True
+                        else:
+                            # No wait_for_frames method, assume sensor is working
+                            self.flow_sensor_available = True
+                        
+                        # Get sensor info for logging (only if available)
+                        if self.flow_sensor_available:
+                            if hasattr(flow_sensor, 'port'):
+                                sensor_info = f"uart on {flow_sensor.port}"
+                            elif hasattr(flow_sensor, 'bus_id'):
+                                sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
+                            else:
+                                sensor_info = f"unknown interface"
+                            print(f"[DEBUG] Step 5c:  Flow sensor fully operational ({sensor_info})")
+                            self.progress.emit(f"✅ Flow sensor operational: {sensor_info}")
                     else:
-                        sensor_info = f"unknown interface"
-                    print(f"[DEBUG] Step 5c:  Flow sensor fully operational ({sensor_info})")
-                    self.progress.emit(f"Flow sensor operational: {sensor_info}")
-                else:
-                    print(f"[DEBUG] Step 5a:  Flow sensor has no start() method!")
-                    raise RuntimeError("Flow sensor missing start() method")
-            except TeensyUnavailableError as e:
-                print(f"[DEBUG] Step 5:  TeensyUnavailableError: {e}")
-                self.progress.emit(f"Flow sensor unavailable: {e}")
-                raise RuntimeError("Flow sensor required for solenoid mode")
-            except Exception as e:
-                # CRITICAL: Don't silently ignore startup failures in production!
-                print(f"[DEBUG] Step 5a:  CRITICAL: Flow sensor start failed: {type(e).__name__}: {e}")
-                import traceback
-                print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
-                raise RuntimeError(f"Flow sensor startup failed: {e}")
+                        print(f"[DEBUG] Step 5a:  Flow sensor has no start() method!")
+                        if not self.flow_sensor_optional:
+                            raise RuntimeError("Flow sensor missing start() method")
+                        else:
+                            self.flow_sensor_available = False
+                            self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode")
+                except TeensyUnavailableError as e:
+                    print(f"[DEBUG] Step 5:  TeensyUnavailableError: {e}")
+                    self.progress.emit(f"⚠️ Flow sensor unavailable: {e}")
+                    if not self.flow_sensor_optional:
+                        raise RuntimeError("Flow sensor required for solenoid mode (flow_sensor_optional=False)")
+                    else:
+                        self.flow_sensor_available = False
+                        self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode")
+                except Exception as e:
+                    print(f"[DEBUG] Step 5a:  Flow sensor start failed: {type(e).__name__}: {e}")
+                    import traceback
+                    print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
+                    if not self.flow_sensor_optional:
+                        raise RuntimeError(f"Flow sensor startup failed: {e}")
+                    else:
+                        self.flow_sensor_available = False
+                        self.progress.emit(f"⚠️ Flow sensor failed: {e}")
+                        self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode")
+            else:
+                print(f"[DEBUG] Step 5: Flow sensor is None (optional mode)")
+                self.flow_sensor_available = False
+                self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no flow sensor)")
             
-            print(f"[DEBUG] ========== SOLENOID INITIALIZATION COMPLETE ==========\n")
+            # Final status summary
+            if self.flow_sensor_available:
+                print(f"[DEBUG] ========== SOLENOID INITIALIZATION COMPLETE (WITH SENSOR) ==========\n")
+            else:
+                print(f"[DEBUG] ========== SOLENOID INITIALIZATION COMPLETE (CALIBRATION-ONLY) ==========\n")
         else:
             # NOT solenoid mode - using pump or other strategy
             print(f"[DEBUG] ENTERED else block (NOT solenoid mode)!")
