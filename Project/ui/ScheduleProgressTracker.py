@@ -48,7 +48,14 @@ class MaterialCard(QFrame):
         self._apply_material_style()
     
     def _init_ui(self):
-        """Initialize card UI"""
+        """
+        Initialize card UI with objectNames for QSS styling.
+        
+        Design Pattern: Use objectNames for static styles (QSS) and inline
+        setStyleSheet only for dynamic state changes (status colors).
+        
+        Reference: https://doc.qt.io/qt-5/stylesheet-syntax.html#selector-types
+        """
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
@@ -56,57 +63,41 @@ class MaterialCard(QFrame):
         # Header row: Animal info + Health indicator
         header_layout = QHBoxLayout()
         
-        # Animal info
+        # Animal info - use objectName for QSS styling
         self.animal_label = QLabel(f"Animal {self.animal_id}")
-        self.animal_label.setStyleSheet("font-size: 13pt; font-weight: bold; color: #333;")
+        self.animal_label.setObjectName("CardTitle")
         header_layout.addWidget(self.animal_label)
         
         header_layout.addStretch()
         
-        # Cage badge
+        # Cage badge - use objectName for QSS styling
         self.cage_badge = QLabel(f"Cage {self.cage_id}")
-        self.cage_badge.setStyleSheet(
-            "background-color: #2196F3; color: white; "
-            "padding: 5px 10px; border-radius: 10px; font-weight: bold; font-size: 10pt;"
-        )
+        self.cage_badge.setObjectName("CageBadge")
         header_layout.addWidget(self.cage_badge)
         
         layout.addLayout(header_layout)
         
-        # Progress bar
+        # Progress bar - use objectName for QSS styling
         self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName("DeliveryProgress")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p%")
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                border-radius: 10px;
-                background-color: #E0E0E0;
-                height: 25px;
-                text-align: center;
-            }
-            QProgressBar::chunk {
-                border-radius: 10px;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                          stop:0 #4CAF50, stop:1 #81C784);
-            }
-        """)
         layout.addWidget(self.progress_bar)
         
         # Volume info row
         volume_layout = QHBoxLayout()
         
         self.volume_label = QLabel(f"0.000 / {self.target_volume_ml:.3f} mL")
-        self.volume_label.setStyleSheet("font-size: 12pt; font-weight: bold; color: #555;")
+        self.volume_label.setObjectName("VolumeLabel")
         volume_layout.addWidget(self.volume_label)
         
         volume_layout.addStretch()
         
-        # Status indicator
+        # Status indicator - dynamic styling retained for state changes
         self.status_label = QLabel("Waiting")
-        self.status_label.setStyleSheet("font-size: 11pt; color: #757575;")
+        self.status_label.setObjectName("StatusLabel")
         volume_layout.addWidget(self.status_label)
         
         layout.addLayout(volume_layout)
@@ -115,39 +106,32 @@ class MaterialCard(QFrame):
         health_layout = QHBoxLayout()
         
         self.sensor_indicator = QLabel("Sensor: —")
-        self.sensor_indicator.setStyleSheet("font-size: 9pt; color: #999;")
+        self.sensor_indicator.setObjectName("HealthIndicator")
         health_layout.addWidget(self.sensor_indicator)
         
         health_layout.addStretch()
         
         self.pulse_counter = QLabel("Pulses: 0")
-        self.pulse_counter.setStyleSheet("font-size: 9pt; color: #999;")
+        self.pulse_counter.setObjectName("HealthIndicator")
         health_layout.addWidget(self.pulse_counter)
         
         layout.addLayout(health_layout)
         
         # Time remaining (optional, hidden initially)
         self.time_remaining_label = QLabel()
-        self.time_remaining_label.setStyleSheet("font-size: 9pt; color: #999; font-style: italic;")
+        self.time_remaining_label.setObjectName("TimeRemaining")
         self.time_remaining_label.setVisible(False)
         layout.addWidget(self.time_remaining_label)
     
     def _apply_material_style(self):
-        """Apply Material Design elevation/shadow"""
-        self.setFrameShape(QFrame.Box)
-        self.setStyleSheet("""
-            MaterialCard {
-                background-color: white;
-                border-radius: 10px;
-                border: 1px solid #E0E0E0;
-            }
-            MaterialCard:hover {
-                border: 1px solid #BDBDBD;
-            }
-        """)
+        """
+        Apply Material Design styling via objectName.
         
-        # Drop shadow effect (via CSS - limited in PyQt)
-        self.setGraphicsEffect(None)  # Would use QGraphicsDropShadowEffect in production
+        Styles are defined in app-light.qss and app-dark.qss for consistency.
+        Reference: https://doc.qt.io/qt-5/stylesheet-examples.html
+        """
+        self.setObjectName("MaterialCard")
+        self.setFrameShape(QFrame.Box)
     
     def update_progress(self, delivered_ml, status="Delivering"):
         """Update card with new progress data"""

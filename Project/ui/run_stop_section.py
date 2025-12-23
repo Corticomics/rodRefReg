@@ -11,10 +11,21 @@ from datetime import datetime
 from PyQt5.QtWidgets import QApplication
 
 class RunStopSection(QWidget):
+    """
+    Run/Stop control section with login-gated access.
+    
+    Security Model (per PyQt5 best practices):
+    - Controls are disabled when user is not logged in
+    - Visual feedback indicates disabled state
+    - All operations verify login status before execution
+    
+    Reference: https://doc.qt.io/qt-5/qwidget.html#enabled-prop
+    """
     schedule_updated = pyqtSignal(int)
 
     def __init__(self, run_program_callback, stop_program_callback, change_relay_hats_callback, 
-                 system_controller=None, database_handler=None, relay_handler=None, notification_handler=None, parent=None):
+                 system_controller=None, database_handler=None, relay_handler=None, 
+                 notification_handler=None, login_system=None, parent=None):
         super().__init__(parent)
         self.run_program_callback = run_program_callback
         self.stop_program_callback = stop_program_callback
@@ -27,6 +38,7 @@ class RunStopSection(QWidget):
         
         self.relay_handler = relay_handler
         self.notification_handler = notification_handler
+        self.login_system = login_system
         self.current_schedule = None
 
         self.job_in_progress = False
@@ -37,6 +49,13 @@ class RunStopSection(QWidget):
             self.load_settings(system_controller.settings)
 
         self.setAcceptDrops(True)
+        
+        # Connect to login system for permission updates
+        if self.login_system:
+            self.login_system.login_status_changed.connect(self._update_controls_access)
+            # Set initial state
+            self._update_controls_access()
+        
         print("RunStopSection initialized")
 
     def init_ui(self):
@@ -133,25 +152,88 @@ class RunStopSection(QWidget):
     def load_settings(self, settings):
         # No calendar settings needed anymore
         pass
+    
+    def _update_controls_access(self):
+        """
+        Update control button accessibility based on login status.
+        
+        Security Pattern: Disable controls at the widget level when user is not
+        authenticated. This follows Qt best practices for access control.
+        
+        Reference: https://doc.qt.io/qt-5/qwidget.html#enabled-prop
+        """
+        is_logged_in = self.login_system.is_logged_in() if self.login_system else False
+        
+        # Update button states based on login
+        self.run_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.stop_button.setEnabled(is_logged_in and self.job_in_progress)
+        self.relay_hats_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.edit_button.setEnabled(is_logged_in and self.current_schedule is not None and not self.job_in_progress)
+        
+        # Update schedule drop area
+        self.schedule_drop_area.setEnabled(is_logged_in)
+        
+        # Visual feedback: update tooltip for disabled state
+        if not is_logged_in:
+            disabled_tooltip = "Please log in to use this control"
+            self.run_button.setToolTip(disabled_tooltip)
+            self.stop_button.setToolTip(disabled_tooltip)
+            self.relay_hats_button.setToolTip(disabled_tooltip)
+            self.edit_button.setToolTip(disabled_tooltip)
+            self.schedule_drop_area.setToolTip("Please log in to drop schedules")
+        else:
+            # Restore normal tooltips
+            self.run_button.setToolTip("Start the loaded schedule")
+            self.stop_button.setToolTip("Stop the running schedule")
+            self.relay_hats_button.setToolTip("Configure relay HAT hardware")
+            self.edit_button.setToolTip("Edit the current schedule")
+            self.schedule_drop_area.setToolTip("Drag and drop a schedule here to load it")
 
     def update_button_states(self):
-        self.run_button.setEnabled(not self.job_in_progress)
-        self.stop_button.setEnabled(self.job_in_progress)
-        self.relay_hats_button.setEnabled(not self.job_in_progress)
-        if self.job_in_progress:
+        """
+        Update button enabled states based on job status AND login status.
+        
+        Security: Always check login status in addition to job state.
+        Reference: Qt documentation on widget state management
+        """
+        is_logged_in = self.login_system.is_logged_in() if self.login_system else False
+        
+        # Buttons require both: logged in AND appropriate job state
+        self.run_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.stop_button.setEnabled(is_logged_in and self.job_in_progress)
+        self.relay_hats_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.edit_button.setEnabled(is_logged_in and self.current_schedule is not None and not self.job_in_progress)
+        self.schedule_drop_area.setEnabled(is_logged_in)
+        
+        # Set appropriate tooltips
+        if not is_logged_in:
+            disabled_tooltip = "Please log in to use this control"
+            self.run_button.setToolTip(disabled_tooltip)
+            self.stop_button.setToolTip(disabled_tooltip)
+            self.relay_hats_button.setToolTip(disabled_tooltip)
+        elif self.job_in_progress:
             self.run_button.setToolTip("Job in progress")
             self.relay_hats_button.setToolTip("Cannot change relay hats during a job")
+            self.stop_button.setToolTip("Click to stop the current job")
         else:
-            self.run_button.setToolTip("")
-            self.relay_hats_button.setToolTip("")
-
-        if not self.job_in_progress:
+            self.run_button.setToolTip("Start the loaded schedule")
+            self.relay_hats_button.setToolTip("Configure relay HAT hardware")
             self.stop_button.setToolTip("No job in progress to stop")
-        else:
-            self.stop_button.setToolTip("")
 
     def run_program(self):
+        """
+        Execute the loaded schedule.
+        
+        Security: Verifies login status before execution (defense in depth).
+        Reference: OWASP Access Control guidelines
+        """
         try:
+            # Security check: verify login status (defense in depth)
+            if self.login_system and not self.login_system.is_logged_in():
+                QMessageBox.warning(self, "Access Denied", 
+                    "You must be logged in to run schedules.")
+                return
+            
             print("\nDEBUG - RunStopSection run_program:")
             print(f"self.system_controller type: {type(self.system_controller)}")
             if self.job_in_progress:

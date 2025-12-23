@@ -177,6 +177,10 @@ class SettingsTab(QWidget):
         mode_layout = QFormLayout()
         mode_layout.setContentsMargins(12, 12, 12, 12)
         mode_layout.setSpacing(8)
+        # Fix label truncation: allow labels to expand and wrap
+        # Reference: https://doc.qt.io/qt-5/qformlayout.html#FieldGrowthPolicy-enum
+        mode_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        mode_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
         self.hardware_mode_combo = QComboBox()
         self.hardware_mode_combo.addItems(['solenoid', 'pump'])
@@ -207,6 +211,8 @@ class SettingsTab(QWidget):
         sensor_layout = QFormLayout()
         sensor_layout.setContentsMargins(12, 12, 12, 12)
         sensor_layout.setSpacing(8)
+        sensor_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        sensor_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
         # Teensy port selection
         port_row = QHBoxLayout()
@@ -260,6 +266,8 @@ class SettingsTab(QWidget):
         safety_layout = QFormLayout()
         safety_layout.setContentsMargins(12, 12, 12, 12)
         safety_layout.setSpacing(8)
+        safety_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        safety_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
         self.max_valve_open_s = SafeDoubleSpinBox()
         self.max_valve_open_s.setRange(1.0, 60.0)
@@ -290,6 +298,8 @@ class SettingsTab(QWidget):
         pulse_layout = QFormLayout()
         pulse_layout.setContentsMargins(12, 12, 12, 12)
         pulse_layout.setSpacing(8)
+        pulse_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        pulse_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
         self.use_pulse_delivery = QCheckBox("Enable Pulse Mode")
         self.use_pulse_delivery.setChecked(self.settings.get('use_pulse_delivery', True))
@@ -314,6 +324,8 @@ class SettingsTab(QWidget):
         pump_layout = QFormLayout()
         pump_layout.setContentsMargins(12, 12, 12, 12)
         pump_layout.setSpacing(8)
+        pump_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        pump_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         
         self.pump_volume = SafeDoubleSpinBox()
         self.pump_volume.setRange(0, 1000)

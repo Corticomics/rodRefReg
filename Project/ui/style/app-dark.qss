@@ -363,3 +363,95 @@ QGroupBox QFormLayout QLabel {
     padding: 4px 0;
 }
 
+/* Settings tab form layout - prevent label truncation */
+QFormLayout > QLabel {
+    min-width: 140px;  /* Minimum width for form labels */
+    padding-right: 8px;
+}
+
+/* Help text should wrap properly */
+QLabel#HelpText {
+    color: #919A9F;
+    font-size: 12px;
+    padding: 4px 0;
+}
+
+/* ============================================
+   Schedule Progress Tracker - Material Cards
+   ============================================ */
+
+/* Material Design card container - dark theme */
+QFrame#MaterialCard {
+    background-color: #2A2C2E;
+    border: 1px solid #3A3C3E;
+    border-radius: 12px;
+    padding: 0;
+}
+QFrame#MaterialCard:hover {
+    border: 1px solid #5A5C5E;
+}
+
+/* Card title (Animal label) */
+QLabel#CardTitle {
+    font-size: 14px;
+    font-weight: bold;
+    color: #E8EAED;
+    background: transparent;
+}
+
+/* Cage badge */
+QLabel#CageBadge {
+    background-color: #1976D2;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 11px;
+}
+
+/* Delivery progress bar */
+QProgressBar#DeliveryProgress {
+    border: none;
+    border-radius: 10px;
+    background-color: #3A3C3E;
+    min-height: 25px;
+    max-height: 25px;
+    text-align: center;
+    color: #E8EAED;
+}
+QProgressBar#DeliveryProgress::chunk {
+    border-radius: 10px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                              stop:0 #388E3C, stop:1 #4CAF50);
+}
+
+/* Volume label */
+QLabel#VolumeLabel {
+    font-size: 13px;
+    font-weight: bold;
+    color: #B0B4BA;
+    background: transparent;
+}
+
+/* Status label - base style */
+QLabel#StatusLabel {
+    font-size: 12px;
+    color: #919A9F;
+    background: transparent;
+}
+
+/* Health indicators */
+QLabel#HealthIndicator {
+    font-size: 10px;
+    color: #757575;
+    background: transparent;
+}
+
+/* Time remaining */
+QLabel#TimeRemaining {
+    font-size: 10px;
+    color: #757575;
+    font-style: italic;
+    background: transparent;
+}
+

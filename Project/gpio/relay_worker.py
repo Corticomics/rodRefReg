@@ -438,7 +438,13 @@ class RelayWorker(QObject):
             
             if current_time < self.window_start:
                 print(f"Current time ({current_time}) is before window start ({self.window_start})")
-                delay_ms = int((self.window_start - current_time).total_seconds() * 1000)
+                delay_seconds = (self.window_start - current_time).total_seconds()
+                # CRITICAL: Cap delay to prevent 32-bit signed int overflow in QTimer.singleShot
+                # Qt uses 32-bit signed int for ms (max 2,147,483,647 ms ≈ 24.8 days).
+                # Cap to 2 weeks (1,209,600,000 ms) which is safely within the limit.
+                # Reference: https://doc.qt.io/qt-5/qtimer.html#singleShot
+                MAX_TIMER_DELAY_MS = 1_209_600_000  # 2 weeks in milliseconds (14 days)
+                delay_ms = min(int(delay_seconds * 1000), MAX_TIMER_DELAY_MS)
                 self.main_timer.singleShot(delay_ms, self.run_staggered_cycle)
                 return
             
@@ -472,9 +478,16 @@ class RelayWorker(QObject):
             if not success:
                 self.progress.emit("Failed to schedule deliveries")
                 return
-                
-            next_cycle = int(cycle_interval * 1000)
-            self.main_timer.singleShot(next_cycle, self.run_staggered_cycle)
+            
+            # CRITICAL: Cap cycle interval to prevent 32-bit signed int overflow in QTimer.singleShot
+            # Qt uses 32-bit signed int for ms (max 2,147,483,647 ms ≈ 24.8 days).
+            # For year-long schedules, cycle_interval can be millions of seconds.
+            # Cap to 2 weeks (1,209,600 seconds); timer will reschedule on next cycle.
+            # Reference: https://doc.qt.io/qt-5/qtimer.html#singleShot
+            MAX_CYCLE_INTERVAL_S = 1_209_600  # 2 weeks in seconds (14 days)
+            capped_cycle_interval = min(cycle_interval, MAX_CYCLE_INTERVAL_S)
+            next_cycle_ms = int(capped_cycle_interval * 1000)
+            self.main_timer.singleShot(next_cycle_ms, self.run_staggered_cycle)
             
         except Exception as e:
             self.progress.emit(f"Error in staggered cycle: {str(e)}")

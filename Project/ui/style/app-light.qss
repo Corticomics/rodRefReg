@@ -357,4 +357,98 @@ QGroupBox QFormLayout QLabel {
     padding: 4px 0;
 }
 
+/* Settings tab form layout - prevent label truncation */
+QFormLayout {
+    /* Ensure labels have enough width to display without truncation */
+}
+QFormLayout > QLabel {
+    min-width: 140px;  /* Minimum width for form labels */
+    padding-right: 8px;
+}
+
+/* Help text should wrap properly */
+QLabel#HelpText {
+    color: #666666;
+    font-size: 12px;
+    padding: 4px 0;
+    /* Word wrap is handled in code via setWordWrap(True) */
+}
+
+/* ============================================
+   Schedule Progress Tracker - Material Cards
+   ============================================ */
+
+/* Material Design card container */
+QFrame#MaterialCard {
+    background-color: #FFFFFF;
+    border: 1px solid #E0E0E0;
+    border-radius: 12px;
+    padding: 0;
+}
+QFrame#MaterialCard:hover {
+    border: 1px solid #BDBDBD;
+}
+
+/* Card title (Animal label) */
+QLabel#CardTitle {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333333;
+    background: transparent;
+}
+
+/* Cage badge */
+QLabel#CageBadge {
+    background-color: #2196F3;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 11px;
+}
+
+/* Delivery progress bar */
+QProgressBar#DeliveryProgress {
+    border: none;
+    border-radius: 10px;
+    background-color: #E0E0E0;
+    min-height: 25px;
+    max-height: 25px;
+    text-align: center;
+}
+QProgressBar#DeliveryProgress::chunk {
+    border-radius: 10px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                              stop:0 #4CAF50, stop:1 #81C784);
+}
+
+/* Volume label */
+QLabel#VolumeLabel {
+    font-size: 13px;
+    font-weight: bold;
+    color: #555555;
+    background: transparent;
+}
+
+/* Status label - base style */
+QLabel#StatusLabel {
+    font-size: 12px;
+    color: #757575;
+    background: transparent;
+}
+
+/* Health indicators */
+QLabel#HealthIndicator {
+    font-size: 10px;
+    color: #999999;
+    background: transparent;
+}
+
+/* Time remaining */
+QLabel#TimeRemaining {
+    font-size: 10px;
+    color: #999999;
+    font-style: italic;
+    background: transparent;
+}
 

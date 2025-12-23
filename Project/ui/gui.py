@@ -89,7 +89,8 @@ class RodentRefreshmentGUI(QWidget):
         right_layout = QVBoxLayout(right_widget)
         self.right_layout = right_layout
         
-        # Create Run/Stop section first
+        # Create Run/Stop section with login system for access control
+        # Security: RunStopSection gates controls behind login status
         self.run_stop_section = RunStopSection(
             self.run_program,
             self.stop_program,
@@ -97,7 +98,8 @@ class RodentRefreshmentGUI(QWidget):
             self.system_controller,
             database_handler=self.database_handler,
             relay_handler=self.relay_handler,
-            notification_handler=self.notification_handler
+            notification_handler=self.notification_handler,
+            login_system=self.login_system
         )
         
         # Tab widget
