@@ -430,9 +430,10 @@ class ScheduleProgressTracker(QWidget):
     def stop(self):
         """Stop tracking and clean up"""
         if self.elapsed_timer:
-        self.elapsed_timer.stop()
+            self.elapsed_timer.stop()
         if self.auto_dismiss_timer:
             self.auto_dismiss_timer.stop()
+        self.clear_cards()
 
 
 class ScheduleProgressWidget(QWidget):
