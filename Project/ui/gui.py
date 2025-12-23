@@ -165,7 +165,7 @@ class RodentRefreshmentGUI(QWidget):
             self.settings_tab.tab_widget.currentChanged.connect(self._on_settings_subtab_changed)
         except Exception:
             pass
-
+        
         # Initialize
         self.load_animals_tab()
         self.showMaximized()

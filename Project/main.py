@@ -37,11 +37,53 @@ def _dbg(message: str):
         pass
 
 def exception_hook(exctype, value, tb):
+    """Global exception handler for uncaught exceptions outside Qt event loop."""
     msg = "".join(traceback.format_exception(exctype, value, tb))
     print(msg)
     _dbg(f"UNHANDLED EXCEPTION: {msg}")
-    sys.exit(1)
+    # Don't call sys.exit() here - let the app continue if possible
+    # sys.exit(1) was causing issues with Qt's event loop
+
 sys.excepthook = exception_hook
+
+
+class SafeQApplication(QApplication):
+    """
+    Custom QApplication that catches exceptions in Qt event handlers.
+    
+    Per Qt documentation (https://doc.qt.io/qt-5/qcoreapplication.html#notify):
+    "Future direction: This function will not be called for objects that live 
+    outside the main thread in Qt 6. Applications that need that functionality 
+    should find other solutions for their use cases."
+    
+    Per PyQt5 documentation:
+    Exceptions raised in event handlers are caught by Qt's C++ event loop before
+    reaching Python's exception handling. Override notify() to catch them.
+    
+    Reference: https://www.riverbankcomputing.com/static/Docs/PyQt5/incompatibilities.html
+    """
+    
+    def notify(self, receiver, event):
+        """
+        Override QApplication.notify() to catch exceptions in event handlers.
+        
+        This is the recommended approach per Qt and PyQt5 documentation for
+        handling exceptions that occur during event processing.
+        """
+        try:
+            return super().notify(receiver, event)
+        except Exception as e:
+            # Log the exception with full traceback
+            exc_info = sys.exc_info()
+            msg = "".join(traceback.format_exception(*exc_info))
+            
+            # Log to console and debug file
+            print(f"\n[Qt Event Handler Exception]\n{msg}")
+            _dbg(f"QT EVENT EXCEPTION: {msg}")
+            
+            # Don't crash the app - return False to indicate event not handled
+            # This allows the app to continue running
+            return False
 
 class StreamRedirector(QObject):
     message_signal = pyqtSignal(str)
@@ -391,7 +433,9 @@ def main():
         return
     socket.abort()
 
-    app = QApplication(sys.argv)
+    # Use SafeQApplication to catch exceptions in Qt event handlers
+    # Per Qt docs: https://doc.qt.io/qt-5/qcoreapplication.html#notify
+    app = SafeQApplication(sys.argv)
     # Centralized theming: create StyleManager and expose on the app for runtime toggling
     try:
         _style_manager = StyleManager(app)

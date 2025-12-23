@@ -36,7 +36,7 @@ class UserTab(QWidget):
         # Login form container - use Card component
         from ui.components.card import Card
         self.login_container = Card()
-        
+
         # Form layout for login inputs
         form_layout = QFormLayout()
         form_layout.setSpacing(12)

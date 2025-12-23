@@ -86,7 +86,7 @@ class RunStopSection(QWidget):
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
         controls_group.setLayout(self.button_layout)
-
+        
         # Schedule drop area (always visible)
         schedule_group = QGroupBox("Schedule Queue")
         schedule_layout = QVBoxLayout()
