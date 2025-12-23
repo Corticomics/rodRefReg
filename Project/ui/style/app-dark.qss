@@ -455,3 +455,31 @@ QLabel#TimeRemaining {
     background: transparent;
 }
 
+/* Schedule Progress Tracker Header */
+QFrame#TrackerHeader {
+    background-color: #2A2C2E;
+    border: 1px solid #3A3C3E;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+QLabel#ScheduleTitle {
+    font-size: 15px;
+    font-weight: bold;
+    color: #E8EAED;
+    background: transparent;
+}
+
+QLabel#ElapsedTime {
+    font-size: 13px;
+    font-weight: 500;
+    color: #B0B4BA;
+    background: transparent;
+    padding: 4px 8px;
+}
+
+QScrollArea#TrackerScrollArea {
+    background-color: transparent;
+    border: none;
+}
+

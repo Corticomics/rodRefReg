@@ -264,19 +264,20 @@ class ScheduleProgressTracker(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         
-        # Header with schedule info
+        # Header with schedule info - use objectName for QSS styling
         header_frame = QFrame()
-        header_frame.setStyleSheet("background-color: #f5f5f5; border-radius: 5px; padding: 10px;")
+        header_frame.setObjectName("TrackerHeader")
         header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(12, 8, 12, 8)
         
         self.schedule_title = QLabel()
-        self.schedule_title.setStyleSheet("font-size: 14pt; font-weight: bold; color: #333;")
+        self.schedule_title.setObjectName("ScheduleTitle")
         header_layout.addWidget(self.schedule_title)
         
         header_layout.addStretch()
         
         self.elapsed_time_label = QLabel("Elapsed: 0:00")
-        self.elapsed_time_label.setStyleSheet("font-size: 11pt; color: #666;")
+        self.elapsed_time_label.setObjectName("ElapsedTime")
         header_layout.addWidget(self.elapsed_time_label)
         
         layout.addWidget(header_frame)
@@ -285,7 +286,7 @@ class ScheduleProgressTracker(QWidget):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("background-color: transparent;")
+        scroll_area.setObjectName("TrackerScrollArea")
         
         self.cards_container = QWidget()
         self.cards_layout = QGridLayout(self.cards_container)

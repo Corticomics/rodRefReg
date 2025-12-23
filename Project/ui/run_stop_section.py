@@ -198,11 +198,21 @@ class RunStopSection(QWidget):
         """
         is_logged_in = self.login_system.is_logged_in() if self.login_system else False
         
+        # Debug logging for security diagnosis
+        print(f"[SEC] update_button_states: login_system={self.login_system is not None}, is_logged_in={is_logged_in}, job_in_progress={self.job_in_progress}")
+        
         # Buttons require both: logged in AND appropriate job state
-        self.run_button.setEnabled(is_logged_in and not self.job_in_progress)
-        self.stop_button.setEnabled(is_logged_in and self.job_in_progress)
-        self.relay_hats_button.setEnabled(is_logged_in and not self.job_in_progress)
-        self.edit_button.setEnabled(is_logged_in and self.current_schedule is not None and not self.job_in_progress)
+        run_enabled = is_logged_in and not self.job_in_progress
+        stop_enabled = is_logged_in and self.job_in_progress
+        relay_enabled = is_logged_in and not self.job_in_progress
+        edit_enabled = is_logged_in and self.current_schedule is not None and not self.job_in_progress
+        
+        print(f"[SEC] Button states: run={run_enabled}, stop={stop_enabled}, relay={relay_enabled}, edit={edit_enabled}")
+        
+        self.run_button.setEnabled(run_enabled)
+        self.stop_button.setEnabled(stop_enabled)
+        self.relay_hats_button.setEnabled(relay_enabled)
+        self.edit_button.setEnabled(edit_enabled)
         self.schedule_drop_area.setEnabled(is_logged_in)
         
         # Set appropriate tooltips
@@ -425,8 +435,8 @@ class RunStopSection(QWidget):
     def on_schedule_dropped(self, schedule):
         print(f"Schedule dropped: {schedule.name if schedule else 'None'}")
         self.current_schedule = schedule
-        self.edit_button.setEnabled(True)
-        # Use theme defaults (no inline styles)
+        # Update button states with login check instead of directly enabling
+        self.update_button_states()
 
     def on_schedule_updated(self, updated_schedule):
         self.current_schedule = updated_schedule
