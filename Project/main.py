@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
+"""
+Rodent Refreshment Regulator - Main Entry Point
+
+Optimized startup with:
+- Splash screen for immediate visual feedback
+- Progressive background initialization
+- Deferred heavy component loading
+
+References:
+- Qt Threading: https://doc.qt.io/qt-5/thread-basics.html
+- Qt Application Lifecycle: https://doc.qt.io/qt-5/qapplication.html
+"""
 import sys, os, time, traceback
 from PyQt5.QtWidgets import (QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout)
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
-from utils.volume_calculator import VolumeCalculator
-from gpio.relay_worker import RelayWorker
-from ui.gui import RodentRefreshmentGUI
-from gpio.gpio_handler import RelayHandler
-from notifications.notifications import NotificationHandler
-from settings.config import load_settings, save_settings
-from controllers.projects_controller import ProjectsController
-from models.database_handler import DatabaseHandler
-from models.login_system import LoginSystem
-from controllers.system_controller import SystemController
-from controllers.pump_controller import PumpController
-from models.relay_unit_manager import RelayUnitManager
-from ui.SettingsTab import SettingsTab
+
+# Defer heavy imports for faster startup
+# These will be imported in InitializationWorker or after splash
 from ui.style.theme import StyleManager
 
 # =============================================================================
@@ -107,39 +109,50 @@ class ControlSignals(QObject):
 control_signals = ControlSignals()
 
 # =============================================================================
-# setup() – create our global objects and UI
+# setup() – Legacy function, now handled by SplashScreen + InitializationWorker
+# Kept for backwards compatibility if called directly
 # =============================================================================
 def setup():
-    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
+    """
+    Legacy setup function - now handled by splash screen background initialization.
+    
+    This function is kept for backwards compatibility but the preferred approach
+    is to use SplashScreen with InitializationWorker for non-blocking startup.
+    """
+    global relay_handler, app_settings, gui, notification_handler, controller
+    global database_handler, login_system, system_controller
+    
+    # Import all required modules
+    from models.database_handler import DatabaseHandler
+    from controllers.system_controller import SystemController
+    from models.relay_unit_manager import RelayUnitManager
+    from gpio.gpio_handler import RelayHandler
+    from controllers.projects_controller import ProjectsController
+    from controllers.pump_controller import PumpController
+    from notifications.notifications import NotificationHandler
+    from models.login_system import LoginSystem
+    from ui.gui import RodentRefreshmentGUI
+    from ui.SettingsTab import SettingsTab
 
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
-    # Use a distinct global settings dictionary.
     app_settings = system_controller.settings
 
-    # Auto-configure solenoid settings with hardware detection (always run for best UX)
     try:
         system_controller.ensure_solenoid_defaults()
-        app_settings = system_controller.settings  # Refresh settings after auto-configuration
+        app_settings = system_controller.settings
         print(f"✓ Hardware auto-configuration completed")
     except Exception as e:
         print(f"Hardware auto-configuration failed: {e}")
-        # Continue with existing settings
 
-    # Initialize relay unit manager (mode-aware: pump vs solenoid)
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler = RelayHandler(relay_unit_manager, app_settings['num_hats'])
-    
-    # Store relay_unit_manager in app_settings for UI access
-    # Best Practice: Single source of truth for relay configuration
     app_settings['relay_unit_manager'] = relay_unit_manager
-    print(f"✓ RelayUnitManager initialized in {relay_unit_manager.get_hardware_mode()} mode with {len(relay_unit_manager.get_all_relay_units())} units")
+    print(f"✓ RelayUnitManager initialized in {relay_unit_manager.get_hardware_mode()} mode")
 
     controller = ProjectsController()
     pump_controller = PumpController(relay_handler, database_handler)
     controller.pump_controller = pump_controller
-    
-    # Store pump_controller in app_settings for UI access
     app_settings['pump_controller'] = pump_controller
 
     notification_handler = NotificationHandler(
@@ -177,11 +190,21 @@ def setup():
 # run_program() – create a new worker and thread and start it.
 # =============================================================================
 def run_program(schedule, mode, window_start, window_end):
+    """
+    Start schedule execution with optimized worker thread creation.
+    
+    Optimization: Worker creation is lightweight; heavy operations happen
+    inside the worker thread via run_cycle().
+    
+    Reference: https://doc.qt.io/qt-5/qthread.html#details
+    """
     global thread, worker, notification_handler, controller, system_controller, database_handler
+    
+    # Deferred imports for components used by worker
+    from gpio.relay_worker import RelayWorker
+    
     try:
-        print("\nDEBUG - run_program:")
-        print(f"system_controller type: {type(system_controller)}")
-        print(f"Running program with schedule: {schedule.name}, mode: {mode}")
+        print(f"\n[RUN] Starting schedule: {schedule.name}, mode: {mode}")
 
         # Build a settings dictionary from the system controller.
         worker_settings = {}
@@ -369,10 +392,16 @@ def stop_program():
 # This method is only called once (either by stop_program() or when the job completes naturally).
 
 # =============================================================================
-# change_relay_hats() and helper functions (unchanged)
+# change_relay_hats() and helper functions
 # =============================================================================
 def change_relay_hats():
+    """Update relay hat configuration at runtime."""
     global relay_handler, app_settings
+    
+    # Deferred imports
+    from models.relay_unit_manager import RelayUnitManager
+    from settings.config import save_settings
+    
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
                                         "Enter the number of relay hats:", min=1, max=8)
     if not ok:
@@ -415,9 +444,89 @@ def _update_gui_relay_units(relay_units):
     gui.projects_section.schedules_tab.layout.addLayout(gui.projects_section.schedules_tab.relay_layout)
 
 # =============================================================================
-# Main entry point
+# Main entry point with optimized startup
 # =============================================================================
+
+# Global reference for components initialized by splash screen
+_initialized_components = {}
+
+def _create_gui_from_components(components: dict):
+    """
+    Create GUI after background initialization completes.
+    
+    This is called from the main thread after InitializationWorker finishes.
+    Per Qt Documentation: All GUI operations must happen on the main thread.
+    
+    Reference: https://doc.qt.io/qt-5/thread-basics.html#gui-thread-and-worker-thread
+    """
+    global relay_handler, app_settings, gui, notification_handler, controller
+    global database_handler, login_system, system_controller
+    
+    # Import GUI components (deferred to after splash)
+    from ui.gui import RodentRefreshmentGUI
+    from ui.SettingsTab import SettingsTab
+    from gpio.relay_worker import RelayWorker
+    from utils.volume_calculator import VolumeCalculator
+    from notifications.notifications import NotificationHandler
+    from settings.config import load_settings, save_settings
+    from controllers.projects_controller import ProjectsController
+    from models.database_handler import DatabaseHandler
+    from models.login_system import LoginSystem
+    from controllers.system_controller import SystemController
+    from controllers.pump_controller import PumpController
+    from models.relay_unit_manager import RelayUnitManager
+    from gpio.gpio_handler import RelayHandler
+    
+    # Extract components from background initialization
+    database_handler = components.get('database_handler')
+    system_controller = components.get('system_controller')
+    relay_handler = components.get('relay_handler')
+    notification_handler = components.get('notification_handler')
+    login_system = components.get('login_system')
+    controller = components.get('controller')
+    
+    app_settings = system_controller.settings if system_controller else {}
+    
+    # Create the main GUI
+    gui = RodentRefreshmentGUI(
+        run_program,
+        stop_program,
+        change_relay_hats,
+        system_controller=system_controller,
+        database_handler=database_handler,
+        login_system=login_system,
+        relay_handler=relay_handler,
+        notification_handler=notification_handler
+    )
+    
+    gui.settings_tab = SettingsTab(
+        system_controller=system_controller,
+        suggest_callback=gui.suggest_settings_callback,
+        push_callback=gui.push_settings_callback,
+        save_slack_callback=gui.save_slack_credentials_callback,
+        run_stop_section=gui.run_stop_section,
+        login_system=login_system,
+        print_to_terminal=gui.print_to_terminal,
+        database_handler=database_handler
+    )
+    
+    return gui
+
+
 def main():
+    """
+    Application entry point with optimized startup sequence.
+    
+    Optimization Strategy:
+    1. Show splash screen immediately (instant visual feedback)
+    2. Initialize heavy components in background thread
+    3. Create GUI after initialization completes
+    4. Transition from splash to main window
+    
+    Reference: https://doc.qt.io/qt-5/qsplashscreen.html
+    """
+    global gui, system_controller
+    
     # Single-instance guard using QLocalServer
     instance_key = 'rrr_single_instance_v1'
     socket = QLocalSocket()
@@ -434,37 +543,109 @@ def main():
     socket.abort()
 
     # Use SafeQApplication to catch exceptions in Qt event handlers
-    # Per Qt docs: https://doc.qt.io/qt-5/qcoreapplication.html#notify
     app = SafeQApplication(sys.argv)
-    # Centralized theming: create StyleManager and expose on the app for runtime toggling
+    
+    # Apply initial theme immediately for splash screen consistency
     try:
         _style_manager = StyleManager(app)
         app.setProperty('style_manager', _style_manager)
         _style_manager.apply("light")
     except Exception:
         pass
-    # Prevent implicit quit when the last window is closed (Wayland hotplug resilience)
-    # Qt docs: QGuiApplication::quitOnLastWindowClosed
+    
+    # Prevent implicit quit
     QGuiApplication.setQuitOnLastWindowClosed(False)
     try:
-        # Also set on the instance to be absolutely explicit across platforms
-        app.setQuitOnLastWindowClosed(False)  # type: ignore[attr-defined]
+        app.setQuitOnLastWindowClosed(False)
     except Exception:
         pass
 
-    # Observe application lifecycle and screen changes
-    try:
-        QGuiApplication.instance().applicationStateChanged.connect(
-            lambda state: (print(f"[DEBUG] Application state changed: {state}"), _dbg(f"applicationStateChanged: {state}"))
-        )
-        app.lastWindowClosed.connect(lambda: (print("[DEBUG] lastWindowClosed emitted"), _dbg("lastWindowClosed emitted")))
-        # Log aboutToQuit to detect who is ending the loop
-        app.aboutToQuit.connect(lambda: (print("[DEBUG] aboutToQuit emitted"), _dbg("aboutToQuit emitted")))
-        app.screenAdded.connect(lambda scr: (print(f"[DEBUG] screenAdded: {getattr(scr, 'name', lambda: 'unknown')()}"), _dbg("screenAdded")))
-        app.screenRemoved.connect(lambda scr: (print(f"[DEBUG] screenRemoved: {getattr(scr, 'name', lambda: 'unknown')()}"), _dbg("screenRemoved")))
-    except Exception:
-        pass
-    # Global close-event logger to identify unexpected window closes
+    # Import and show splash screen immediately
+    from ui.splash_screen import SplashScreen
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()  # Force paint before heavy initialization
+    
+    # Variables to hold GUI after initialization
+    main_window = None
+    redirector = None
+    server = None
+    
+    def on_initialization_complete(components: dict):
+        """Handle completion of background initialization."""
+        nonlocal main_window, redirector, server
+        global gui, system_controller
+        
+        try:
+            # Create GUI from initialized components
+            main_window = _create_gui_from_components(components)
+            gui = main_window
+            
+            # Apply persisted theme
+            try:
+                style_mgr = app.property('style_manager')
+                if style_mgr and system_controller:
+                    desired_theme = system_controller.settings.get('theme', 'light')
+                    style_mgr.apply(desired_theme)
+            except Exception:
+                pass
+            
+            # Setup stream redirection
+            redirector = StreamRedirector()
+            redirector.message_signal.connect(gui.system_message_signal)
+            sys.stdout = redirector
+            sys.stderr = redirector
+            
+            # Check for updates (non-blocking)
+            try:
+                from ui.update_notifier import UpdateNotifier
+                UpdateNotifier.check_for_updates()
+            except Exception as e:
+                print(f"Error checking for UI updates: {e}")
+            
+            # Show main window with login overlay if not logged in
+            gui.show()
+            
+            # Show glassmorphism login if not logged in
+            if login_system and not login_system.is_logged_in():
+                _show_login_overlay(gui)
+            
+            # Setup local server for single-instance handling
+            server = QLocalServer()
+            try:
+                QLocalServer.removeServer(instance_key)
+            except Exception:
+                pass
+            server.listen(instance_key)
+            
+            def _handle_new_connection():
+                conn = server.nextPendingConnection()
+                if conn:
+                    try:
+                        conn.readAll()
+                        conn.disconnectFromServer()
+                    except Exception:
+                        pass
+                try:
+                    gui.show()
+                    gui.raise_()
+                    gui.activateWindow()
+                except Exception:
+                    pass
+            
+            server.newConnection.connect(_handle_new_connection)
+            
+        except Exception as e:
+            print(f"Error creating GUI: {e}")
+            traceback.print_exc()
+    
+    # Connect splash completion to GUI creation
+    splash.initialization_complete.connect(on_initialization_complete)
+    
+    # Start background initialization
+    splash.start_initialization()
+    
+    # Setup lifecycle logging (debug)
     try:
         from PyQt5.QtCore import QObject, QEvent
         class _CloseLogger(QObject):
@@ -472,7 +653,6 @@ def main():
                 try:
                     if event.type() == QEvent.Close:
                         name = getattr(obj, 'objectName', lambda: '')() or obj.__class__.__name__
-                        print(f"[DEBUG] Close event on: {name}")
                         _dbg(f"Close event on: {name}")
                 except Exception:
                     pass
@@ -481,59 +661,35 @@ def main():
         app.installEventFilter(_close_logger)
     except Exception:
         pass
-    setup()
-    # After settings are loaded in setup(), apply persisted theme if available
-    try:
-        style_mgr = app.property('style_manager')
-        if style_mgr:
-            desired_theme = "light"
-            try:
-                desired_theme = system_controller.settings.get('theme', 'light')  # type: ignore[name-defined]
-            except Exception:
-                pass
-            style_mgr.apply(desired_theme)
-    except Exception:
-        pass
-    redirector = StreamRedirector()
-    redirector.message_signal.connect(gui.system_message_signal)
-    sys.stdout = redirector
-    sys.stderr = redirector
     
-    # Check for UI updates
-    try:
-        from ui.update_notifier import UpdateNotifier
-        UpdateNotifier.check_for_updates()
-    except Exception as e:
-        print(f"Error checking for UI updates: {e}")
-    
-    gui.show()
-
-    # Local server to receive raise/focus requests from subsequent launches
-    server = QLocalServer()
-    try:
-        QLocalServer.removeServer(instance_key)
-    except Exception:
-        pass
-    server.listen(instance_key)
-
-    def _handle_new_connection():
-        conn = server.nextPendingConnection()
-        if conn:
-            try:
-                conn.readAll()
-                conn.disconnectFromServer()
-            except Exception:
-                pass
-        # Bring GUI to front
-        try:
-            gui.show()
-            gui.raise_()
-            gui.activateWindow()
-        except Exception:
-            pass
-
-    server.newConnection.connect(_handle_new_connection)
     sys.exit(app.exec_())
+
+
+def _show_login_overlay(parent_widget):
+    """
+    Show the glassmorphism login overlay.
+    
+    Design: Full-window frosted glass overlay inspired by iOS.
+    """
+    from ui.glassmorphism_login import GlassmorphismLoginOverlay
+    
+    overlay = GlassmorphismLoginOverlay(
+        login_system,
+        database_handler=database_handler,
+        parent=parent_widget
+    )
+    
+    def on_login_success(user_info):
+        """Handle successful login."""
+        parent_widget.on_login(user_info)
+    
+    def on_login_cancelled():
+        """Handle guest mode selection."""
+        pass  # Guest mode already set in overlay
+    
+    overlay.login_successful.connect(on_login_success)
+    overlay.login_cancelled.connect(on_login_cancelled)
+    overlay.show()
 
 if __name__ == "__main__":
     main()
