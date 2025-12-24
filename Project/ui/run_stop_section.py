@@ -232,74 +232,76 @@ class RunStopSection(QWidget):
 
     def run_program(self):
         """
-        Execute the loaded schedule.
+        Execute the loaded schedule with optimized UI feedback.
+        
+        Optimization Strategy:
+        1. Show immediate UI feedback (button disabled, "Preparing...")
+        2. Defer validation and database queries to next event loop
+        3. Update UI again before starting worker
         
         Security: Verifies login status before execution (defense in depth).
         Reference: OWASP Access Control guidelines
         """
+        # Quick validation (no database calls)
+        if self.login_system and not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Access Denied", 
+                "You must be logged in to run schedules.")
+            return
+        
+        if self.job_in_progress:
+            return
+        
+        if not self.schedule_drop_area.current_schedule:
+            QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
+            return
+        
+        # OPTIMIZATION: Immediately update UI before any heavy operations
+        # Per Qt docs: This ensures the user sees instant feedback
+        self.job_in_progress = True
+        self.run_button.setText("Preparing...")
+        self.run_button.setEnabled(False)
+        self.update_button_states()
+        QApplication.processEvents()  # Force UI repaint
+        
+        # Defer heavy validation to next event loop iteration
+        # This allows the UI to update before blocking operations
+        QTimer.singleShot(0, self._validate_and_run)
+    
+    def _validate_and_run(self):
+        """
+        Validate schedule and start execution (deferred from run_program).
+        
+        This runs after the UI has updated, providing responsive feedback.
+        """
         try:
-            # Security check: verify login status (defense in depth)
-            if self.login_system and not self.login_system.is_logged_in():
-                QMessageBox.warning(self, "Access Denied", 
-                    "You must be logged in to run schedules.")
-                return
-            
-            print("\nDEBUG - RunStopSection run_program:")
-            print(f"self.system_controller type: {type(self.system_controller)}")
-            if self.job_in_progress:
-                return
-            
-            if not self.schedule_drop_area.current_schedule:
-                QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
-                return
-            
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
             
-            # Get settings from system_controller; note we do not alter system_controller.settings here
-            worker_settings = self.system_controller.settings.copy()
-            worker_settings.update({
-                'schedule_id': schedule.schedule_id,
-                'mode': mode,
-                'window_start': schedule.start_time,
-                'window_end': schedule.end_time,
-                'water_volume': schedule.water_volume,
-                'relay_unit_assignments': schedule.relay_unit_assignments,
-                'desired_water_outputs': schedule.desired_water_outputs
-            })
+            print(f"\n[RUN] Validating schedule: {schedule.name}, mode: {mode}")
             
+            # Database queries (previously blocking the UI)
             schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
             schedule.animals = schedule_details['animal_ids']
             schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
             schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
             
+            # Validation checks
             if not schedule.animals:
-                QMessageBox.warning(self, "Invalid Schedule", "No animals assigned to this schedule")
+                self._abort_run("No animals assigned to this schedule")
                 return
-            
-            print("\nDEBUG INFO:")
-            print(f"Schedule: {schedule.__dict__}")
-            print(f"Mode: {mode}")
-            
-            print("\nSchedule Debug Info:")
-            print(f"Desired water outputs: {schedule.desired_water_outputs}")
-            print(f"Relay assignments: {schedule.relay_unit_assignments}")
             
             if mode == "Staggered":
                 if not schedule.start_time or not schedule.end_time:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "Schedule must have start and end times for staggered mode")
+                    self._abort_run("Schedule must have start and end times for staggered mode")
                     return
                 
                 if not schedule.desired_water_outputs:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "No water outputs configured for staggered mode")
+                    self._abort_run("No water outputs configured for staggered mode")
                     return
                 
                 windows = self.database_handler.get_schedule_staggered_windows(schedule.schedule_id)
                 if not windows:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "No delivery windows configured for staggered mode")
+                    self._abort_run("No delivery windows configured for staggered mode")
                     return
                 
                 schedule.window_data = windows
@@ -309,8 +311,7 @@ class RunStopSection(QWidget):
             else:  # Instant mode
                 deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
                 if not deliveries:
-                    QMessageBox.warning(self, "Invalid Schedule", 
-                        "This schedule has no instant delivery times configured")
+                    self._abort_run("This schedule has no instant delivery times configured")
                     return
                 
                 schedule.instant_deliveries = []
@@ -324,24 +325,34 @@ class RunStopSection(QWidget):
                 window_end = max(delivery_times).timestamp()
             
             if not schedule.relay_unit_assignments:
-                QMessageBox.warning(self, "Invalid Schedule", 
-                    "No relay unit assignments configured")
+                self._abort_run("No relay unit assignments configured")
                 return
             
-            self.job_in_progress = True
-            self.update_button_states()
+            # Validation passed - update UI and start execution
+            self.run_button.setText("Running...")
+            QApplication.processEvents()  # Show "Running..." before starting
             
             # Show progress tracker with Material Design cards
             self.show_progress_tracker(schedule)
             
+            # Execute program (deferred again to allow tracker to render)
             QTimer.singleShot(0, lambda: self._execute_program(
                 schedule, mode, window_start, window_end
             ))
             
         except Exception as e:
-            self.job_in_progress = False
-            self.update_button_states()
-            QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
+            self._abort_run(f"Failed to run program: {str(e)}")
+    
+    def _abort_run(self, message: str):
+        """
+        Abort run and reset UI state.
+        
+        Centralizes cleanup logic for validation failures.
+        """
+        self.job_in_progress = False
+        self.run_button.setText("Run")
+        self.update_button_states()
+        QMessageBox.warning(self, "Invalid Schedule", message)
 
     def _execute_program(self, schedule, mode, window_start, window_end):
         try:
