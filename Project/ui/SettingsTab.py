@@ -517,7 +517,7 @@ class SettingsTab(QWidget):
         
         # Header with info
         header = QLabel(
-            "<b>Calibration Manager</b><br>"
+            "<b>Valve Calibration Manager</b><br>"
             "<span style='color: #666;'>Per-valve empirical calibration for precision water delivery</span>"
         )
         header.setWordWrap(True)
