@@ -415,10 +415,10 @@ def _update_gui_relay_units(relay_units):
     gui.projects_section.schedules_tab.layout.addLayout(gui.projects_section.schedules_tab.relay_layout)
 
 # =============================================================================
-# Main entry point with optimized startup
+# Main entry point with splash screen optimization
 # =============================================================================
 
-# Flag to control whether to use splash screen (can be disabled for debugging)
+# Toggle splash screen (set to False for debugging startup issues)
 USE_SPLASH_SCREEN = True
 
 
@@ -426,13 +426,17 @@ def _create_gui_from_components(components: dict):
     """
     Create GUI after background initialization completes.
     
+    This function runs on the main thread after InitializationWorker finishes.
     Per Qt Documentation: All GUI operations must happen on the main thread.
-    This function is called from the main thread after InitializationWorker finishes.
     
     Reference: https://doc.qt.io/qt-5/thread-basics.html#gui-thread-and-worker-thread
     """
     global relay_handler, app_settings, gui, notification_handler, controller
     global database_handler, login_system, system_controller
+    
+    # Import GUI components (deferred for faster splash display)
+    from ui.gui import RodentRefreshmentGUI
+    from ui.SettingsTab import SettingsTab
     
     # Extract components from background initialization
     database_handler = components.get('database_handler')
@@ -444,7 +448,7 @@ def _create_gui_from_components(components: dict):
     
     app_settings = system_controller.settings if system_controller else {}
     
-    # Create the main GUI
+    # Create the main GUI (uses existing login UI in UserTab)
     gui = RodentRefreshmentGUI(
         run_program,
         stop_program,
@@ -472,15 +476,15 @@ def _create_gui_from_components(components: dict):
 
 def main():
     """
-    Application entry point with optimized startup sequence.
+    Application entry point with optional splash screen.
     
     Optimization Strategy:
-    1. Show splash screen immediately (instant visual feedback)
+    1. Show splash screen immediately for visual feedback
     2. Initialize heavy components in background thread
     3. Create GUI after initialization completes
-    4. Keep existing login flow (no changes to login UI)
+    4. Transition from splash to main window
     
-    Reference: https://doc.qt.io/qt-5/qsplashscreen.html
+    Set USE_SPLASH_SCREEN = False to debug without splash.
     """
     global gui, system_controller
     
@@ -498,7 +502,7 @@ def main():
         return
     socket.abort()
 
-    # Use SafeQApplication to catch exceptions in Qt event handlers
+    # Create application
     app = SafeQApplication(sys.argv)
     
     # Apply initial theme
@@ -515,8 +519,8 @@ def main():
         app.setQuitOnLastWindowClosed(False)
     except Exception:
         pass
-    
-    # Choose startup mode: with splash or without (for debugging)
+
+    # Choose startup mode
     if USE_SPLASH_SCREEN:
         _main_with_splash(app, instance_key)
     else:
@@ -527,9 +531,10 @@ def main():
 
 def _main_with_splash(app, instance_key):
     """
-    Main startup with splash screen for optimized loading.
+    Startup with splash screen for instant visual feedback.
     
-    Shows splash immediately, then initializes in background.
+    Shows splash immediately, initializes in background thread,
+    then creates GUI after initialization completes.
     """
     global gui, system_controller
     
@@ -537,79 +542,77 @@ def _main_with_splash(app, instance_key):
     from ui.splash_screen import SplashScreen
     splash = SplashScreen()
     splash.show()
-    app.processEvents()  # Force paint before initialization
+    app.processEvents()  # Force paint before any initialization
     
-    # Variables for GUI and server
-    main_window = None
-    redirector = None
-    server = None
+    # Keep references to prevent garbage collection
+    _state = {'server': None, 'redirector': None}
     
     def on_initialization_complete(components: dict):
         """Handle completion of background initialization."""
-        nonlocal main_window, redirector, server
         global gui, system_controller
         
-        try:
-            # Create GUI from initialized components
-            main_window = _create_gui_from_components(components)
-            gui = main_window
-            
-            # Apply persisted theme
+        if not components:
+            # Fallback to synchronous initialization on error
+            print("[SPLASH] Background init failed, falling back to synchronous")
+            setup()
+        else:
             try:
-                style_mgr = app.property('style_manager')
-                if style_mgr and system_controller:
-                    desired_theme = system_controller.settings.get('theme', 'light')
-                    style_mgr.apply(desired_theme)
-            except Exception:
-                pass
-            
-            # Setup stream redirection
-            redirector = StreamRedirector()
-            redirector.message_signal.connect(gui.system_message_signal)
-            sys.stdout = redirector
-            sys.stderr = redirector
-            
-            # Check for updates
-            try:
-                from ui.update_notifier import UpdateNotifier
-                UpdateNotifier.check_for_updates()
+                # Create GUI from initialized components
+                _create_gui_from_components(components)
             except Exception as e:
-                print(f"Error checking for UI updates: {e}")
-            
-            # Show main window
-            gui.show()
-            
-            # Setup local server for single-instance handling
-            server = QLocalServer()
-            try:
-                QLocalServer.removeServer(instance_key)
-            except Exception:
-                pass
-            server.listen(instance_key)
-            
-            def _handle_new_connection():
-                conn = server.nextPendingConnection()
-                if conn:
-                    try:
-                        conn.readAll()
-                        conn.disconnectFromServer()
-                    except Exception:
-                        pass
+                print(f"[SPLASH] Error creating GUI: {e}")
+                traceback.print_exc()
+                setup()  # Fallback
+        
+        # Apply persisted theme
+        try:
+            style_mgr = app.property('style_manager')
+            if style_mgr and system_controller:
+                desired_theme = system_controller.settings.get('theme', 'light')
+                style_mgr.apply(desired_theme)
+        except Exception:
+            pass
+        
+        # Setup stream redirection for System Messages panel
+        _state['redirector'] = StreamRedirector()
+        _state['redirector'].message_signal.connect(gui.system_message_signal)
+        sys.stdout = _state['redirector']
+        sys.stderr = _state['redirector']
+        
+        # Check for updates
+        try:
+            from ui.update_notifier import UpdateNotifier
+            UpdateNotifier.check_for_updates()
+        except Exception:
+            pass
+        
+        # Show main window
+        gui.show()
+        
+        # Setup single-instance server
+        _state['server'] = QLocalServer()
+        try:
+            QLocalServer.removeServer(instance_key)
+        except Exception:
+            pass
+        _state['server'].listen(instance_key)
+        
+        def _handle_new_connection():
+            conn = _state['server'].nextPendingConnection()
+            if conn:
                 try:
-                    gui.show()
-                    gui.raise_()
-                    gui.activateWindow()
+                    conn.readAll()
+                    conn.disconnectFromServer()
                 except Exception:
                     pass
-            
-            server.newConnection.connect(_handle_new_connection)
-            
-        except Exception as e:
-            print(f"Error creating GUI: {e}")
-            traceback.print_exc()
-            # Fallback to synchronous setup
-            setup()
-            gui.show()
+            try:
+                gui.show()
+                gui.raise_()
+                gui.activateWindow()
+            except Exception:
+                pass
+        
+        _state['server'].newConnection.connect(_handle_new_connection)
     
     # Connect splash completion to GUI creation
     splash.initialization_complete.connect(on_initialization_complete)
@@ -624,7 +627,7 @@ def _main_without_splash(app, instance_key):
     """
     global gui, system_controller
     
-    # Setup lifecycle logging
+    # Lifecycle logging
     try:
         from PyQt5.QtCore import QObject, QEvent
         class _CloseLogger(QObject):
@@ -663,12 +666,12 @@ def _main_without_splash(app, instance_key):
     try:
         from ui.update_notifier import UpdateNotifier
         UpdateNotifier.check_for_updates()
-    except Exception as e:
-        print(f"Error checking for UI updates: {e}")
+    except Exception:
+        pass
     
     gui.show()
     
-    # Local server setup
+    # Local server
     server = QLocalServer()
     try:
         QLocalServer.removeServer(instance_key)
