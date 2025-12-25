@@ -419,7 +419,9 @@ def _update_gui_relay_units(relay_units):
 # =============================================================================
 
 # Toggle splash screen (set to False for debugging startup issues)
-USE_SPLASH_SCREEN = True
+# TEMPORARILY DISABLED - splash screen causing hang on Raspberry Pi
+# Set to True once threading issues are resolved
+USE_SPLASH_SCREEN = False
 
 
 def _create_gui_from_components(components: dict):
@@ -538,28 +540,11 @@ def _main_with_splash(app, instance_key):
     """
     global gui, system_controller
     
-    print("[MAIN] Starting with splash screen...", flush=True)
-    
     # Import and show splash screen immediately
-    try:
-        from ui.splash_screen import SplashScreen
-        print("[MAIN] SplashScreen imported", flush=True)
-    except Exception as e:
-        print(f"[MAIN] ERROR importing SplashScreen: {e}", flush=True)
-        _main_without_splash(app, instance_key)
-        return
-    
-    try:
-        splash = SplashScreen()
-        print("[MAIN] SplashScreen created", flush=True)
-        splash.show()
-        print("[MAIN] SplashScreen shown", flush=True)
-        app.processEvents()  # Force paint before any initialization
-        print("[MAIN] processEvents done", flush=True)
-    except Exception as e:
-        print(f"[MAIN] ERROR creating/showing splash: {e}", flush=True)
-        _main_without_splash(app, instance_key)
-        return
+    from ui.splash_screen import SplashScreen
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()  # Force paint before any initialization
     
     # Keep references to prevent garbage collection
     _state = {'server': None, 'redirector': None}
@@ -568,20 +553,16 @@ def _main_with_splash(app, instance_key):
         """Handle completion of background initialization."""
         global gui, system_controller
         
-        print(f"[MAIN] on_initialization_complete called, components: {bool(components)}", flush=True)
-        
         if not components:
             # Fallback to synchronous initialization on error
-            print("[MAIN] Background init failed, falling back to synchronous", flush=True)
+            print("[SPLASH] Background init failed, falling back to synchronous")
             setup()
         else:
             try:
                 # Create GUI from initialized components
-                print("[MAIN] Creating GUI from components...", flush=True)
                 _create_gui_from_components(components)
-                print("[MAIN] GUI created successfully", flush=True)
             except Exception as e:
-                print(f"[MAIN] Error creating GUI: {e}", flush=True)
+                print(f"[SPLASH] Error creating GUI: {e}")
                 traceback.print_exc()
                 setup()  # Fallback
         
@@ -639,19 +620,7 @@ def _main_with_splash(app, instance_key):
     splash.initialization_complete.connect(on_initialization_complete)
     
     # Start background initialization
-    print("[MAIN] Starting background initialization...", flush=True)
     splash.start_initialization()
-    print("[MAIN] Background initialization started, entering event loop...", flush=True)
-    
-    # Fallback timeout: if initialization takes > 30 seconds, fall back to synchronous
-    def _timeout_fallback():
-        if not gui:
-            print("[MAIN] Initialization timeout! Falling back to synchronous mode...", flush=True)
-            splash.close()
-            setup()
-            gui.show()
-    
-    QTimer.singleShot(30000, _timeout_fallback)  # 30 second timeout
 
 
 def _main_without_splash(app, instance_key):
