@@ -46,30 +46,42 @@ class InitializationWorker(QThread):
     
     def run(self):
         """Execute initialization steps in background thread."""
+        import sys
+        # Print to stderr since stdout might be redirected
+        def _log(msg):
+            print(f"[INIT] {msg}", file=sys.__stderr__, flush=True)
+        
         try:
             # Step 1: Database (15%)
+            _log("Step 1: Connecting to database...")
             self.progress.emit(5, "Connecting to database...")
             from models.database_handler import DatabaseHandler
             self._components['database_handler'] = DatabaseHandler()
+            _log("Database connected")
             self.progress.emit(15, "Database connected")
             
             # Step 2: System Controller (30%)
+            _log("Step 2: Loading settings...")
             self.progress.emit(20, "Loading settings...")
             from controllers.system_controller import SystemController
             self._components['system_controller'] = SystemController(
                 self._components['database_handler']
             )
+            _log("Settings loaded")
             self.progress.emit(30, "Settings loaded")
             
             # Step 3: Hardware Detection (50%)
+            _log("Step 3: Detecting hardware...")
             self.progress.emit(35, "Detecting hardware...")
             try:
                 self._components['system_controller'].ensure_solenoid_defaults()
-            except Exception:
-                pass  # Non-fatal: continue with existing settings
+            except Exception as hw_err:
+                _log(f"Hardware detection warning: {hw_err}")
+            _log("Hardware configured")
             self.progress.emit(50, "Hardware configured")
             
             # Step 4: Relay System (65%)
+            _log("Step 4: Initializing relay system...")
             self.progress.emit(55, "Initializing relay system...")
             app_settings = self._components['system_controller'].settings
             
@@ -83,9 +95,11 @@ class InitializationWorker(QThread):
                 relay_unit_manager, 
                 app_settings['num_hats']
             )
+            _log("Relay system ready")
             self.progress.emit(65, "Relay system ready")
             
             # Step 5: Controllers (80%)
+            _log("Step 5: Loading controllers...")
             self.progress.emit(70, "Loading controllers...")
             from controllers.projects_controller import ProjectsController
             from controllers.pump_controller import PumpController
@@ -99,9 +113,11 @@ class InitializationWorker(QThread):
             app_settings['pump_controller'] = pump_controller
             
             self._components['controller'] = controller
+            _log("Controllers initialized")
             self.progress.emit(80, "Controllers initialized")
             
             # Step 6: Notifications (90%)
+            _log("Step 6: Setting up notifications...")
             self.progress.emit(85, "Setting up notifications...")
             from notifications.notifications import NotificationHandler
             
@@ -109,9 +125,11 @@ class InitializationWorker(QThread):
                 app_settings.get('slack_token'),
                 app_settings.get('channel_id')
             )
+            _log("Notifications ready")
             self.progress.emit(90, "Notifications ready")
             
             # Step 7: Login System (95%)
+            _log("Step 7: Preparing login system...")
             self.progress.emit(92, "Preparing login system...")
             from models.login_system import LoginSystem
             
@@ -119,15 +137,19 @@ class InitializationWorker(QThread):
             if not login_system.is_logged_in():
                 login_system.set_guest_mode()
             self._components['login_system'] = login_system
+            _log("Login system ready")
             self.progress.emit(95, "Login system ready")
             
             # Complete
+            _log("Initialization complete!")
             self.progress.emit(100, "Ready!")
             self.finished.emit(self._components)
             
         except Exception as e:
             import traceback
-            self.error.emit(f"Initialization failed: {str(e)}\n{traceback.format_exc()}")
+            err_msg = f"Initialization failed: {str(e)}\n{traceback.format_exc()}"
+            _log(f"ERROR: {err_msg}")
+            self.error.emit(err_msg)
 
 
 class SplashScreen(QWidget):
@@ -246,11 +268,17 @@ class SplashScreen(QWidget):
     
     def start_initialization(self):
         """Start background initialization."""
+        import sys
+        print("[SPLASH] Starting initialization worker...", file=sys.__stderr__, flush=True)
+        
         self._worker = InitializationWorker()
         self._worker.progress.connect(self._on_progress)
         self._worker.finished.connect(self._on_finished)
         self._worker.error.connect(self._on_error)
+        
+        print("[SPLASH] Worker signals connected, starting thread...", file=sys.__stderr__, flush=True)
         self._worker.start()
+        print("[SPLASH] Worker thread started", file=sys.__stderr__, flush=True)
     
     def _on_progress(self, percentage: int, message: str):
         """Update progress UI (called from main thread via signal)."""
