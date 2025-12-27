@@ -878,11 +878,12 @@ class Step4Review(QWidget):
     def _add_summary_row(self, label: str, value: str) -> None:
         """Add a row to the summary."""
         label_widget = QLabel(label)
-        label_widget.setStyleSheet("font-weight: 500; color: #4E5D6C;")
+        label_widget.setStyleSheet("font-weight: 500; color: #4E5D6C; font-size: 13px;")
         
         value_widget = QLabel(value)
-        value_widget.setStyleSheet("font-weight: 600; color: #1A1D1F;")
+        value_widget.setStyleSheet("font-weight: 600; color: #1A1D1F; font-size: 13px;")
         value_widget.setAlignment(Qt.AlignRight)
+        value_widget.setTextInteractionFlags(Qt.TextSelectableByMouse)
         
         self._summary_layout.addRow(label_widget, value_widget)
     
@@ -1059,54 +1060,81 @@ class ScheduleCreationWizard(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save schedule: {e}")
     
     def _create_schedule(self, config: Dict[str, Any]) -> Optional[int]:
-        """Create schedule in database using existing logic."""
+        """Create schedule in database using existing Schedule model."""
+        from models.Schedule import Schedule
+        
         params = config["parameters"]
         schedule_type = config["schedule_type"]
         animals = config["animals"]
+        animal_configs = params.get("animal_configs", {})
         
         trainer = self._login_system.get_current_trainer()
         trainer_id = trainer.get("trainer_id", 1) if trainer else 1
-        is_super = trainer.get("role") == "super" if trainer else False
+        is_super = 1 if trainer and trainer.get("role") == "super" else 0
         
-        # Build schedule data
-        if schedule_type == "staggered":
-            start_time = params.get("start_time", datetime.now())
-            end_time = params.get("end_time", datetime.now() + timedelta(hours=12))
-            
-            schedule_id = self._database_handler.add_schedule(
-                name=params["name"],
-                water_volume=params.get("water_volume", 1.0),
-                start_time=start_time.isoformat() if isinstance(start_time, datetime) else start_time,
-                end_time=end_time.isoformat() if isinstance(end_time, datetime) else end_time,
-                created_by=trainer_id,
-                is_super_user=is_super,
-                delivery_mode="staggered"
-            )
+        # Calculate overall schedule window from per-animal configs
+        all_starts = []
+        all_ends = []
+        total_volume = 0.0
+        
+        for animal_id, cfg in animal_configs.items():
+            if schedule_type == "staggered":
+                start = cfg.get("start_time", datetime.now())
+                end = cfg.get("end_time", datetime.now() + timedelta(hours=12))
+                all_starts.append(start)
+                all_ends.append(end)
+            else:
+                delivery = cfg.get("delivery_time", datetime.now())
+                all_starts.append(delivery)
+                all_ends.append(delivery)
+            total_volume += cfg.get("volume", 1.0)
+        
+        # Use earliest start and latest end as schedule bounds
+        if all_starts:
+            schedule_start = min(all_starts)
+            schedule_end = max(all_ends)
         else:
-            # Instant mode
-            delivery_time = params.get("delivery_time", datetime.now())
+            schedule_start = datetime.now()
+            schedule_end = datetime.now() + timedelta(hours=12)
+        
+        # Create Schedule object
+        schedule = Schedule(
+            schedule_id=None,  # Will be set by database
+            name=params.get("name", "Untitled Schedule"),
+            water_volume=total_volume,
+            start_time=schedule_start.isoformat() if isinstance(schedule_start, datetime) else schedule_start,
+            end_time=schedule_end.isoformat() if isinstance(schedule_end, datetime) else schedule_end,
+            created_by=trainer_id,
+            is_super_user=is_super,
+            delivery_mode=schedule_type,
+        )
+        
+        # Add animals with their individual configs
+        for animal_id in animals:
+            animal_cfg = animal_configs.get(animal_id, {})
+            volume = animal_cfg.get("volume", 1.0)
+            relay_unit_id = animal_id  # 1:1 mapping in solenoid mode
             
-            schedule_id = self._database_handler.add_schedule(
-                name=params["name"],
-                water_volume=params.get("water_volume", 1.0),
-                start_time=delivery_time.isoformat() if isinstance(delivery_time, datetime) else delivery_time,
-                end_time=delivery_time.isoformat() if isinstance(delivery_time, datetime) else delivery_time,
-                created_by=trainer_id,
-                is_super_user=is_super,
-                delivery_mode="instant"
-            )
+            schedule.add_animal(animal_id, relay_unit_id, volume)
+        
+        # Save to database
+        self._database_handler.add_schedule(schedule)
+        schedule_id = schedule.schedule_id
         
         if schedule_id:
-            # Add animal assignments
-            for animal_id in animals:
-                # Get relay unit for animal (cage = relay unit in solenoid mode)
-                relay_unit_id = animal_id  # Simple 1:1 mapping for now
-                self._database_handler.add_schedule_animal(
-                    schedule_id=schedule_id,
-                    animal_id=animal_id,
-                    relay_unit_id=relay_unit_id,
-                    desired_output=params.get("water_volume", 1.0)
-                )
+            # For instant mode, also save individual delivery times
+            if schedule_type == "instant":
+                for animal_id in animals:
+                    animal_cfg = animal_configs.get(animal_id, {})
+                    delivery_time = animal_cfg.get("delivery_time", datetime.now())
+                    volume = animal_cfg.get("volume", 1.0)
+                    
+                    self._database_handler.add_schedule_instant(
+                        schedule_id=schedule_id,
+                        animal_id=animal_id,
+                        delivery_time=delivery_time,
+                        water_volume=volume
+                    )
             
             print(f"[Wizard] Created schedule {schedule_id} with {len(animals)} animals")
         
