@@ -160,6 +160,7 @@ class Step2SelectAnimals(QWidget):
         super().__init__(parent)
         self._database_handler = database_handler
         self._selected_animals: List[int] = []
+        self._animal_data: Dict[int, Dict[str, Any]] = {}  # Full animal data by ID
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -230,6 +231,7 @@ class Step2SelectAnimals(QWidget):
     def load_animals(self, trainer_id: Optional[int] = None) -> None:
         """Load available animals from database."""
         self._animals_list.clear()
+        self._animal_data = {}
         
         try:
             if trainer_id:
@@ -240,8 +242,15 @@ class Step2SelectAnimals(QWidget):
             for animal in animals:
                 # animal is an Animal object with properties
                 animal_id = animal.animal_id
-                lab_id = animal.lab_animal_id or animal_id
+                lab_id = animal.lab_animal_id or str(animal_id)
                 name = animal.name or f"Animal {animal_id}"
+                
+                # Store full data for later retrieval
+                self._animal_data[animal_id] = {
+                    "id": animal_id,
+                    "lab_id": lab_id,
+                    "name": name,
+                }
                 
                 item = QListWidgetItem(f"{lab_id} - {name}")
                 item.setData(Qt.UserRole, animal_id)
@@ -273,6 +282,14 @@ class Step2SelectAnimals(QWidget):
         """Get list of selected animal IDs."""
         return self._selected_animals
     
+    def get_selected_animals_data(self) -> List[Dict[str, Any]]:
+        """Get full data for selected animals (id, lab_id, name)."""
+        return [
+            self._animal_data[animal_id]
+            for animal_id in self._selected_animals
+            if animal_id in self._animal_data
+        ]
+    
     def is_valid(self) -> bool:
         """Check if at least one animal is selected."""
         return len(self._selected_animals) > 0
@@ -283,7 +300,7 @@ class Step2SelectAnimals(QWidget):
 # ============================================================================
 
 class Step3ConfigureParameters(QWidget):
-    """Step 3: Configure schedule parameters (times, volumes, etc.)."""
+    """Step 3: Configure schedule parameters with per-animal settings."""
     
     parameters_changed = pyqtSignal(dict)
     
@@ -291,6 +308,9 @@ class Step3ConfigureParameters(QWidget):
         super().__init__(parent)
         self._schedule_type: str = "staggered"
         self._parameters: Dict[str, Any] = {}
+        self._selected_animals: List[Dict[str, Any]] = []  # [{id, lab_id, name}]
+        self._animal_configs: Dict[int, Dict[str, Any]] = {}  # Per-animal settings
+        self._animal_widgets: Dict[int, Dict[str, Any]] = {}  # Widget references
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -302,7 +322,7 @@ class Step3ConfigureParameters(QWidget):
         header = self._create_header(
             icon="⚙",
             title="Configure Parameters",
-            description="Set timing and volume parameters for your schedule"
+            description="Set timing and volume for each animal"
         )
         layout.addWidget(header)
         
@@ -318,8 +338,8 @@ class Step3ConfigureParameters(QWidget):
         scroll.setWidget(self._params_widget)
         layout.addWidget(scroll, 1)
         
-        # Will be populated based on schedule type
-        self._build_staggered_params()
+        # Will be populated when animals are set
+        self._build_empty_state()
     
     def _create_header(self, icon: str, title: str, description: str) -> QWidget:
         """Create step header."""
@@ -350,15 +370,41 @@ class Step3ConfigureParameters(QWidget):
         
         return container
     
+    def set_animals(self, animals: List[Dict[str, Any]]) -> None:
+        """Set selected animals for per-animal configuration."""
+        self._selected_animals = animals
+        self._animal_configs = {}
+        self._animal_widgets = {}
+        
+        # Initialize default config for each animal
+        for animal in animals:
+            animal_id = animal["id"]
+            self._animal_configs[animal_id] = {
+                "start_time": datetime.now(),
+                "end_time": datetime.now() + timedelta(hours=12),
+                "delivery_time": datetime.now() + timedelta(minutes=5),
+                "volume": 1.0,
+            }
+    
     def set_schedule_type(self, schedule_type: str) -> None:
         """Set the schedule type and rebuild parameters."""
         self._schedule_type = schedule_type
         self._clear_params()
         
-        if schedule_type == "staggered":
+        if not self._selected_animals:
+            self._build_empty_state()
+        elif schedule_type == "staggered":
             self._build_staggered_params()
         else:
             self._build_instant_params()
+    
+    def _build_empty_state(self) -> None:
+        """Show empty state when no animals selected."""
+        label = QLabel("No animals selected. Please go back and select animals.")
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet("color: #9CA3AF; font-size: 14px;")
+        self._params_layout.addWidget(label)
+        self._params_layout.addStretch()
     
     def _clear_params(self) -> None:
         """Clear existing parameter widgets."""
@@ -367,9 +413,10 @@ class Step3ConfigureParameters(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         self._parameters = {}
+        self._animal_widgets = {}
     
     def _build_staggered_params(self) -> None:
-        """Build parameter form for staggered delivery."""
+        """Build parameter form for staggered delivery with per-animal settings."""
         # Schedule Name
         name_group = QGroupBox("Schedule Name")
         name_layout = QFormLayout(name_group)
@@ -379,56 +426,144 @@ class Step3ConfigureParameters(QWidget):
         name_layout.addRow("Name:", self._name_input)
         self._params_layout.addWidget(name_group)
         
-        # Time Window
-        time_group = QGroupBox("Time Window")
-        time_layout = QFormLayout(time_group)
+        # Global Apply Section
+        global_group = QGroupBox("Quick Apply to All Animals")
+        global_layout = QHBoxLayout(global_group)
         
-        self._start_time = QDateTimeEdit()
-        self._start_time.setDateTime(QDateTime.currentDateTime())
-        self._start_time.setCalendarPopup(True)
-        self._start_time.dateTimeChanged.connect(
-            lambda dt: self._update_param("start_time", dt.toPyDateTime())
-        )
-        time_layout.addRow("Start Time:", self._start_time)
+        from PyQt5.QtWidgets import QPushButton
         
-        self._end_time = QDateTimeEdit()
-        self._end_time.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
-        self._end_time.setCalendarPopup(True)
-        self._end_time.dateTimeChanged.connect(
-            lambda dt: self._update_param("end_time", dt.toPyDateTime())
-        )
-        time_layout.addRow("End Time:", self._end_time)
+        self._global_start = QDateTimeEdit()
+        self._global_start.setDateTime(QDateTime.currentDateTime())
+        self._global_start.setCalendarPopup(True)
+        global_layout.addWidget(QLabel("Start:"))
+        global_layout.addWidget(self._global_start)
         
-        self._params_layout.addWidget(time_group)
+        self._global_end = QDateTimeEdit()
+        self._global_end.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
+        self._global_end.setCalendarPopup(True)
+        global_layout.addWidget(QLabel("End:"))
+        global_layout.addWidget(self._global_end)
         
-        # Volume Settings
-        volume_group = QGroupBox("Volume Settings")
-        volume_layout = QFormLayout(volume_group)
+        self._global_volume = QDoubleSpinBox()
+        self._global_volume.setRange(0.1, 50.0)
+        self._global_volume.setValue(1.0)
+        self._global_volume.setSuffix(" mL")
+        global_layout.addWidget(QLabel("Volume:"))
+        global_layout.addWidget(self._global_volume)
         
-        self._volume_input = QDoubleSpinBox()
-        self._volume_input.setRange(0.1, 50.0)
-        self._volume_input.setValue(1.0)
-        self._volume_input.setSuffix(" mL")
-        self._volume_input.setDecimals(2)
-        self._volume_input.valueChanged.connect(
-            lambda v: self._update_param("water_volume", v)
-        )
-        volume_layout.addRow("Total Volume per Animal:", self._volume_input)
+        apply_all_btn = QPushButton("Apply to All")
+        apply_all_btn.clicked.connect(self._apply_to_all_staggered)
+        global_layout.addWidget(apply_all_btn)
         
-        self._params_layout.addWidget(volume_group)
+        self._params_layout.addWidget(global_group)
+        
+        # Per-Animal Settings
+        animals_group = QGroupBox(f"Animal Settings ({len(self._selected_animals)} selected)")
+        animals_layout = QVBoxLayout(animals_group)
+        
+        for animal in self._selected_animals:
+            animal_id = animal["id"]
+            animal_widget = self._create_staggered_animal_row(animal)
+            animals_layout.addWidget(animal_widget)
+        
+        self._params_layout.addWidget(animals_group)
         
         # Initialize default values
         self._parameters = {
             "name": "",
-            "start_time": datetime.now(),
-            "end_time": datetime.now() + timedelta(hours=12),
-            "water_volume": 1.0,
         }
         
         self._params_layout.addStretch()
     
+    def _create_staggered_animal_row(self, animal: Dict[str, Any]) -> QWidget:
+        """Create a config row for one animal in staggered mode."""
+        animal_id = animal["id"]
+        config = self._animal_configs.get(animal_id, {})
+        
+        container = QFrame()
+        container.setObjectName("AnimalConfigRow")
+        container.setStyleSheet("""
+            QFrame#AnimalConfigRow {
+                background: #F8FAFB;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                padding: 8px;
+                margin: 4px 0;
+            }
+        """)
+        
+        layout = QHBoxLayout(container)
+        layout.setSpacing(12)
+        
+        # Animal label
+        label = QLabel(f"<b>{animal.get('lab_id', animal_id)}</b> - {animal.get('name', 'Unknown')}")
+        label.setMinimumWidth(150)
+        layout.addWidget(label)
+        
+        # Start time
+        start_dt = QDateTimeEdit()
+        start_dt.setDateTime(QDateTime.currentDateTime())
+        start_dt.setCalendarPopup(True)
+        start_dt.setMinimumWidth(160)
+        start_dt.dateTimeChanged.connect(
+            lambda dt, aid=animal_id: self._update_animal_config(aid, "start_time", dt.toPyDateTime())
+        )
+        layout.addWidget(QLabel("Start:"))
+        layout.addWidget(start_dt)
+        
+        # End time
+        end_dt = QDateTimeEdit()
+        end_dt.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
+        end_dt.setCalendarPopup(True)
+        end_dt.setMinimumWidth(160)
+        end_dt.dateTimeChanged.connect(
+            lambda dt, aid=animal_id: self._update_animal_config(aid, "end_time", dt.toPyDateTime())
+        )
+        layout.addWidget(QLabel("End:"))
+        layout.addWidget(end_dt)
+        
+        # Volume
+        volume_spin = QDoubleSpinBox()
+        volume_spin.setRange(0.1, 50.0)
+        volume_spin.setValue(config.get("volume", 1.0))
+        volume_spin.setSuffix(" mL")
+        volume_spin.setDecimals(2)
+        volume_spin.valueChanged.connect(
+            lambda v, aid=animal_id: self._update_animal_config(aid, "volume", v)
+        )
+        layout.addWidget(QLabel("Volume:"))
+        layout.addWidget(volume_spin)
+        
+        layout.addStretch()
+        
+        # Store widget references for apply-all
+        self._animal_widgets[animal_id] = {
+            "start": start_dt,
+            "end": end_dt,
+            "volume": volume_spin,
+        }
+        
+        return container
+    
+    def _apply_to_all_staggered(self) -> None:
+        """Apply global settings to all animals."""
+        start = self._global_start.dateTime().toPyDateTime()
+        end = self._global_end.dateTime().toPyDateTime()
+        volume = self._global_volume.value()
+        
+        for animal_id, widgets in self._animal_widgets.items():
+            widgets["start"].setDateTime(QDateTime(start))
+            widgets["end"].setDateTime(QDateTime(end))
+            widgets["volume"].setValue(volume)
+            
+            self._animal_configs[animal_id] = {
+                "start_time": start,
+                "end_time": end,
+                "volume": volume,
+            }
+    
     def _build_instant_params(self) -> None:
-        """Build parameter form for instant delivery."""
+        """Build parameter form for instant delivery with per-animal settings."""
         # Schedule Name
         name_group = QGroupBox("Schedule Name")
         name_layout = QFormLayout(name_group)
@@ -438,53 +573,142 @@ class Step3ConfigureParameters(QWidget):
         name_layout.addRow("Name:", self._name_input)
         self._params_layout.addWidget(name_group)
         
-        # Delivery Time
-        time_group = QGroupBox("Delivery Time")
-        time_layout = QFormLayout(time_group)
+        # Global Apply Section
+        from PyQt5.QtWidgets import QPushButton
         
-        self._delivery_time = QDateTimeEdit()
-        self._delivery_time.setDateTime(QDateTime.currentDateTime().addSecs(60))
-        self._delivery_time.setCalendarPopup(True)
-        self._delivery_time.dateTimeChanged.connect(
-            lambda dt: self._update_param("delivery_time", dt.toPyDateTime())
-        )
-        time_layout.addRow("Delivery Time:", self._delivery_time)
+        global_group = QGroupBox("Quick Apply to All Animals")
+        global_layout = QHBoxLayout(global_group)
         
-        self._params_layout.addWidget(time_group)
+        self._global_delivery_time = QDateTimeEdit()
+        self._global_delivery_time.setDateTime(QDateTime.currentDateTime().addSecs(300))
+        self._global_delivery_time.setCalendarPopup(True)
+        global_layout.addWidget(QLabel("Delivery Time:"))
+        global_layout.addWidget(self._global_delivery_time)
         
-        # Volume Settings
-        volume_group = QGroupBox("Volume Settings")
-        volume_layout = QFormLayout(volume_group)
+        self._global_volume = QDoubleSpinBox()
+        self._global_volume.setRange(0.1, 50.0)
+        self._global_volume.setValue(1.0)
+        self._global_volume.setSuffix(" mL")
+        global_layout.addWidget(QLabel("Volume:"))
+        global_layout.addWidget(self._global_volume)
         
-        self._volume_input = QDoubleSpinBox()
-        self._volume_input.setRange(0.1, 50.0)
-        self._volume_input.setValue(1.0)
-        self._volume_input.setSuffix(" mL")
-        self._volume_input.setDecimals(2)
-        self._volume_input.valueChanged.connect(
-            lambda v: self._update_param("water_volume", v)
-        )
-        volume_layout.addRow("Volume:", self._volume_input)
+        apply_all_btn = QPushButton("Apply to All")
+        apply_all_btn.clicked.connect(self._apply_to_all_instant)
+        global_layout.addWidget(apply_all_btn)
         
-        self._params_layout.addWidget(volume_group)
+        self._params_layout.addWidget(global_group)
+        
+        # Per-Animal Settings
+        animals_group = QGroupBox(f"Animal Settings ({len(self._selected_animals)} selected)")
+        animals_layout = QVBoxLayout(animals_group)
+        
+        for animal in self._selected_animals:
+            animal_widget = self._create_instant_animal_row(animal)
+            animals_layout.addWidget(animal_widget)
+        
+        self._params_layout.addWidget(animals_group)
         
         # Initialize default values
         self._parameters = {
             "name": "",
-            "delivery_time": datetime.now() + timedelta(minutes=1),
-            "water_volume": 1.0,
         }
         
         self._params_layout.addStretch()
+    
+    def _create_instant_animal_row(self, animal: Dict[str, Any]) -> QWidget:
+        """Create a config row for one animal in instant mode."""
+        animal_id = animal["id"]
+        config = self._animal_configs.get(animal_id, {})
+        
+        container = QFrame()
+        container.setObjectName("AnimalConfigRow")
+        container.setStyleSheet("""
+            QFrame#AnimalConfigRow {
+                background: #F8FAFB;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                padding: 8px;
+                margin: 4px 0;
+            }
+        """)
+        
+        layout = QHBoxLayout(container)
+        layout.setSpacing(12)
+        
+        # Animal label
+        label = QLabel(f"<b>{animal.get('lab_id', animal_id)}</b> - {animal.get('name', 'Unknown')}")
+        label.setMinimumWidth(150)
+        layout.addWidget(label)
+        
+        # Delivery time
+        delivery_dt = QDateTimeEdit()
+        delivery_dt.setDateTime(QDateTime.currentDateTime().addSecs(300))
+        delivery_dt.setCalendarPopup(True)
+        delivery_dt.setMinimumWidth(160)
+        delivery_dt.dateTimeChanged.connect(
+            lambda dt, aid=animal_id: self._update_animal_config(aid, "delivery_time", dt.toPyDateTime())
+        )
+        layout.addWidget(QLabel("Delivery Time:"))
+        layout.addWidget(delivery_dt)
+        
+        # Volume
+        volume_spin = QDoubleSpinBox()
+        volume_spin.setRange(0.1, 50.0)
+        volume_spin.setValue(config.get("volume", 1.0))
+        volume_spin.setSuffix(" mL")
+        volume_spin.setDecimals(2)
+        volume_spin.valueChanged.connect(
+            lambda v, aid=animal_id: self._update_animal_config(aid, "volume", v)
+        )
+        layout.addWidget(QLabel("Volume:"))
+        layout.addWidget(volume_spin)
+        
+        layout.addStretch()
+        
+        # Store widget references
+        self._animal_widgets[animal_id] = {
+            "delivery_time": delivery_dt,
+            "volume": volume_spin,
+        }
+        
+        return container
+    
+    def _apply_to_all_instant(self) -> None:
+        """Apply global settings to all animals for instant mode."""
+        delivery_time = self._global_delivery_time.dateTime().toPyDateTime()
+        volume = self._global_volume.value()
+        
+        for animal_id, widgets in self._animal_widgets.items():
+            widgets["delivery_time"].setDateTime(QDateTime(delivery_time))
+            widgets["volume"].setValue(volume)
+            
+            self._animal_configs[animal_id] = {
+                "delivery_time": delivery_time,
+                "volume": volume,
+            }
+    
+    def _update_animal_config(self, animal_id: int, key: str, value: Any) -> None:
+        """Update a specific animal's configuration."""
+        if animal_id not in self._animal_configs:
+            self._animal_configs[animal_id] = {}
+        self._animal_configs[animal_id][key] = value
+        self.parameters_changed.emit(self.get_parameters())
     
     def _update_param(self, key: str, value: Any) -> None:
         """Update a parameter value."""
         self._parameters[key] = value
-        self.parameters_changed.emit(self._parameters)
+        self.parameters_changed.emit(self.get_parameters())
     
     def get_parameters(self) -> Dict[str, Any]:
-        """Get all configured parameters."""
-        return self._parameters
+        """Get all configured parameters including per-animal configs."""
+        return {
+            **self._parameters,
+            "animal_configs": self._animal_configs.copy(),
+        }
+    
+    def get_animal_configs(self) -> Dict[int, Dict[str, Any]]:
+        """Get per-animal configurations."""
+        return self._animal_configs.copy()
     
     def is_valid(self) -> bool:
         """Validate parameters."""
@@ -492,11 +716,27 @@ class Step3ConfigureParameters(QWidget):
         if not name:
             return False
         
-        if self._schedule_type == "staggered":
-            start = self._parameters.get("start_time")
-            end = self._parameters.get("end_time")
-            if start and end and start >= end:
-                return False
+        # Validate we have animal configs
+        if not self._animal_configs:
+            return False
+        
+        # Validate each animal's config
+        for animal_id, config in self._animal_configs.items():
+            if self._schedule_type == "staggered":
+                start = config.get("start_time")
+                end = config.get("end_time")
+                if start and end and start >= end:
+                    return False
+                volume = config.get("volume", 0)
+                if volume <= 0:
+                    return False
+            else:  # instant
+                delivery = config.get("delivery_time")
+                if not delivery:
+                    return False
+                volume = config.get("volume", 0)
+                if volume <= 0:
+                    return False
         
         return True
 
@@ -582,7 +822,7 @@ class Step4Review(QWidget):
         self._update_summary()
     
     def _update_summary(self) -> None:
-        """Update the summary display."""
+        """Update the summary display with per-animal configurations."""
         # Clear existing
         while self._summary_layout.count():
             item = self._summary_layout.takeAt(0)
@@ -594,33 +834,46 @@ class Step4Review(QWidget):
         type_info = SCHEDULE_TYPES.get(schedule_type, {})
         self._add_summary_row("Schedule Type:", type_info.get("title", schedule_type))
         
-        # Animals
-        animals = self._config.get("animals", [])
-        self._add_summary_row("Animals:", f"{len(animals)} selected")
-        
-        # Parameters
+        # Parameters (name)
         params = self._config.get("parameters", {})
         
         if params.get("name"):
             self._add_summary_row("Name:", params["name"])
         
-        if "start_time" in params:
-            start = params["start_time"]
-            if isinstance(start, datetime):
-                self._add_summary_row("Start:", start.strftime("%Y-%m-%d %H:%M"))
+        # Per-Animal Configuration Table
+        animal_configs = params.get("animal_configs", {})
+        animals = self._config.get("animals", [])
         
-        if "end_time" in params:
-            end = params["end_time"]
-            if isinstance(end, datetime):
-                self._add_summary_row("End:", end.strftime("%Y-%m-%d %H:%M"))
+        if animal_configs:
+            self._add_summary_section("Animal Configurations")
+            
+            for animal_id, config in animal_configs.items():
+                # Format animal row
+                if schedule_type == "staggered":
+                    start = config.get("start_time")
+                    end = config.get("end_time")
+                    volume = config.get("volume", 0)
+                    
+                    start_str = start.strftime("%m/%d %H:%M") if isinstance(start, datetime) else str(start)
+                    end_str = end.strftime("%m/%d %H:%M") if isinstance(end, datetime) else str(end)
+                    
+                    value = f"{start_str} → {end_str}, {volume:.2f} mL"
+                else:  # instant
+                    delivery = config.get("delivery_time")
+                    volume = config.get("volume", 0)
+                    
+                    delivery_str = delivery.strftime("%m/%d %H:%M") if isinstance(delivery, datetime) else str(delivery)
+                    value = f"{delivery_str}, {volume:.2f} mL"
+                
+                self._add_summary_row(f"  Animal {animal_id}:", value)
         
-        if "delivery_time" in params:
-            delivery = params["delivery_time"]
-            if isinstance(delivery, datetime):
-                self._add_summary_row("Delivery:", delivery.strftime("%Y-%m-%d %H:%M"))
-        
-        if "water_volume" in params:
-            self._add_summary_row("Volume:", f"{params['water_volume']:.2f} mL")
+        self._add_summary_row("Total Animals:", f"{len(animals)} selected")
+    
+    def _add_summary_section(self, title: str) -> None:
+        """Add a section header to the summary."""
+        section = QLabel(f"<b>{title}</b>")
+        section.setStyleSheet("font-size: 13px; color: #0D9488; margin-top: 8px;")
+        self._summary_layout.addRow(section)
     
     def _add_summary_row(self, label: str, value: str) -> None:
         """Add a row to the summary."""
@@ -737,8 +990,10 @@ class ScheduleCreationWizard(QWidget):
             self._wizard.set_next_enabled(self._step2.is_valid())
         
         elif step_index == 2:
-            # Step 3: Configure params based on type
+            # Step 3: Pass selected animals and schedule type
             schedule_type = self._step1.get_selected_type()
+            selected_animals = self._step2.get_selected_animals_data()
+            self._step3.set_animals(selected_animals)
             self._step3.set_schedule_type(schedule_type or "staggered")
             self._wizard.set_next_enabled(True)  # Will validate on next
         
