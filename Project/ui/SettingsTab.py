@@ -109,7 +109,7 @@ class SettingsTab(QWidget):
         This provides immediate persistence without requiring a "Save" button.
         Settings are validated and persisted via SystemController.
         """
-        if not self.login_system.is_logged_in():
+        if not self.login_system or not self.login_system.is_logged_in():
             # Silently skip auto-save if not logged in
             return
         
@@ -725,7 +725,7 @@ class SettingsTab(QWidget):
         through Qt signals which can corrupt during dialog operations.
         """
         # Check if logged in
-        if not self.login_system.is_logged_in():
+        if not self.login_system or not self.login_system.is_logged_in():
             QMessageBox.warning(self, "Access Denied", "You must be logged in to calibrate valves.")
             return
         
@@ -878,7 +878,7 @@ class SettingsTab(QWidget):
         All users can calibrate - actions are logged to database with trainer_id.
         """
         # Check if logged in
-        if not self.login_system.is_logged_in():
+        if not self.login_system or not self.login_system.is_logged_in():
             QMessageBox.warning(self, "Access Denied", "You must be logged in.")
             return
         

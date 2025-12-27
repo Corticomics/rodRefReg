@@ -1120,14 +1120,14 @@ class ScheduleCreationWizard(QWidget):
         # Save to database using the CORRECT method for each mode
         if schedule_type == "staggered":
             # Use add_staggered_schedule which inserts into schedule_desired_outputs
-            self._database_handler.add_staggered_schedule(schedule)
-            schedule_id = schedule.schedule_id
+            # IMPORTANT: Capture the returned schedule_id (method doesn't set it on object)
+            schedule_id = self._database_handler.add_staggered_schedule(schedule)
             print(f"[Wizard] Created staggered schedule {schedule_id} with {len(animals)} animals")
             print(f"[Wizard] desired_water_outputs: {schedule.desired_water_outputs}")
         else:
             # For instant mode, use add_schedule and then add instant deliveries
             self._database_handler.add_schedule(schedule)
-            schedule_id = schedule.schedule_id
+            schedule_id = schedule.schedule_id  # add_schedule sets this on the object
             
             if schedule_id:
                 for animal_id in animals:
