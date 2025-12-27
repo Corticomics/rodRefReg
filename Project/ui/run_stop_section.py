@@ -313,8 +313,45 @@ class RunStopSection(QWidget):
                     return
                 
                 schedule.window_data = windows
-                window_start = datetime.fromisoformat(schedule.start_time).timestamp()
-                window_end = datetime.fromisoformat(schedule.end_time).timestamp()
+                
+                # Time window validation
+                now = datetime.now()
+                scheduled_start = datetime.fromisoformat(schedule.start_time)
+                scheduled_end = datetime.fromisoformat(schedule.end_time)
+                
+                # Scenario 1: Schedule entirely in the past
+                if now > scheduled_end:
+                    self._reset_run_button()
+                    QMessageBox.warning(self, "Expired Schedule", 
+                        f"This schedule ended on {scheduled_end.strftime('%Y-%m-%d %H:%M')}.\n\n"
+                        "Please create a new schedule with future times.")
+                    return
+                
+                # Scenario 2: Start time has passed but end is in future
+                if now > scheduled_start:
+                    remaining_minutes = (scheduled_end - now).total_seconds() / 60
+                    reply = QMessageBox.question(
+                        self, "Schedule Start Time Passed",
+                        f"The scheduled start time ({scheduled_start.strftime('%Y-%m-%d %H:%M')}) "
+                        f"has already passed.\n\n"
+                        f"Remaining window: {remaining_minutes:.0f} minutes until "
+                        f"{scheduled_end.strftime('%H:%M')}.\n\n"
+                        "Do you want to start the schedule now with the remaining time?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes
+                    )
+                    if reply != QMessageBox.Yes:
+                        self._reset_run_button()
+                        return
+                    
+                    # Adjust window_start to now
+                    print(f"[RUN] Adjusting window start from {scheduled_start} to {now}")
+                    window_start = now.timestamp()
+                else:
+                    # Future schedule - use original start time
+                    window_start = scheduled_start.timestamp()
+                
+                window_end = scheduled_end.timestamp()
                 
             else:  # Instant mode
                 deliveries = self.database_handler.get_schedule_instant_deliveries(schedule.schedule_id)
@@ -324,13 +361,49 @@ class RunStopSection(QWidget):
                         "This schedule has no instant delivery times configured")
                     return
                 
+                now = datetime.now()
                 schedule.instant_deliveries = []
+                past_count = 0
+                
                 for delivery in deliveries:
                     animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
                     delivery_time = datetime.fromisoformat(datetime_str)
+                    
+                    # Track past deliveries but still add them for reference
+                    if delivery_time < now:
+                        past_count += 1
+                    
                     schedule.add_instant_delivery(animal_id, delivery_time, volume, relay_unit_id)
                 
-                delivery_times = [d['datetime'] for d in schedule.instant_deliveries]
+                # Filter to only future deliveries for execution
+                future_deliveries = [d for d in schedule.instant_deliveries if d['datetime'] >= now]
+                
+                # Scenario 1: All deliveries are in the past
+                if len(future_deliveries) == 0:
+                    self._reset_run_button()
+                    QMessageBox.warning(self, "Expired Schedule", 
+                        f"All {len(schedule.instant_deliveries)} scheduled deliveries have already passed.\n\n"
+                        "Please create a new schedule with future delivery times.")
+                    return
+                
+                # Scenario 2: Some deliveries are in the past
+                if past_count > 0:
+                    reply = QMessageBox.question(
+                        self, "Some Deliveries Passed",
+                        f"{past_count} of {len(schedule.instant_deliveries)} scheduled deliveries "
+                        f"have already passed.\n\n"
+                        f"{len(future_deliveries)} deliveries will still be executed.\n\n"
+                        "Do you want to continue with the remaining deliveries?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.Yes
+                    )
+                    if reply != QMessageBox.Yes:
+                        self._reset_run_button()
+                        return
+                    
+                    print(f"[RUN] Skipping {past_count} past deliveries, executing {len(future_deliveries)}")
+                
+                delivery_times = [d['datetime'] for d in future_deliveries]
                 window_start = min(delivery_times).timestamp()
                 window_end = max(delivery_times).timestamp()
             
