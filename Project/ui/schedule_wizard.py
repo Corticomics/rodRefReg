@@ -1060,7 +1060,7 @@ class ScheduleCreationWizard(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to save schedule: {e}")
     
     def _create_schedule(self, config: Dict[str, Any]) -> Optional[int]:
-        """Create schedule in database using existing Schedule model."""
+        """Create schedule in database using existing Schedule model and correct methods."""
         from models.Schedule import Schedule
         
         params = config["parameters"]
@@ -1117,13 +1117,19 @@ class ScheduleCreationWizard(QWidget):
             
             schedule.add_animal(animal_id, relay_unit_id, volume)
         
-        # Save to database
-        self._database_handler.add_schedule(schedule)
-        schedule_id = schedule.schedule_id
-        
-        if schedule_id:
-            # For instant mode, also save individual delivery times
-            if schedule_type == "instant":
+        # Save to database using the CORRECT method for each mode
+        if schedule_type == "staggered":
+            # Use add_staggered_schedule which inserts into schedule_desired_outputs
+            self._database_handler.add_staggered_schedule(schedule)
+            schedule_id = schedule.schedule_id
+            print(f"[Wizard] Created staggered schedule {schedule_id} with {len(animals)} animals")
+            print(f"[Wizard] desired_water_outputs: {schedule.desired_water_outputs}")
+        else:
+            # For instant mode, use add_schedule and then add instant deliveries
+            self._database_handler.add_schedule(schedule)
+            schedule_id = schedule.schedule_id
+            
+            if schedule_id:
                 for animal_id in animals:
                     animal_cfg = animal_configs.get(animal_id, {})
                     delivery_time = animal_cfg.get("delivery_time", datetime.now())
@@ -1135,8 +1141,7 @@ class ScheduleCreationWizard(QWidget):
                         delivery_time=delivery_time,
                         water_volume=volume
                     )
-            
-            print(f"[Wizard] Created schedule {schedule_id} with {len(animals)} animals")
+                print(f"[Wizard] Created instant schedule {schedule_id} with {len(animals)} animals")
         
         return schedule_id
     

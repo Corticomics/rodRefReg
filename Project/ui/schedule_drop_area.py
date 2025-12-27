@@ -286,11 +286,16 @@ class ScheduleDropArea(QWidget):
                         self.schedule_table.setItem(row, 1, name_item)
                         self.schedule_table.setItem(row, 2, vol_item)
                         
-                        # Format start/end times
-                        start_time = QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss") \
-                            .toString("yyyy-MM-dd HH:mm:ss")
-                        end_time = QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss") \
-                            .toString("yyyy-MM-dd HH:mm:ss")
+                        # Format start/end times (handle with or without microseconds)
+                        try:
+                            # Try parsing with microseconds first
+                            start_dt = datetime.datetime.fromisoformat(schedule.start_time)
+                            end_dt = datetime.datetime.fromisoformat(schedule.end_time)
+                            start_time = start_dt.strftime("%Y-%m-%d %H:%M")
+                            end_time = end_dt.strftime("%Y-%m-%d %H:%M")
+                        except (ValueError, TypeError):
+                            start_time = schedule.start_time or ""
+                            end_time = schedule.end_time or ""
                             
                         start_item = QTableWidgetItem(start_time)
                         end_item = QTableWidgetItem(end_time)
