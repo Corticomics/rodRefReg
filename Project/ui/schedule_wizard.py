@@ -238,15 +238,20 @@ class Step2SelectAnimals(QWidget):
                 animals = self._database_handler.get_all_animals()
             
             for animal in animals:
-                # animal is tuple: (animal_id, name, ...)
-                animal_id = animal[0]
-                name = animal[1] if len(animal) > 1 else f"Animal {animal_id}"
+                # animal is an Animal object with properties
+                animal_id = animal.animal_id
+                lab_id = animal.lab_animal_id or animal_id
+                name = animal.name or f"Animal {animal_id}"
                 
-                item = QListWidgetItem(f"{animal_id} - {name}")
+                item = QListWidgetItem(f"{lab_id} - {name}")
                 item.setData(Qt.UserRole, animal_id)
                 self._animals_list.addItem(item)
+                
+            print(f"[Step2] Loaded {len(animals)} animals for wizard")
         except Exception as e:
             print(f"[Step2] Error loading animals: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _on_selection_changed(self) -> None:
         """Handle animal selection change."""
