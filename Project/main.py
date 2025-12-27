@@ -222,11 +222,25 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
 
-        # If a previous thread exists, quit it.
+        # Cleanup any previous thread/worker safely
         global thread, worker
         if thread is not None:
-            thread.quit()
-            thread.wait()
+            try:
+                # Check if thread is still a valid Qt object before accessing
+                if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
+                    if thread.isRunning():
+                        thread.quit()
+                        thread.wait(5000)  # 5 second timeout
+            except RuntimeError:
+                # Thread was already deleted, ignore
+                pass
+            thread = None
+        
+        if worker is not None:
+            try:
+                worker = None  # Clear reference, let deleteLater handle cleanup
+            except RuntimeError:
+                pass
 
         thread = QThread()
         if not isinstance(system_controller, QObject):
@@ -306,25 +320,45 @@ def run_program(schedule, mode, window_start, window_end):
 def cleanup():
     global thread, worker
     print("[DEBUG] Starting cleanup process")
-    # Only proceed if the worker is not running.
-    if worker and worker._is_running:
-        print("[DEBUG] Worker still running, waiting for completion")
-        return
+    
     try:
+        # Only proceed if the worker is not running.
+        if worker:
+            try:
+                if hasattr(worker, '_is_running') and worker._is_running:
+                    print("[DEBUG] Worker still running, waiting for completion")
+                    return
+            except RuntimeError:
+                # Worker was already deleted
+                pass
+        
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        # Do not call worker.stop() again if it has already been stopped.
+        
+        # Clear worker reference (deleteLater handles actual cleanup)
         worker = None
-        if thread is not None and thread.isRunning():
-            thread.quit()
-            thread.wait()
+        
+        # Safely handle thread cleanup
+        if thread is not None:
+            try:
+                if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
+                    if thread.isRunning():
+                        thread.quit()
+                        thread.wait(5000)
+            except RuntimeError:
+                # Thread was already deleted
+                pass
         thread = None
+        
         # Reset the UI (only once)
-        gui.run_stop_section.reset_ui()
+        if gui and hasattr(gui, 'run_stop_section'):
+            gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
         print(f"[ERROR] Unexpected error during cleanup: {e}")
+        import traceback
+        traceback.print_exc()
 
 # =============================================================================
 # stop_program() – called when the user clicks "Stop."
@@ -333,24 +367,39 @@ def stop_program():
     global thread, worker, relay_handler
     try:
         print("[DEBUG] Starting stop sequence")
+        
+        # Safely request worker stop
         if worker:
-            # Emit a queued stop so QTimers are stopped from the owning thread
-            control_signals.stop_requested.emit()
-            print("[DEBUG] Worker stop() called")
-        if thread and thread.isRunning():
-            if not thread.wait(2000):
-                print("[DEBUG] Thread timeout - forcing termination")
-                thread.terminate()
-            thread.wait()
-            print("[DEBUG] Thread stopped")
+            try:
+                control_signals.stop_requested.emit()
+                print("[DEBUG] Worker stop() called")
+            except RuntimeError:
+                print("[DEBUG] Worker already deleted")
+        
+        # Safely handle thread stop
+        if thread is not None:
+            try:
+                if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
+                    if thread.isRunning():
+                        if not thread.wait(2000):
+                            print("[DEBUG] Thread timeout - forcing termination")
+                            thread.terminate()
+                        thread.wait()
+                        print("[DEBUG] Thread stopped")
+            except RuntimeError:
+                print("[DEBUG] Thread already deleted")
+        
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
+        
         # We do not explicitly call cleanup() here; it will be called by worker.finished.
         print("[DEBUG] Stop sequence completed successfully")
         return True
     except Exception as e:
         print(f"[ERROR] Stop sequence failed: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # =============================================================================
