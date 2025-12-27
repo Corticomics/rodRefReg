@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdi
 from PyQt5.QtCore import QDateTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from .schedule_drop_area import ScheduleDropArea
 from .edit_schedule_dialog import EditScheduleDialog
-from .ScheduleProgressTracker import ScheduleProgressTracker
 from gpio.relay_worker import RelayWorker
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication
@@ -119,25 +118,11 @@ class RunStopSection(QWidget):
         left_layout.addWidget(controls_group)
         left_layout.addWidget(schedule_group)
         
-        # === RIGHT PANE: Real-Time Monitoring ===
-        right_pane = QWidget()
-        right_layout = QVBoxLayout(right_pane)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        # Execution Monitor moved to gui.py (Terminal/Monitor tab interface)
+        # This section now contains only controls and schedule queue
         
-        # Progress tracker (always visible, starts empty)
-        monitor_group = QGroupBox("Execution Monitor")
-        monitor_layout = QVBoxLayout()
-        monitor_layout.setContentsMargins(12, 12, 12, 12)
-        self.progress_tracker = ScheduleProgressTracker()
-        self.progress_tracker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        monitor_layout.addWidget(self.progress_tracker)
-        monitor_group.setLayout(monitor_layout)
-        
-        right_layout.addWidget(monitor_group)
-        
-        # Add panes to main layout (60/40 split)
-        self.layout.addWidget(left_pane, 60)   # 60% for queue
-        self.layout.addWidget(right_pane, 40)  # 40% for monitoring
+        # Add left pane to main layout (full width now)
+        self.layout.addWidget(left_pane)
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.run_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -558,14 +543,17 @@ class RunStopSection(QWidget):
         """
         Initialize progress tracker with schedule data.
         
-        Best Practices (Lab Software Pattern):
-        - No view switching - both queue and monitor visible
-        - Real-time updates in persistent right pane
-        - Follows LabVIEW/CellProfiler monitoring patterns
+        Architecture:
+        - Progress tracker now lives in gui.py (Terminal/Monitor tab interface)
+        - This method prepares data and delegates to parent GUI
+        
+        Best Practices:
+        - Separation of concerns: RunStopSection handles controls, GUI handles display
+        - Execution Monitor appears as tab alongside Terminal when running
         """
         print(f"\n[RunStopSection] show_progress_tracker called for: {getattr(schedule, 'name', 'Unknown')}")
         
-        # Initialize progress tracker with schedule animals
+        # Prepare schedule data
         animal_ids = schedule.animals if hasattr(schedule, 'animals') else []
         relay_assignments = schedule.relay_unit_assignments if hasattr(schedule, 'relay_unit_assignments') else {}
         desired_outputs = schedule.desired_water_outputs if hasattr(schedule, 'desired_water_outputs') else {}
@@ -592,28 +580,47 @@ class RunStopSection(QWidget):
             print(f"[RunStopSection] Mapped animal {animal_id} → cage {cage_id}, target {target_volume}ml")
         
         print(f"[RunStopSection] Final animals_data: {animals_data}")
-        print(f"[RunStopSection] Calling progress_tracker.start_schedule()...")
         
-        # Start the tracker (no view switching - it's already visible in right pane)
+        # Delegate to parent GUI to show Execution Monitor tab
         schedule_name = getattr(schedule, 'name', 'Untitled Schedule')
-        self.progress_tracker.start_schedule(schedule_name, animals_data)
-        
-        print(f"[RunStopSection] Progress tracker started successfully")
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'show_execution_monitor'):
+            parent_gui.show_execution_monitor(schedule_name, animals_data)
+            print(f"[RunStopSection] Delegated to GUI show_execution_monitor")
+        else:
+            print(f"[RunStopSection] WARNING: Parent GUI not found, progress tracker skipped")
     
     def hide_progress_tracker(self):
         """
-        Clear progress tracker after schedule completion.
+        Hide the Execution Monitor tab after schedule completion.
         
-        Note: No view switching - progress cards fade out in-place.
+        Delegates to parent GUI which handles the tab visibility.
         """
-        # Schedule cleanup of progress cards (10-second auto-dismiss)
-        QTimer.singleShot(10000, self.progress_tracker.clear_cards)
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
+            parent_gui.hide_execution_monitor()
+    
+    def _get_parent_gui(self):
+        """
+        Find the parent RodentRefreshmentGUI widget.
+        
+        Traverses widget hierarchy to find the main GUI.
+        """
+        widget = self.parent()
+        while widget is not None:
+            if widget.__class__.__name__ == 'RodentRefreshmentGUI':
+                return widget
+            widget = widget.parent()
+        return None
     
     def get_progress_tracker(self):
         """
         Provide access to progress tracker for signal connections.
         
         Returns:
-            ScheduleProgressTracker: The progress tracker instance
+            ScheduleProgressTracker: The progress tracker instance from parent GUI
         """
-        return self.progress_tracker
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'get_progress_tracker'):
+            return parent_gui.get_progress_tracker()
+        return None

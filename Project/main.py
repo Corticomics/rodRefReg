@@ -253,15 +253,21 @@ def run_program(schedule, mode, window_start, window_end):
 
         # Wire worker progress into the UI progress tracker (if available)
         # CRITICAL: Use Qt.QueuedConnection to ensure GUI updates happen in GUI thread
+        # NOTE: Progress tracker now lives in gui.py (not run_stop_section)
         try:
-            if gui and hasattr(gui, 'run_stop_section') and hasattr(gui.run_stop_section, 'progress_tracker'):
-                tracker = gui.run_stop_section.progress_tracker
+            tracker = None
+            if gui and hasattr(gui, 'get_progress_tracker'):
+                tracker = gui.get_progress_tracker()
+            elif gui and hasattr(gui, 'run_stop_section'):
+                # Fallback: try to get from run_stop_section
+                tracker = gui.run_stop_section.get_progress_tracker()
+            
+            if tracker:
                 # Volume updates: update per-animal progress
                 def _on_volume_updated(animal_id_str: str, total_ml: float):
                     try:
                         animal_id = int(animal_id_str)
                     except Exception:
-                        # Fallback: ignore bad ids
                         return
                     try:
                         tracker.update_animal_progress(animal_id, total_ml, status="Delivering")

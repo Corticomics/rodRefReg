@@ -9,6 +9,7 @@ import traceback
 from .run_stop_section import RunStopSection
 from .projects_section import ProjectsSection
 from .UserTab import UserTab
+from .ScheduleProgressTracker import ScheduleProgressTracker
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
@@ -67,12 +68,34 @@ class RodentRefreshmentGUI(QWidget):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         
-        # Terminal output
+        # === TERMINAL / EXECUTION MONITOR TABBED INTERFACE ===
+        # When schedule runs, Execution Monitor tab appears
+        self.terminal_tab_widget = QTabWidget()
+        self.terminal_tab_widget.setMinimumHeight(180)
+        
+        # Terminal tab (always visible)
+        terminal_container = QWidget()
+        terminal_layout = QVBoxLayout(terminal_container)
+        terminal_layout.setContentsMargins(0, 0, 0, 0)
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
-        self.terminal_output.setMinimumHeight(150)
-        left_layout.addWidget(self.terminal_output)
+        terminal_layout.addWidget(self.terminal_output)
+        self.terminal_tab_widget.addTab(terminal_container, "Terminal")
+        
+        # Execution Monitor tab (hidden until schedule runs)
+        monitor_container = QWidget()
+        monitor_layout = QVBoxLayout(monitor_container)
+        monitor_layout.setContentsMargins(0, 0, 0, 0)
+        self.progress_tracker = ScheduleProgressTracker()
+        self.progress_tracker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        monitor_layout.addWidget(self.progress_tracker)
+        self.execution_monitor_index = self.terminal_tab_widget.addTab(monitor_container, "Execution Monitor")
+        
+        # Hide Execution Monitor tab initially
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
+        
+        left_layout.addWidget(self.terminal_tab_widget)
         
         # Projects section with login gate
         self.projects_section = ProjectsSection(
@@ -221,6 +244,55 @@ class RodentRefreshmentGUI(QWidget):
         """Print message to terminal output"""
         if hasattr(self, 'terminal_output'):
             self.terminal_output.appendPlainText(str(message))
+    
+    def show_execution_monitor(self, schedule_name: str, animals_data: dict):
+        """
+        Show the Execution Monitor tab when a schedule starts running.
+        
+        Called by run_stop_section when schedule execution begins.
+        
+        Args:
+            schedule_name: Name of the running schedule
+            animals_data: Dict of {animal_id: {'cage_id': int, 'target_volume': float}}
+        """
+        # Make the Execution Monitor tab visible
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
+        
+        # Switch to the Execution Monitor tab
+        self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
+        
+        # Start the progress tracker
+        self.progress_tracker.start_schedule(schedule_name, animals_data)
+        
+        print(f"[GUI] Execution Monitor shown for: {schedule_name}")
+    
+    def hide_execution_monitor(self):
+        """
+        Hide the Execution Monitor tab when schedule stops/completes.
+        
+        Called by run_stop_section when schedule execution ends.
+        """
+        # Switch back to Terminal tab
+        self.terminal_tab_widget.setCurrentIndex(0)
+        
+        # Hide the Execution Monitor tab (with 10-second delay to show final state)
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(10000, self._hide_execution_monitor_tab)
+        
+        print("[GUI] Execution Monitor will hide in 10 seconds")
+    
+    def _hide_execution_monitor_tab(self):
+        """Actually hide the tab after delay."""
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
+        self.progress_tracker.clear_cards()
+    
+    def get_progress_tracker(self):
+        """
+        Provide access to progress tracker for signal connections.
+        
+        Used by main.py to connect worker signals to progress tracker.
+        """
+        return self.progress_tracker
 
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()

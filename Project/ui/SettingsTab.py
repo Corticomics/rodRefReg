@@ -58,8 +58,8 @@ class SettingsTab(QWidget):
         self.general_tab = self._create_general_tab()
         
         # Add sub-tabs to settings
-        self.tab_widget.addTab(self.hardware_pump_settings, "Hardware & Delivery")
-        self.tab_widget.addTab(self.calibration_tab, "Valve Calibration")
+        self.tab_widget.addTab(self.hardware_pump_settings, "Delivery")
+        self.tab_widget.addTab(self.calibration_tab, "Calibration")
         self.tab_widget.addTab(self.priming_control, "Priming")
         self.tab_widget.addTab(self.general_tab, "General")
         
@@ -517,7 +517,7 @@ class SettingsTab(QWidget):
         
         # Header with info
         header = QLabel(
-            "<b>Valve Calibration Manager</b><br>"
+            "<b>Calibration</b><br>"
             "<span style='color: #666;'>Per-valve empirical calibration for precision water delivery</span>"
         )
         header.setWordWrap(True)
