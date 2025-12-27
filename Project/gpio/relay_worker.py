@@ -478,7 +478,7 @@ class RelayWorker(QObject):
             if not success:
                 self.progress.emit("Failed to schedule deliveries")
                 return
-            
+                
             # CRITICAL: Cap cycle interval to prevent 32-bit signed int overflow in QTimer.singleShot
             # Qt uses 32-bit signed int for ms (max 2,147,483,647 ms ≈ 24.8 days).
             # For year-long schedules, cycle_interval can be millions of seconds.

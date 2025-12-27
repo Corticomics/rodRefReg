@@ -755,3 +755,165 @@ QSlider::sub-page:horizontal {
     background: #0D9488;
     border-radius: 3px;
 }
+
+/* ============================================
+   WIZARD COMPONENTS
+   ============================================ */
+
+/* Wizard Step Circle */
+QLabel#WizardStepCircle {
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 18px;
+    border: 2px solid #CBD5E0;
+    background: #F8FAFB;
+    color: #4E5D6C;
+}
+QLabel#WizardStepCircle[state="completed"] {
+    border-color: #0D9488;
+    background: #0D9488;
+    color: #FFFFFF;
+}
+QLabel#WizardStepCircle[state="current"] {
+    border-color: #0D9488;
+    background: #E6FFFA;
+    color: #0D9488;
+}
+QLabel#WizardStepCircle[state="pending"] {
+    border-color: #CBD5E0;
+    background: #F8FAFB;
+    color: #8492A6;
+}
+
+/* Wizard Step Title */
+QLabel#WizardStepTitle {
+    font-size: 11px;
+    color: #8492A6;
+    padding: 0 8px;
+}
+QLabel#WizardStepTitle[state="completed"] {
+    color: #0D9488;
+}
+QLabel#WizardStepTitle[state="current"] {
+    color: #1A1D1F;
+    font-weight: 600;
+}
+
+/* Wizard Connector Line */
+QFrame#WizardConnector {
+    background: #CBD5E0;
+    border: none;
+}
+QFrame#WizardConnector[state="completed"] {
+    background: #0D9488;
+}
+
+/* Wizard Separator */
+QFrame#WizardSeparator {
+    background: #E2E8F0;
+    max-height: 1px;
+}
+
+/* Wizard Navigation Buttons */
+QPushButton#WizardBackButton {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    color: #4E5D6C;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+QPushButton#WizardBackButton:hover {
+    background: #F8FAFB;
+    border-color: #CBD5E0;
+}
+QPushButton#WizardNextButton {
+    background: #0D9488;
+    border: none;
+    border-radius: 10px;
+    color: #FFFFFF;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+}
+QPushButton#WizardNextButton:hover {
+    background: #0F766E;
+}
+QPushButton#WizardNextButton:disabled {
+    background: #A0AEC0;
+    color: #F8FAFB;
+}
+
+/* ============================================
+   INTERACTIVE CARD COMPONENT
+   ============================================ */
+QFrame#InteractiveCard {
+    background: #FFFFFF;
+    border: 2px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px;
+}
+QFrame#InteractiveCard:hover {
+    border-color: #0D9488;
+    background: #F0FDFA;
+}
+QFrame#InteractiveCard[checked="true"] {
+    border-color: #0D9488;
+    background: #E6FFFA;
+}
+
+/* Card Icon */
+QLabel#CardIcon {
+    font-size: 20px;
+    color: #0D9488;
+    background: #E6FFFA;
+    border-radius: 8px;
+}
+
+/* Card Title */
+QLabel#CardTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1A1D1F;
+}
+
+/* Card Description */
+QLabel#CardDescription {
+    font-size: 13px;
+    color: #4E5D6C;
+    line-height: 1.4;
+}
+
+/* Card Badge */
+QLabel#CardBadge {
+    font-size: 11px;
+    font-weight: 500;
+    color: #0D9488;
+    background: #E6FFFA;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+/* ============================================
+   WIZARD STEP CONTENT AREA
+   ============================================ */
+QWidget#WizardStepContent {
+    background: #F8FAFB;
+    padding: 24px;
+}
+
+/* Step Header */
+QLabel#StepIcon {
+    font-size: 24px;
+    color: #0D9488;
+}
+QLabel#StepTitle {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1A1D1F;
+}
+QLabel#StepDescription {
+    font-size: 14px;
+    color: #4E5D6C;
+}

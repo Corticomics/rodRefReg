@@ -2,7 +2,8 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox,
+    QStackedWidget, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize, QThread
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont
@@ -10,7 +11,8 @@ from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
-from .available_animals_list import AvailableAnimalsList  # Import the custom list
+from .available_animals_list import AvailableAnimalsList
+from .schedule_wizard import ScheduleCreationWizard
 import traceback
 
 class SchedulesTab(QWidget):
@@ -79,6 +81,13 @@ class SchedulesTab(QWidget):
         schedules_layout.setContentsMargins(12, 12, 12, 12)
         schedules_layout.setSpacing(8)
         
+        # NEW: Create New Schedule button (opens wizard)
+        self.new_schedule_button = QPushButton("+ New Schedule (Wizard)")
+        self.new_schedule_button.setMinimumHeight(44)
+        self.new_schedule_button.setProperty("variant", "primary")
+        self.new_schedule_button.clicked.connect(self.open_schedule_wizard)
+        schedules_layout.addWidget(self.new_schedule_button)
+        
         # Schedule list widget with improved styling
         self.schedule_list = QListWidget()
         self.schedule_list.setSelectionMode(QListWidget.SingleSelection)
@@ -88,10 +97,9 @@ class SchedulesTab(QWidget):
         self.schedule_list.setDragEnabled(True)  # Enable dragging from the list
         schedules_layout.addWidget(self.schedule_list)
         
-        # Save Schedule button - the only button we'll keep
-        self.save_button = QPushButton("Save Schedule")
+        # Save Schedule button (for legacy manual assignment flow)
+        self.save_button = QPushButton("Save Current Assignments")
         self.save_button.setMinimumHeight(40)
-        self.save_button.setProperty("variant", "primary")
         self.save_button.clicked.connect(self.save_current_schedule)
         schedules_layout.addWidget(self.save_button)
         
@@ -122,6 +130,49 @@ class SchedulesTab(QWidget):
         self.assignments_cleared.connect(self.refresh)
 
         # Inherit table and scrollbar styling from app QSS (no per-widget CSS)
+    
+    def open_schedule_wizard(self):
+        """
+        Open the Schedule Creation Wizard in a dialog.
+        
+        RSO-Inspired Pattern:
+        - 4-step guided flow: Type → Animals → Parameters → Review
+        - Cleaner UX compared to drag-and-drop
+        - Signal-based completion for loose coupling
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Create New Schedule")
+        dialog.setMinimumSize(800, 600)
+        dialog.setModal(True)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create wizard
+        wizard = ScheduleCreationWizard(
+            database_handler=self.database_handler,
+            login_system=self.login_system,
+            parent=dialog
+        )
+        
+        # Connect signals
+        wizard.schedule_created.connect(lambda config: self._on_wizard_complete(config, dialog))
+        wizard.cancelled.connect(dialog.reject)
+        
+        layout.addWidget(wizard)
+        
+        dialog.exec_()
+    
+    def _on_wizard_complete(self, config: dict, dialog: QDialog) -> None:
+        """Handle successful schedule creation from wizard."""
+        dialog.accept()
+        
+        # Refresh schedule list
+        self.load_schedules()
+        
+        # Show success message
+        schedule_name = config.get("parameters", {}).get("name", "New Schedule")
+        self.print_to_terminal(f"Schedule '{schedule_name}' created successfully via wizard")
 
     def initialize_relay_units(self):
         """
