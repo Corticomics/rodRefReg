@@ -346,6 +346,10 @@ class RunStopSection(QWidget):
             # Show progress tracker with Material Design cards
             self.show_progress_tracker(schedule)
             
+            # Transition: "Starting..." → "Running" after prep completes
+            self.run_button.setText("Running")
+            QApplication.processEvents()
+            
             # Execute in next event loop iteration
             print(f"[RUN] Launching execution for {schedule.name}")
             QTimer.singleShot(0, lambda: self._execute_program(
@@ -363,10 +367,18 @@ class RunStopSection(QWidget):
         self.update_button_states()
 
     def _execute_program(self, schedule, mode, window_start, window_end):
+        """
+        Execute the schedule program via callback.
+        
+        On success: Button stays "Running" until stopped
+        On error: Reset to initial state with error message
+        """
         try:
             self.run_program_callback(schedule, mode, window_start, window_end)
         except Exception as e:
+            # Reset to initial state on error
             self.job_in_progress = False
+            self.run_button.setText("Run")
             self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
@@ -421,10 +433,17 @@ class RunStopSection(QWidget):
             self.update_button_states()
 
     def reset_ui(self):
-        """Reset UI state after schedule completion."""
+        """
+        Reset UI state after schedule completion or stop.
+        
+        Best Practice: Reset ALL button states to initial values.
+        Reference: Qt State Management - https://doc.qt.io/qt-5/qabstractbutton.html
+        """
         self.job_in_progress = False
-        self.update_button_states()
+        # Reset both button texts to initial state
+        self.run_button.setText("Run")
         self.stop_button.setText("Stop")
+        self.update_button_states()
         # No need to switch views - both panes persist
 
     def change_relay_hats(self):
