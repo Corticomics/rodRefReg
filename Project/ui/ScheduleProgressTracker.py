@@ -43,79 +43,93 @@ class MaterialCard(QFrame):
         self.delivered_volume_ml = 0.0
         self.status = "Waiting"
         
+        # Size policy for 4-column grid layout
+        from PyQt5.QtWidgets import QSizePolicy
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumWidth(150)
+        self.setMaximumWidth(250)
+        
         self._init_ui()
         self._apply_material_style()
     
     def _init_ui(self):
-        """
-        Initialize card UI with objectNames for QSS styling.
-        
-        Design Pattern: Use objectNames for static styles (QSS) and inline
-        setStyleSheet only for dynamic state changes (status colors).
-        
-        Reference: https://doc.qt.io/qt-5/stylesheet-syntax.html#selector-types
-        """
+        """Initialize card UI with compact layout for 4-column display"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)  # Compact padding for 4-column layout
-        layout.setSpacing(4)
+        layout.setContentsMargins(10, 10, 10, 10)  # Compact padding
+        layout.setSpacing(6)
         
-        # Header row: Animal info + Health indicator
+        # Header row: Animal info + Cage badge
         header_layout = QHBoxLayout()
         
-        # Animal info - use objectName for QSS styling
+        # Animal info
         self.animal_label = QLabel(f"Animal {self.animal_id}")
-        self.animal_label.setObjectName("CardTitle")
+        self.animal_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #333;")
         header_layout.addWidget(self.animal_label)
         
         header_layout.addStretch()
         
-        # Cage badge - use objectName for QSS styling
+        # Cage badge
         self.cage_badge = QLabel(f"Cage {self.cage_id}")
-        self.cage_badge.setObjectName("CageBadge")
+        self.cage_badge.setStyleSheet(
+            "background-color: #26A69A; color: white; "
+            "padding: 4px 8px; border-radius: 8px; font-weight: bold; font-size: 10px;"
+        )
         header_layout.addWidget(self.cage_badge)
         
         layout.addLayout(header_layout)
         
-        # Progress bar - use objectName for QSS styling
+        # Progress bar
         self.progress_bar = QProgressBar()
-        self.progress_bar.setObjectName("DeliveryProgress")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p%")
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                border-radius: 6px;
+                background-color: #E0E0E0;
+                height: 18px;
+                text-align: center;
+                font-size: 10px;
+            }
+            QProgressBar::chunk {
+                border-radius: 6px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                          stop:0 #26A69A, stop:1 #4DB6AC);
+            }
+        """)
         layout.addWidget(self.progress_bar)
         
         # Volume info row
         volume_layout = QHBoxLayout()
         
         self.volume_label = QLabel(f"0.000 / {self.target_volume_ml:.3f} mL")
-        self.volume_label.setObjectName("VolumeLabel")
+        self.volume_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #555;")
         volume_layout.addWidget(self.volume_label)
         
         volume_layout.addStretch()
         
-        # Status indicator - dynamic styling retained for state changes
-        self.status_label = QLabel("Waiting")
-        self.status_label.setObjectName("StatusLabel")
+        # Status indicator
+        self.status_label = QLabel("|| Waiting")
+        self.status_label.setStyleSheet("font-size: 10px; color: #757575;")
         volume_layout.addWidget(self.status_label)
         
         layout.addLayout(volume_layout)
-        
-        # Time remaining (optional, hidden initially)
-        self.time_remaining_label = QLabel()
-        self.time_remaining_label.setObjectName("TimeRemaining")
-        self.time_remaining_label.setVisible(False)
-        layout.addWidget(self.time_remaining_label)
     
     def _apply_material_style(self):
-        """
-        Apply Material Design styling via objectName.
-        
-        Styles are defined in app-light.qss and app-dark.qss for consistency.
-        Reference: https://doc.qt.io/qt-5/stylesheet-examples.html
-        """
-        self.setObjectName("MaterialCard")
+        """Apply compact Material Design card style"""
         self.setFrameShape(QFrame.Box)
+        self.setStyleSheet("""
+            MaterialCard {
+                background-color: white;
+                border-radius: 8px;
+                border: 1px solid #E0E0E0;
+            }
+            MaterialCard:hover {
+                border: 1px solid #BDBDBD;
+            }
+        """)
     
     def update_progress(self, delivered_ml, status="Delivering"):
         """Update card with new progress data"""
@@ -129,27 +143,27 @@ class MaterialCard(QFrame):
         # Update volume label
         self.volume_label.setText(f"{delivered_ml:.3f} / {self.target_volume_ml:.3f} mL")
         
-        # Update status with emoji
-        status_emoji = {
-            "Waiting": "⏸",
-            "Delivering": "▶️",
-            "Paused": "⏸",
-            "Complete": "✅",
-            "Failed": "❌"
+        # Update status with icon (ASCII for reliable display)
+        status_icons = {
+            "Waiting": "||",
+            "Delivering": ">",
+            "Paused": "||",
+            "Complete": "[OK]",
+            "Failed": "[X]"
         }
-        emoji = status_emoji.get(status, "⏸")
-        self.status_label.setText(f"{emoji} {status}")
+        icon = status_icons.get(status, "||")
+        self.status_label.setText(f"{icon} {status}")
         
         # Color code status
         status_colors = {
             "Waiting": "#757575",
-            "Delivering": "#4CAF50",
+            "Delivering": "#26A69A",
             "Paused": "#FF9800",
             "Complete": "#4CAF50",
             "Failed": "#F44336"
         }
         color = status_colors.get(status, "#757575")
-        self.status_label.setStyleSheet(f"font-size: 11pt; color: {color}; font-weight: bold;")
+        self.status_label.setStyleSheet(f"font-size: 10px; color: {color}; font-weight: bold;")
         
         # Change progress bar color based on status
         if status == "Complete":
