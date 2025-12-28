@@ -298,7 +298,7 @@ class ScheduleProgressTracker(QWidget):
         # Create cards for each animal
         row = 0
         col = 0
-        max_cols = 3  # 4 cards per row
+        max_cols = 4  # 4 cards per row
         
         for animal_id, data in animals_data.items():
             print(f"[ProgressTracker] Creating card for animal {animal_id}: cage={data['cage_id']}, target={data['target_volume']}")
