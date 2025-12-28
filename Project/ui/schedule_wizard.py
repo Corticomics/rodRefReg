@@ -768,11 +768,23 @@ class Step4Review(QWidget):
         )
         layout.addWidget(header)
         
-        # Summary card
+        # Scrollable summary area for dynamic number of animals
+        from PyQt5.QtWidgets import QScrollArea
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QScrollArea.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # Summary card inside scroll area
         summary_group = QGroupBox()
         self._summary_layout = QFormLayout(summary_group)
         self._summary_layout.setSpacing(12)
-        layout.addWidget(summary_group, 1)
+        self._summary_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self._summary_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
+        
+        scroll_area.setWidget(summary_group)
+        layout.addWidget(scroll_area, 1)
         
         # Save without running option
         from PyQt5.QtWidgets import QPushButton
@@ -870,9 +882,23 @@ class Step4Review(QWidget):
         self._add_summary_row("Total Animals:", f"{len(animals)} selected")
     
     def _add_summary_section(self, title: str) -> None:
-        """Add a section header to the summary."""
-        section = QLabel(f"<b>{title}</b>")
-        section.setStyleSheet("font-size: 13px; color: #0D9488; margin-top: 8px;")
+        """Add a section header to the summary with proper spacing."""
+        # Add spacer for visual separation
+        spacer = QLabel("")
+        spacer.setFixedHeight(8)
+        self._summary_layout.addRow(spacer)
+        
+        # Section header label - spans both columns via addRow with single widget
+        section = QLabel(title)
+        section.setStyleSheet("""
+            font-size: 13px; 
+            font-weight: 600;
+            color: #0D9488; 
+            padding-top: 4px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #E5E7EB;
+        """)
+        section.setWordWrap(False)
         self._summary_layout.addRow(section)
     
     def _add_summary_row(self, label: str, value: str) -> None:
