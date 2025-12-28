@@ -43,6 +43,10 @@ class RodentRefreshmentGUI(QWidget):
 
         # Default to guest mode
         self.current_user = None
+        
+        # Execution monitor state
+        self._schedule_running = False
+        self._hide_timer = None
 
         # Connect system message signal
         self.system_message_signal.connect(self.print_to_terminal)
@@ -281,6 +285,15 @@ class RodentRefreshmentGUI(QWidget):
             schedule_name: Name of the running schedule
             animals_data: Dict of {animal_id: {'cage_id': int, 'target_volume': float}}
         """
+        # Cancel any pending hide timer (prevents race condition)
+        if hasattr(self, '_hide_timer') and self._hide_timer is not None:
+            self._hide_timer.stop()
+            self._hide_timer = None
+            print("[GUI] Cancelled pending hide timer")
+        
+        # Mark that a schedule is running
+        self._schedule_running = True
+        
         # Make the Execution Monitor tab visible
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
         
@@ -298,19 +311,31 @@ class RodentRefreshmentGUI(QWidget):
         
         Called by run_stop_section when schedule execution ends.
         """
+        # Mark that no schedule is running
+        self._schedule_running = False
+        
         # Switch back to Terminal tab
         self.terminal_tab_widget.setCurrentIndex(0)
         
         # Hide the Execution Monitor tab (with 10-second delay to show final state)
         from PyQt5.QtCore import QTimer
-        QTimer.singleShot(10000, self._hide_execution_monitor_tab)
+        self._hide_timer = QTimer()
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self._hide_execution_monitor_tab)
+        self._hide_timer.start(10000)
         
         print("[GUI] Execution Monitor will hide in 10 seconds")
     
     def _hide_execution_monitor_tab(self):
         """Actually hide the tab after delay."""
+        # Only hide if no schedule is currently running
+        if hasattr(self, '_schedule_running') and self._schedule_running:
+            print("[GUI] Hide cancelled - new schedule is running")
+            return
+        
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
         self.progress_tracker.clear_cards()
+        self._hide_timer = None
     
     def get_progress_tracker(self):
         """
