@@ -65,8 +65,24 @@ class SettingsTab(QWidget):
         
         layout.addWidget(self.tab_widget)
         
+        # Update mode state when General tab is selected
+        self.tab_widget.currentChanged.connect(self._on_subtab_changed)
+        
         # Connect all settings widgets to auto-save (Best Practice: immediate persistence)
         self._connect_auto_save_handlers()
+    
+    def showEvent(self, event):
+        """Update mode button state when Settings tab becomes visible."""
+        super().showEvent(event)
+        # Refresh mode state in case login status changed
+        if hasattr(self, '_update_mode_button_state'):
+            self._update_mode_button_state()
+    
+    def _on_subtab_changed(self, index: int):
+        """Handle settings sub-tab changes."""
+        # If General tab is selected (index 3), refresh mode state
+        if index == 3 and hasattr(self, '_update_mode_button_state'):
+            self._update_mode_button_state()
 
     def _connect_auto_save_handlers(self):
         """
