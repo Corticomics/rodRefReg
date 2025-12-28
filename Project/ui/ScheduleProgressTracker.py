@@ -56,8 +56,8 @@ class MaterialCard(QFrame):
         Reference: https://doc.qt.io/qt-5/stylesheet-syntax.html#selector-types
         """
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(6)
+        layout.setContentsMargins(8, 8, 8, 8)  # Compact padding for 4-column layout
+        layout.setSpacing(4)
         
         # Header row: Animal info + Health indicator
         header_layout = QHBoxLayout()
@@ -247,7 +247,7 @@ class ScheduleProgressTracker(QWidget):
         
         self.cards_container = QWidget()
         self.cards_layout = QGridLayout(self.cards_container)
-        self.cards_layout.setSpacing(15)
+        self.cards_layout.setSpacing(8)  # Reduced spacing for 4 columns
         
         scroll_area.setWidget(self.cards_container)
         layout.addWidget(scroll_area)
@@ -278,7 +278,7 @@ class ScheduleProgressTracker(QWidget):
         # Create cards for each animal
         row = 0
         col = 0
-        max_cols = 3  # 3 cards per row
+        max_cols = 4  # 4 cards per row for better space usage
         
         for animal_id, data in animals_data.items():
             print(f"[ProgressTracker] Creating card for animal {animal_id}: cage={data['cage_id']}, target={data['target_volume']}")

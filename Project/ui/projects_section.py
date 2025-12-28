@@ -44,7 +44,7 @@ class ProjectsSection(QWidget):
             login_system=login_system,
             print_to_terminal=print_to_terminal
         )
-        self.tab_widget.addTab(self.wizard_tab, "✨ Wizard")
+        self.tab_widget.addTab(self.wizard_tab, "Wizard")
         
         # Refresh schedules tab when wizard creates a schedule
         self.wizard_tab.schedule_created.connect(self._on_wizard_schedule_created)

@@ -581,7 +581,7 @@ QFrame#MaterialCard:hover {
 }
 
 QLabel#CardTitle {
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 600;
     color: #F0F4F8;
     background: transparent;
@@ -590,14 +590,14 @@ QLabel#CardTitle {
 QLabel#CageBadge {
     background-color: #14B8A6;
     color: #042F2E;
-    padding: 6px 12px;
-    border-radius: 12px;
+    padding: 4px 8px;
+    border-radius: 10px;
     font-weight: 600;
-    font-size: 11px;
+    font-size: 10px;
 }
 
 QLabel#VolumeLabel {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     color: #F0F4F8;
     background: transparent;

@@ -56,14 +56,14 @@ class WizardTab(QWidget):
         header_layout.setContentsMargins(12, 8, 12, 8)
         
         # Title
-        title = QLabel("✨ New Schedule Wizard")
+        title = QLabel("New Schedule Wizard")
         title.setStyleSheet("font-size: 14px; font-weight: 600; color: #0D9488;")
         header_layout.addWidget(title)
         
         header_layout.addStretch()
         
         # Reset button
-        reset_btn = QPushButton("🔄 Start Over")
+        reset_btn = QPushButton("Start Over")
         reset_btn.setToolTip("Reset wizard to create a new schedule")
         reset_btn.clicked.connect(self._reset_wizard)
         reset_btn.setStyleSheet("""
