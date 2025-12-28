@@ -290,7 +290,7 @@ class ScheduleProgressTracker(QWidget):
         self.schedule_name = schedule_name
         self.schedule_start_time = datetime.now()
         
-        self.schedule_title.setText(f"📊 Running: {schedule_name}")
+        self.schedule_title.setText(f"Running: {schedule_name}")
         
         # Clear existing cards
         self.clear_cards()
@@ -298,7 +298,7 @@ class ScheduleProgressTracker(QWidget):
         # Create cards for each animal
         row = 0
         col = 0
-        max_cols = 4  # 4 cards per row
+        max_cols = 3  # 4 cards per row
         
         for animal_id, data in animals_data.items():
             print(f"[ProgressTracker] Creating card for animal {animal_id}: cage={data['cage_id']}, target={data['target_volume']}")
