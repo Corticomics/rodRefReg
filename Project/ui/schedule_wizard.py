@@ -41,14 +41,14 @@ SCHEDULE_TYPES = {
         "title": "Staggered Delivery",
         "description": "Distribute water evenly across a time window. "
                       "The system automatically spaces out deliveries.",
-        "icon": "⏱",
+        "icon": "[S]",
         "badge": "Recommended",
     },
     "instant": {
         "title": "Instant Delivery",
         "description": "Deliver water at specific times you define. "
                       "Full control over exact delivery moments.",
-        "icon": "⚡",
+        "icon": "[I]",
         "badge": "",
     },
 }
@@ -75,7 +75,7 @@ class Step1SelectType(QWidget):
         
         # Step header
         header = self._create_header(
-            icon="⏱",
+            icon="",
             title="Select Schedule Type",
             description="Choose how you want to deliver water to your animals"
         )
@@ -762,7 +762,7 @@ class Step4Review(QWidget):
         
         # Step header
         header = self._create_header(
-            icon="▶",
+            icon="[>]",
             title="Review & Save",
             description="Confirm your schedule settings before saving"
         )
