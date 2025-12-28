@@ -45,25 +45,26 @@ class MaterialCard(QFrame):
         
         # Size policy for 4-column grid layout
         from PyQt5.QtWidgets import QSizePolicy
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumWidth(150)
-        self.setMaximumWidth(250)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setMinimumWidth(180)
+        self.setMaximumWidth(280)
         
         self._init_ui()
         self._apply_material_style()
     
     def _init_ui(self):
-        """Initialize card UI with compact layout for 4-column display"""
+        """Initialize card UI"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)  # Compact padding
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
         
         # Header row: Animal info + Cage badge
         header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
         
         # Animal info
         self.animal_label = QLabel(f"Animal {self.animal_id}")
-        self.animal_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #333;")
+        self.animal_label.setStyleSheet("font-size: 13px; font-weight: 600; color: #1a1a1a;")
         header_layout.addWidget(self.animal_label)
         
         header_layout.addStretch()
@@ -71,8 +72,8 @@ class MaterialCard(QFrame):
         # Cage badge
         self.cage_badge = QLabel(f"Cage {self.cage_id}")
         self.cage_badge.setStyleSheet(
-            "background-color: #26A69A; color: white; "
-            "padding: 4px 8px; border-radius: 8px; font-weight: bold; font-size: 10px;"
+            "background-color: #0D9488; color: white; "
+            "padding: 5px 10px; border-radius: 10px; font-weight: 600; font-size: 11px;"
         )
         header_layout.addWidget(self.cage_badge)
         
@@ -84,50 +85,51 @@ class MaterialCard(QFrame):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p%")
+        self.progress_bar.setFixedHeight(22)
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                border: none;
-                border-radius: 6px;
-                background-color: #E0E0E0;
-                height: 18px;
+                border: 1px solid #E2E8F0;
+                border-radius: 11px;
+                background-color: #F1F5F9;
                 text-align: center;
-                font-size: 10px;
+                font-size: 11px;
+                font-weight: 500;
+                color: #475569;
             }
             QProgressBar::chunk {
-                border-radius: 6px;
+                border-radius: 10px;
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                          stop:0 #26A69A, stop:1 #4DB6AC);
+                                          stop:0 #0D9488, stop:1 #14B8A6);
             }
         """)
         layout.addWidget(self.progress_bar)
         
         # Volume info row
         volume_layout = QHBoxLayout()
+        volume_layout.setSpacing(6)
         
         self.volume_label = QLabel(f"0.000 / {self.target_volume_ml:.3f} mL")
-        self.volume_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #555;")
+        self.volume_label.setStyleSheet("font-size: 12px; font-weight: 600; color: #334155;")
         volume_layout.addWidget(self.volume_label)
         
         volume_layout.addStretch()
         
         # Status indicator
         self.status_label = QLabel("|| Waiting")
-        self.status_label.setStyleSheet("font-size: 10px; color: #757575;")
+        self.status_label.setStyleSheet("font-size: 11px; color: #64748B;")
         volume_layout.addWidget(self.status_label)
         
         layout.addLayout(volume_layout)
     
     def _apply_material_style(self):
-        """Apply compact Material Design card style"""
-        self.setFrameShape(QFrame.Box)
+        """Apply Material Design card style"""
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setLineWidth(0)
         self.setStyleSheet("""
-            MaterialCard {
-                background-color: white;
-                border-radius: 8px;
-                border: 1px solid #E0E0E0;
-            }
-            MaterialCard:hover {
-                border: 1px solid #BDBDBD;
+            QFrame {
+                background-color: #FFFFFF;
+                border: 1px solid #E2E8F0;
+                border-radius: 12px;
             }
         """)
     
@@ -156,44 +158,48 @@ class MaterialCard(QFrame):
         
         # Color code status
         status_colors = {
-            "Waiting": "#757575",
-            "Delivering": "#26A69A",
-            "Paused": "#FF9800",
-            "Complete": "#4CAF50",
-            "Failed": "#F44336"
+            "Waiting": "#64748B",
+            "Delivering": "#0D9488",
+            "Paused": "#D97706",
+            "Complete": "#059669",
+            "Failed": "#DC2626"
         }
-        color = status_colors.get(status, "#757575")
-        self.status_label.setStyleSheet(f"font-size: 10px; color: {color}; font-weight: bold;")
+        color = status_colors.get(status, "#64748B")
+        self.status_label.setStyleSheet(f"font-size: 11px; color: {color}; font-weight: 600;")
         
         # Change progress bar color based on status
         if status == "Complete":
             self.progress_bar.setStyleSheet("""
                 QProgressBar {
-                    border: none;
-                    border-radius: 10px;
-                    background-color: #E0E0E0;
-                    height: 25px;
+                    border: 1px solid #D1FAE5;
+                    border-radius: 11px;
+                    background-color: #ECFDF5;
                     text-align: center;
+                    font-size: 11px;
+                    font-weight: 500;
+                    color: #065F46;
                 }
                 QProgressBar::chunk {
                     border-radius: 10px;
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                              stop:0 #4CAF50, stop:1 #66BB6A);
+                                              stop:0 #059669, stop:1 #10B981);
                 }
             """)
         elif status == "Failed":
             self.progress_bar.setStyleSheet("""
                 QProgressBar {
-                    border: none;
-                    border-radius: 10px;
-                    background-color: #E0E0E0;
-                    height: 25px;
+                    border: 1px solid #FECACA;
+                    border-radius: 11px;
+                    background-color: #FEF2F2;
                     text-align: center;
+                    font-size: 11px;
+                    font-weight: 500;
+                    color: #991B1B;
                 }
                 QProgressBar::chunk {
                     border-radius: 10px;
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                              stop:0 #F44336, stop:1 #EF5350);
+                                              stop:0 #DC2626, stop:1 #EF4444);
                 }
             """)
     
@@ -261,7 +267,7 @@ class ScheduleProgressTracker(QWidget):
         
         self.cards_container = QWidget()
         self.cards_layout = QGridLayout(self.cards_container)
-        self.cards_layout.setSpacing(8)  # Reduced spacing for 4 columns
+        self.cards_layout.setSpacing(12)
         
         scroll_area.setWidget(self.cards_container)
         layout.addWidget(scroll_area)
@@ -292,7 +298,7 @@ class ScheduleProgressTracker(QWidget):
         # Create cards for each animal
         row = 0
         col = 0
-        max_cols = 4  # 4 cards per row for better space usage
+        max_cols = 4  # 4 cards per row
         
         for animal_id, data in animals_data.items():
             print(f"[ProgressTracker] Creating card for animal {animal_id}: cage={data['cage_id']}, target={data['target_volume']}")
