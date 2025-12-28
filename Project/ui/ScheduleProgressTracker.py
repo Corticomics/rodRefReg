@@ -60,7 +60,7 @@ class MaterialCard(QFrame):
         
         # Header row: Animal info + Cage badge
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(8)
+        header_layout.setSpacing(15)
         
         # Animal info
         self.animal_label = QLabel(f"Animal {self.animal_id}")
