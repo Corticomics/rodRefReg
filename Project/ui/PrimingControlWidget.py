@@ -452,7 +452,7 @@ class PrimingControlWidget(QWidget):
     def _on_master_state_changed(self, is_open: bool):
         """Handle master state changes from model."""
         if is_open:
-            self.master_status_label.setText("Status: OPEN ✓")
+            self.master_status_label.setText("Status: OPEN [OK]")
             self.master_status_label.setProperty("status", "open")
             self.master_status_label.style().unpolish(self.master_status_label)
             self.master_status_label.style().polish(self.master_status_label)
@@ -519,11 +519,11 @@ class PrimingControlWidget(QWidget):
     
     def _log_success(self, message: str):
         """Log success message."""
-        self._log_message(f"✓ {message}", "SUCCESS")
+        self._log_message(f"[OK] {message}", "SUCCESS")
     
     def _log_error(self, message: str):
         """Log error message."""
-        self._log_message(f"✗ {message}", "ERROR")
+        self._log_message(f"[X] {message}", "ERROR")
     
     def _log_warning(self, message: str):
         """Log warning message."""

@@ -32,7 +32,7 @@ class InteractiveCard(QFrame):
         card = InteractiveCard(
             title="Staggered Delivery",
             description="Distribute water evenly across a time window",
-            icon="⏱",
+            icon="[S]",
             badge="Recommended"
         )
         card.clicked.connect(lambda: self._select_card(card))

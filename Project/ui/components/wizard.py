@@ -120,7 +120,7 @@ class WizardProgress(QWidget):
             if i < self._current_index:
                 # Completed
                 circle.setProperty("state", "completed")
-                circle.setText("✓")
+                circle.setText("*")
                 title.setProperty("state", "completed")
             elif i == self._current_index:
                 # Current

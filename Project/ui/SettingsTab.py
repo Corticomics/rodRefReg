@@ -430,10 +430,10 @@ class SettingsTab(QWidget):
             port = self.system_controller.detect_teensy_port()
             if port:
                 self.teensy_port_edit.setText(port)
-                self.print_to_terminal(f"✓ Teensy detected on {port}")
+                self.print_to_terminal(f"[OK] Teensy detected on {port}")
                 QMessageBox.information(self, "Auto-Detect", f"Teensy found on {port}")
             else:
-                self.print_to_terminal("✗ Teensy not detected. Check USB connection.")
+                self.print_to_terminal("[X] Teensy not detected. Check USB connection.")
                 QMessageBox.warning(self, "Auto-Detect", 
                     "Teensy not found. Ensure:\n"
                     "• Teensy is connected via USB\n"
@@ -474,7 +474,7 @@ class SettingsTab(QWidget):
                             msg = json.loads(line)
                             if msg.get("type") == "pong":
                                 pong_received = True
-                                self.print_to_terminal(f"✓ Teensy connection OK on {port}")
+                                self.print_to_terminal(f"[OK] Teensy connection OK on {port}")
                                 QMessageBox.information(self, "Connection Test", 
                                     f"Teensy responded successfully!\nPort: {port}")
                                 break  # Exit loop, port closed in finally
@@ -656,7 +656,7 @@ class SettingsTab(QWidget):
             
             if cal:
                 # Calibrated - show data
-                status_item = QTableWidgetItem("✅ Calibrated")
+                status_item = QTableWidgetItem("[OK] Calibrated")
                 status_item.setForeground(QColor(0, 150, 0))
                 
                 volume_item = QTableWidgetItem(f"{cal['volume_per_pulse_ml']:.6f}")
@@ -701,7 +701,7 @@ class SettingsTab(QWidget):
                 
             else:
                 # Not calibrated - show warning
-                status_item = QTableWidgetItem("❌ Not Calibrated")
+                status_item = QTableWidgetItem("[X] Not Calibrated")
                 status_item.setForeground(QColor(200, 0, 0))
                 
                 volume_item = QTableWidgetItem("—")
@@ -819,7 +819,7 @@ class SettingsTab(QWidget):
         
         if result == QDialog.Accepted:
             # Calibration completed successfully
-            self.print_to_terminal(f"✓ Cage {cage_id} calibration completed successfully")
+            self.print_to_terminal(f"[OK] Cage {cage_id} calibration completed successfully")
             
             # Use QTimer to do ALL post-close operations
             # This ensures wizard is fully closed and event loop is stable

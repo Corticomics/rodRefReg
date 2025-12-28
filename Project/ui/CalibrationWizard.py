@@ -653,7 +653,7 @@ class CalibrationWizard(QDialog):
             
             # Step 5: Show success
             self.log("Finalizing...")
-            self.log("✓ Calibration saved successfully!")
+            self.log("[OK] Calibration saved successfully!")
             self.log(f"  Volume/pulse: {self.calibration_result['volume_per_pulse_ml']:.6f} mL")
             self.log(f"  Quality (CV): {self.calibration_result['cv_pct']:.2f}%")
             

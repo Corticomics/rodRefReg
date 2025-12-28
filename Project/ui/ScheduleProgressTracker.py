@@ -202,7 +202,7 @@ class MaterialCard(QFrame):
         if seconds > 0:
             minutes = int(seconds // 60)
             secs = int(seconds % 60)
-            self.time_remaining_label.setText(f"⏱ Est. {minutes}:{secs:02d} remaining")
+            self.time_remaining_label.setText(f"Est. {minutes}:{secs:02d} remaining")
             self.time_remaining_label.setVisible(True)
         else:
             self.time_remaining_label.setVisible(False)
