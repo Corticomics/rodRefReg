@@ -97,6 +97,10 @@ class RodentRefreshmentGUI(QWidget):
         
         left_layout.addWidget(self.terminal_tab_widget)
         
+        # Initial stretch: Projects section gets more space, Terminal is compact
+        # This is adjusted dynamically when switching to Execution Monitor
+        left_layout.setStretch(0, 1)  # Terminal area (compact by default)
+        
         # Projects section with login gate
         self.projects_section = ProjectsSection(
             self.settings,
@@ -106,6 +110,7 @@ class RodentRefreshmentGUI(QWidget):
         )
         self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
         left_layout.addWidget(self.login_gate)
+        left_layout.setStretch(1, 3)  # Projects section (expanded by default)
         
         # Right side
         right_widget = QWidget()
@@ -174,10 +179,13 @@ class RodentRefreshmentGUI(QWidget):
         # Add content layout to main layout
         main_layout.addLayout(content_layout)
         
-        # Mode toggle button at bottom
-        self.mode_toggle_button = QPushButton("Switch to Super Mode")
-        self.mode_toggle_button.clicked.connect(self.toggle_mode)
-        main_layout.addWidget(self.mode_toggle_button)
+        # Connect tab changes to dynamic layout adjustment
+        self.terminal_tab_widget.currentChanged.connect(self._on_terminal_tab_changed)
+        
+        # Store left layout reference for dynamic resizing
+        self.left_layout = left_layout
+        self.left_widget = left_widget
+        self.content_layout = content_layout
         
         # Connect signals
         self.projects_section.schedules_tab.mode_changed.connect(
@@ -228,17 +236,35 @@ class RodentRefreshmentGUI(QWidget):
         self._apply_right_stretch()
     
     def toggle_mode(self):
+        """Toggle between Normal and Super mode."""
         try:
             self.login_system.switch_mode()
             new_role = self.login_system.get_current_trainer()['role']
-            self.mode_toggle_button.setText("Switch to Normal Mode" if new_role == 'super' else "Switch to Super Mode")
             self.print_to_terminal(f"Switched to {new_role.capitalize()} Mode.")
             # Refresh animals and schedules tabs
             self.projects_section.schedules_tab.load_animals()
             self.projects_section.animals_tab.load_animals()
+            # Emit signal for SettingsTab to update button text
+            return new_role
         except Exception as e:
             self.print_to_terminal(f"Error toggling mode: {e}")
             QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
+            return None
+    
+    def _on_terminal_tab_changed(self, index: int):
+        """
+        Dynamically adjust left pane layout when switching between Terminal and Execution Monitor.
+        
+        When Execution Monitor is active, we expand the terminal section to show cards properly.
+        """
+        if index == self.execution_monitor_index:
+            # Execution Monitor selected - give it more space
+            self.left_layout.setStretch(0, 3)  # Terminal/Monitor area
+            self.left_layout.setStretch(1, 1)  # Projects section
+        else:
+            # Terminal selected - restore default proportions
+            self.left_layout.setStretch(0, 1)  # Terminal area
+            self.left_layout.setStretch(1, 3)  # Projects section
 
     def print_to_terminal(self, message):
         """Print message to terminal output"""
@@ -325,6 +351,10 @@ class RodentRefreshmentGUI(QWidget):
             # Update tab access
             self._update_tab_access()
             
+            # Update mode toggle button in settings
+            if hasattr(self.settings_tab, '_update_mode_button_state'):
+                self.settings_tab._update_mode_button_state()
+            
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
             QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
@@ -366,6 +396,10 @@ class RodentRefreshmentGUI(QWidget):
             
             # Update tab access
             self._update_tab_access()
+            
+            # Update mode toggle button in settings
+            if hasattr(self.settings_tab, '_update_mode_button_state'):
+                self.settings_tab._update_mode_button_state()
             
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")

@@ -42,7 +42,6 @@ class MaterialCard(QFrame):
         self.target_volume_ml = target_volume_ml
         self.delivered_volume_ml = 0.0
         self.status = "Waiting"
-        self.sensor_health = "Unknown"
         
         self._init_ui()
         self._apply_material_style()
@@ -57,8 +56,8 @@ class MaterialCard(QFrame):
         Reference: https://doc.qt.io/qt-5/stylesheet-syntax.html#selector-types
         """
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
         
         # Header row: Animal info + Health indicator
         header_layout = QHBoxLayout()
@@ -101,21 +100,6 @@ class MaterialCard(QFrame):
         volume_layout.addWidget(self.status_label)
         
         layout.addLayout(volume_layout)
-        
-        # Health indicators row
-        health_layout = QHBoxLayout()
-        
-        self.sensor_indicator = QLabel("Sensor: —")
-        self.sensor_indicator.setObjectName("HealthIndicator")
-        health_layout.addWidget(self.sensor_indicator)
-        
-        health_layout.addStretch()
-        
-        self.pulse_counter = QLabel("Pulses: 0")
-        self.pulse_counter.setObjectName("HealthIndicator")
-        health_layout.addWidget(self.pulse_counter)
-        
-        layout.addLayout(health_layout)
         
         # Time remaining (optional, hidden initially)
         self.time_remaining_label = QLabel()
@@ -198,33 +182,6 @@ class MaterialCard(QFrame):
                                               stop:0 #F44336, stop:1 #EF5350);
                 }
             """)
-    
-    def update_sensor_health(self, health_status):
-        """Update sensor health indicator"""
-        self.sensor_health = health_status
-        
-        health_emoji = {
-            "OK": "🟢",
-            "Warning": "🟡",
-            "Error": "🔴",
-            "Unknown": "⚪"
-        }
-        emoji = health_emoji.get(health_status, "⚪")
-        
-        health_colors = {
-            "OK": "#4CAF50",
-            "Warning": "#FF9800",
-            "Error": "#F44336",
-            "Unknown": "#999"
-        }
-        color = health_colors.get(health_status, "#999")
-        
-        self.sensor_indicator.setText(f"{emoji} Sensor: {health_status}")
-        self.sensor_indicator.setStyleSheet(f"font-size: 9pt; color: {color}; font-weight: bold;")
-    
-    def update_pulse_count(self, pulse_count):
-        """Update pulse counter"""
-        self.pulse_counter.setText(f"Pulses: {pulse_count}")
     
     def set_time_remaining(self, seconds):
         """Display estimated time remaining"""

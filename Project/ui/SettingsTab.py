@@ -1100,6 +1100,9 @@ class SettingsTab(QWidget):
         # System settings (e.g., log level) merged here for clarity
         v.addWidget(self._create_system_settings())
         
+        # User Mode Toggle (Normal/Super)
+        v.addWidget(self._create_mode_toggle())
+        
         v.addStretch()
         widget.setLayout(v)
         
@@ -1111,6 +1114,87 @@ class SettingsTab(QWidget):
         scroll.setFrameShape(QFrame.NoFrame)
         
         return scroll
+    
+    def _create_mode_toggle(self):
+        """
+        Create User Mode toggle (Normal/Super) section.
+        
+        Moved from main GUI to Settings for cleaner layout.
+        """
+        mode_group = QGroupBox("User Mode")
+        mode_layout = QVBoxLayout()
+        mode_layout.setContentsMargins(12, 12, 12, 12)
+        mode_layout.setSpacing(8)
+        
+        # Description
+        desc_label = QLabel("Switch between Normal and Super mode to access all animals/schedules.")
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: #666; font-size: 11px;")
+        mode_layout.addWidget(desc_label)
+        
+        # Mode toggle button
+        self.mode_toggle_button = QPushButton("Switch to Super Mode")
+        self.mode_toggle_button.setMinimumHeight(36)
+        self.mode_toggle_button.clicked.connect(self._toggle_mode)
+        mode_layout.addWidget(self.mode_toggle_button)
+        
+        # Current mode status
+        self.mode_status_label = QLabel("Current Mode: Normal")
+        self.mode_status_label.setStyleSheet("font-weight: bold;")
+        mode_layout.addWidget(self.mode_status_label)
+        
+        # Update button text based on current mode
+        self._update_mode_button_state()
+        
+        mode_group.setLayout(mode_layout)
+        return mode_group
+    
+    def _toggle_mode(self):
+        """Handle mode toggle from Settings tab."""
+        if not self.login_system:
+            QMessageBox.warning(self, "Not Logged In", "You must be logged in to switch modes.")
+            return
+        
+        if not self.login_system.is_logged_in():
+            QMessageBox.warning(self, "Not Logged In", "You must be logged in to switch modes.")
+            return
+        
+        try:
+            self.login_system.switch_mode()
+            self._update_mode_button_state()
+            
+            new_role = self.login_system.get_current_trainer()['role']
+            self.print_to_terminal(f"Switched to {new_role.capitalize()} Mode.")
+            
+            # Refresh animals and schedules if parent GUI is available
+            parent = self.window()
+            if hasattr(parent, 'projects_section'):
+                parent.projects_section.schedules_tab.load_animals()
+                parent.projects_section.animals_tab.load_animals()
+        except Exception as e:
+            QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred: {e}")
+    
+    def _update_mode_button_state(self):
+        """Update mode toggle button text based on current state."""
+        if not hasattr(self, 'mode_toggle_button'):
+            return
+        
+        if self.login_system and self.login_system.is_logged_in():
+            try:
+                current_role = self.login_system.get_current_trainer()['role']
+                if current_role == 'super':
+                    self.mode_toggle_button.setText("Switch to Normal Mode")
+                    self.mode_status_label.setText("Current Mode: Super")
+                else:
+                    self.mode_toggle_button.setText("Switch to Super Mode")
+                    self.mode_status_label.setText("Current Mode: Normal")
+                self.mode_toggle_button.setEnabled(True)
+            except Exception:
+                self.mode_toggle_button.setEnabled(False)
+                self.mode_status_label.setText("Current Mode: Unknown")
+        else:
+            self.mode_toggle_button.setEnabled(False)
+            self.mode_status_label.setText("Current Mode: Guest (login required)")
 
     def _get_or_create_key(self):
         key_file = "settings_key.key"
