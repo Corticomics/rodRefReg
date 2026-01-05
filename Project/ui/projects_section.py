@@ -6,13 +6,15 @@ from .animals_tab import AnimalsTab
 from .wizard_tab import WizardTab
 
 class ProjectsSection(QWidget):
-    def __init__(self, settings, print_to_terminal, database_handler, login_system):
+    def __init__(self, settings, print_to_terminal, database_handler, login_system,
+                 system_controller=None):
         super().__init__()
 
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
         self.login_system = login_system  # Store the login_system
+        self.system_controller = system_controller  # For hardware limits
 
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
@@ -25,7 +27,8 @@ class ProjectsSection(QWidget):
             settings, 
             self.print_to_terminal,
             database_handler, 
-            login_system
+            login_system,
+            system_controller=system_controller
         )
         self.tab_widget.addTab(self.schedules_tab, "Schedules")
 
@@ -42,7 +45,8 @@ class ProjectsSection(QWidget):
         self.wizard_tab = WizardTab(
             database_handler=database_handler,
             login_system=login_system,
-            print_to_terminal=print_to_terminal
+            print_to_terminal=print_to_terminal,
+            system_controller=system_controller
         )
         self.tab_widget.addTab(self.wizard_tab, "Wizard")
         

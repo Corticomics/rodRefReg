@@ -21,18 +21,26 @@ class WizardTab(QWidget):
     Provides the wizard UI embedded as a tab rather than a dialog,
     with a reset button to start fresh.
     
+    Args:
+        database_handler: Database access for animals, schedules
+        login_system: Login system for trainer info
+        print_to_terminal: Terminal output function
+        system_controller: System controller for hardware settings (optional)
+    
     Signals:
         schedule_created(dict): Emitted when a schedule is successfully created
     """
     
     schedule_created = pyqtSignal(dict)
     
-    def __init__(self, database_handler, login_system, print_to_terminal, parent=None):
+    def __init__(self, database_handler, login_system, print_to_terminal, 
+                 system_controller=None, parent=None):
         super().__init__(parent)
         
         self._database_handler = database_handler
         self._login_system = login_system
         self._print_to_terminal = print_to_terminal
+        self._system_controller = system_controller
         
         self._init_ui()
     
@@ -88,10 +96,11 @@ class WizardTab(QWidget):
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
-        # Create the wizard
+        # Create the wizard (with hardware limits from system_controller)
         self._wizard = ScheduleCreationWizard(
             database_handler=self._database_handler,
-            login_system=self._login_system
+            login_system=self._login_system,
+            system_controller=self._system_controller
         )
         
         # Connect wizard signals
@@ -134,10 +143,11 @@ class WizardTab(QWidget):
         # Find the scroll area
         scroll = self.findChild(QScrollArea)
         if scroll:
-            # Create new wizard
+            # Create new wizard (with hardware limits from system_controller)
             self._wizard = ScheduleCreationWizard(
                 database_handler=self._database_handler,
-                login_system=self._login_system
+                login_system=self._login_system,
+                system_controller=self._system_controller
             )
             self._wizard.schedule_created.connect(self._on_schedule_created)
             self._wizard.cancelled.connect(self._on_cancelled)

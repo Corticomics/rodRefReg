@@ -19,13 +19,15 @@ class SchedulesTab(QWidget):
     mode_changed = pyqtSignal(str)  # Signal to emit mode changes
     assignments_cleared = pyqtSignal()  # New signal for when assignments are cleared
 
-    def __init__(self, settings, print_to_terminal, database_handler, login_system):
+    def __init__(self, settings, print_to_terminal, database_handler, login_system, 
+                 system_controller=None):
         super().__init__()
 
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
         self.login_system = login_system
+        self.system_controller = system_controller  # For hardware limits
         self.pump_controller = settings.get('pump_controller')
         self.relay_units = {}  # Dictionary to store relay unit widgets by ID
 
@@ -148,10 +150,11 @@ class SchedulesTab(QWidget):
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Create wizard
+        # Create wizard (pass system_controller for hardware limits)
         wizard = ScheduleCreationWizard(
             database_handler=self.database_handler,
             login_system=self.login_system,
+            system_controller=self.system_controller,
             parent=dialog
         )
         

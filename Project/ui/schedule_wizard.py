@@ -9,9 +9,14 @@ Design Principles:
 
 Architecture:
 - Step 1: Select Schedule Type (Staggered vs Instant)
-- Step 2: Select Animals/Cages (multi-select from available)
+- Step 2: Select Animals/Cages (multi-select from available, limited by hardware)
 - Step 3: Configure Parameters (times, volumes, windows)
 - Step 4: Review & Save
+
+Hardware Constraints:
+- Max cages per HAT: 15 (relay 16 reserved for master solenoid)
+- Multi-HAT: 15 × num_hats total cages available
+- Validation ensures no animal assigned to master relay
 
 Reference: RSO NewSessionWizard pattern
 """
@@ -19,7 +24,7 @@ Reference: RSO NewSessionWizard pattern
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
     QGridLayout, QGroupBox, QFormLayout, QLineEdit, QSpinBox,
@@ -30,6 +35,52 @@ from PyQt5.QtCore import Qt, pyqtSignal, QTime, QDateTime
 
 from .components.wizard import WizardContainer, WizardStep
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
+
+
+# ============================================================================
+# HARDWARE LIMITS HELPER
+# ============================================================================
+
+def get_available_cages(system_controller) -> Tuple[int, int, Set[int]]:
+    """
+    Get hardware limits for cage assignment.
+    
+    Args:
+        system_controller: SystemController instance (or None for defaults)
+    
+    Returns:
+        Tuple of (max_cages, master_relay_id, valid_cage_ids_set)
+    
+    Best Practice:
+        - Single source of truth for hardware constraints
+        - Fail-safe defaults if settings unavailable
+    """
+    if system_controller is None:
+        # Default: 1 HAT, master on relay 16, cages 1-15
+        return 15, 16, set(range(1, 16))
+    
+    try:
+        settings = system_controller.settings
+        num_hats = int(settings.get('num_hats', 1))
+        master_id = int(settings.get('global_master_relay_id', 16))
+        
+        # Calculate valid cage IDs (excluding master relay)
+        valid_cages = set()
+        cage_id = 1
+        
+        for hat_index in range(num_hats):
+            base_relay = hat_index * 16
+            for relay_offset in range(1, 17):
+                relay_id = base_relay + relay_offset
+                if relay_id != master_id:
+                    valid_cages.add(cage_id)
+                    cage_id += 1
+        
+        max_cages = len(valid_cages)
+        return max_cages, master_id, valid_cages
+    except Exception as e:
+        print(f"[Wizard] Error getting hardware limits: {e}")
+        return 15, 16, set(range(1, 16))
 
 
 # ============================================================================
@@ -152,15 +203,28 @@ class Step1SelectType(QWidget):
 # ============================================================================
 
 class Step2SelectAnimals(QWidget):
-    """Step 2: Select animals/cages for the schedule."""
+    """
+    Step 2: Select animals/cages for the schedule.
+    
+    Hardware Constraints:
+    - Max selectable animals limited by available cages (15 per HAT)
+    - Cage 16 (master solenoid) is never assignable
+    - Warning shown when selection exceeds limit
+    """
     
     selection_changed = pyqtSignal(list)  # Emits list of selected animal IDs
     
-    def __init__(self, database_handler, parent: Optional[QWidget] = None):
+    def __init__(self, database_handler, parent: Optional[QWidget] = None,
+                 system_controller=None):
         super().__init__(parent)
         self._database_handler = database_handler
+        self._system_controller = system_controller
         self._selected_animals: List[int] = []
         self._animal_data: Dict[int, Dict[str, Any]] = {}  # Full animal data by ID
+        
+        # Get hardware limits
+        self._max_cages, self._master_relay, self._valid_cages = get_available_cages(system_controller)
+        
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -176,9 +240,40 @@ class Step2SelectAnimals(QWidget):
         )
         layout.addWidget(header)
         
+        # Hardware limit info
+        limit_container = QFrame()
+        limit_container.setStyleSheet("""
+            QFrame {
+                background: #FEF3C7;
+                border: 1px solid #F59E0B;
+                border-radius: 8px;
+                padding: 8px 12px;
+            }
+        """)
+        limit_layout = QHBoxLayout(limit_container)
+        limit_layout.setContentsMargins(8, 4, 8, 4)
+        
+        limit_icon = QLabel("⚠️")
+        limit_layout.addWidget(limit_icon)
+        
+        self._limit_label = QLabel(
+            f"Maximum {self._max_cages} animals can be selected "
+            f"(Relay {self._master_relay} is reserved for master solenoid)"
+        )
+        self._limit_label.setStyleSheet("color: #92400E; font-size: 12px;")
+        self._limit_label.setWordWrap(True)
+        limit_layout.addWidget(self._limit_label, 1)
+        
+        layout.addWidget(limit_container)
+        
         # Animals list with checkboxes
         list_container = QGroupBox("Available Animals")
         list_layout = QVBoxLayout(list_container)
+        
+        # Selection counter
+        self._selection_counter = QLabel("0 selected")
+        self._selection_counter.setStyleSheet("color: #6B7280; font-size: 12px;")
+        list_layout.addWidget(self._selection_counter)
         
         self._animals_list = QListWidget()
         self._animals_list.setSelectionMode(QListWidget.MultiSelection)
@@ -188,11 +283,11 @@ class Step2SelectAnimals(QWidget):
         # Select all / deselect all buttons
         btn_layout = QHBoxLayout()
         from PyQt5.QtWidgets import QPushButton
-        select_all_btn = QPushButton("Select All")
-        select_all_btn.clicked.connect(self._select_all)
+        self._select_all_btn = QPushButton(f"Select All (max {self._max_cages})")
+        self._select_all_btn.clicked.connect(self._select_all)
         deselect_all_btn = QPushButton("Deselect All")
         deselect_all_btn.clicked.connect(self._deselect_all)
-        btn_layout.addWidget(select_all_btn)
+        btn_layout.addWidget(self._select_all_btn)
         btn_layout.addWidget(deselect_all_btn)
         btn_layout.addStretch()
         list_layout.addLayout(btn_layout)
@@ -263,16 +358,56 @@ class Step2SelectAnimals(QWidget):
             traceback.print_exc()
     
     def _on_selection_changed(self) -> None:
-        """Handle animal selection change."""
-        self._selected_animals = [
+        """Handle animal selection change with limit enforcement."""
+        selected = [
             item.data(Qt.UserRole) 
             for item in self._animals_list.selectedItems()
         ]
+        
+        # Check if limit exceeded
+        if len(selected) > self._max_cages:
+            # Show warning and trim selection
+            excess = len(selected) - self._max_cages
+            QMessageBox.warning(
+                self, 
+                "Selection Limit Exceeded",
+                f"Maximum {self._max_cages} animals can be selected.\n\n"
+                f"Relay {self._master_relay} is reserved for the master solenoid "
+                f"and cannot be assigned to animals.\n\n"
+                f"Please deselect {excess} animal(s)."
+            )
+            # Keep only first max_cages animals
+            self._selected_animals = selected[:self._max_cages]
+            
+            # Update UI to reflect truncated selection (block signals to avoid recursion)
+            self._animals_list.blockSignals(True)
+            for i in range(self._animals_list.count()):
+                item = self._animals_list.item(i)
+                animal_id = item.data(Qt.UserRole)
+                item.setSelected(animal_id in self._selected_animals)
+            self._animals_list.blockSignals(False)
+        else:
+            self._selected_animals = selected
+        
+        # Update counter
+        count = len(self._selected_animals)
+        color = "#DC2626" if count > self._max_cages else ("#059669" if count > 0 else "#6B7280")
+        self._selection_counter.setText(f"{count} of {self._max_cages} max selected")
+        self._selection_counter.setStyleSheet(f"color: {color}; font-size: 12px;")
+        
         self.selection_changed.emit(self._selected_animals)
     
     def _select_all(self) -> None:
-        """Select all animals."""
-        self._animals_list.selectAll()
+        """Select up to max_cages animals (respects hardware limit)."""
+        self._animals_list.blockSignals(True)
+        self._animals_list.clearSelection()
+        
+        # Select only up to max_cages animals
+        for i in range(min(self._animals_list.count(), self._max_cages)):
+            self._animals_list.item(i).setSelected(True)
+        
+        self._animals_list.blockSignals(False)
+        self._on_selection_changed()  # Trigger update
     
     def _deselect_all(self) -> None:
         """Deselect all animals."""
@@ -926,9 +1061,18 @@ class ScheduleCreationWizard(QWidget):
     """
     Main schedule creation wizard using RSO-style 4-step pattern.
     
+    Args:
+        database_handler: Database access for animals, schedules
+        login_system: Login system for trainer info
+        system_controller: System controller for hardware settings (optional)
+    
     Signals:
         schedule_created(dict): Emitted when schedule is successfully created
         cancelled(): Emitted when wizard is cancelled
+        
+    Hardware Constraints:
+        - Max animals limited by available cages (15 per HAT)
+        - Master relay (default 16) excluded from cage assignment
     """
     
     schedule_created = pyqtSignal(dict)
@@ -938,11 +1082,13 @@ class ScheduleCreationWizard(QWidget):
         self, 
         database_handler,
         login_system,
+        system_controller=None,
         parent: Optional[QWidget] = None
     ):
         super().__init__(parent)
         self._database_handler = database_handler
         self._login_system = login_system
+        self._system_controller = system_controller
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -987,7 +1133,10 @@ class ScheduleCreationWizard(QWidget):
         self._step1 = Step1SelectType()
         self._step1.selection_changed.connect(self._on_type_selected)
         
-        self._step2 = Step2SelectAnimals(self._database_handler)
+        self._step2 = Step2SelectAnimals(
+            self._database_handler,
+            system_controller=self._system_controller
+        )
         self._step2.selection_changed.connect(self._on_animals_selected)
         
         self._step3 = Step3ConfigureParameters()
@@ -1135,13 +1284,33 @@ class ScheduleCreationWizard(QWidget):
             delivery_mode=schedule_type,
         )
         
-        # Add animals with their individual configs
-        for animal_id in animals:
+        # Get hardware limits for cage assignment validation
+        max_cages, master_relay, valid_cages = get_available_cages(self._system_controller)
+        
+        # Validate we don't exceed available cages
+        if len(animals) > max_cages:
+            raise ValueError(
+                f"Schedule has {len(animals)} animals but only {max_cages} cages available. "
+                f"Relay {master_relay} is reserved for master solenoid."
+            )
+        
+        # Add animals with sequential cage assignment (1, 2, 3, ...)
+        # This ensures no animal is assigned to the master relay
+        valid_cage_list = sorted(valid_cages)  # [1, 2, 3, ..., 15]
+        
+        for idx, animal_id in enumerate(animals):
+            if idx >= len(valid_cage_list):
+                raise ValueError(
+                    f"Cannot assign cage to animal {animal_id}: no more cages available. "
+                    f"Max cages: {max_cages}"
+                )
+            
             animal_cfg = animal_configs.get(animal_id, {})
             volume = animal_cfg.get("volume", 1.0)
-            relay_unit_id = animal_id  # 1:1 mapping in solenoid mode
+            relay_unit_id = valid_cage_list[idx]  # Sequential assignment: 1, 2, 3, ...
             
             schedule.add_animal(animal_id, relay_unit_id, volume)
+            print(f"[Wizard] Assigned animal {animal_id} → cage {relay_unit_id}")
         
         # Save to database using the CORRECT method for each mode
         if schedule_type == "staggered":
