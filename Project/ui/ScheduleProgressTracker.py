@@ -441,6 +441,8 @@ class ScheduleProgressTracker(QWidget):
     
     def clear_cards(self):
         """Remove all animal cards"""
+        print(f"[ProgressTracker] clear_cards() called. Current cards: {list(self.cards.keys())}")
+        print(f"[ProgressTracker] clear_cards() tracker id: {id(self)}")
         for card in self.cards.values():
             card.deleteLater()
         self.cards.clear()
@@ -450,6 +452,7 @@ class ScheduleProgressTracker(QWidget):
             item = self.cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+        print(f"[ProgressTracker] clear_cards() completed. Cards now: {list(self.cards.keys())}")
     
     def _update_elapsed_time(self):
         """Update elapsed time display"""

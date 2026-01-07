@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton, QMess
 from .schedules_tab import SchedulesTab
 from .animals_tab import AnimalsTab
 from .wizard_tab import WizardTab
+from .cages_visualization_tab import CagesVisualizationTab
 
 class ProjectsSection(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system,
@@ -49,6 +50,14 @@ class ProjectsSection(QWidget):
             system_controller=system_controller
         )
         self.tab_widget.addTab(self.wizard_tab, "Wizard")
+        
+        # Cages visualization tab
+        self.cages_tab = CagesVisualizationTab(
+            database_handler=database_handler,
+            system_controller=system_controller,
+            print_to_terminal=print_to_terminal
+        )
+        self.tab_widget.addTab(self.cages_tab, "Cages")
         
         # Refresh schedules tab when wizard creates a schedule
         self.wizard_tab.schedule_created.connect(self._on_wizard_schedule_created)

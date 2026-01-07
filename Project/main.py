@@ -209,13 +209,33 @@ def run_program(schedule, mode, window_start, window_end):
                     'water_volume': delivery['volume']
                 })
         else:
+            # CRITICAL FIX: Make defensive copies of schedule dicts to prevent
+            # reference aliasing issues where modifications to the Schedule object
+            # after worker creation would affect the worker's view of the data.
+            # Bug: Without copy, if schedule is modified, worker sees wrong data.
+            relay_assignments_copy = dict(schedule.relay_unit_assignments) if schedule.relay_unit_assignments else {}
+            desired_outputs_copy = dict(schedule.desired_water_outputs) if schedule.desired_water_outputs else {}
+            
             worker_settings.update({
                 'cycle_interval': worker_settings.get('cycle_interval', 3600),
                 'stagger_interval': worker_settings.get('stagger_interval', 0.5),
                 'water_volume': schedule.water_volume,
-                'relay_unit_assignments': schedule.relay_unit_assignments,
-                'desired_water_outputs': schedule.desired_water_outputs
+                'relay_unit_assignments': relay_assignments_copy,
+                'desired_water_outputs': desired_outputs_copy
             })
+            
+            # DEBUG: Verify the copies are correct
+            print(f"[main.py] relay_unit_assignments copy: {relay_assignments_copy}")
+            print(f"[main.py] relay_unit_assignments copy id: {id(relay_assignments_copy)}")
+            print(f"[main.py] desired_water_outputs copy: {desired_outputs_copy}")
+            print(f"[main.py] worker_settings id: {id(worker_settings)}")
+            
+            # Check if system_controller.settings has a relay_unit_assignments key
+            if hasattr(system_controller, 'settings'):
+                print(f"[main.py] system_controller.settings has relay_unit_assignments: {'relay_unit_assignments' in system_controller.settings}")
+                print(f"[main.py] system_controller.settings has cage_relays: {'cage_relays' in system_controller.settings}")
+                if 'cage_relays' in system_controller.settings:
+                    print(f"[main.py] cage_relays id: {id(system_controller.settings['cage_relays'])}")
 
         print("\nWorker Settings Debug:")
         print(f"Mode: {worker_settings.get('mode')}")
@@ -278,7 +298,8 @@ def run_program(schedule, mode, window_start, window_end):
             
             if tracker:
                 print(f"[main.py] Connecting progress tracker: {tracker}")
-                print(f"[main.py] Tracker cards before start: {list(tracker.cards.keys()) if hasattr(tracker, 'cards') else 'N/A'}")
+                print(f"[main.py] Tracker id: {id(tracker)}")
+                print(f"[main.py] Tracker cards before connect: {list(tracker.cards.keys()) if hasattr(tracker, 'cards') else 'N/A'}")
                 
                 # Volume updates: update per-animal progress
                 # IMPORTANT: Capture tracker reference directly (not via closure bug)

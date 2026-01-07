@@ -48,6 +48,11 @@ class RelayWorker(QObject):
         print(f"system_controller type: {type(system_controller)}")
         print(f"settings type: {type(settings)}")
         
+        # CRITICAL DEBUG: Log relay_unit_assignments at worker creation time
+        print(f"[WORKER INIT] relay_unit_assignments in settings: {settings.get('relay_unit_assignments')}")
+        print(f"[WORKER INIT] desired_water_outputs in settings: {settings.get('desired_water_outputs')}")
+        print(f"[WORKER INIT] settings id: {id(settings)}")
+        
         # Verify that system_controller is indeed an instance (not a dict)
         if isinstance(system_controller, dict):
             raise TypeError("Expected system_controller to be a SystemController instance, got dict.")
@@ -402,17 +407,38 @@ class RelayWorker(QObject):
                 self.animal_windows = {}
                 relay_assignments = self.settings.get('relay_unit_assignments', {})
                 desired_outputs = self.settings.get('desired_water_outputs', {})
+                
+                # CRITICAL DEBUG: Log what we're actually getting
+                print(f"[STAGGERED DEBUG] self.settings type: {type(self.settings)}")
+                print(f"[STAGGERED DEBUG] self.settings id: {id(self.settings)}")
+                print(f"[STAGGERED DEBUG] relay_assignments from self.settings: {relay_assignments}")
+                print(f"[STAGGERED DEBUG] relay_assignments id: {id(relay_assignments)}")
+                print(f"[STAGGERED DEBUG] desired_outputs from self.settings: {desired_outputs}")
+                print(f"[STAGGERED DEBUG] All keys in self.settings: {list(self.settings.keys())}")
+                
+                # Check if cage_relays exists and if it's the same object
+                cage_relays_in_settings = self.settings.get('cage_relays')
+                print(f"[STAGGERED DEBUG] cage_relays in self.settings: {cage_relays_in_settings}")
+                print(f"[STAGGERED DEBUG] cage_relays id: {id(cage_relays_in_settings) if cage_relays_in_settings else 'None'}")
+                print(f"[STAGGERED DEBUG] Are relay_assignments and cage_relays the same object? {relay_assignments is cage_relays_in_settings}")
                 animal_windows = self.settings.get('animal_windows', {})
                 
                 for animal_id in relay_assignments:
                     target_volume = float(desired_outputs.get(str(animal_id), 0.0))
+                    
+                    # SAFETY CHECK: Skip animals with no target volume
+                    # This prevents creating windows for animals that shouldn't receive deliveries
+                    if target_volume <= 0:
+                        print(f"[STAGGERED DEBUG] Skipping animal {animal_id}: no target volume in desired_outputs")
+                        continue
+                    
                     animal_window = animal_windows.get(str(animal_id), {})
                     window_start = datetime.fromisoformat(animal_window.get('start', self.window_start.isoformat()))
                     window_end = datetime.fromisoformat(animal_window.get('end', self.window_end.isoformat()))
                     
                     window_duration = (window_end - window_start).total_seconds()
                     cycles_in_window = (window_duration / cycle_interval) if cycle_interval > 0 else 0
-                    if target_volume <= 0 or cycles_in_window <= 0:
+                    if cycles_in_window <= 0:
                         volume_per_cycle = 0.0
                     else:
                         volume_per_cycle = min(
@@ -420,11 +446,14 @@ class RelayWorker(QObject):
                             max_volume_per_cycle
                         )
                     
+                    relay_unit = relay_assignments.get(str(animal_id))
+                    print(f"[STAGGERED DEBUG] animal_id={animal_id}, str(animal_id)={str(animal_id)}, relay_unit={relay_unit}")
+                    
                     self.animal_windows[animal_id] = {
                         'start': window_start,
                         'end': window_end,
                         'last_delivery': None,
-                        'relay_unit': relay_assignments.get(str(animal_id)),
+                        'relay_unit': relay_unit,
                         'target_volume': target_volume,
                         'volume_per_cycle': volume_per_cycle
                     }

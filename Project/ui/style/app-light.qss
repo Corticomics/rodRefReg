@@ -592,6 +592,36 @@ QLabel#CageBadge {
     font-size: 11px;
 }
 
+QLabel#RelayBadge {
+    background-color: #E2E8F0;
+    color: #4E5D6C;
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 10px;
+}
+
+QLabel#MasterBadge {
+    background-color: #F59E0B;
+    color: #FFFFFF;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* Master Relay Card (distinct styling) */
+QFrame#MasterRelayCard {
+    background-color: #FEF3C7;
+    border: 2px solid #F59E0B;
+    border-radius: 12px;
+    padding: 0;
+}
+QFrame#MasterRelayCard:hover {
+    background-color: #FDE68A;
+    border-color: #D97706;
+}
+
 QLabel#VolumeLabel {
     font-size: 14px;
     font-weight: 600;

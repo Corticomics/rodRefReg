@@ -29,7 +29,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
     QGridLayout, QGroupBox, QFormLayout, QLineEdit, QSpinBox,
     QDoubleSpinBox, QTimeEdit, QDateTimeEdit, QListWidget,
-    QListWidgetItem, QCheckBox, QFrame, QSizePolicy, QMessageBox
+    QListWidgetItem, QCheckBox, QFrame, QSizePolicy, QMessageBox,
+    QComboBox, QCompleter
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTime, QDateTime
 
@@ -435,17 +436,33 @@ class Step2SelectAnimals(QWidget):
 # ============================================================================
 
 class Step3ConfigureParameters(QWidget):
-    """Step 3: Configure schedule parameters with per-animal settings."""
+    """
+    Step 3: Configure schedule parameters with per-animal settings.
+    
+    Features:
+    - Per-animal time windows and volumes
+    - Filterable cage dropdown for each animal
+    - Cage names from database for easy identification
+    
+    Design:
+    - Each animal row has a cage selector (QComboBox with QCompleter)
+    - Cages show user-defined names for identification
+    - Sequential default assignment with option to override
+    """
     
     parameters_changed = pyqtSignal(dict)
     
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, database_handler=None, system_controller=None, 
+                 parent: Optional[QWidget] = None):
         super().__init__(parent)
+        self._database_handler = database_handler
+        self._system_controller = system_controller
         self._schedule_type: str = "staggered"
         self._parameters: Dict[str, Any] = {}
         self._selected_animals: List[Dict[str, Any]] = []  # [{id, lab_id, name}]
         self._animal_configs: Dict[int, Dict[str, Any]] = {}  # Per-animal settings
         self._animal_widgets: Dict[int, Dict[str, Any]] = {}  # Widget references
+        self._cage_options: List[Dict[str, Any]] = []  # Cage dropdown options
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -506,20 +523,83 @@ class Step3ConfigureParameters(QWidget):
         return container
     
     def set_animals(self, animals: List[Dict[str, Any]]) -> None:
-        """Set selected animals for per-animal configuration."""
+        """
+        Set selected animals for per-animal configuration.
+        
+        Design:
+        - Loads cage options from database for dropdowns
+        - Assigns default cages sequentially (animal 1 → cage 1, etc.)
+        - Users can override cage assignments via dropdown
+        """
         self._selected_animals = animals
         self._animal_configs = {}
         self._animal_widgets = {}
         
-        # Initialize default config for each animal
-        for animal in animals:
+        # Load cage options for dropdown
+        self._load_cage_options()
+        
+        # Get list of valid cage IDs for sequential default assignment
+        valid_cage_ids = [c['cage_id'] for c in self._cage_options]
+        
+        # Initialize default config for each animal with sequential cage assignment
+        for idx, animal in enumerate(animals):
             animal_id = animal["id"]
+            
+            # Default cage: sequential assignment (1, 2, 3, ...)
+            # If more animals than cages, cycle back or leave unassigned
+            default_cage_id = valid_cage_ids[idx] if idx < len(valid_cage_ids) else None
+            
             self._animal_configs[animal_id] = {
                 "start_time": datetime.now(),
                 "end_time": datetime.now() + timedelta(hours=12),
                 "delivery_time": datetime.now() + timedelta(minutes=5),
                 "volume": 1.0,
+                "cage_id": default_cage_id,  # Cage assignment
             }
+    
+    def _load_cage_options(self) -> None:
+        """
+        Load cage options from database for dropdown population.
+        
+        Design:
+        - Uses database_handler.get_cages_for_dropdown()
+        - Falls back to default cage list if database unavailable
+        - Options include display_name for user-friendly selection
+        
+        Reference: Qt Model/View - Populating QComboBox
+        """
+        if self._database_handler:
+            try:
+                num_hats = 1
+                master_relay = 16
+                
+                if self._system_controller and hasattr(self._system_controller, 'settings'):
+                    num_hats = int(self._system_controller.settings.get('num_hats', 1))
+                    master_relay = int(self._system_controller.settings.get('global_master_relay_id', 16))
+                
+                self._cage_options = self._database_handler.get_cages_for_dropdown(
+                    num_hats=num_hats,
+                    master_relay=master_relay
+                )
+                print(f"[Step3] Loaded {len(self._cage_options)} cage options for dropdown")
+            except Exception as e:
+                print(f"[Step3] Error loading cage options: {e}")
+                self._cage_options = self._generate_default_cage_options()
+        else:
+            # Fallback to default if no database handler
+            self._cage_options = self._generate_default_cage_options()
+    
+    def _generate_default_cage_options(self) -> List[Dict[str, Any]]:
+        """Generate default cage options (fallback when database unavailable)."""
+        cages = []
+        for cage_id in range(1, 16):  # 1-15 (16 is master)
+            cages.append({
+                'cage_id': cage_id,
+                'relay_id': cage_id,
+                'name': f"Cage {cage_id}",
+                'display_name': f"Cage {cage_id}"
+            })
+        return cages
     
     def set_schedule_type(self, schedule_type: str) -> None:
         """Set the schedule type and rebuild parameters."""
@@ -611,7 +691,24 @@ class Step3ConfigureParameters(QWidget):
         self._params_layout.addStretch()
     
     def _create_staggered_animal_row(self, animal: Dict[str, Any]) -> QWidget:
-        """Create a config row for one animal in staggered mode."""
+        """
+        Create a config row for one animal in staggered mode.
+        
+        Features:
+        - Filterable cage dropdown for cage assignment
+        - Time window configuration (start/end)
+        - Volume configuration
+        
+        Design:
+        - Cage dropdown uses QComboBox with editable search
+        - QCompleter provides type-ahead filtering
+        - User can search by cage number OR custom name
+        
+        Reference: Qt Documentation - QComboBox with QCompleter
+        """
+        from PyQt5.QtWidgets import QCompleter
+        from PyQt5.QtCore import QStringListModel
+        
         animal_id = animal["id"]
         config = self._animal_configs.get(animal_id, {})
         
@@ -632,14 +729,54 @@ class Step3ConfigureParameters(QWidget):
         
         # Animal label
         label = QLabel(f"<b>{animal.get('lab_id', animal_id)}</b> - {animal.get('name', 'Unknown')}")
-        label.setMinimumWidth(150)
+        label.setMinimumWidth(120)
         layout.addWidget(label)
+        
+        # === CAGE DROPDOWN (NEW) ===
+        # Filterable cage selector with user-defined names
+        cage_combo = QComboBox()
+        cage_combo.setEditable(True)  # Enable text filtering
+        cage_combo.setInsertPolicy(QComboBox.NoInsert)  # Don't add typed text as items
+        cage_combo.setMinimumWidth(140)
+        cage_combo.setPlaceholderText("Select cage...")
+        
+        # Populate with cage options
+        display_names = []
+        for cage_option in self._cage_options:
+            cage_combo.addItem(
+                cage_option['display_name'],
+                cage_option['cage_id']  # Store cage_id in UserRole
+            )
+            display_names.append(cage_option['display_name'])
+        
+        # Add completer for filtering
+        completer = QCompleter(display_names)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)  # Match anywhere in string
+        cage_combo.setCompleter(completer)
+        
+        # Set default selection based on animal_config
+        default_cage_id = config.get("cage_id")
+        if default_cage_id is not None:
+            # Find index of default cage
+            for i in range(cage_combo.count()):
+                if cage_combo.itemData(i) == default_cage_id:
+                    cage_combo.setCurrentIndex(i)
+                    break
+        
+        # Connect change handler
+        cage_combo.currentIndexChanged.connect(
+            lambda idx, aid=animal_id, combo=cage_combo: self._on_cage_changed(aid, combo)
+        )
+        
+        layout.addWidget(QLabel("Cage:"))
+        layout.addWidget(cage_combo)
         
         # Start time
         start_dt = QDateTimeEdit()
         start_dt.setDateTime(QDateTime.currentDateTime())
         start_dt.setCalendarPopup(True)
-        start_dt.setMinimumWidth(160)
+        start_dt.setMinimumWidth(140)
         start_dt.dateTimeChanged.connect(
             lambda dt, aid=animal_id: self._update_animal_config(aid, "start_time", dt.toPyDateTime())
         )
@@ -650,7 +787,7 @@ class Step3ConfigureParameters(QWidget):
         end_dt = QDateTimeEdit()
         end_dt.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
         end_dt.setCalendarPopup(True)
-        end_dt.setMinimumWidth(160)
+        end_dt.setMinimumWidth(140)
         end_dt.dateTimeChanged.connect(
             lambda dt, aid=animal_id: self._update_animal_config(aid, "end_time", dt.toPyDateTime())
         )
@@ -666,22 +803,42 @@ class Step3ConfigureParameters(QWidget):
         volume_spin.valueChanged.connect(
             lambda v, aid=animal_id: self._update_animal_config(aid, "volume", v)
         )
-        layout.addWidget(QLabel("Volume:"))
+        layout.addWidget(QLabel("Vol:"))
         layout.addWidget(volume_spin)
         
         layout.addStretch()
         
-        # Store widget references for apply-all
+        # Store widget references for apply-all and restore
         self._animal_widgets[animal_id] = {
             "start": start_dt,
             "end": end_dt,
             "volume": volume_spin,
+            "cage": cage_combo,  # NEW: Store cage combo reference
         }
         
         return container
     
+    def _on_cage_changed(self, animal_id: int, combo: QComboBox) -> None:
+        """
+        Handle cage selection change.
+        
+        Args:
+            animal_id: The animal being configured
+            combo: The QComboBox that changed
+            
+        Design: Updates animal_config with new cage_id
+        """
+        cage_id = combo.currentData()  # Get cage_id from UserRole
+        if cage_id is not None:
+            self._update_animal_config(animal_id, "cage_id", cage_id)
+            print(f"[Step3] Animal {animal_id} assigned to cage {cage_id}")
+    
     def _apply_to_all_staggered(self) -> None:
-        """Apply global settings to all animals."""
+        """
+        Apply global settings to all animals.
+        
+        Note: Preserves cage assignments (user must set these individually)
+        """
         start = self._global_start.dateTime().toPyDateTime()
         end = self._global_end.dateTime().toPyDateTime()
         volume = self._global_volume.value()
@@ -691,10 +848,14 @@ class Step3ConfigureParameters(QWidget):
             widgets["end"].setDateTime(QDateTime(end))
             widgets["volume"].setValue(volume)
             
+            # Preserve existing cage assignment
+            existing_cage = self._animal_configs.get(animal_id, {}).get("cage_id")
+            
             self._animal_configs[animal_id] = {
                 "start_time": start,
                 "end_time": end,
                 "volume": volume,
+                "cage_id": existing_cage,  # Preserve cage assignment
             }
     
     def _build_instant_params(self) -> None:
@@ -751,7 +912,19 @@ class Step3ConfigureParameters(QWidget):
         self._params_layout.addStretch()
     
     def _create_instant_animal_row(self, animal: Dict[str, Any]) -> QWidget:
-        """Create a config row for one animal in instant mode."""
+        """
+        Create a config row for one animal in instant mode.
+        
+        Features:
+        - Filterable cage dropdown for cage assignment
+        - Delivery time configuration
+        - Volume configuration
+        
+        Reference: Qt Documentation - QComboBox with QCompleter
+        """
+        from PyQt5.QtWidgets import QCompleter
+        from PyQt5.QtCore import QStringListModel
+        
         animal_id = animal["id"]
         config = self._animal_configs.get(animal_id, {})
         
@@ -772,18 +945,56 @@ class Step3ConfigureParameters(QWidget):
         
         # Animal label
         label = QLabel(f"<b>{animal.get('lab_id', animal_id)}</b> - {animal.get('name', 'Unknown')}")
-        label.setMinimumWidth(150)
+        label.setMinimumWidth(120)
         layout.addWidget(label)
+        
+        # === CAGE DROPDOWN ===
+        cage_combo = QComboBox()
+        cage_combo.setEditable(True)
+        cage_combo.setInsertPolicy(QComboBox.NoInsert)
+        cage_combo.setMinimumWidth(140)
+        cage_combo.setPlaceholderText("Select cage...")
+        
+        # Populate with cage options
+        display_names = []
+        for cage_option in self._cage_options:
+            cage_combo.addItem(
+                cage_option['display_name'],
+                cage_option['cage_id']
+            )
+            display_names.append(cage_option['display_name'])
+        
+        # Add completer for filtering
+        completer = QCompleter(display_names)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        cage_combo.setCompleter(completer)
+        
+        # Set default selection
+        default_cage_id = config.get("cage_id")
+        if default_cage_id is not None:
+            for i in range(cage_combo.count()):
+                if cage_combo.itemData(i) == default_cage_id:
+                    cage_combo.setCurrentIndex(i)
+                    break
+        
+        # Connect change handler
+        cage_combo.currentIndexChanged.connect(
+            lambda idx, aid=animal_id, combo=cage_combo: self._on_cage_changed(aid, combo)
+        )
+        
+        layout.addWidget(QLabel("Cage:"))
+        layout.addWidget(cage_combo)
         
         # Delivery time
         delivery_dt = QDateTimeEdit()
         delivery_dt.setDateTime(QDateTime.currentDateTime().addSecs(300))
         delivery_dt.setCalendarPopup(True)
-        delivery_dt.setMinimumWidth(160)
+        delivery_dt.setMinimumWidth(140)
         delivery_dt.dateTimeChanged.connect(
             lambda dt, aid=animal_id: self._update_animal_config(aid, "delivery_time", dt.toPyDateTime())
         )
-        layout.addWidget(QLabel("Delivery Time:"))
+        layout.addWidget(QLabel("Time:"))
         layout.addWidget(delivery_dt)
         
         # Volume
@@ -795,7 +1006,7 @@ class Step3ConfigureParameters(QWidget):
         volume_spin.valueChanged.connect(
             lambda v, aid=animal_id: self._update_animal_config(aid, "volume", v)
         )
-        layout.addWidget(QLabel("Volume:"))
+        layout.addWidget(QLabel("Vol:"))
         layout.addWidget(volume_spin)
         
         layout.addStretch()
@@ -804,12 +1015,17 @@ class Step3ConfigureParameters(QWidget):
         self._animal_widgets[animal_id] = {
             "delivery_time": delivery_dt,
             "volume": volume_spin,
+            "cage": cage_combo,  # NEW: Store cage combo reference
         }
         
         return container
     
     def _apply_to_all_instant(self) -> None:
-        """Apply global settings to all animals for instant mode."""
+        """
+        Apply global settings to all animals for instant mode.
+        
+        Note: Preserves cage assignments (user must set these individually)
+        """
         delivery_time = self._global_delivery_time.dateTime().toPyDateTime()
         volume = self._global_volume.value()
         
@@ -817,9 +1033,13 @@ class Step3ConfigureParameters(QWidget):
             widgets["delivery_time"].setDateTime(QDateTime(delivery_time))
             widgets["volume"].setValue(volume)
             
+            # Preserve existing cage assignment
+            existing_cage = self._animal_configs.get(animal_id, {}).get("cage_id")
+            
             self._animal_configs[animal_id] = {
                 "delivery_time": delivery_time,
                 "volume": volume,
+                "cage_id": existing_cage,  # Preserve cage assignment
             }
     
     def _update_animal_config(self, animal_id: int, key: str, value: Any) -> None:
@@ -1045,6 +1265,10 @@ class Step4Review(QWidget):
             self._add_summary_section("Animal Configurations")
             
             for animal_id, config in animal_configs.items():
+                # Get cage assignment
+                cage_id = config.get("cage_id")
+                cage_str = f"Cage {cage_id}" if cage_id else "Unassigned"
+                
                 # Format animal row
                 if schedule_type == "staggered":
                     start = config.get("start_time")
@@ -1054,13 +1278,15 @@ class Step4Review(QWidget):
                     start_str = start.strftime("%m/%d %H:%M") if isinstance(start, datetime) else str(start)
                     end_str = end.strftime("%m/%d %H:%M") if isinstance(end, datetime) else str(end)
                     
-                    value = f"{start_str} → {end_str}, {volume:.2f} mL"
+                    # Include cage in display
+                    value = f"{cage_str} | {start_str} → {end_str}, {volume:.2f} mL"
                 else:  # instant
                     delivery = config.get("delivery_time")
                     volume = config.get("volume", 0)
                     
                     delivery_str = delivery.strftime("%m/%d %H:%M") if isinstance(delivery, datetime) else str(delivery)
-                    value = f"{delivery_str}, {volume:.2f} mL"
+                    # Include cage in display
+                    value = f"{cage_str} | {delivery_str}, {volume:.2f} mL"
                 
                 self._add_summary_row(f"  Animal {animal_id}:", value)
         
@@ -1195,7 +1421,11 @@ class ScheduleCreationWizard(QWidget):
         )
         self._step2.selection_changed.connect(self._on_animals_selected)
         
-        self._step3 = Step3ConfigureParameters()
+        # Pass database_handler and system_controller for cage dropdown population
+        self._step3 = Step3ConfigureParameters(
+            database_handler=self._database_handler,
+            system_controller=self._system_controller
+        )
         
         self._step4 = Step4Review()
         self._step4.save_without_running.connect(self._save_without_running)
@@ -1384,23 +1614,52 @@ class ScheduleCreationWizard(QWidget):
                 f"Relay {master_relay} is reserved for master solenoid."
             )
         
-        # Add animals with sequential cage assignment (1, 2, 3, ...)
-        # This ensures no animal is assigned to the master relay
+        # Add animals with user-selected cage assignments
+        # NEW: Uses cage_id from animal_configs (set via dropdown in Step 3)
+        # Falls back to sequential assignment if no cage selected
         valid_cage_list = sorted(valid_cages)  # [1, 2, 3, ..., 15]
+        used_cages = set()  # Track which cages are already assigned
         
         for idx, animal_id in enumerate(animals):
-            if idx >= len(valid_cage_list):
-                raise ValueError(
-                    f"Cannot assign cage to animal {animal_id}: no more cages available. "
-                    f"Max cages: {max_cages}"
-                )
-            
             animal_cfg = animal_configs.get(animal_id, {})
             volume = animal_cfg.get("volume", 1.0)
-            relay_unit_id = valid_cage_list[idx]  # Sequential assignment: 1, 2, 3, ...
             
-            schedule.add_animal(animal_id, relay_unit_id, volume)
-            print(f"[Wizard] Assigned animal {animal_id} → cage {relay_unit_id}")
+            # Get user-selected cage_id, or use sequential fallback
+            cage_id = animal_cfg.get("cage_id")
+            
+            if cage_id is None:
+                # Fallback: sequential assignment from remaining valid cages
+                available_cages = [c for c in valid_cage_list if c not in used_cages]
+                if not available_cages:
+                    raise ValueError(
+                        f"Cannot assign cage to animal {animal_id}: no more cages available. "
+                        f"Max cages: {max_cages}"
+                    )
+                cage_id = available_cages[0]
+            
+            # Validate cage is valid and not the master relay
+            if cage_id == master_relay:
+                raise ValueError(
+                    f"Animal {animal_id} cannot be assigned to cage {cage_id} "
+                    f"(reserved for master solenoid)"
+                )
+            
+            if cage_id not in valid_cages:
+                raise ValueError(
+                    f"Animal {animal_id} assigned to invalid cage {cage_id}. "
+                    f"Valid cages: {sorted(valid_cages)}"
+                )
+            
+            # Check for duplicate cage assignment
+            if cage_id in used_cages:
+                raise ValueError(
+                    f"Cage {cage_id} is already assigned to another animal. "
+                    f"Each animal must have a unique cage."
+                )
+            
+            used_cages.add(cage_id)
+            schedule.add_animal(animal_id, cage_id, volume)
+            print(f"[Wizard] Assigned animal {animal_id} → cage {cage_id}")
         
         # Save to database using the CORRECT method for each mode
         if schedule_type == "staggered":
