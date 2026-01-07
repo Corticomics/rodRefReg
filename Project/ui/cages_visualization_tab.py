@@ -3,21 +3,19 @@
 Cages Visualization Tab - Visual representation of the physical relay HAT board.
 
 Shows the actual 16-relay HAT layout so users can understand which physical
-relay terminal corresponds to which cage. Designed for non-expert users who
-need to wire valves to the correct relay terminals.
+relay terminal corresponds to which cage.
 
 Physical Layout (SM16relind HAT):
 - Left side (top to bottom): R1, R2, R3, R4, R5, R6, R7, R8
 - Right side (top to bottom): R16 (master), R15, R14, R13, R12, R11, R10, R9
-- LEDs at bottom indicate relay state (on/off)
 """
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea,
-    QGridLayout, QFrame, QPushButton, QSizePolicy, QSpacerItem
+    QFrame, QPushButton, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtGui import QPixmap
 from typing import Optional, Dict, Any
 import os
 
@@ -26,11 +24,17 @@ class RelayTerminalWidget(QFrame):
     """
     Represents a single relay terminal on the physical board.
     
-    Shows the relay number, assigned cage name, and connection status.
-    Styled to look like a physical terminal block.
+    Design rationale:
+    - Fixed height ensures consistent visual rhythm (per Material Design spacing guidelines)
+    - Horizontal layout with clear hierarchy: ID → Name → Status
+    - Color-coded border indicates relay type (cage vs master)
+    
+    Reference: Qt Documentation - QFrame Class
+    https://doc.qt.io/qt-5/qframe.html
+    "QFrame is used to create raised or sunken borders and as a container for other widgets"
     """
     
-    clicked = pyqtSignal(int)  # Emits relay_id
+    clicked = pyqtSignal(int)
     
     def __init__(self, relay_id: int, cage_data: Optional[Dict[str, Any]] = None, 
                  is_master: bool = False, parent=None):
@@ -41,82 +45,88 @@ class RelayTerminalWidget(QFrame):
         self._init_ui()
     
     def _init_ui(self) -> None:
-        """Build the terminal widget UI."""
-        if self._is_master:
-            self.setObjectName("MasterTerminal")
-        else:
-            self.setObjectName("RelayTerminal")
+        """
+        Build the terminal widget UI.
         
-        self.setProperty("card", True)
+        Layout structure:
+        [Relay#] | [Cage Name] [●]
+        
+        Sizing rationale:
+        - fixedHeight(48): Provides adequate touch target (48dp per Material Design)
+        - No maxHeight constraint: Allows proper text rendering without clipping
+        
+        Reference: Qt Documentation - Layout Management
+        https://doc.qt.io/qt-5/layout.html
+        "Widgets in a layout are children of the widget on which the layout is installed"
+        """
+        # Set object name for QSS styling
+        # Reference: https://doc.qt.io/qt-5/stylesheet-syntax.html#selector-types
+        # "The ID Selector matches the widget with the object name set via setObjectName()"
+        self.setObjectName("MasterTerminal" if self._is_master else "RelayTerminal")
+        
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(56)
-        self.setMaximumHeight(64)
+        
+        # Fixed height for consistent visual rhythm
+        # Reference: https://doc.qt.io/qt-5/qwidget.html#setFixedHeight
+        # "Sets both the minimum and maximum heights to h"
+        self.setFixedHeight(48)
+        
+        # Size policy: Expand horizontally, fixed vertically
+        # Reference: https://doc.qt.io/qt-5/qsizepolicy.html#Policy-enum
+        # "Preferred: sizeHint() is best, but widget can be shrunk/grown"
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
+        # Margins: adequate padding for readability
+        # Reference: https://doc.qt.io/qt-5/qlayout.html#setContentsMargins
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(10)
         
-        # Relay number indicator (styled as terminal number)
+        # ─── Relay Number Badge ───
         relay_label = QLabel(f"R{self._relay_id}")
         relay_label.setObjectName("RelayNumber")
         relay_label.setAlignment(Qt.AlignCenter)
-        relay_label.setFixedWidth(44)
+        relay_label.setFixedWidth(36)
         layout.addWidget(relay_label)
         
-        # Separator line
-        separator = QFrame()
-        separator.setFrameShape(QFrame.VLine)
-        separator.setObjectName("TerminalSeparator")
-        layout.addWidget(separator)
-        
-        # Assignment info
-        info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        
+        # ─── Cage Name (primary content) ───
         if self._is_master:
-            # Master relay - special display
             name_label = QLabel("MASTER SOLENOID")
             name_label.setObjectName("MasterLabel")
-            info_layout.addWidget(name_label)
-            
-            desc_label = QLabel("Main water supply valve")
-            desc_label.setObjectName("TerminalDescription")
-            info_layout.addWidget(desc_label)
         elif self._cage_data:
-            # Regular cage assignment
             cage_id = self._cage_data.get('cage_id', 0)
             cage_name = self._cage_data.get('name', f'Cage {cage_id}')
             
-            name_label = QLabel(cage_name)
-            name_label.setObjectName("CageNameLabel")
-            if len(cage_name) > 20:
-                name_label.setText(cage_name[:18] + "...")
-                name_label.setToolTip(cage_name)
-            info_layout.addWidget(name_label)
+            # Only show custom names, or fallback to "Cage X"
+            # Avoid redundant display like "Cage 1 / Cage 1"
+            display_name = cage_name if cage_name != f'Cage {cage_id}' else f'Cage {cage_id}'
             
-            # Cage ID subtitle
-            cage_label = QLabel(f"Cage {cage_id}")
-            cage_label.setObjectName("TerminalDescription")
-            info_layout.addWidget(cage_label)
+            name_label = QLabel(display_name)
+            name_label.setObjectName("CageNameLabel")
+            
+            # Truncate with ellipsis for long names
+            # Reference: https://doc.qt.io/qt-5/qwidget.html#toolTip-prop
+            if len(display_name) > 24:
+                name_label.setText(display_name[:22] + "…")
+                name_label.setToolTip(display_name)
         else:
-            # Unassigned relay
-            name_label = QLabel("Not assigned")
+            name_label = QLabel("—")  # Em dash for unassigned
             name_label.setObjectName("UnassignedLabel")
-            info_layout.addWidget(name_label)
         
-        layout.addLayout(info_layout, 1)
+        layout.addWidget(name_label, 1)  # stretch=1 to fill available space
         
-        # Status indicator dot
+        # ─── Status Indicator ───
         status_dot = QLabel("●")
-        if self._is_master:
-            status_dot.setObjectName("MasterStatusDot")
-        else:
-            status_dot.setObjectName("StatusDot")
-        status_dot.setAlignment(Qt.AlignCenter)
+        status_dot.setObjectName("MasterStatusDot" if self._is_master else "StatusDot")
         layout.addWidget(status_dot)
     
     def mousePressEvent(self, event):
+        """
+        Handle mouse click.
+        
+        Reference: https://doc.qt.io/qt-5/qwidget.html#mousePressEvent
+        "This event handler is called when a mouse button is pressed"
+        """
         if event.button() == Qt.LeftButton:
             self.clicked.emit(self._relay_id)
         super().mousePressEvent(event)
@@ -130,10 +140,13 @@ class CagesVisualizationTab(QWidget):
     """
     Tab displaying the physical relay HAT board layout.
     
-    Mirrors the actual hardware layout so users can:
-    - See which relay terminal to wire each cage valve to
-    - Understand the relationship between cage IDs and relay numbers
-    - Identify the master solenoid location
+    Architecture:
+    - Two-column terminal list flanking center board image
+    - Each column matches physical terminal positions on the HAT
+    - Visual indicators help non-experts understand wiring
+    
+    Reference: Qt Documentation - QWidget Class
+    https://doc.qt.io/qt-5/qwidget.html
     """
     
     cage_selected = pyqtSignal(int)
@@ -157,75 +170,66 @@ class CagesVisualizationTab(QWidget):
         self._load_cage_data()
     
     def _init_ui(self) -> None:
-        """Initialize the visualization layout."""
+        """
+        Initialize the visualization layout.
+        
+        Layout hierarchy:
+        - Main VBox: [Header] [Board Area] [Legend]
+        - Board Area HBox: [Left Terminals] [Image] [Right Terminals]
+        
+        Reference: https://doc.qt.io/qt-5/layout.html
+        "Qt's layout classes manage the positions and sizes of widgets"
+        """
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 24, 24, 24)
-        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(20, 16, 20, 16)
+        main_layout.setSpacing(16)
         
-        # ─────────────────────────────────────────────────────────────
-        # Header Card
-        # ─────────────────────────────────────────────────────────────
-        header = QFrame()
-        header.setObjectName("Card")
-        header.setProperty("card", True)
-        header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(20, 16, 20, 16)
-        header_layout.setSpacing(12)
-        
-        # Title row
-        title_row = QHBoxLayout()
-        title_row.setSpacing(16)
+        # ═══════════════════════════════════════════════════════════════
+        # HEADER ROW (minimal - just title and refresh)
+        # ═══════════════════════════════════════════════════════════════
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
         
         title = QLabel("Relay Board Layout")
         title.setObjectName("Title")
-        title_row.addWidget(title)
+        header_row.addWidget(title)
         
-        title_row.addStretch()
+        header_row.addStretch()
         
         refresh_btn = QPushButton("Refresh")
         refresh_btn.clicked.connect(self._load_cage_data)
-        refresh_btn.setMinimumWidth(100)
-        title_row.addWidget(refresh_btn)
+        header_row.addWidget(refresh_btn)
         
-        header_layout.addLayout(title_row)
+        main_layout.addLayout(header_row)
         
-        # Description
-        desc = QLabel(
-            "This diagram shows the physical layout of the 16-relay HAT board. "
-            "Each terminal corresponds to a valve connection. Wire your cage valves "
-            "to the relay terminals as shown below."
-        )
-        desc.setObjectName("Subtitle")
-        desc.setWordWrap(True)
-        header_layout.addWidget(desc)
-        
-        main_layout.addWidget(header)
-        
-        # ─────────────────────────────────────────────────────────────
-        # Board Visualization
-        # ─────────────────────────────────────────────────────────────
+        # ═══════════════════════════════════════════════════════════════
+        # BOARD VISUALIZATION (main content)
+        # ═══════════════════════════════════════════════════════════════
         board_frame = QFrame()
-        board_frame.setObjectName("BoardFrame")
+        board_frame.setObjectName("Card")
         board_frame.setProperty("card", True)
-        board_layout = QVBoxLayout(board_frame)
-        board_layout.setContentsMargins(20, 20, 20, 20)
-        board_layout.setSpacing(16)
         
-        # Board title
+        board_layout = QVBoxLayout(board_frame)
+        board_layout.setContentsMargins(16, 16, 16, 16)
+        board_layout.setSpacing(12)
+        
+        # Board model label
         board_title = QLabel("SM16relind 16-Relay HAT")
         board_title.setObjectName("BoardTitle")
         board_title.setAlignment(Qt.AlignCenter)
         board_layout.addWidget(board_title)
         
-        # Two-column layout matching physical board
+        # ─── Three-Column Layout ───
+        # Reference: https://doc.qt.io/qt-5/qboxlayout.html#addLayout
+        # "stretch factor determines how much of the remaining space is given to this layout"
         columns_layout = QHBoxLayout()
-        columns_layout.setSpacing(40)
+        columns_layout.setSpacing(16)
         
-        # ─── LEFT COLUMN: Relays 1-8 ───
+        # LEFT COLUMN: R1-R8
         left_column = QVBoxLayout()
-        left_column.setSpacing(8)
+        left_column.setSpacing(6)
         
-        left_header = QLabel("LEFT TERMINALS (R1-R8)")
+        left_header = QLabel("LEFT TERMINALS")
         left_header.setObjectName("ColumnHeader")
         left_header.setAlignment(Qt.AlignCenter)
         left_column.addWidget(left_header)
@@ -235,13 +239,13 @@ class CagesVisualizationTab(QWidget):
         left_column.addLayout(self._left_container)
         left_column.addStretch()
         
-        columns_layout.addLayout(left_column, 1)
+        # stretch=2 gives more space to terminal columns than image
+        columns_layout.addLayout(left_column, 2)
         
-        # ─── CENTER: Board illustration ───
+        # CENTER: Board Image
         center_column = QVBoxLayout()
-        center_column.setSpacing(8)
+        center_column.setAlignment(Qt.AlignCenter)
         
-        # Load board image if available
         image_path = os.path.join(
             os.path.dirname(__file__), 
             'src', 
@@ -251,28 +255,35 @@ class CagesVisualizationTab(QWidget):
         if os.path.exists(image_path):
             board_image = QLabel()
             pixmap = QPixmap(image_path)
-            # Scale to reasonable size
-            scaled = pixmap.scaledToHeight(380, Qt.SmoothTransformation)
+            
+            # Scale image to fit layout while maintaining aspect ratio
+            # Reference: https://doc.qt.io/qt-5/qpixmap.html#scaled
+            # "Returns a copy scaled to a rectangle with width w and height h"
+            # Using KeepAspectRatio to prevent distortion
+            scaled = pixmap.scaled(
+                280, 450,  # Max dimensions
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
+            )
             board_image.setPixmap(scaled)
             board_image.setAlignment(Qt.AlignCenter)
-            board_image.setToolTip("Physical relay HAT board layout")
+            board_image.setToolTip("Physical relay HAT board - wire valves to matching terminals")
             center_column.addWidget(board_image)
         else:
-            # Fallback placeholder
-            placeholder = QLabel("[ Board Diagram ]")
-            placeholder.setObjectName("Subtitle")
+            placeholder = QLabel("[Board Image]")
+            placeholder.setObjectName("Caption")
             placeholder.setAlignment(Qt.AlignCenter)
             placeholder.setMinimumSize(200, 300)
             center_column.addWidget(placeholder)
         
-        center_column.addStretch()
-        columns_layout.addLayout(center_column, 0)
+        # stretch=1 for image (less than terminal columns)
+        columns_layout.addLayout(center_column, 1)
         
-        # ─── RIGHT COLUMN: Relays 9-16 ───
+        # RIGHT COLUMN: R16-R9
         right_column = QVBoxLayout()
-        right_column.setSpacing(8)
+        right_column.setSpacing(6)
         
-        right_header = QLabel("RIGHT TERMINALS (R9-R16)")
+        right_header = QLabel("RIGHT TERMINALS")
         right_header.setObjectName("ColumnHeader")
         right_header.setAlignment(Qt.AlignCenter)
         right_column.addWidget(right_header)
@@ -282,78 +293,59 @@ class CagesVisualizationTab(QWidget):
         right_column.addLayout(self._right_container)
         right_column.addStretch()
         
-        columns_layout.addLayout(right_column, 1)
+        columns_layout.addLayout(right_column, 2)
         
         board_layout.addLayout(columns_layout)
         
-        # LED indicator row
-        led_row = QHBoxLayout()
-        led_row.setSpacing(4)
-        led_row.addStretch()
-        
-        led_label = QLabel("Status LEDs:")
-        led_label.setObjectName("Caption")
-        led_row.addWidget(led_label)
-        
-        for i in range(1, 9):
-            led = QLabel(f" {i} ")
-            led.setObjectName("LEDIndicator")
-            led.setAlignment(Qt.AlignCenter)
-            led_row.addWidget(led)
-        
-        led_row.addStretch()
-        board_layout.addLayout(led_row)
-        
+        # Stretch factor 1 allows board area to expand
         main_layout.addWidget(board_frame, 1)
         
-        # ─────────────────────────────────────────────────────────────
-        # Legend / Help
-        # ─────────────────────────────────────────────────────────────
-        legend_frame = QFrame()
-        legend_frame.setObjectName("Card")
-        legend_frame.setProperty("card", True)
-        legend_layout = QHBoxLayout(legend_frame)
-        legend_layout.setContentsMargins(16, 12, 16, 12)
-        legend_layout.setSpacing(32)
+        # ═══════════════════════════════════════════════════════════════
+        # LEGEND BAR (bottom)
+        # ═══════════════════════════════════════════════════════════════
+        legend_layout = QHBoxLayout()
+        legend_layout.setSpacing(24)
         
-        # Status indicators legend
-        legend_items = [
-            ("●", "StatusDot", "Cage relay - connected to valve"),
-            ("●", "MasterStatusDot", "Master solenoid - main water supply"),
-        ]
+        # Cage indicator
+        cage_legend = QHBoxLayout()
+        cage_legend.setSpacing(6)
+        cage_dot = QLabel("●")
+        cage_dot.setObjectName("StatusDot")
+        cage_legend.addWidget(cage_dot)
+        cage_legend.addWidget(QLabel("Cage valve"))
+        legend_layout.addLayout(cage_legend)
         
-        for symbol, obj_name, description in legend_items:
-            item_layout = QHBoxLayout()
-            item_layout.setSpacing(8)
-            
-            dot = QLabel(symbol)
-            dot.setObjectName(obj_name)
-            item_layout.addWidget(dot)
-            
-            text = QLabel(description)
-            text.setObjectName("Caption")
-            item_layout.addWidget(text)
-            
-            legend_layout.addLayout(item_layout)
+        # Master indicator
+        master_legend = QHBoxLayout()
+        master_legend.setSpacing(6)
+        master_dot = QLabel("●")
+        master_dot.setObjectName("MasterStatusDot")
+        master_legend.addWidget(master_dot)
+        master_legend.addWidget(QLabel("Master solenoid"))
+        legend_layout.addLayout(master_legend)
         
         legend_layout.addStretch()
         
-        # Status
+        # Status count
         self._status_label = QLabel("")
         self._status_label.setObjectName("Caption")
         legend_layout.addWidget(self._status_label)
         
-        main_layout.addWidget(legend_frame)
+        main_layout.addLayout(legend_layout)
     
     def _load_cage_data(self) -> None:
-        """Load cage assignments and populate the relay terminals."""
+        """
+        Load cage assignments and populate relay terminals.
+        
+        Reference: https://doc.qt.io/qt-5/qlayout.html#takeAt
+        "Removes the layout item at index from the layout, and returns the item"
+        """
         # Clear existing widgets
         self._clear_layout(self._left_container)
         self._clear_layout(self._right_container)
         self._relay_widgets.clear()
         
         try:
-            # Get cage data from database
             cages = self._database_handler.get_cages_for_dropdown(
                 num_hats=self._num_hats,
                 master_relay=self._master_relay
@@ -365,42 +357,43 @@ class CagesVisualizationTab(QWidget):
                 relay_id = cage.get('relay_id', cage.get('cage_id'))
                 cage_by_relay[relay_id] = cage
             
-            # LEFT SIDE: Relays 1-8 (top to bottom on physical board)
+            # LEFT: Relays 1-8
             for relay_id in range(1, 9):
-                cage_data = cage_by_relay.get(relay_id)
                 widget = RelayTerminalWidget(
                     relay_id=relay_id,
-                    cage_data=cage_data,
+                    cage_data=cage_by_relay.get(relay_id),
                     is_master=False
                 )
                 widget.clicked.connect(self._on_relay_clicked)
                 self._left_container.addWidget(widget)
                 self._relay_widgets[relay_id] = widget
             
-            # RIGHT SIDE: Relays 16 down to 9 (matching physical layout)
-            # R16 (master) at top, then R15, R14, ... R9
+            # RIGHT: Relays 16 down to 9 (matching physical layout)
             for relay_id in range(16, 8, -1):
                 is_master = (relay_id == self._master_relay)
-                cage_data = cage_by_relay.get(relay_id) if not is_master else None
-                
                 widget = RelayTerminalWidget(
                     relay_id=relay_id,
-                    cage_data=cage_data,
+                    cage_data=cage_by_relay.get(relay_id) if not is_master else None,
                     is_master=is_master
                 )
                 widget.clicked.connect(self._on_relay_clicked)
                 self._right_container.addWidget(widget)
                 self._relay_widgets[relay_id] = widget
             
-            self._status_label.setText(f"Showing {len(cages)} cages across {self._num_hats} HAT(s)")
-            self._print_to_terminal(f"[CagesTab] Loaded relay board visualization")
+            self._status_label.setText(f"{len(cages)} cages · {self._num_hats} HAT")
+            self._print_to_terminal(f"[CagesTab] Loaded relay visualization")
             
         except Exception as e:
             self._status_label.setText(f"Error: {str(e)}")
-            self._print_to_terminal(f"[CagesTab] Error loading data: {e}")
+            self._print_to_terminal(f"[CagesTab] Error: {e}")
     
     def _clear_layout(self, layout: QVBoxLayout) -> None:
-        """Remove all widgets from a layout."""
+        """
+        Remove all widgets from a layout.
+        
+        Reference: https://doc.qt.io/qt-5/qobject.html#deleteLater
+        "Schedules this object for deletion"
+        """
         while layout.count():
             item = layout.takeAt(0)
             if item.widget():

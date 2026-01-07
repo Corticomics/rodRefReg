@@ -596,116 +596,93 @@ QLabel#CageBadge {
    CAGES VISUALIZATION TAB
    ============================================ */
 
-/* Board frame container */
-QFrame#BoardFrame {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
-}
-
+/* Board title - centered, subtle */
 QLabel#BoardTitle {
-    font-size: 14px;
-    font-weight: 600;
-    color: #4E5D6C;
-    padding: 8px;
-    background: #F8FAFB;
-    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #8492A6;
+    background: transparent;
+    padding: 4px 0;
 }
 
+/* Column headers - uppercase, subtle */
 QLabel#ColumnHeader {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     color: #8492A6;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 8px 12px;
-    background: #F1F4F6;
-    border-radius: 6px;
+    letter-spacing: 0.8px;
+    background: transparent;
+    padding: 6px 0;
 }
 
-/* Relay Terminal Widget */
+/* Relay Terminal Widget - cage type */
 QFrame#RelayTerminal {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    border-left: 4px solid #0D9488;
+    border-radius: 6px;
+    border-left: 3px solid #0D9488;
 }
 QFrame#RelayTerminal:hover {
     background: #F0FDFA;
-    border-color: #0D9488;
+    border-color: #CBD5E0;
 }
 
+/* Relay Terminal Widget - master solenoid */
 QFrame#MasterTerminal {
     background: #FFFBEB;
     border: 1px solid #FCD34D;
-    border-radius: 8px;
-    border-left: 4px solid #F59E0B;
+    border-radius: 6px;
+    border-left: 3px solid #F59E0B;
 }
 QFrame#MasterTerminal:hover {
     background: #FEF3C7;
-    border-color: #F59E0B;
 }
 
+/* Relay number badge */
 QLabel#RelayNumber {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
-    color: #1A1D1F;
+    color: #4E5D6C;
     background: #F1F4F6;
-    border-radius: 6px;
-    padding: 4px 8px;
+    border-radius: 4px;
+    padding: 2px 6px;
 }
 
-QFrame#TerminalSeparator {
-    background: #E2E8F0;
-    max-width: 1px;
-}
-
+/* Cage name - primary text */
 QLabel#CageNameLabel {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
     color: #1A1D1F;
     background: transparent;
 }
 
+/* Master label - amber accent */
 QLabel#MasterLabel {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     color: #92400E;
     background: transparent;
 }
 
+/* Unassigned relay */
 QLabel#UnassignedLabel {
-    font-size: 13px;
-    font-style: italic;
+    font-size: 12px;
     color: #A0AEC0;
     background: transparent;
 }
 
-QLabel#TerminalDescription {
-    font-size: 11px;
-    color: #8492A6;
-    background: transparent;
-}
-
+/* Status indicator dots */
 QLabel#StatusDot {
-    font-size: 12px;
+    font-size: 10px;
     color: #0D9488;
     background: transparent;
 }
 
 QLabel#MasterStatusDot {
-    font-size: 12px;
+    font-size: 10px;
     color: #F59E0B;
     background: transparent;
-}
-
-QLabel#LEDIndicator {
-    font-size: 10px;
-    font-weight: 600;
-    color: #8492A6;
-    background: #F1F4F6;
-    border-radius: 4px;
-    padding: 4px 6px;
 }
 
 QLabel#VolumeLabel {

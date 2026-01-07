@@ -1,12 +1,17 @@
 # Rodent Refreshment Regulator - Development Roadmap
 
-## Version: 2.1.0 (Sprint Complete) → 2.2.0 (Next Sprint)
+## Version: 2.2.0 (Sprint Complete) → 2.3.0 (Next Sprint)
 
-**Last Updated:** December 27, 2025  
+**Last Updated:** January 7, 2026  
 **Sprint Duration:** 2 weeks  
 **Methodology:** Agile/Scrum with Test-Driven Development (TDD)
 
-### Sprint 2.1.0 Summary
+### Sprint 2.2.0 Summary
+- **Completed:** 24 story points across 12 tasks
+- **Pass Rate:** 100% (0 linter errors)
+- **Key Deliverables:** Cage naming system, wizard cage selection, relay board visualization
+
+### Sprint 2.1.0 Summary (Previous)
 - **Completed:** 17 story points across 8 tasks
 - **Pass Rate:** 97.6% (41/42 automated tests)
 - **Key Deliverables:** Security gating, timer overflow fix, UI consistency, button states
@@ -242,16 +247,59 @@ right_layout.addWidget(self.run_stop_section)
 
 ---
 
-## 9. Next Sprint Preview
+## 9. Sprint 2.2.0 Completed Features ✅
+
+### 9.1 Cage Naming System (CAGE-001 → CAGE-005)
+
+| Task ID | Story Points | Description | Status |
+|---------|--------------|-------------|--------|
+| CAGE-001 | 3 | Database schema: `cage_names` table with CRUD operations | ✅ Done |
+| CAGE-002 | 2 | `Cage` dataclass model for type-safe handling | ✅ Done |
+| CAGE-003 | 5 | `CageManagerWidget` UI in Settings tab for editing cage names | ✅ Done |
+| CAGE-004 | 3 | Filterable cage dropdown in Schedule Wizard Step 3 | ✅ Done |
+| CAGE-005 | 5 | Relay Board Visualization tab in Projects section | ✅ Done |
+
+**Technical Details:**
+- **Database**: Added `cage_names` table with `cage_id`, `relay_id`, `name`, `description`, timestamps
+- **Model**: `Project/models/cage.py` - Dataclass with `display_name`, `has_custom_name` properties
+- **Settings UI**: `Project/ui/cage_manager_widget.py` - Editable table with auto-save
+- **Wizard**: Modified `Step3ConfigureParameters` with `QComboBox` + `QCompleter` for cage selection
+- **Visualization**: `Project/ui/cages_visualization_tab.py` - Mirrors physical relay HAT layout
+
+**References:**
+- Qt Documentation: [QComboBox](https://doc.qt.io/qt-5/qcombobox.html)
+- Qt Documentation: [QCompleter](https://doc.qt.io/qt-5/qcompleter.html)
+- Qt Documentation: [QSS Selectors](https://doc.qt.io/qt-5/stylesheet-syntax.html#selector-types)
+- Material Design: [Touch targets](https://material.io/design/usability/accessibility.html#layout-and-typography) (48dp minimum)
+
+### 9.2 Files Added/Modified
+
+| File | Type | Description |
+|------|------|-------------|
+| `models/cage.py` | New | Cage dataclass with serialization |
+| `models/database_handler.py` | Modified | Added cage_names CRUD methods |
+| `ui/cage_manager_widget.py` | New | Settings tab for editing cage names |
+| `ui/cages_visualization_tab.py` | New | Relay HAT board visualization |
+| `ui/SettingsTab.py` | Modified | Added "Cages" sub-tab |
+| `ui/projects_section.py` | Modified | Added "Cages" tab |
+| `ui/schedule_wizard.py` | Modified | Added cage dropdown in Step 3 |
+| `ui/style/app-light.qss` | Modified | Added cage visualization styles |
+| `ui/style/app-dark.qss` | Modified | Added cage visualization styles (dark mode) |
+
+---
+
+## 10. Next Sprint Preview (2.3.0)
 
 - Hardware diagnostic mode (valve circuit testing)
 - Automated calibration verification
 - Export delivery logs to CSV
 - Multi-Pi network support (JConeDataBase integration)
+- **NEW:** Cage-to-animal assignment history tracking
+- **NEW:** Bulk cage import/export (CSV)
 
 ---
 
-## Appendix A: File Change Matrix
+## Appendix A: File Change Matrix (Sprint 2.1.0)
 
 | File | Changes Required |
 |------|------------------|
@@ -263,8 +311,56 @@ right_layout.addWidget(self.run_stop_section)
 | `gpio/relay_worker.py` | Cap timer delays to prevent overflow |
 | `ui/SettingsTab.py` | Fix form layout label sizing |
 
+## Appendix B: Cages Feature Architecture (Sprint 2.2.0)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      CAGE NAMING SYSTEM                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────────┐    ┌──────────────────┐                   │
+│  │  CageManagerWidget │    │ CagesVisualization │                │
+│  │  (Settings Tab)    │    │  Tab (Projects)     │                │
+│  └────────┬───────────┘    └────────┬───────────┘                │
+│           │                          │                           │
+│           │  get/set cage names      │  get cage data            │
+│           ▼                          ▼                           │
+│  ┌──────────────────────────────────────────────┐                │
+│  │           DatabaseHandler                     │                │
+│  │  ┌─────────────────────────────────────────┐ │                │
+│  │  │         cage_names TABLE                 │ │                │
+│  │  │  cage_id | relay_id | name | description │ │                │
+│  │  │    1     |    1     | Lab A |    ...     │ │                │
+│  │  │    2     |    2     | Lab B |    ...     │ │                │
+│  │  └─────────────────────────────────────────┘ │                │
+│  └──────────────────────────────────────────────┘                │
+│           ▲                                                      │
+│           │  get_cages_for_dropdown()                            │
+│  ┌────────┴───────────┐                                         │
+│  │   ScheduleWizard    │                                         │
+│  │   Step 3: Assign    │                                         │
+│  │   animals to cages  │                                         │
+│  └────────────────────┘                                         │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+Relay HAT Physical Layout (CagesVisualizationTab):
+┌────────────────────────────────────────────┐
+│  LEFT          [IMAGE]           RIGHT     │
+│  R1  Cage 1                      R16 MASTER│
+│  R2  Cage 2                      R15 Cage15│
+│  R3  Cage 3                      R14 Cage14│
+│  R4  Cage 4                      R13 Cage13│
+│  R5  Cage 5                      R12 Cage12│
+│  R6  Cage 6                      R11 Cage11│
+│  R7  Cage 7                      R10 Cage10│
+│  R8  Cage 8                      R9  Cage 9│
+└────────────────────────────────────────────┘
+```
+
 ---
 
 *Document maintained by: Development Team*  
-*Review cycle: Per sprint*
+*Review cycle: Per sprint*  
+*Last update: January 7, 2026*
 
