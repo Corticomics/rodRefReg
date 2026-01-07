@@ -279,20 +279,26 @@ class ScheduleProgressTracker(QWidget):
         """
         Initialize tracker for new schedule.
         
+        Thread Safety: Must be called from GUI thread.
+        Per Qt documentation, QTimer must be used in the thread where it was created.
+        
         Args:
             schedule_name: Name of the schedule
             animals_data: Dict {animal_id: {'cage_id': int, 'target_volume': float}}
         """
         print(f"[ProgressTracker] start_schedule called: {schedule_name}")
         print(f"[ProgressTracker] animals_data: {animals_data}")
-        print(f"[ProgressTracker] widget visible: {self.isVisible()}, parent: {self.parent()}")
+        
+        # Stop any existing timers FIRST before any other cleanup
+        self._stop_all_timers()
         
         self.schedule_name = schedule_name
         self.schedule_start_time = datetime.now()
         
         self.schedule_title.setText(f"Running: {schedule_name}")
+        self.elapsed_time_label.setText("Elapsed: 0:00")
         
-        # Clear existing cards
+        # Clear existing cards (after stopping timers)
         self.clear_cards()
         
         # Create cards for each animal
@@ -301,42 +307,86 @@ class ScheduleProgressTracker(QWidget):
         max_cols = 4  # 4 cards per row
         
         for animal_id, data in animals_data.items():
-            print(f"[ProgressTracker] Creating card for animal {animal_id}: cage={data['cage_id']}, target={data['target_volume']}")
+            # Ensure animal_id is int for consistent storage
+            animal_id_int = int(animal_id)
+            
+            print(f"[ProgressTracker] Creating card for animal {animal_id_int}: cage={data['cage_id']}, target={data['target_volume']}")
             card = MaterialCard(
-                animal_id=animal_id,
+                animal_id=animal_id_int,
                 cage_id=data['cage_id'],
                 target_volume_ml=data['target_volume'],
                 parent=self
             )
             
-            self.cards[animal_id] = card
+            self.cards[animal_id_int] = card
             self.cards_layout.addWidget(card, row, col)
-            print(f"[ProgressTracker] Card added to grid at row={row}, col={col}")
             
             col += 1
             if col >= max_cols:
                 col = 0
                 row += 1
         
-        print(f"[ProgressTracker] Total cards created: {len(self.cards)}")
+        print(f"[ProgressTracker] Total cards created: {len(self.cards)}, keys: {list(self.cards.keys())}")
         
-        # CRITICAL: Create timer fresh each time (avoid cross-thread killTimer issues)
-        if self.elapsed_timer:
-            self.elapsed_timer.stop()
-            self.elapsed_timer.deleteLater()
-        
-        self.elapsed_timer = QTimer(self)  # Explicit parent = this widget (GUI thread)
+        # Create elapsed timer fresh (Qt best practice: timers bound to widget thread)
+        self.elapsed_timer = QTimer(self)
         self.elapsed_timer.timeout.connect(self._update_elapsed_time)
-        self.elapsed_timer.start(1000)  # Update every second
+        self.elapsed_timer.start(1000)
+    
+    def _stop_all_timers(self):
+        """
+        Safely stop and clean up all timers.
+        
+        Qt Best Practice: Stop timers before deleteLater() to avoid
+        "QTimer can only be used with threads started with QThread" errors.
+        Reference: https://doc.qt.io/qt-5/qtimer.html#details
+        """
+        if self.elapsed_timer is not None:
+            try:
+                self.elapsed_timer.stop()
+                self.elapsed_timer.deleteLater()
+            except RuntimeError:
+                pass  # Timer was already deleted
+            self.elapsed_timer = None
+        
+        if self.auto_dismiss_timer is not None:
+            try:
+                self.auto_dismiss_timer.stop()
+                self.auto_dismiss_timer.deleteLater()
+            except RuntimeError:
+                pass
+            self.auto_dismiss_timer = None
     
     def update_animal_progress(self, animal_id, delivered_ml, status="Delivering", 
                                pulse_count=0, sensor_health="Unknown"):
-        """Update progress for specific animal"""
-        if animal_id in self.cards:
-            card = self.cards[animal_id]
-            card.update_progress(delivered_ml, status)
-            card.update_pulse_count(pulse_count)
-            card.update_sensor_health(sensor_health)
+        """
+        Update progress for specific animal.
+        
+        Thread Safety: This method may be called from worker thread via Qt.QueuedConnection.
+        Per Qt documentation, QueuedConnection marshals the call to the receiver's thread.
+        
+        Args:
+            animal_id: Animal identifier (int)
+            delivered_ml: Volume delivered so far
+            status: Current delivery status
+            pulse_count: Number of pulses delivered (optional, for pulse mode)
+            sensor_health: Flow sensor health status (optional)
+        """
+        # Ensure animal_id is int for consistent lookup
+        try:
+            animal_id = int(animal_id)
+        except (ValueError, TypeError):
+            print(f"[ProgressTracker] Invalid animal_id type: {type(animal_id)}")
+            return
+        
+        if animal_id not in self.cards:
+            print(f"[ProgressTracker] No card for animal {animal_id}, available: {list(self.cards.keys())}")
+            return
+        
+        card = self.cards[animal_id]
+        card.update_progress(delivered_ml, status)
+        # Note: pulse_count and sensor_health are available for future enhancements
+        # but MaterialCard.update_progress() handles the core display
     
     def update_all_animals_status(self, status):
         """Update status for all animals (e.g., "Paused")"""
@@ -344,24 +394,40 @@ class ScheduleProgressTracker(QWidget):
             card.update_progress(card.delivered_volume_ml, status)
     
     def schedule_complete(self):
-        """Handle schedule completion"""
-        if self.elapsed_timer:
-            self.elapsed_timer.stop()
+        """
+        Handle schedule completion.
         
-        # Update all cards to complete
+        Updates card statuses and schedules auto-dismiss.
+        """
+        # Stop elapsed timer (but keep auto_dismiss for later)
+        if self.elapsed_timer is not None:
+            try:
+                self.elapsed_timer.stop()
+            except RuntimeError:
+                pass
+        
+        # Update all cards to complete status
         for card in self.cards.values():
             if card.delivered_volume_ml >= card.target_volume_ml * 0.95:  # 95% threshold
                 card.update_progress(card.delivered_volume_ml, "Complete")
+            else:
+                # Mark as incomplete if below threshold
+                card.update_progress(card.delivered_volume_ml, "Incomplete")
         
-        # Auto-dismiss after 10 seconds (create timer fresh to avoid cross-thread issues)
-        if self.auto_dismiss_timer:
-            self.auto_dismiss_timer.stop()
-            self.auto_dismiss_timer.deleteLater()
+        # Cancel any pending auto-dismiss timer
+        if self.auto_dismiss_timer is not None:
+            try:
+                self.auto_dismiss_timer.stop()
+                self.auto_dismiss_timer.deleteLater()
+            except RuntimeError:
+                pass
+            self.auto_dismiss_timer = None
         
-        self.auto_dismiss_timer = QTimer(self)  # Explicit parent
+        # Schedule auto-dismiss after 10 seconds
+        self.auto_dismiss_timer = QTimer(self)
         self.auto_dismiss_timer.timeout.connect(self._auto_dismiss)
         self.auto_dismiss_timer.setSingleShot(True)
-        self.auto_dismiss_timer.start(10000)  # 10 seconds
+        self.auto_dismiss_timer.start(10000)
     
     def _auto_dismiss(self):
         """Fade out and hide tracker"""
@@ -390,12 +456,15 @@ class ScheduleProgressTracker(QWidget):
             self.elapsed_time_label.setText(f"Elapsed: {minutes}:{seconds:02d}")
     
     def stop(self):
-        """Stop tracking and clean up"""
-        if self.elapsed_timer:
-            self.elapsed_timer.stop()
-        if self.auto_dismiss_timer:
-            self.auto_dismiss_timer.stop()
+        """
+        Stop tracking and clean up all resources.
+        
+        Called when schedule is stopped or widget is being destroyed.
+        """
+        self._stop_all_timers()
         self.clear_cards()
+        self.schedule_start_time = None
+        self.schedule_name = ""
 
 
 class ScheduleProgressWidget(QWidget):

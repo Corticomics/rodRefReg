@@ -220,14 +220,15 @@ class RunStopSection(QWidget):
         Execute the loaded schedule with optimized UI responsiveness.
         
         Optimization Strategy:
-        1. Update UI immediately to show "Starting..." state
+        1. Update UI state immediately (Qt handles repaint automatically)
         2. Defer database queries using QTimer.singleShot(0)
-        3. Reduce verbose debug output
+        3. Let Qt's event loop handle UI updates naturally
         
         Security: Verifies login status before execution (defense in depth).
+        
         Reference: 
-        - OWASP Access Control guidelines
         - Qt Event Loop: https://doc.qt.io/qt-5/qcoreapplication.html#processEvents
+          "Avoid processEvents() except in special circumstances"
         """
         # Security check: verify login status (defense in depth)
         if self.login_system and not self.login_system.is_logged_in():
@@ -242,23 +243,25 @@ class RunStopSection(QWidget):
             QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
             return
         
-        # OPTIMIZATION: Update UI immediately before any database work
+        # Update UI state - Qt's event loop will handle repaint before singleShot fires
         self.job_in_progress = True
         self.run_button.setEnabled(False)
         self.run_button.setText("Starting...")
         self.stop_button.setEnabled(True)
-        QApplication.processEvents()  # Force UI update
         
         # Defer heavy work to next event loop iteration
-        # This ensures UI updates are painted before blocking operations
+        # QTimer.singleShot(0) allows pending paint events to process first
         QTimer.singleShot(0, self._prepare_and_execute_schedule)
     
     def _prepare_and_execute_schedule(self):
         """
         Prepare schedule data and execute (runs after UI update).
         
-        This is called via QTimer.singleShot(0) to ensure the UI
-        has updated before we do any blocking database queries.
+        Optimization: Uses cached schedule data where possible to minimize
+        blocking database queries on the GUI thread.
+        
+        Qt Best Practice: Database I/O should ideally be on worker thread,
+        but caching reduces impact on GUI responsiveness.
         """
         try:
             schedule = self.schedule_drop_area.current_schedule
@@ -266,11 +269,27 @@ class RunStopSection(QWidget):
             
             print(f"[RUN] Starting schedule: {schedule.name}, mode: {mode}")
             
-            # Database queries (now happen after UI is updated)
-            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
-            schedule.animals = schedule_details['animal_ids']
-            schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
-            schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+            # OPTIMIZATION: Only fetch data that wasn't cached during drop
+            # Check if we already have the essential data
+            needs_refresh = (
+                not hasattr(schedule, 'animals') or 
+                not schedule.animals or
+                not hasattr(schedule, 'relay_unit_assignments') or
+                not schedule.relay_unit_assignments
+            )
+            
+            if needs_refresh:
+                # Fetch missing data
+                schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+                schedule.animals = schedule_details['animal_ids']
+                schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
+                schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+            else:
+                # Use cached data, just ensure desired_water_outputs exists
+                if not hasattr(schedule, 'desired_water_outputs') or not schedule.desired_water_outputs:
+                    # Only fetch what we need
+                    schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+                    schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
             
             if not schedule.animals:
                 self._reset_run_button()
@@ -406,13 +425,10 @@ class RunStopSection(QWidget):
             
             # Transition: "Starting..." → "Running" after prep completes
             self.run_button.setText("Running")
-            QApplication.processEvents()
             
-            # Execute in next event loop iteration
+            # Execute immediately - no need to defer again since we're already deferred
             print(f"[RUN] Launching execution for {schedule.name}")
-            QTimer.singleShot(0, lambda: self._execute_program(
-                schedule, mode, window_start, window_end
-            ))
+            self._execute_program(schedule, mode, window_start, window_end)
             
         except Exception as e:
             self._reset_run_button()
@@ -461,13 +477,19 @@ class RunStopSection(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
 
     def _execute_stop(self):
+        """
+        Execute the stop operation.
+        
+        Qt Best Practice: Avoid processEvents() - it can cause:
+        1. Recursive event processing leading to GUI twitches
+        2. Unexpected re-entrance into event handlers
+        
+        Reference: https://doc.qt.io/qt-5/qcoreapplication.html#processEvents
+        """
         try:
             self.progress_dialog.show()
-            QApplication.processEvents()
             
             success = self.stop_program_callback()
-            
-            QApplication.processEvents()
             
             if hasattr(self, 'progress_dialog') and self.progress_dialog:
                 self.progress_dialog.close()

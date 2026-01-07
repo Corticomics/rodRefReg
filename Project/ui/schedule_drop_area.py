@@ -106,7 +106,8 @@ class ScheduleDropArea(QWidget):
                 schedule_detail = schedule_details[0]
                 print(f"Retrieved schedule details: {schedule_detail}")
                 
-                # Create Schedule instance without relay_unit_id
+                # Create Schedule instance with all available data
+                # This caches data to avoid re-querying on run
                 self.current_schedule = Schedule(
                     schedule_id=schedule_dict['schedule_id'],
                     name=schedule_dict['name'],
@@ -117,6 +118,11 @@ class ScheduleDropArea(QWidget):
                     is_super_user=schedule_dict['is_super_user'],
                     delivery_mode=schedule_detail['delivery_mode']
                 )
+                
+                # Cache animal IDs and relay assignments to avoid re-query on run
+                self.current_schedule.animals = schedule_detail.get('animal_ids', [])
+                self.current_schedule.relay_unit_assignments = schedule_detail.get('relay_unit_assignments', {})
+                self.current_schedule.desired_water_outputs = schedule_detail.get('desired_water_outputs', {})
                 
                 # Load instant deliveries if in instant mode
                 if self.current_schedule.delivery_mode.lower() == 'instant':
