@@ -845,6 +845,56 @@ class Step3ConfigureParameters(QWidget):
         """Get per-animal configurations."""
         return self._animal_configs.copy()
     
+    def _restore_widget_values(self) -> None:
+        """
+        Restore widget values from saved _animal_configs.
+        
+        Called when navigating BACK to Step 3 to preserve user input.
+        UX Best Practice: Never lose user data on back navigation.
+        """
+        # Restore schedule name if we have the widget
+        if hasattr(self, '_name_input') and self._name_input:
+            saved_name = self._parameters.get("name", "")
+            if saved_name and self._name_input.text() != saved_name:
+                self._name_input.blockSignals(True)
+                self._name_input.setText(saved_name)
+                self._name_input.blockSignals(False)
+        
+        # Restore per-animal widget values
+        for animal_id, widgets in self._animal_widgets.items():
+            config = self._animal_configs.get(animal_id, {})
+            
+            if self._schedule_type == "staggered":
+                # Restore start time
+                if "start_time" in widgets and "start_time" in config:
+                    start = config["start_time"]
+                    if isinstance(start, datetime):
+                        widgets["start_time"].blockSignals(True)
+                        widgets["start_time"].setDateTime(QDateTime(start))
+                        widgets["start_time"].blockSignals(False)
+                
+                # Restore end time
+                if "end_time" in widgets and "end_time" in config:
+                    end = config["end_time"]
+                    if isinstance(end, datetime):
+                        widgets["end_time"].blockSignals(True)
+                        widgets["end_time"].setDateTime(QDateTime(end))
+                        widgets["end_time"].blockSignals(False)
+            else:
+                # Restore delivery time (instant mode)
+                if "delivery_time" in widgets and "delivery_time" in config:
+                    delivery = config["delivery_time"]
+                    if isinstance(delivery, datetime):
+                        widgets["delivery_time"].blockSignals(True)
+                        widgets["delivery_time"].setDateTime(QDateTime(delivery))
+                        widgets["delivery_time"].blockSignals(False)
+            
+            # Restore volume
+            if "volume" in widgets and "volume" in config:
+                widgets["volume"].blockSignals(True)
+                widgets["volume"].setValue(config["volume"])
+                widgets["volume"].blockSignals(False)
+    
     def is_valid(self) -> bool:
         """Validate parameters."""
         name = self._parameters.get("name", "").strip()
@@ -1089,6 +1139,12 @@ class ScheduleCreationWizard(QWidget):
         self._database_handler = database_handler
         self._login_system = login_system
         self._system_controller = system_controller
+        
+        # Track visited steps to avoid resetting data on back navigation
+        # Qt Best Practice: Preserve user input when navigating backward in wizards
+        self._visited_steps: set = set()
+        self._last_step_index: int = -1
+        
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -1157,24 +1213,58 @@ class ScheduleCreationWizard(QWidget):
         self._wizard.set_next_enabled(False)  # Disabled until type selected
     
     def _on_step_changed(self, step_index: int) -> None:
-        """Handle step changes to load data."""
+        """
+        Handle step changes to load data.
+        
+        UX Best Practice: Preserve user input when navigating backward.
+        Only reset/rebuild data when:
+        1. Visiting a step for the first time (forward navigation)
+        2. Or if the underlying data changed (e.g., different animals selected)
+        
+        Reference: Material Design Steppers - "Users can return to a previous step 
+        to edit their response."
+        """
+        # Determine navigation direction
+        is_going_forward = step_index > self._last_step_index
+        first_visit = step_index not in self._visited_steps
+        
+        # Mark step as visited
+        self._visited_steps.add(step_index)
+        self._last_step_index = step_index
+        
         if step_index == 1:
-            # Step 2: Load animals
+            # Step 2: Load animals (always refresh list, but selection preserved)
             trainer = self._login_system.get_current_trainer()
             trainer_id = trainer.get("trainer_id") if trainer else None
             self._step2.load_animals(trainer_id)
             self._wizard.set_next_enabled(self._step2.is_valid())
         
         elif step_index == 2:
-            # Step 3: Pass selected animals and schedule type
+            # Step 3: Configure parameters
             schedule_type = self._step1.get_selected_type()
             selected_animals = self._step2.get_selected_animals_data()
-            self._step3.set_animals(selected_animals)
-            self._step3.set_schedule_type(schedule_type or "staggered")
+            
+            # Only rebuild UI if:
+            # 1. First visit to this step, OR
+            # 2. Animals selection changed, OR  
+            # 3. Schedule type changed
+            current_animals = set(a["id"] for a in self._step3._selected_animals) if self._step3._selected_animals else set()
+            new_animals = set(a["id"] for a in selected_animals)
+            animals_changed = current_animals != new_animals
+            type_changed = self._step3._schedule_type != (schedule_type or "staggered")
+            
+            if first_visit or animals_changed or type_changed:
+                # Reset and rebuild
+                self._step3.set_animals(selected_animals)
+                self._step3.set_schedule_type(schedule_type or "staggered")
+            else:
+                # Preserve existing data - just make sure widgets show current values
+                self._step3._restore_widget_values()
+            
             self._wizard.set_next_enabled(True)  # Will validate on next
         
         elif step_index == 3:
-            # Step 4: Build review summary
+            # Step 4: Build review summary (always rebuild to show current state)
             config = self._build_config()
             self._step4.set_config(config)
     

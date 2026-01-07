@@ -327,6 +327,11 @@ class ScheduleProgressTracker(QWidget):
                 row += 1
         
         print(f"[ProgressTracker] Total cards created: {len(self.cards)}, keys: {list(self.cards.keys())}")
+        print(f"[ProgressTracker] Cards dict id: {id(self.cards)}")
+        
+        # Verify cards were created correctly
+        for aid, card in self.cards.items():
+            print(f"[ProgressTracker] Verified card for animal {aid}: target={card.target_volume_ml}ml")
         
         # Create elapsed timer fresh (Qt best practice: timers bound to widget thread)
         self.elapsed_timer = QTimer(self)

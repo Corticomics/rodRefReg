@@ -285,6 +285,10 @@ class RodentRefreshmentGUI(QWidget):
             schedule_name: Name of the running schedule
             animals_data: Dict of {animal_id: {'cage_id': int, 'target_volume': float}}
         """
+        print(f"[GUI] show_execution_monitor called for: {schedule_name}")
+        print(f"[GUI] animals_data: {animals_data}")
+        print(f"[GUI] Progress tracker object: {id(self.progress_tracker)}")
+        
         # Cancel any pending hide timer (prevents race condition)
         if hasattr(self, '_hide_timer') and self._hide_timer is not None:
             self._hide_timer.stop()

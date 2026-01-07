@@ -277,26 +277,49 @@ def run_program(schedule, mode, window_start, window_end):
                 tracker = gui.run_stop_section.get_progress_tracker()
             
             if tracker:
+                print(f"[main.py] Connecting progress tracker: {tracker}")
+                print(f"[main.py] Tracker cards before start: {list(tracker.cards.keys()) if hasattr(tracker, 'cards') else 'N/A'}")
+                
                 # Volume updates: update per-animal progress
+                # IMPORTANT: Capture tracker reference directly (not via closure bug)
+                _tracker_ref = tracker  # Explicit capture
+                
                 def _on_volume_updated(animal_id_str: str, total_ml: float):
                     try:
                         animal_id = int(animal_id_str)
-                    except Exception:
+                    except Exception as e:
+                        print(f"[main.py] Failed to convert animal_id '{animal_id_str}': {e}")
                         return
                     try:
-                        tracker.update_animal_progress(animal_id, total_ml, status="Delivering")
-                    except Exception:
-                        pass
+                        # Debug: log what we're trying to update
+                        print(f"[main.py] volume_updated: animal={animal_id}, ml={total_ml:.3f}, tracker_cards={list(_tracker_ref.cards.keys()) if hasattr(_tracker_ref, 'cards') else 'N/A'}")
+                        _tracker_ref.update_animal_progress(animal_id, total_ml, status="Delivering")
+                    except Exception as e:
+                        # Log errors instead of silently swallowing them
+                        print(f"[main.py] ERROR updating progress: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
                 try:
                     worker.volume_updated.disconnect()
                 except Exception:
                     pass
                 # Use QueuedConnection to ensure tracker updates happen in GUI thread
                 worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)
+                
                 # Finished: mark schedule complete in tracker (also queued to GUI thread)
-                worker.finished.connect(lambda: getattr(tracker, 'schedule_complete', lambda: None)(), Qt.QueuedConnection)
-        except Exception:
-            pass
+                def _on_finished():
+                    try:
+                        _tracker_ref.schedule_complete()
+                    except Exception as e:
+                        print(f"[main.py] ERROR on schedule_complete: {e}")
+                
+                worker.finished.connect(_on_finished, Qt.QueuedConnection)
+                print(f"[main.py] Progress tracker connected successfully")
+        except Exception as e:
+            print(f"[main.py] Failed to setup progress tracker: {e}")
+            import traceback
+            traceback.print_exc()
 
         # Ensure stop requests are delivered to the worker's thread (Qt.QueuedConnection)
         try:
