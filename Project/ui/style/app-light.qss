@@ -627,6 +627,10 @@ QFrame#RelayTerminal:hover {
     background: #F0FDFA;
     border-color: #CBD5E0;
 }
+QFrame#RelayTerminal[selected="true"] {
+    background: #E6FFFA;
+    border-color: #0D9488;
+}
 
 /* Relay Terminal Widget - master solenoid */
 QFrame#MasterTerminal {
@@ -637,6 +641,21 @@ QFrame#MasterTerminal {
 }
 QFrame#MasterTerminal:hover {
     background: #FEF3C7;
+}
+QFrame#MasterTerminal[selected="true"] {
+    background: #FEF3C7;
+    border-color: #F59E0B;
+}
+
+/* Inline cage name editor */
+QLineEdit#CageNameEdit {
+    background: #FFFFFF;
+    border: 1px solid #0D9488;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1A1D1F;
 }
 
 /* Relay number badge */
