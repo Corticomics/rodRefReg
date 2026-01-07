@@ -596,34 +596,120 @@ QLabel#CageBadge {
     font-size: 11px;
 }
 
-QLabel#RelayBadge {
-    background-color: #2D3748;
-    color: #A0AEC0;
-    padding: 4px 8px;
-    border-radius: 10px;
-    font-weight: 500;
-    font-size: 10px;
-}
+/* ============================================
+   CAGES VISUALIZATION TAB
+   ============================================ */
 
-QLabel#MasterBadge {
-    background-color: #F59E0B;
-    color: #1A2028;
-    padding: 4px 10px;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 11px;
-}
-
-/* Master Relay Card (distinct styling) */
-QFrame#MasterRelayCard {
-    background-color: #78350F;
-    border: 2px solid #F59E0B;
+/* Board frame container */
+QFrame#BoardFrame {
+    background: #1E2530;
+    border: 1px solid #2D3748;
     border-radius: 12px;
-    padding: 0;
 }
-QFrame#MasterRelayCard:hover {
-    background-color: #92400E;
+
+QLabel#BoardTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #A0AEC0;
+    padding: 8px;
+    background: #242C38;
+    border-radius: 6px;
+}
+
+QLabel#ColumnHeader {
+    font-size: 11px;
+    font-weight: 600;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 12px;
+    background: #242C38;
+    border-radius: 6px;
+}
+
+/* Relay Terminal Widget */
+QFrame#RelayTerminal {
+    background: #1E2530;
+    border: 1px solid #2D3748;
+    border-radius: 8px;
+    border-left: 4px solid #14B8A6;
+}
+QFrame#RelayTerminal:hover {
+    background: #134E4A;
+    border-color: #14B8A6;
+}
+
+QFrame#MasterTerminal {
+    background: #78350F;
+    border: 1px solid #92400E;
+    border-radius: 8px;
+    border-left: 4px solid #F59E0B;
+}
+QFrame#MasterTerminal:hover {
+    background: #92400E;
     border-color: #FBBF24;
+}
+
+QLabel#RelayNumber {
+    font-size: 14px;
+    font-weight: 700;
+    color: #F0F4F8;
+    background: #2D3748;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+QFrame#TerminalSeparator {
+    background: #4A5568;
+    max-width: 1px;
+}
+
+QLabel#CageNameLabel {
+    font-size: 14px;
+    font-weight: 600;
+    color: #F0F4F8;
+    background: transparent;
+}
+
+QLabel#MasterLabel {
+    font-size: 14px;
+    font-weight: 700;
+    color: #FCD34D;
+    background: transparent;
+}
+
+QLabel#UnassignedLabel {
+    font-size: 13px;
+    font-style: italic;
+    color: #718096;
+    background: transparent;
+}
+
+QLabel#TerminalDescription {
+    font-size: 11px;
+    color: #718096;
+    background: transparent;
+}
+
+QLabel#StatusDot {
+    font-size: 12px;
+    color: #2DD4BF;
+    background: transparent;
+}
+
+QLabel#MasterStatusDot {
+    font-size: 12px;
+    color: #FBBF24;
+    background: transparent;
+}
+
+QLabel#LEDIndicator {
+    font-size: 10px;
+    font-weight: 600;
+    color: #718096;
+    background: #2D3748;
+    border-radius: 4px;
+    padding: 4px 6px;
 }
 
 QLabel#VolumeLabel {

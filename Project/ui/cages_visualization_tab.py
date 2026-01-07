@@ -1,20 +1,15 @@
 # ui/cages_visualization_tab.py
 """
-Cages Visualization Tab - Visual representation of relay HAT cage layout.
+Cages Visualization Tab - Visual representation of the physical relay HAT board.
 
-Design Principles:
-- Grid-based card layout matching physical relay HAT topology
-- Material Design cards with status indicators
-- Real-time cage name display from database
-- Visual mapping of cage_id → relay_id
-- Consistent with existing app QSS styling
+Shows the actual 16-relay HAT layout so users can understand which physical
+relay terminal corresponds to which cage. Designed for non-expert users who
+need to wire valves to the correct relay terminals.
 
-Architecture:
-- 16-relay HAT: R1-R15 for cages, R16 for master solenoid
-- Card grid arranged to match physical board layout (4x4 or 3x5+master)
-- Status badges showing calibration state, last use, etc.
-
-Reference: Material Design Cards, existing ScheduleProgressTracker.MaterialCard
+Physical Layout (SM16relind HAT):
+- Left side (top to bottom): R1, R2, R3, R4, R5, R6, R7, R8
+- Right side (top to bottom): R16 (master), R15, R14, R13, R12, R11, R10, R9
+- LEDs at bottom indicate relay state (on/off)
 """
 
 from PyQt5.QtWidgets import (
@@ -22,171 +17,126 @@ from PyQt5.QtWidgets import (
     QGridLayout, QFrame, QPushButton, QSizePolicy, QSpacerItem
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from typing import Optional, Dict, Any, List
+from PyQt5.QtGui import QPixmap, QFont
+from typing import Optional, Dict, Any
+import os
 
 
-class CageCard(QFrame):
+class RelayTerminalWidget(QFrame):
     """
-    Individual cage visualization card.
+    Represents a single relay terminal on the physical board.
     
-    Features:
-    - Cage ID and relay ID display
-    - User-defined name display
-    - Calibration status badge
-    - Click to view details
-    
-    Styling: Uses QSS #MaterialCard for consistent appearance
+    Shows the relay number, assigned cage name, and connection status.
+    Styled to look like a physical terminal block.
     """
     
-    clicked = pyqtSignal(int)  # Emits cage_id
+    clicked = pyqtSignal(int)  # Emits relay_id
     
-    def __init__(self, cage_data: Dict[str, Any], parent=None):
+    def __init__(self, relay_id: int, cage_data: Optional[Dict[str, Any]] = None, 
+                 is_master: bool = False, parent=None):
         super().__init__(parent)
+        self._relay_id = relay_id
         self._cage_data = cage_data
+        self._is_master = is_master
         self._init_ui()
     
     def _init_ui(self) -> None:
-        """Initialize card UI with cage information."""
-        self.setObjectName("MaterialCard")
+        """Build the terminal widget UI."""
+        if self._is_master:
+            self.setObjectName("MasterTerminal")
+        else:
+            self.setObjectName("RelayTerminal")
+        
         self.setProperty("card", True)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedSize(140, 120)
+        self.setMinimumHeight(56)
+        self.setMaximumHeight(64)
         
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(12)
         
-        # Top row: Cage badge + Relay badge
-        top_row = QHBoxLayout()
-        top_row.setSpacing(6)
+        # Relay number indicator (styled as terminal number)
+        relay_label = QLabel(f"R{self._relay_id}")
+        relay_label.setObjectName("RelayNumber")
+        relay_label.setAlignment(Qt.AlignCenter)
+        relay_label.setFixedWidth(44)
+        layout.addWidget(relay_label)
         
-        # Cage ID badge (teal accent)
-        cage_id = self._cage_data.get('cage_id', 0)
-        cage_badge = QLabel(f"C{cage_id}")
-        cage_badge.setObjectName("CageBadge")
-        cage_badge.setAlignment(Qt.AlignCenter)
-        cage_badge.setFixedSize(32, 24)
-        top_row.addWidget(cage_badge)
+        # Separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.VLine)
+        separator.setObjectName("TerminalSeparator")
+        layout.addWidget(separator)
         
-        # Relay ID badge (subtle)
-        relay_id = self._cage_data.get('relay_id', cage_id)
-        relay_badge = QLabel(f"R{relay_id}")
-        relay_badge.setObjectName("RelayBadge")
-        relay_badge.setAlignment(Qt.AlignCenter)
-        relay_badge.setFixedSize(32, 24)
-        top_row.addWidget(relay_badge)
+        # Assignment info
+        info_layout = QVBoxLayout()
+        info_layout.setSpacing(2)
+        info_layout.setContentsMargins(0, 0, 0, 0)
         
-        top_row.addStretch()
-        layout.addLayout(top_row)
+        if self._is_master:
+            # Master relay - special display
+            name_label = QLabel("MASTER SOLENOID")
+            name_label.setObjectName("MasterLabel")
+            info_layout.addWidget(name_label)
+            
+            desc_label = QLabel("Main water supply valve")
+            desc_label.setObjectName("TerminalDescription")
+            info_layout.addWidget(desc_label)
+        elif self._cage_data:
+            # Regular cage assignment
+            cage_id = self._cage_data.get('cage_id', 0)
+            cage_name = self._cage_data.get('name', f'Cage {cage_id}')
+            
+            name_label = QLabel(cage_name)
+            name_label.setObjectName("CageNameLabel")
+            if len(cage_name) > 20:
+                name_label.setText(cage_name[:18] + "...")
+                name_label.setToolTip(cage_name)
+            info_layout.addWidget(name_label)
+            
+            # Cage ID subtitle
+            cage_label = QLabel(f"Cage {cage_id}")
+            cage_label.setObjectName("TerminalDescription")
+            info_layout.addWidget(cage_label)
+        else:
+            # Unassigned relay
+            name_label = QLabel("Not assigned")
+            name_label.setObjectName("UnassignedLabel")
+            info_layout.addWidget(name_label)
         
-        # Cage name (user-defined)
-        name = self._cage_data.get('name', f"Cage {cage_id}")
-        name_label = QLabel(name)
-        name_label.setObjectName("CardTitle")
-        name_label.setWordWrap(True)
-        name_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        # Truncate if too long
-        if len(name) > 18:
-            name_label.setText(name[:15] + "...")
-            name_label.setToolTip(name)
-        layout.addWidget(name_label)
+        layout.addLayout(info_layout, 1)
         
-        # Status indicator (calibration status)
-        status = self._get_calibration_status()
-        status_label = QLabel(status)
-        status_label.setObjectName("Caption")
-        status_label.setAlignment(Qt.AlignLeft)
-        layout.addWidget(status_label)
-        
-        layout.addStretch()
-    
-    def _get_calibration_status(self) -> str:
-        """Get calibration status text."""
-        # Could be enhanced to show actual calibration data
-        return "Ready"
+        # Status indicator dot
+        status_dot = QLabel("●")
+        if self._is_master:
+            status_dot.setObjectName("MasterStatusDot")
+        else:
+            status_dot.setObjectName("StatusDot")
+        status_dot.setAlignment(Qt.AlignCenter)
+        layout.addWidget(status_dot)
     
     def mousePressEvent(self, event):
-        """Handle click to emit cage_id."""
         if event.button() == Qt.LeftButton:
-            self.clicked.emit(self._cage_data.get('cage_id', 0))
+            self.clicked.emit(self._relay_id)
         super().mousePressEvent(event)
     
     @property
-    def cage_id(self) -> int:
-        return self._cage_data.get('cage_id', 0)
-    
-    def update_data(self, cage_data: Dict[str, Any]) -> None:
-        """Update card with new cage data."""
-        self._cage_data = cage_data
-        # Could refresh UI here if needed
-
-
-class MasterRelayCard(QFrame):
-    """
-    Special card for master solenoid relay (R16).
-    
-    Visual distinction from regular cage cards to indicate
-    this relay controls the main water supply valve.
-    """
-    
-    def __init__(self, relay_id: int = 16, parent=None):
-        super().__init__(parent)
-        self._relay_id = relay_id
-        self._init_ui()
-    
-    def _init_ui(self) -> None:
-        """Initialize master relay card with distinct styling."""
-        self.setObjectName("MasterRelayCard")
-        self.setProperty("card", True)
-        self.setFixedSize(140, 120)
-        
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
-        
-        # Top row: Relay badge
-        top_row = QHBoxLayout()
-        
-        relay_badge = QLabel(f"R{self._relay_id}")
-        relay_badge.setObjectName("MasterBadge")
-        relay_badge.setAlignment(Qt.AlignCenter)
-        relay_badge.setFixedSize(40, 24)
-        top_row.addWidget(relay_badge)
-        top_row.addStretch()
-        
-        layout.addLayout(top_row)
-        
-        # Master label
-        title = QLabel("MASTER")
-        title.setObjectName("CardTitle")
-        title.setAlignment(Qt.AlignLeft)
-        layout.addWidget(title)
-        
-        # Description
-        desc = QLabel("Main Valve")
-        desc.setObjectName("Caption")
-        layout.addWidget(desc)
-        
-        layout.addStretch()
+    def relay_id(self) -> int:
+        return self._relay_id
 
 
 class CagesVisualizationTab(QWidget):
     """
-    Tab for visualizing cage/relay layout.
+    Tab displaying the physical relay HAT board layout.
     
-    Features:
-    - Grid layout matching physical relay HAT board
-    - Real-time cage name display
-    - Calibration status indicators
-    - Master relay highlighted
-    - Refresh button for updates
-    
-    Args:
-        database_handler: For cage name retrieval
-        system_controller: For hardware configuration
+    Mirrors the actual hardware layout so users can:
+    - See which relay terminal to wire each cage valve to
+    - Understand the relationship between cage IDs and relay numbers
+    - Identify the master solenoid location
     """
     
-    cage_selected = pyqtSignal(int)  # Emits cage_id when card clicked
+    cage_selected = pyqtSignal(int)
     
     def __init__(self, database_handler, system_controller=None, 
                  print_to_terminal=None, parent=None):
@@ -195,134 +145,212 @@ class CagesVisualizationTab(QWidget):
         self._system_controller = system_controller
         self._print_to_terminal = print_to_terminal or (lambda x: None)
         
-        # Hardware config
+        # Hardware configuration
         self._num_hats = 1
         self._master_relay = 16
         if system_controller and hasattr(system_controller, 'settings'):
             self._num_hats = int(system_controller.settings.get('num_hats', 1))
             self._master_relay = int(system_controller.settings.get('global_master_relay_id', 16))
         
-        self._cage_cards: Dict[int, CageCard] = {}
+        self._relay_widgets: Dict[int, RelayTerminalWidget] = {}
         self._init_ui()
-        self._load_cages()
+        self._load_cage_data()
     
     def _init_ui(self) -> None:
-        """Initialize the visualization UI."""
+        """Initialize the visualization layout."""
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(16)
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(20)
         
-        # Header section
-        header_container = QFrame()
-        header_container.setObjectName("Card")
-        header_container.setProperty("card", True)
-        header_layout = QVBoxLayout(header_container)
-        header_layout.setContentsMargins(16, 12, 16, 12)
-        header_layout.setSpacing(8)
+        # ─────────────────────────────────────────────────────────────
+        # Header Card
+        # ─────────────────────────────────────────────────────────────
+        header = QFrame()
+        header.setObjectName("Card")
+        header.setProperty("card", True)
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(20, 16, 20, 16)
+        header_layout.setSpacing(12)
         
         # Title row
         title_row = QHBoxLayout()
+        title_row.setSpacing(16)
         
-        title = QLabel("Relay HAT Visualization")
+        title = QLabel("Relay Board Layout")
         title.setObjectName("Title")
         title_row.addWidget(title)
         
         title_row.addStretch()
         
-        # Refresh button
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.setObjectName("SecondaryButton")
-        refresh_btn.clicked.connect(self._load_cages)
-        refresh_btn.setFixedWidth(80)
+        refresh_btn.clicked.connect(self._load_cage_data)
+        refresh_btn.setMinimumWidth(100)
         title_row.addWidget(refresh_btn)
         
         header_layout.addLayout(title_row)
         
-        # Info text
-        info_label = QLabel(
-            f"Physical relay mapping for {self._num_hats} HAT(s). "
-            f"Relay {self._master_relay} is the master solenoid."
+        # Description
+        desc = QLabel(
+            "This diagram shows the physical layout of the 16-relay HAT board. "
+            "Each terminal corresponds to a valve connection. Wire your cage valves "
+            "to the relay terminals as shown below."
         )
-        info_label.setObjectName("Subtitle")
-        info_label.setWordWrap(True)
-        header_layout.addWidget(info_label)
+        desc.setObjectName("Subtitle")
+        desc.setWordWrap(True)
+        header_layout.addWidget(desc)
         
-        main_layout.addWidget(header_container)
+        main_layout.addWidget(header)
         
-        # Legend
-        legend_container = QHBoxLayout()
-        legend_container.setSpacing(24)
+        # ─────────────────────────────────────────────────────────────
+        # Board Visualization
+        # ─────────────────────────────────────────────────────────────
+        board_frame = QFrame()
+        board_frame.setObjectName("BoardFrame")
+        board_frame.setProperty("card", True)
+        board_layout = QVBoxLayout(board_frame)
+        board_layout.setContentsMargins(20, 20, 20, 20)
+        board_layout.setSpacing(16)
         
-        # Cage legend
-        cage_legend = QHBoxLayout()
-        cage_sample = QLabel("C#")
-        cage_sample.setObjectName("CageBadge")
-        cage_sample.setFixedSize(28, 20)
-        cage_sample.setAlignment(Qt.AlignCenter)
-        cage_legend.addWidget(cage_sample)
-        cage_legend.addWidget(QLabel("= Cage ID"))
-        legend_container.addLayout(cage_legend)
+        # Board title
+        board_title = QLabel("SM16relind 16-Relay HAT")
+        board_title.setObjectName("BoardTitle")
+        board_title.setAlignment(Qt.AlignCenter)
+        board_layout.addWidget(board_title)
         
-        # Relay legend
-        relay_legend = QHBoxLayout()
-        relay_sample = QLabel("R#")
-        relay_sample.setObjectName("RelayBadge")
-        relay_sample.setFixedSize(28, 20)
-        relay_sample.setAlignment(Qt.AlignCenter)
-        relay_legend.addWidget(relay_sample)
-        relay_legend.addWidget(QLabel("= Relay ID"))
-        legend_container.addLayout(relay_legend)
+        # Two-column layout matching physical board
+        columns_layout = QHBoxLayout()
+        columns_layout.setSpacing(40)
         
-        # Master legend
-        master_legend = QHBoxLayout()
-        master_sample = QLabel("M")
-        master_sample.setObjectName("MasterBadge")
-        master_sample.setFixedSize(28, 20)
-        master_sample.setAlignment(Qt.AlignCenter)
-        master_legend.addWidget(master_sample)
-        master_legend.addWidget(QLabel("= Master Solenoid"))
-        legend_container.addLayout(master_legend)
+        # ─── LEFT COLUMN: Relays 1-8 ───
+        left_column = QVBoxLayout()
+        left_column.setSpacing(8)
         
-        legend_container.addStretch()
-        main_layout.addLayout(legend_container)
+        left_header = QLabel("LEFT TERMINALS (R1-R8)")
+        left_header.setObjectName("ColumnHeader")
+        left_header.setAlignment(Qt.AlignCenter)
+        left_column.addWidget(left_header)
         
-        # Scroll area for cage grid
-        scroll_area = QScrollArea()
-        scroll_area.setObjectName("TrackerScrollArea")
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._left_container = QVBoxLayout()
+        self._left_container.setSpacing(4)
+        left_column.addLayout(self._left_container)
+        left_column.addStretch()
         
-        # Grid container
-        self._grid_container = QWidget()
-        self._grid_layout = QGridLayout(self._grid_container)
-        self._grid_layout.setSpacing(12)
-        self._grid_layout.setContentsMargins(8, 8, 8, 8)
+        columns_layout.addLayout(left_column, 1)
         
-        scroll_area.setWidget(self._grid_container)
-        main_layout.addWidget(scroll_area, 1)
+        # ─── CENTER: Board illustration ───
+        center_column = QVBoxLayout()
+        center_column.setSpacing(8)
         
-        # Bottom info bar
-        bottom_bar = QHBoxLayout()
+        # Load board image if available
+        image_path = os.path.join(
+            os.path.dirname(__file__), 
+            'src', 
+            'Relay architecture no labels.png'
+        )
+        
+        if os.path.exists(image_path):
+            board_image = QLabel()
+            pixmap = QPixmap(image_path)
+            # Scale to reasonable size
+            scaled = pixmap.scaledToHeight(380, Qt.SmoothTransformation)
+            board_image.setPixmap(scaled)
+            board_image.setAlignment(Qt.AlignCenter)
+            board_image.setToolTip("Physical relay HAT board layout")
+            center_column.addWidget(board_image)
+        else:
+            # Fallback placeholder
+            placeholder = QLabel("[ Board Diagram ]")
+            placeholder.setObjectName("Subtitle")
+            placeholder.setAlignment(Qt.AlignCenter)
+            placeholder.setMinimumSize(200, 300)
+            center_column.addWidget(placeholder)
+        
+        center_column.addStretch()
+        columns_layout.addLayout(center_column, 0)
+        
+        # ─── RIGHT COLUMN: Relays 9-16 ───
+        right_column = QVBoxLayout()
+        right_column.setSpacing(8)
+        
+        right_header = QLabel("RIGHT TERMINALS (R9-R16)")
+        right_header.setObjectName("ColumnHeader")
+        right_header.setAlignment(Qt.AlignCenter)
+        right_column.addWidget(right_header)
+        
+        self._right_container = QVBoxLayout()
+        self._right_container.setSpacing(4)
+        right_column.addLayout(self._right_container)
+        right_column.addStretch()
+        
+        columns_layout.addLayout(right_column, 1)
+        
+        board_layout.addLayout(columns_layout)
+        
+        # LED indicator row
+        led_row = QHBoxLayout()
+        led_row.setSpacing(4)
+        led_row.addStretch()
+        
+        led_label = QLabel("Status LEDs:")
+        led_label.setObjectName("Caption")
+        led_row.addWidget(led_label)
+        
+        for i in range(1, 9):
+            led = QLabel(f" {i} ")
+            led.setObjectName("LEDIndicator")
+            led.setAlignment(Qt.AlignCenter)
+            led_row.addWidget(led)
+        
+        led_row.addStretch()
+        board_layout.addLayout(led_row)
+        
+        main_layout.addWidget(board_frame, 1)
+        
+        # ─────────────────────────────────────────────────────────────
+        # Legend / Help
+        # ─────────────────────────────────────────────────────────────
+        legend_frame = QFrame()
+        legend_frame.setObjectName("Card")
+        legend_frame.setProperty("card", True)
+        legend_layout = QHBoxLayout(legend_frame)
+        legend_layout.setContentsMargins(16, 12, 16, 12)
+        legend_layout.setSpacing(32)
+        
+        # Status indicators legend
+        legend_items = [
+            ("●", "StatusDot", "Cage relay - connected to valve"),
+            ("●", "MasterStatusDot", "Master solenoid - main water supply"),
+        ]
+        
+        for symbol, obj_name, description in legend_items:
+            item_layout = QHBoxLayout()
+            item_layout.setSpacing(8)
+            
+            dot = QLabel(symbol)
+            dot.setObjectName(obj_name)
+            item_layout.addWidget(dot)
+            
+            text = QLabel(description)
+            text.setObjectName("Caption")
+            item_layout.addWidget(text)
+            
+            legend_layout.addLayout(item_layout)
+        
+        legend_layout.addStretch()
+        
+        # Status
         self._status_label = QLabel("")
         self._status_label.setObjectName("Caption")
-        bottom_bar.addWidget(self._status_label)
-        bottom_bar.addStretch()
-        main_layout.addLayout(bottom_bar)
-    
-    def _load_cages(self) -> None:
-        """Load cage data and populate grid."""
-        # Clear existing cards
-        for card in self._cage_cards.values():
-            card.deleteLater()
-        self._cage_cards.clear()
+        legend_layout.addWidget(self._status_label)
         
-        # Clear grid layout
-        while self._grid_layout.count():
-            item = self._grid_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        main_layout.addWidget(legend_frame)
+    
+    def _load_cage_data(self) -> None:
+        """Load cage assignments and populate the relay terminals."""
+        # Clear existing widgets
+        self._clear_layout(self._left_container)
+        self._clear_layout(self._right_container)
+        self._relay_widgets.clear()
         
         try:
             # Get cage data from database
@@ -331,45 +359,58 @@ class CagesVisualizationTab(QWidget):
                 master_relay=self._master_relay
             )
             
-            # Arrange in grid (4 columns to match HAT layout)
-            num_columns = 4
+            # Build lookup by relay_id
+            cage_by_relay: Dict[int, Dict] = {}
+            for cage in cages:
+                relay_id = cage.get('relay_id', cage.get('cage_id'))
+                cage_by_relay[relay_id] = cage
             
-            for idx, cage_data in enumerate(cages):
-                row = idx // num_columns
-                col = idx % num_columns
+            # LEFT SIDE: Relays 1-8 (top to bottom on physical board)
+            for relay_id in range(1, 9):
+                cage_data = cage_by_relay.get(relay_id)
+                widget = RelayTerminalWidget(
+                    relay_id=relay_id,
+                    cage_data=cage_data,
+                    is_master=False
+                )
+                widget.clicked.connect(self._on_relay_clicked)
+                self._left_container.addWidget(widget)
+                self._relay_widgets[relay_id] = widget
+            
+            # RIGHT SIDE: Relays 16 down to 9 (matching physical layout)
+            # R16 (master) at top, then R15, R14, ... R9
+            for relay_id in range(16, 8, -1):
+                is_master = (relay_id == self._master_relay)
+                cage_data = cage_by_relay.get(relay_id) if not is_master else None
                 
-                card = CageCard(cage_data)
-                card.clicked.connect(self._on_cage_clicked)
-                
-                self._grid_layout.addWidget(card, row, col)
-                self._cage_cards[cage_data['cage_id']] = card
+                widget = RelayTerminalWidget(
+                    relay_id=relay_id,
+                    cage_data=cage_data,
+                    is_master=is_master
+                )
+                widget.clicked.connect(self._on_relay_clicked)
+                self._right_container.addWidget(widget)
+                self._relay_widgets[relay_id] = widget
             
-            # Add master relay card in the last position
-            master_row = len(cages) // num_columns
-            master_col = len(cages) % num_columns
-            
-            # If we're at the start of a new row, add master in previous row's last column
-            # This gives a cleaner visual layout
-            if master_col == 0 and master_row > 0:
-                master_row -= 1
-                master_col = num_columns
-            
-            master_card = MasterRelayCard(relay_id=self._master_relay)
-            self._grid_layout.addWidget(master_card, master_row, master_col)
-            
-            self._status_label.setText(f"Loaded {len(cages)} cages + 1 master relay")
-            self._print_to_terminal(f"[CagesTab] Loaded {len(cages)} cage visualizations")
+            self._status_label.setText(f"Showing {len(cages)} cages across {self._num_hats} HAT(s)")
+            self._print_to_terminal(f"[CagesTab] Loaded relay board visualization")
             
         except Exception as e:
-            self._status_label.setText(f"Error loading cages: {str(e)}")
-            self._print_to_terminal(f"[CagesTab] Error: {e}")
+            self._status_label.setText(f"Error: {str(e)}")
+            self._print_to_terminal(f"[CagesTab] Error loading data: {e}")
     
-    def _on_cage_clicked(self, cage_id: int) -> None:
-        """Handle cage card click."""
-        self._print_to_terminal(f"[CagesTab] Selected cage {cage_id}")
-        self.cage_selected.emit(cage_id)
+    def _clear_layout(self, layout: QVBoxLayout) -> None:
+        """Remove all widgets from a layout."""
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+    
+    def _on_relay_clicked(self, relay_id: int) -> None:
+        """Handle relay terminal click."""
+        self._print_to_terminal(f"[CagesTab] Selected relay {relay_id}")
+        self.cage_selected.emit(relay_id)
     
     def refresh(self) -> None:
-        """Public method to refresh cage display."""
-        self._load_cages()
-
+        """Public method to refresh the display."""
+        self._load_cage_data()
