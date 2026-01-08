@@ -289,6 +289,10 @@ class ScheduleProgressTracker(QWidget):
         print(f"[ProgressTracker] start_schedule called: {schedule_name}")
         print(f"[ProgressTracker] animals_data: {animals_data}")
         
+        # CRITICAL: Ensure widget is visible (may have been hidden by _auto_dismiss)
+        # Bug Fix: Without this, second schedule would show blank because widget was hidden
+        self.show()
+        
         # Stop any existing timers FIRST before any other cleanup
         self._stop_all_timers()
         

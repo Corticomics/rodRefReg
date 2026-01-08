@@ -304,6 +304,9 @@ class RodentRefreshmentGUI(QWidget):
         # Switch to the Execution Monitor tab
         self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
         
+        # Ensure progress tracker widget is visible (may have been hidden by auto-dismiss)
+        self.progress_tracker.show()
+        
         # Start the progress tracker
         self.progress_tracker.start_schedule(schedule_name, animals_data)
         
