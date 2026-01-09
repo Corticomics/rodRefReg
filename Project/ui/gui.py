@@ -260,15 +260,21 @@ class RodentRefreshmentGUI(QWidget):
         Dynamically adjust left pane layout when switching between Terminal and Execution Monitor.
         
         When Execution Monitor is active, we expand the terminal section to show cards properly.
+        Also sets minimum height to ensure visibility during schedule execution.
         """
         if index == self.execution_monitor_index:
-            # Execution Monitor selected - give it more space
-            self.left_layout.setStretch(0, 3)  # Terminal/Monitor area
-            self.left_layout.setStretch(1, 1)  # Projects section
+            # Execution Monitor selected - give it much more space for cards
+            # Use 4:1 ratio to ensure monitor is clearly visible during execution
+            self.left_layout.setStretch(0, 4)  # Terminal/Monitor area (expanded)
+            self.left_layout.setStretch(1, 1)  # Projects section (compressed)
+            # Set minimum height to ensure cards are visible
+            self.terminal_tab_widget.setMinimumHeight(350)
         else:
             # Terminal selected - restore default proportions
             self.left_layout.setStretch(0, 1)  # Terminal area
             self.left_layout.setStretch(1, 3)  # Projects section
+            # Reset minimum height for terminal mode
+            self.terminal_tab_widget.setMinimumHeight(180)
 
     def print_to_terminal(self, message):
         """Print message to terminal output"""
@@ -304,6 +310,9 @@ class RodentRefreshmentGUI(QWidget):
         # Switch to the Execution Monitor tab
         self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
         
+        # Explicitly trigger layout adjustment (in case signal wasn't connected)
+        self._on_terminal_tab_changed(self.execution_monitor_index)
+        
         # Ensure progress tracker widget is visible (may have been hidden by auto-dismiss)
         self.progress_tracker.show()
         
@@ -323,6 +332,9 @@ class RodentRefreshmentGUI(QWidget):
         
         # Switch back to Terminal tab
         self.terminal_tab_widget.setCurrentIndex(0)
+        
+        # Explicitly restore normal layout proportions
+        self._on_terminal_tab_changed(0)
         
         # Hide the Execution Monitor tab (with 10-second delay to show final state)
         from PyQt5.QtCore import QTimer
