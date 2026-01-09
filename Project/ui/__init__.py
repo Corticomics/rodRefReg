@@ -5,12 +5,14 @@ from .welcome_section import WelcomeSection
 from .run_stop_section import RunStopSection
 
 from .projects_section import ProjectsSection
-from .schedules_tab import SchedulesTab
+from .schedules_hub import SchedulesHub  # New: Clean schedule management hub
+from .schedules_tab import SchedulesTab  # Legacy: Kept for backwards compatibility
 from .animals_tab import AnimalsTab
 from .UserTab import UserTab
 from .create_schedule_dialog import CreateScheduleDialog
 from .relay_unit_widget import RelayUnitWidget
 from .animal_entry_widget import AnimalEntryWidget
+from .wizard_tab import WizardTab  # New: Step-by-step schedule wizard
 
 from .SettingsTab import SettingsTab
 from .HelpTab import HelpTab
@@ -26,6 +28,8 @@ __all__ = [
     'SuggestSettingsTab',
     'SlackCredentialsTab',
     'AnimalsTab',
-    'SchedulesTab',
+    'SchedulesHub',
+    'SchedulesTab',  # Legacy
+    'WizardTab',
     'UpdateNotifier'
 ]
