@@ -217,11 +217,48 @@ class CagesVisualizationTab(QWidget):
         main_layout.setSpacing(12)
         
         # ═══════════════════════════════════════════════════════════════
-        # HEADER (minimal - just title)
+        # HEADER with title and info button
         # ═══════════════════════════════════════════════════════════════
+        header_layout = QHBoxLayout()
+        
         title = QLabel("Relay Board Layout")
         title.setObjectName("Title")
-        main_layout.addWidget(title)
+        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1a1a1a;")
+        header_layout.addWidget(title)
+        
+        header_layout.addStretch()
+        
+        # Info button (explains relay-to-cage relationship)
+        from PyQt5.QtWidgets import QPushButton, QToolTip
+        info_btn = QPushButton("ⓘ")
+        info_btn.setToolTip(
+            "<b>Relay-to-Cage Relationship</b><br><br>"
+            "Each relay (R1-R15) controls one cage's water valve.<br><br>"
+            "• <b>R1-R8</b>: Left side terminals on the HAT<br>"
+            "• <b>R9-R15</b>: Right side terminals (R16 is Master)<br>"
+            "• <b>R16</b>: Master solenoid (controls water supply)<br><br>"
+            "Wire each cage's valve to its corresponding relay terminal.<br>"
+            "Use the cage names to easily identify which animal is in which cage."
+        )
+        info_btn.setFixedSize(28, 28)
+        info_btn.setCursor(Qt.WhatsThisCursor)
+        info_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #F0F9FF;
+                color: #0369A1;
+                border: 1px solid #BAE6FD;
+                border-radius: 14px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #E0F2FE;
+                border-color: #7DD3FC;
+            }
+        """)
+        header_layout.addWidget(info_btn)
+        
+        main_layout.addLayout(header_layout)
         
         # ═══════════════════════════════════════════════════════════════
         # BOARD VISUALIZATION
@@ -229,14 +266,27 @@ class CagesVisualizationTab(QWidget):
         board_frame = QFrame()
         board_frame.setObjectName("Card")
         board_frame.setProperty("card", True)
+        board_frame.setStyleSheet("""
+            QFrame#Card {
+                background-color: #FFFFFF;
+                border: 1px solid #E2E8F0;
+                border-radius: 12px;
+            }
+        """)
         
         board_layout = QVBoxLayout(board_frame)
         board_layout.setContentsMargins(16, 12, 16, 16)
         board_layout.setSpacing(8)
         
-        # Subtitle
+        # Subtitle - fix gray box by using proper styling
         subtitle = QLabel("Double-click a cage to rename it")
-        subtitle.setObjectName("Caption")
+        subtitle.setStyleSheet("""
+            color: #6B7280;
+            font-size: 13px;
+            font-style: italic;
+            padding: 4px 8px;
+            background: transparent;
+        """)
         subtitle.setAlignment(Qt.AlignCenter)
         board_layout.addWidget(subtitle)
         
@@ -275,21 +325,25 @@ class CagesVisualizationTab(QWidget):
         if os.path.exists(image_path):
             board_image = QLabel()
             pixmap = QPixmap(image_path)
-            # Scale image larger now that cards are narrower
+            # Scale image LARGER for better visibility
+            # Increased from 380x500 to 500x650 for better readability
             scaled = pixmap.scaled(
-                380, 500,
+                500, 650,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation
             )
             board_image.setPixmap(scaled)
             board_image.setAlignment(Qt.AlignCenter)
-            board_image.setToolTip("Physical relay HAT - match cage wires to terminal labels")
+            board_image.setToolTip(
+                "Physical relay HAT board layout\n"
+                "Match cage wires to the corresponding terminal labels (R1-R16)"
+            )
             center_column.addWidget(board_image)
         else:
-            placeholder = QLabel("[Board Diagram]")
-            placeholder.setObjectName("Caption")
+            placeholder = QLabel("[Board Diagram Not Found]")
+            placeholder.setStyleSheet("color: #9CA3AF; font-size: 14px;")
             placeholder.setAlignment(Qt.AlignCenter)
-            placeholder.setMinimumSize(300, 400)
+            placeholder.setMinimumSize(400, 500)
             center_column.addWidget(placeholder)
         
         columns_layout.addLayout(center_column, 2)  # More space for image

@@ -7,8 +7,7 @@ allowing side-by-side comparison with the traditional Schedules tab method.
 """
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QMessageBox, QScrollArea, QFrame
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from .schedule_wizard import ScheduleCreationWizard
@@ -45,12 +44,22 @@ class WizardTab(QWidget):
         self._init_ui()
     
     def _init_ui(self):
-        """Initialize the tab UI."""
+        """
+        Initialize the tab UI.
+        
+        Design Decision:
+        - The wizard container is NOT wrapped in a scroll area
+        - Scrolling happens WITHIN individual wizard steps (e.g., Step 3 animal config)
+        - This keeps the progress bar, navigation buttons, and step headers fixed
+        - Only content that needs scrolling (many animals) will scroll
+        
+        Reference: Material Design Steppers - Fixed navigation pattern
+        """
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Header with reset button
+        # Header with reset button (fixed at top)
         header = QWidget()
         header.setObjectName("WizardTabHeader")
         header.setStyleSheet("""
@@ -90,13 +99,8 @@ class WizardTab(QWidget):
         
         layout.addWidget(header)
         
-        # Wizard container (scrollable)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
-        # Create the wizard (with hardware limits from system_controller)
+        # Wizard container (STATIC - no outer scroll)
+        # Scrolling is handled internally by each step that needs it (Step 3)
         self._wizard = ScheduleCreationWizard(
             database_handler=self._database_handler,
             login_system=self._login_system,
@@ -107,8 +111,8 @@ class WizardTab(QWidget):
         self._wizard.schedule_created.connect(self._on_schedule_created)
         self._wizard.cancelled.connect(self._on_cancelled)
         
-        scroll.setWidget(self._wizard)
-        layout.addWidget(scroll, 1)
+        # Add wizard directly (no scroll wrapper)
+        layout.addWidget(self._wizard, 1)
     
     def _on_schedule_created(self, config: dict):
         """Handle schedule creation from wizard."""
@@ -135,23 +139,30 @@ class WizardTab(QWidget):
         self._reset_wizard()
     
     def _reset_wizard(self):
-        """Reset the wizard to initial state for new schedule creation."""
-        # Remove old wizard
+        """
+        Reset the wizard to initial state for new schedule creation.
+        
+        Design: Replaces the wizard widget in the layout with a fresh instance.
+        """
+        # Store layout reference
+        layout = self.layout()
+        
+        # Remove old wizard from layout
         if hasattr(self, '_wizard') and self._wizard:
+            layout.removeWidget(self._wizard)
             self._wizard.deleteLater()
         
-        # Find the scroll area
-        scroll = self.findChild(QScrollArea)
-        if scroll:
-            # Create new wizard (with hardware limits from system_controller)
-            self._wizard = ScheduleCreationWizard(
-                database_handler=self._database_handler,
-                login_system=self._login_system,
-                system_controller=self._system_controller
-            )
-            self._wizard.schedule_created.connect(self._on_schedule_created)
-            self._wizard.cancelled.connect(self._on_cancelled)
-            scroll.setWidget(self._wizard)
+        # Create new wizard (with hardware limits from system_controller)
+        self._wizard = ScheduleCreationWizard(
+            database_handler=self._database_handler,
+            login_system=self._login_system,
+            system_controller=self._system_controller
+        )
+        self._wizard.schedule_created.connect(self._on_schedule_created)
+        self._wizard.cancelled.connect(self._on_cancelled)
+        
+        # Add to layout (at position 1 after header, with stretch)
+        layout.addWidget(self._wizard, 1)
         
         self._print_to_terminal("[Wizard Tab] Wizard reset - ready for new schedule")
     
