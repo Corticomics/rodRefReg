@@ -498,6 +498,68 @@ class DatabaseHandler:
             print(f"Database error when removing schedule: {e}")
             traceback.print_exc()
 
+    def update_schedule(self, schedule_id, name=None, start_time=None, end_time=None, 
+                        water_volume=None, desired_outputs=None):
+        """
+        Update an existing schedule in the database.
+        
+        Args:
+            schedule_id: ID of the schedule to update
+            name: New schedule name (optional)
+            start_time: New start time as ISO string (optional)
+            end_time: New end time as ISO string (optional)
+            water_volume: New total water volume (optional)
+            desired_outputs: Dict of {animal_id: volume} to update per-animal outputs (optional)
+        
+        Best Practice:
+            - Only updates provided fields (None values are skipped)
+            - Uses parameterized queries for SQL injection prevention
+            - Transactional: all updates succeed or all fail
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                
+                # Build dynamic UPDATE query for schedules table
+                updates = []
+                params = []
+                
+                if name is not None:
+                    updates.append("name = ?")
+                    params.append(name)
+                if start_time is not None:
+                    updates.append("start_time = ?")
+                    params.append(start_time)
+                if end_time is not None:
+                    updates.append("end_time = ?")
+                    params.append(end_time)
+                if water_volume is not None:
+                    updates.append("water_volume = ?")
+                    params.append(water_volume)
+                
+                if updates:
+                    params.append(schedule_id)
+                    query = f"UPDATE schedules SET {', '.join(updates)} WHERE schedule_id = ?"
+                    cursor.execute(query, params)
+                
+                # Update per-animal desired outputs if provided
+                if desired_outputs:
+                    for animal_id, volume in desired_outputs.items():
+                        cursor.execute('''
+                            UPDATE schedule_desired_outputs 
+                            SET desired_water_output = ?
+                            WHERE schedule_id = ? AND animal_id = ?
+                        ''', (volume, schedule_id, int(animal_id)))
+                
+                conn.commit()
+                print(f"Schedule {schedule_id} updated successfully.")
+                return True
+                
+        except sqlite3.Error as e:
+            print(f"Database error when updating schedule: {e}")
+            traceback.print_exc()
+            return False
+
     def get_all_schedules(self):
         schedules = []
         try:
