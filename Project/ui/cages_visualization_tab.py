@@ -220,43 +220,43 @@ class CagesVisualizationTab(QWidget):
         # HEADER with title and info button
         # ═══════════════════════════════════════════════════════════════
         header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
         
         title = QLabel("Relay Board Layout")
-        title.setObjectName("Title")
-        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1a1a1a;")
+        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1F2937;")
         header_layout.addWidget(title)
         
-        header_layout.addStretch()
-        
-        # Info button (explains relay-to-cage relationship)
-        from PyQt5.QtWidgets import QPushButton, QToolTip
-        info_btn = QPushButton("ⓘ")
-        info_btn.setToolTip(
-            "<b>Relay-to-Cage Relationship</b><br><br>"
-            "Each relay (R1-R15) controls one cage's water valve.<br><br>"
-            "• <b>R1-R8</b>: Left side terminals on the HAT<br>"
-            "• <b>R9-R15</b>: Right side terminals (R16 is Master)<br>"
-            "• <b>R16</b>: Master solenoid (controls water supply)<br><br>"
-            "Wire each cage's valve to its corresponding relay terminal.<br>"
-            "Use the cage names to easily identify which animal is in which cage."
-        )
-        info_btn.setFixedSize(28, 28)
+        # Info button (small, next to title) - uses "?" which renders reliably
+        from PyQt5.QtWidgets import QPushButton
+        info_btn = QPushButton("?")
+        info_btn.setFixedSize(22, 22)
         info_btn.setCursor(Qt.WhatsThisCursor)
+        info_btn.setToolTip(
+            "Relay-to-Cage Relationship:\n\n"
+            "Each relay (R1-R15) controls one cage's water valve.\n\n"
+            "R1-R8: Left side terminals\n"
+            "R9-R15: Right side terminals\n"
+            "R16: Master solenoid (water supply)\n\n"
+            "Wire each cage's valve to its relay terminal.\n"
+            "Double-click cage names to rename them."
+        )
         info_btn.setStyleSheet("""
             QPushButton {
-                background-color: #F0F9FF;
-                color: #0369A1;
-                border: 1px solid #BAE6FD;
-                border-radius: 14px;
-                font-size: 14px;
-                font-weight: 600;
+                background-color: #E5E7EB;
+                color: #6B7280;
+                border: none;
+                border-radius: 11px;
+                font-size: 12px;
+                font-weight: 700;
             }
             QPushButton:hover {
-                background-color: #E0F2FE;
-                border-color: #7DD3FC;
+                background-color: #D1D5DB;
+                color: #374151;
             }
         """)
         header_layout.addWidget(info_btn)
+        
+        header_layout.addStretch()
         
         main_layout.addLayout(header_layout)
         
