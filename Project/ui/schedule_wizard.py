@@ -122,10 +122,10 @@ class Step1SelectType(QWidget):
     
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(20)
+        layout.setContentsMargins(20, 12, 20, 12)  # Compact
+        layout.setSpacing(12)
         
-        # Step header
+        # Step header (compact)
         header = self._create_header(
             icon="",
             title="Select Schedule Type",
@@ -137,7 +137,7 @@ class Step1SelectType(QWidget):
         self._card_group = SelectableCardGroup()
         
         cards_layout = QGridLayout()
-        cards_layout.setSpacing(16)
+        cards_layout.setSpacing(12)
         
         for i, (key, type_info) in enumerate(SCHEDULE_TYPES.items()):
             card = InteractiveCard(
@@ -155,29 +155,29 @@ class Step1SelectType(QWidget):
         layout.addStretch()
     
     def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header with icon, title, and description."""
+        """Create compact step header."""
         container = QWidget()
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 8)  # Compact
+        layout.setSpacing(10)
         
-        # Icon
+        # Icon (smaller)
         icon_label = QLabel(icon)
         icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
+        icon_label.setFixedSize(36, 36)
         icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(icon_label)
         
         # Text
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(2)
         
         title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
+        title_label.setStyleSheet("font-size: 15px; font-weight: 600;")
         text_layout.addWidget(title_label)
         
         desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
+        desc_label.setStyleSheet("font-size: 11px; color: #6B7280;")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
         
@@ -230,10 +230,10 @@ class Step2SelectAnimals(QWidget):
     
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(20)
+        layout.setContentsMargins(20, 12, 20, 12)  # More compact margins
+        layout.setSpacing(10)  # Tighter spacing
         
-        # Step header
+        # Step header (compact)
         header = self._create_header(
             icon="🐭",
             title="Select Animals",
@@ -241,52 +241,58 @@ class Step2SelectAnimals(QWidget):
         )
         layout.addWidget(header)
         
-        # Hardware limit info
+        # Hardware limit info (compact inline warning)
         limit_container = QFrame()
         limit_container.setStyleSheet("""
             QFrame {
                 background: #FEF3C7;
                 border: 1px solid #F59E0B;
-                border-radius: 8px;
-                padding: 8px 12px;
+                border-radius: 6px;
             }
         """)
         limit_layout = QHBoxLayout(limit_container)
-        limit_layout.setContentsMargins(8, 4, 8, 4)
+        limit_layout.setContentsMargins(8, 4, 8, 4)  # Minimal padding
+        limit_layout.setSpacing(6)
         
-        limit_icon = QLabel("⚠️")
+        limit_icon = QLabel("⚠")
+        limit_icon.setStyleSheet("font-size: 12px;")
         limit_layout.addWidget(limit_icon)
         
         self._limit_label = QLabel(
-            f"Maximum {self._max_cages} animals can be selected "
-            f"(Relay {self._master_relay} is reserved for master solenoid)"
+            f"Maximum {self._max_cages} animals (Relay {self._master_relay} reserved)"
         )
-        self._limit_label.setStyleSheet("color: #92400E; font-size: 12px;")
-        self._limit_label.setWordWrap(True)
+        self._limit_label.setStyleSheet("color: #92400E; font-size: 11px;")
         limit_layout.addWidget(self._limit_label, 1)
         
         layout.addWidget(limit_container)
         
         # Animals list with checkboxes
         list_container = QGroupBox("Available Animals")
+        list_container.setStyleSheet("QGroupBox { font-size: 12px; }")
         list_layout = QVBoxLayout(list_container)
+        list_layout.setContentsMargins(8, 12, 8, 8)  # Compact
+        list_layout.setSpacing(6)
         
         # Selection counter
         self._selection_counter = QLabel("0 selected")
-        self._selection_counter.setStyleSheet("color: #6B7280; font-size: 12px;")
+        self._selection_counter.setStyleSheet("color: #6B7280; font-size: 11px;")
         list_layout.addWidget(self._selection_counter)
         
         self._animals_list = QListWidget()
         self._animals_list.setSelectionMode(QListWidget.MultiSelection)
+        self._animals_list.setStyleSheet("QListWidget::item { padding: 3px 6px; }")
         self._animals_list.itemSelectionChanged.connect(self._on_selection_changed)
         list_layout.addWidget(self._animals_list)
         
-        # Select all / deselect all buttons
+        # Select all / deselect all buttons (compact)
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8)
         from PyQt5.QtWidgets import QPushButton
         self._select_all_btn = QPushButton(f"Select All (max {self._max_cages})")
+        self._select_all_btn.setMinimumHeight(28)
         self._select_all_btn.clicked.connect(self._select_all)
         deselect_all_btn = QPushButton("Deselect All")
+        deselect_all_btn.setMinimumHeight(28)
         deselect_all_btn.clicked.connect(self._deselect_all)
         btn_layout.addWidget(self._select_all_btn)
         btn_layout.addWidget(deselect_all_btn)
@@ -296,27 +302,29 @@ class Step2SelectAnimals(QWidget):
         layout.addWidget(list_container, 1)
     
     def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header with icon, title, and description."""
+        """Create compact step header with icon, title, and description."""
         container = QWidget()
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 8)  # Compact bottom margin
+        layout.setSpacing(10)  # Tighter spacing
         
         icon_label = QLabel(icon)
         icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
+        icon_label.setFixedSize(36, 36)  # Smaller icon
         icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(icon_label)
         
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(2)
         
         title_label = QLabel(title)
         title_label.setObjectName("StepTitle")
+        title_label.setStyleSheet("font-size: 15px; font-weight: 600;")
         text_layout.addWidget(title_label)
         
         desc_label = QLabel(description)
         desc_label.setObjectName("StepDescription")
+        desc_label.setStyleSheet("font-size: 11px; color: #6B7280;")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
         
@@ -467,10 +475,10 @@ class Step3ConfigureParameters(QWidget):
     
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(20)
+        layout.setContentsMargins(20, 12, 20, 12)  # Compact
+        layout.setSpacing(10)
         
-        # Step header
+        # Step header (compact)
         header = self._create_header(
             icon="⚙",
             title="Configure Parameters",
@@ -485,7 +493,8 @@ class Step3ConfigureParameters(QWidget):
         
         self._params_widget = QWidget()
         self._params_layout = QVBoxLayout(self._params_widget)
-        self._params_layout.setSpacing(16)
+        self._params_layout.setSpacing(8)  # Tighter spacing
+        self._params_layout.setContentsMargins(0, 0, 0, 0)
         
         scroll.setWidget(self._params_widget)
         layout.addWidget(scroll, 1)
@@ -494,27 +503,27 @@ class Step3ConfigureParameters(QWidget):
         self._build_empty_state()
     
     def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header."""
+        """Create compact step header."""
         container = QWidget()
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 8)  # Compact
+        layout.setSpacing(10)
         
         icon_label = QLabel(icon)
         icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
+        icon_label.setFixedSize(36, 36)  # Smaller
         icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(icon_label)
         
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(2)
         
         title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
+        title_label.setStyleSheet("font-size: 15px; font-weight: 600;")
         text_layout.addWidget(title_label)
         
         desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
+        desc_label.setStyleSheet("font-size: 11px; color: #6B7280;")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
         
@@ -1162,10 +1171,10 @@ class Step4Review(QWidget):
     
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(20)
+        layout.setContentsMargins(20, 12, 20, 12)  # Compact
+        layout.setSpacing(10)
         
-        # Step header
+        # Step header (compact)
         header = self._create_header(
             icon="[>]",
             title="Review & Save",
@@ -1173,7 +1182,7 @@ class Step4Review(QWidget):
         )
         layout.addWidget(header)
         
-        # Scrollable summary area for dynamic number of animals
+        # Scrollable summary area
         from PyQt5.QtWidgets import QScrollArea
         
         scroll_area = QScrollArea()
@@ -1184,48 +1193,50 @@ class Step4Review(QWidget):
         # Summary card inside scroll area
         summary_group = QGroupBox()
         self._summary_layout = QFormLayout(summary_group)
-        self._summary_layout.setSpacing(12)
+        self._summary_layout.setSpacing(6)  # Tighter
         self._summary_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self._summary_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self._summary_layout.setContentsMargins(8, 8, 8, 8)
         
         scroll_area.setWidget(summary_group)
         layout.addWidget(scroll_area, 1)
         
-        # Save without running option
+        # Save without running option (compact)
         from PyQt5.QtWidgets import QPushButton
         btn_container = QWidget()
         btn_layout = QHBoxLayout(btn_container)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
+        btn_layout.setContentsMargins(0, 4, 0, 0)
         btn_layout.addStretch()
         
         save_only_btn = QPushButton("Save Without Running")
+        save_only_btn.setMinimumHeight(32)
         save_only_btn.clicked.connect(self.save_without_running.emit)
         btn_layout.addWidget(save_only_btn)
         
         layout.addWidget(btn_container)
     
     def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header."""
+        """Create compact step header."""
         container = QWidget()
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 8)  # Compact
+        layout.setSpacing(10)
         
         icon_label = QLabel(icon)
         icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
+        icon_label.setFixedSize(36, 36)  # Smaller
         icon_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(icon_label)
         
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(2)
         
         title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
+        title_label.setStyleSheet("font-size: 15px; font-weight: 600;")
         text_layout.addWidget(title_label)
         
         desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
+        desc_label.setStyleSheet("font-size: 11px; color: #6B7280;")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
         

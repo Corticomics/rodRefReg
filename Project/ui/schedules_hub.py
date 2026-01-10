@@ -4,16 +4,12 @@ Schedules Hub - Central view for managing water delivery schedules.
 
 Features:
 - View all schedules in a grid layout (3 per row)
-- Search bar with debounced filtering (prevents lag)
+- Search bar with debounced filtering
+- Multi-select mode for bulk deletion (iPhone-style)
 - Create new schedules via Wizard redirect
-- Edit existing schedules in-place
+- Edit existing schedules using wizard UI
 - Delete schedules with confirmation
 - Drag schedules to Run/Stop section for execution
-
-Design Principles:
-- Clean, modern UI following Material Design principles
-- Optimized search with 300ms debounce to prevent lag
-- Consistent styling with app theme
 """
 
 from __future__ import annotations
@@ -24,7 +20,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QMessageBox, QMenu, QSizePolicy, QScrollArea,
     QLineEdit, QGridLayout, QDialog, QFormLayout, QGroupBox,
-    QDateTimeEdit, QDoubleSpinBox, QDialogButtonBox, QSpinBox
+    QDateTimeEdit, QDoubleSpinBox, QDialogButtonBox, QSpinBox,
+    QCheckBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QPoint, QDateTime, QTimer
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QColor, QFont, QLinearGradient, QPen
@@ -33,12 +30,13 @@ from models.Schedule import Schedule
 
 
 # ============================================================================
-# SCHEDULE EDIT DIALOG
+# SCHEDULE EDIT DIALOG (Wizard-style UI)
 # ============================================================================
 
 class ScheduleEditDialog(QDialog):
     """
-    Dialog for editing an existing schedule.
+    Dialog for editing an existing schedule using wizard-style UI.
+    Matches the look and feel of schedule_wizard.py Step 3.
     """
     
     def __init__(self, schedule: Schedule, database_handler, system_controller=None, parent=None):
@@ -50,7 +48,7 @@ class ScheduleEditDialog(QDialog):
         self._animal_widgets = {}
         
         self.setWindowTitle(f"Edit Schedule: {schedule.name}")
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(700, 550)
         self.setModal(True)
         
         self._load_schedule_details()
@@ -70,12 +68,44 @@ class ScheduleEditDialog(QDialog):
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(24, 20, 24, 20)
         
-        # Header
-        header = QLabel(f"Editing: {self._schedule.name}")
-        header.setStyleSheet("font-size: 16px; font-weight: 600; color: #1a1a1a;")
+        # Wizard-style header
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(0, 0, 0, 12)
+        header_layout.setSpacing(12)
+        
+        icon = QLabel("⚙")
+        icon.setStyleSheet("""
+            font-size: 24px;
+            background-color: #F0FDFA;
+            border: 2px solid #0D9488;
+            border-radius: 20px;
+            padding: 8px;
+        """)
+        icon.setFixedSize(44, 44)
+        icon.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(icon)
+        
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(2)
+        title = QLabel(f"Edit: {self._schedule.name}")
+        title.setStyleSheet("font-size: 16px; font-weight: 600; color: #1F2937;")
+        text_layout.addWidget(title)
+        subtitle = QLabel("Modify timing and volume for each animal")
+        subtitle.setStyleSheet("font-size: 12px; color: #6B7280;")
+        text_layout.addWidget(subtitle)
+        header_layout.addLayout(text_layout, 1)
+        
         layout.addWidget(header)
+        
+        # Divider
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setStyleSheet("background-color: #E5E7EB;")
+        divider.setFixedHeight(1)
+        layout.addWidget(divider)
         
         # Scroll area for content
         scroll = QScrollArea()
@@ -84,29 +114,58 @@ class ScheduleEditDialog(QDialog):
         
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(16)
+        content_layout.setSpacing(12)
+        content_layout.setContentsMargins(0, 8, 0, 0)
         
-        # Basic Info
-        basic_group = QGroupBox("Schedule Information")
-        basic_layout = QFormLayout(basic_group)
-        basic_layout.setSpacing(12)
-        
+        # Schedule Name (wizard-style)
+        name_container = QFrame()
+        name_container.setStyleSheet("""
+            QFrame {
+                background: #F8FAFB;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+                padding: 8px;
+            }
+        """)
+        name_layout = QHBoxLayout(name_container)
+        name_layout.setContentsMargins(12, 8, 12, 8)
+        name_label = QLabel("Name:")
+        name_label.setStyleSheet("font-weight: 500; color: #374151;")
+        name_layout.addWidget(name_label)
         self._name_input = QLineEdit(self._schedule.name or "")
-        self._name_input.setMinimumHeight(36)
-        basic_layout.addRow("Name:", self._name_input)
+        self._name_input.setStyleSheet("""
+            QLineEdit {
+                border: 1px solid #D1D5DB;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 13px;
+            }
+            QLineEdit:focus { border-color: #0D9488; }
+        """)
+        name_layout.addWidget(self._name_input, 1)
+        content_layout.addWidget(name_container)
         
-        mode = self._schedule_details.get('delivery_mode', 'staggered') if self._schedule_details else 'staggered'
-        mode_label = QLabel(mode.capitalize())
-        mode_label.setStyleSheet("font-weight: 500; color: #0D9488;")
-        basic_layout.addRow("Mode:", mode_label)
+        # Quick Apply section (wizard-style)
+        quick_container = QFrame()
+        quick_container.setStyleSheet("""
+            QFrame {
+                background: #F8FAFB;
+                border: 1px solid #E5E7EB;
+                border-radius: 8px;
+            }
+        """)
+        quick_layout = QVBoxLayout(quick_container)
+        quick_layout.setContentsMargins(12, 8, 12, 8)
+        quick_layout.setSpacing(8)
         
-        content_layout.addWidget(basic_group)
+        quick_title = QLabel("Quick Apply to All")
+        quick_title.setStyleSheet("font-weight: 500; color: #374151; font-size: 12px;")
+        quick_layout.addWidget(quick_title)
         
-        # Time Window
-        time_group = QGroupBox("Time Window")
-        time_layout = QFormLayout(time_group)
-        time_layout.setSpacing(12)
+        quick_row = QHBoxLayout()
+        quick_row.setSpacing(8)
         
+        # Parse existing times
         try:
             if isinstance(self._schedule.start_time, str):
                 start_dt = datetime.fromisoformat(self._schedule.start_time)
@@ -123,70 +182,69 @@ class ScheduleEditDialog(QDialog):
         except:
             end_dt = datetime.now() + timedelta(hours=12)
         
-        self._start_input = QDateTimeEdit()
-        self._start_input.setDateTime(QDateTime(start_dt))
-        self._start_input.setCalendarPopup(True)
-        self._start_input.setMinimumHeight(36)
-        time_layout.addRow("Start:", self._start_input)
+        quick_row.addWidget(QLabel("Start:"))
+        self._global_start = QDateTimeEdit()
+        self._global_start.setDateTime(QDateTime(start_dt))
+        self._global_start.setCalendarPopup(True)
+        self._global_start.setMinimumHeight(28)
+        quick_row.addWidget(self._global_start)
         
-        self._end_input = QDateTimeEdit()
-        self._end_input.setDateTime(QDateTime(end_dt))
-        self._end_input.setCalendarPopup(True)
-        self._end_input.setMinimumHeight(36)
-        time_layout.addRow("End:", self._end_input)
+        quick_row.addWidget(QLabel("End:"))
+        self._global_end = QDateTimeEdit()
+        self._global_end.setDateTime(QDateTime(end_dt))
+        self._global_end.setCalendarPopup(True)
+        self._global_end.setMinimumHeight(28)
+        quick_row.addWidget(self._global_end)
         
-        content_layout.addWidget(time_group)
+        quick_row.addWidget(QLabel("Vol:"))
+        self._global_volume = QDoubleSpinBox()
+        self._global_volume.setRange(0.1, 50.0)
+        self._global_volume.setValue(1.0)
+        self._global_volume.setSuffix(" mL")
+        self._global_volume.setMinimumHeight(28)
+        quick_row.addWidget(self._global_volume)
         
-        # Animal Volumes
-        animals_group = QGroupBox("Animal Volumes")
-        animals_layout = QVBoxLayout(animals_group)
+        apply_btn = QPushButton("Apply")
+        apply_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E5E7EB;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: 500;
+            }
+            QPushButton:hover { background-color: #D1D5DB; }
+        """)
+        apply_btn.clicked.connect(self._apply_to_all)
+        quick_row.addWidget(apply_btn)
+        
+        quick_layout.addLayout(quick_row)
+        content_layout.addWidget(quick_container)
+        
+        # Animal Settings (wizard-style rows)
+        animals_label = QLabel("Animal Settings")
+        animals_label.setStyleSheet("font-weight: 500; color: #374151; font-size: 12px; margin-top: 4px;")
+        content_layout.addWidget(animals_label)
         
         desired_outputs = self._schedule_details.get('desired_water_outputs', {}) if self._schedule_details else {}
         animal_ids = self._schedule_details.get('animal_ids', []) if self._schedule_details else []
         
-        if animal_ids:
-            for animal_id in animal_ids:
-                row = QHBoxLayout()
-                
-                try:
-                    animal = self._database_handler.get_animal_by_id(animal_id)
-                    animal_name = f"{animal.lab_animal_id} - {animal.name}" if animal else f"Animal {animal_id}"
-                except:
-                    animal_name = f"Animal {animal_id}"
-                
-                label = QLabel(animal_name)
-                label.setMinimumWidth(150)
-                row.addWidget(label)
-                
-                volume = desired_outputs.get(str(animal_id), self._schedule.water_volume or 1.0)
-                volume_input = QDoubleSpinBox()
-                volume_input.setRange(0.1, 50.0)
-                volume_input.setValue(float(volume) if volume else 1.0)
-                volume_input.setSuffix(" mL")
-                volume_input.setDecimals(2)
-                volume_input.setMinimumHeight(32)
-                row.addWidget(volume_input)
-                
-                row.addStretch()
-                animals_layout.addLayout(row)
-                self._animal_widgets[animal_id] = volume_input
-        else:
-            no_animals = QLabel("No animals in this schedule")
-            no_animals.setStyleSheet("color: #9CA3AF; font-style: italic;")
-            animals_layout.addWidget(no_animals)
+        for animal_id in animal_ids:
+            row = self._create_animal_row(animal_id, desired_outputs.get(str(animal_id), 1.0))
+            content_layout.addWidget(row)
         
-        content_layout.addWidget(animals_group)
         content_layout.addStretch()
-        
         scroll.setWidget(content)
         layout.addWidget(scroll, 1)
         
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
+        # Footer buttons (wizard-style)
+        footer = QHBoxLayout()
+        footer.setSpacing(12)
+        footer.addStretch()
         
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setMinimumHeight(36)
+        cancel_btn.setMinimumWidth(100)
         cancel_btn.setStyleSheet("""
             QPushButton {
                 background-color: #F3F4F6;
@@ -199,10 +257,11 @@ class ScheduleEditDialog(QDialog):
             QPushButton:hover { background-color: #E5E7EB; }
         """)
         cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
+        footer.addWidget(cancel_btn)
         
         save_btn = QPushButton("Save Changes")
         save_btn.setMinimumHeight(36)
+        save_btn.setMinimumWidth(120)
         save_btn.setStyleSheet("""
             QPushButton {
                 background-color: #0D9488;
@@ -215,9 +274,77 @@ class ScheduleEditDialog(QDialog):
             QPushButton:hover { background-color: #0F766E; }
         """)
         save_btn.clicked.connect(self._save_changes)
-        button_layout.addWidget(save_btn)
+        footer.addWidget(save_btn)
         
-        layout.addLayout(button_layout)
+        layout.addLayout(footer)
+    
+    def _create_animal_row(self, animal_id, volume) -> QFrame:
+        """Create wizard-style animal config row."""
+        try:
+            animal = self._database_handler.get_animal_by_id(animal_id)
+            animal_name = f"{animal.lab_animal_id} - {animal.name}" if animal else f"Animal {animal_id}"
+        except:
+            animal_name = f"Animal {animal_id}"
+        
+        container = QFrame()
+        container.setStyleSheet("""
+            QFrame {
+                background: #F8FAFB;
+                border: 1px solid #E5E7EB;
+                border-radius: 6px;
+            }
+        """)
+        
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(10, 6, 10, 6)
+        layout.setSpacing(10)
+        
+        label = QLabel(f"<b>{animal_name}</b>")
+        label.setMinimumWidth(140)
+        label.setStyleSheet("font-size: 12px;")
+        layout.addWidget(label)
+        
+        layout.addWidget(QLabel("Start:"))
+        start_dt = QDateTimeEdit()
+        start_dt.setDateTime(self._global_start.dateTime() if hasattr(self, '_global_start') else QDateTime.currentDateTime())
+        start_dt.setCalendarPopup(True)
+        start_dt.setMinimumWidth(130)
+        start_dt.setMinimumHeight(26)
+        layout.addWidget(start_dt)
+        
+        layout.addWidget(QLabel("End:"))
+        end_dt = QDateTimeEdit()
+        end_dt.setDateTime(self._global_end.dateTime() if hasattr(self, '_global_end') else QDateTime.currentDateTime().addSecs(3600*12))
+        end_dt.setCalendarPopup(True)
+        end_dt.setMinimumWidth(130)
+        end_dt.setMinimumHeight(26)
+        layout.addWidget(end_dt)
+        
+        layout.addWidget(QLabel("Vol:"))
+        volume_spin = QDoubleSpinBox()
+        volume_spin.setRange(0.1, 50.0)
+        volume_spin.setValue(float(volume) if volume else 1.0)
+        volume_spin.setSuffix(" mL")
+        volume_spin.setDecimals(2)
+        volume_spin.setMinimumHeight(26)
+        layout.addWidget(volume_spin)
+        
+        layout.addStretch()
+        
+        self._animal_widgets[animal_id] = {
+            "start": start_dt,
+            "end": end_dt,
+            "volume": volume_spin
+        }
+        
+        return container
+    
+    def _apply_to_all(self) -> None:
+        """Apply global settings to all animals."""
+        for animal_id, widgets in self._animal_widgets.items():
+            widgets["start"].setDateTime(self._global_start.dateTime())
+            widgets["end"].setDateTime(self._global_end.dateTime())
+            widgets["volume"].setValue(self._global_volume.value())
     
     def _save_changes(self) -> None:
         try:
@@ -226,16 +353,22 @@ class ScheduleEditDialog(QDialog):
                 QMessageBox.warning(self, "Validation Error", "Schedule name cannot be empty.")
                 return
             
-            new_start = self._start_input.dateTime().toPyDateTime()
-            new_end = self._end_input.dateTime().toPyDateTime()
+            # Get first animal's times as schedule bounds
+            if self._animal_widgets:
+                first_widgets = list(self._animal_widgets.values())[0]
+                new_start = first_widgets["start"].dateTime().toPyDateTime()
+                new_end = first_widgets["end"].dateTime().toPyDateTime()
+            else:
+                new_start = self._global_start.dateTime().toPyDateTime()
+                new_end = self._global_end.dateTime().toPyDateTime()
             
             if new_start >= new_end:
                 QMessageBox.warning(self, "Validation Error", "End time must be after start time.")
                 return
             
             new_volumes = {}
-            for animal_id, widget in self._animal_widgets.items():
-                new_volumes[str(animal_id)] = widget.value()
+            for animal_id, widgets in self._animal_widgets.items():
+                new_volumes[str(animal_id)] = widgets["volume"].value()
             
             self._database_handler.update_schedule(
                 schedule_id=self._schedule.schedule_id,
@@ -254,24 +387,37 @@ class ScheduleEditDialog(QDialog):
 
 
 # ============================================================================
-# SCHEDULE CARD (Compact, clean design)
+# SCHEDULE CARD (Colorful, with animal count badge)
 # ============================================================================
 
 class ScheduleCard(QFrame):
     """
-    Clean Material Design card for schedule display.
-    Fixed issues: removed gray backgrounds, proper time display.
+    Colorful Material Design card with animal count badge and selection mode.
     """
     
     clicked = pyqtSignal(object)
     edit_requested = pyqtSignal(object)
     delete_requested = pyqtSignal(object)
     drag_started = pyqtSignal(object)
+    selection_toggled = pyqtSignal(object, bool)  # For multi-select
     
-    def __init__(self, schedule: Schedule, database_handler, parent=None):
+    # Card colors for variety
+    CARD_COLORS = [
+        ("#F0FDFA", "#0D9488"),  # Teal
+        ("#EFF6FF", "#3B82F6"),  # Blue
+        ("#FEF3C7", "#D97706"),  # Amber
+        ("#F5F3FF", "#7C3AED"),  # Purple
+        ("#ECFDF5", "#059669"),  # Green
+        ("#FFF1F2", "#E11D48"),  # Rose
+    ]
+    
+    def __init__(self, schedule: Schedule, database_handler, color_index: int = 0, parent=None):
         super().__init__(parent)
         self._schedule = schedule
         self._database_handler = database_handler
+        self._color_idx = color_index % len(self.CARD_COLORS)
+        self._select_mode = False
+        self._selected = False
         self._init_ui()
     
     def _init_ui(self) -> None:
@@ -281,93 +427,111 @@ class ScheduleCard(QFrame):
         self.customContextMenuRequested.connect(self._show_context_menu)
         
         # Fixed size for grid
-        self.setFixedHeight(110)
+        self.setFixedHeight(100)
         self.setMinimumWidth(220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(6)
+        bg_color, accent_color = self.CARD_COLORS[self._color_idx]
         
-        # Row 1: Name + Mode badge
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(4)
+        
+        # Row 1: Checkbox (hidden by default) + Name + Animal Count Badge
         header = QHBoxLayout()
         header.setSpacing(8)
         
+        # Selection checkbox (hidden by default)
+        self._checkbox = QCheckBox()
+        self._checkbox.setVisible(False)
+        self._checkbox.stateChanged.connect(self._on_checkbox_changed)
+        header.addWidget(self._checkbox)
+        
         name = self._schedule.name or "Untitled"
-        name_label = QLabel(name if len(name) <= 18 else name[:16] + "...")
-        name_label.setStyleSheet("""
+        name_label = QLabel(name if len(name) <= 16 else name[:14] + "...")
+        name_label.setStyleSheet(f"""
             font-size: 14px; 
             font-weight: 600; 
             color: #1F2937;
             background: transparent;
         """)
-        if len(name) > 18:
+        if len(name) > 16:
             name_label.setToolTip(name)
         header.addWidget(name_label, 1)
         
-        mode = getattr(self._schedule, 'delivery_mode', 'staggered') or 'staggered'
-        mode_badge = QLabel("S" if mode == "staggered" else "I")
-        mode_badge.setFixedSize(22, 22)
-        mode_badge.setAlignment(Qt.AlignCenter)
-        badge_color = "#0D9488" if mode == "staggered" else "#6366F1"
-        mode_badge.setStyleSheet(f"""
-            background-color: {badge_color}; 
+        # Animal count badge (replaces the S/I badge)
+        animal_count = len(self._schedule.animals) if hasattr(self._schedule, 'animals') and self._schedule.animals else 0
+        count_badge = QLabel(str(animal_count))
+        count_badge.setFixedSize(24, 24)
+        count_badge.setAlignment(Qt.AlignCenter)
+        count_badge.setStyleSheet(f"""
+            background-color: {accent_color}; 
             color: white;
-            border-radius: 11px; 
+            border-radius: 12px; 
             font-weight: 700; 
             font-size: 11px;
         """)
-        mode_badge.setToolTip("Staggered" if mode == "staggered" else "Instant")
-        header.addWidget(mode_badge)
+        count_badge.setToolTip(f"{animal_count} animals")
+        header.addWidget(count_badge)
         
         layout.addLayout(header)
         
-        # Row 2: Animal count
-        animal_count = len(self._schedule.animals) if hasattr(self._schedule, 'animals') and self._schedule.animals else 0
-        animals_label = QLabel(f"{animal_count} animals")
-        animals_label.setStyleSheet("""
-            color: #6B7280; 
-            font-size: 12px;
-            background: transparent;
-        """)
-        layout.addWidget(animals_label)
-        
-        # Row 3: Time range
+        # Row 2: Time range
         time_str = self._format_time_range()
         time_label = QLabel(time_str)
         time_label.setStyleSheet("""
-            color: #9CA3AF; 
+            color: #6B7280; 
             font-size: 11px;
             background: transparent;
         """)
         layout.addWidget(time_label)
         
-        # Row 4: Hint
-        hint = QLabel("Drag to run · Right-click to edit")
+        # Row 3: Hint + Created at
+        footer = QHBoxLayout()
+        footer.setSpacing(4)
+        
+        hint = QLabel("Drag to run · Right-click")
         hint.setStyleSheet("""
-            color: #D1D5DB; 
-            font-size: 10px;
+            color: #9CA3AF; 
+            font-size: 9px;
             background: transparent;
         """)
-        layout.addWidget(hint)
+        footer.addWidget(hint)
         
-        # Card styling - clean white background
-        self.setStyleSheet("""
-            QFrame#ScheduleCard {
-                background-color: #FFFFFF;
-                border: 1px solid #E5E7EB;
-                border-radius: 10px;
-            }
-            QFrame#ScheduleCard:hover {
-                border-color: #0D9488;
-                background-color: #F0FDFA;
-            }
+        footer.addStretch()
+        
+        # Created at timestamp
+        created_str = self._format_created_time()
+        created_label = QLabel(created_str)
+        created_label.setStyleSheet(f"""
+            color: {accent_color}; 
+            font-size: 9px;
+            font-weight: 500;
+            background: transparent;
         """)
+        footer.addWidget(created_label)
+        
+        layout.addLayout(footer)
+        
+        # Card styling with accent color
+        self.setStyleSheet(f"""
+            QFrame#ScheduleCard {{
+                background-color: {bg_color};
+                border: 1px solid {accent_color}40;
+                border-radius: 10px;
+            }}
+            QFrame#ScheduleCard:hover {{
+                border-color: {accent_color};
+                background-color: {bg_color};
+            }}
+        """)
+        self._bg_color = bg_color
+        self._accent_color = accent_color
     
     def _format_time_range(self) -> str:
         """Format start and end times."""
-        start_str = "N/A"
-        end_str = "N/A"
+        start_str = ""
+        end_str = ""
         
         try:
             if self._schedule.start_time:
@@ -389,15 +553,75 @@ class ScheduleCard(QFrame):
         except:
             pass
         
-        return f"{start_str} → {end_str}"
+        if start_str and end_str:
+            return f"{start_str} → {end_str}"
+        elif start_str:
+            return start_str
+        return "No time set"
+    
+    def _format_created_time(self) -> str:
+        """Format created timestamp."""
+        try:
+            if self._schedule.start_time:
+                if isinstance(self._schedule.start_time, str):
+                    dt = datetime.fromisoformat(self._schedule.start_time)
+                else:
+                    dt = self._schedule.start_time
+                return dt.strftime("%m/%d %H:%M")
+        except:
+            pass
+        return ""
+    
+    def set_select_mode(self, enabled: bool) -> None:
+        """Enable/disable multi-select mode."""
+        self._select_mode = enabled
+        self._checkbox.setVisible(enabled)
+        if not enabled:
+            self._checkbox.setChecked(False)
+            self._selected = False
+            self._update_selection_style()
+    
+    def is_selected(self) -> bool:
+        return self._selected
+    
+    def _on_checkbox_changed(self, state) -> None:
+        self._selected = state == Qt.Checked
+        self._update_selection_style()
+        self.selection_toggled.emit(self._schedule, self._selected)
+    
+    def _update_selection_style(self) -> None:
+        if self._selected:
+            self.setStyleSheet(f"""
+                QFrame#ScheduleCard {{
+                    background-color: {self._accent_color}20;
+                    border: 2px solid {self._accent_color};
+                    border-radius: 10px;
+                }}
+            """)
+        else:
+            self.setStyleSheet(f"""
+                QFrame#ScheduleCard {{
+                    background-color: {self._bg_color};
+                    border: 1px solid {self._accent_color}40;
+                    border-radius: 10px;
+                }}
+                QFrame#ScheduleCard:hover {{
+                    border-color: {self._accent_color};
+                }}
+            """)
     
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self._drag_start_pos = event.pos()
-            self.clicked.emit(self._schedule)
+            if self._select_mode:
+                self._checkbox.setChecked(not self._checkbox.isChecked())
+            else:
+                self._drag_start_pos = event.pos()
+                self.clicked.emit(self._schedule)
         super().mousePressEvent(event)
     
     def mouseMoveEvent(self, event):
+        if self._select_mode:
+            return
         if not (event.buttons() & Qt.LeftButton):
             return
         if not hasattr(self, '_drag_start_pos'):
@@ -445,15 +669,15 @@ class ScheduleCard(QFrame):
         painter.setRenderHint(QPainter.Antialiasing)
         
         gradient = QLinearGradient(0, 0, 0, 50)
-        gradient.setColorAt(0, QColor("#E0F2FE"))
-        gradient.setColorAt(1, QColor("#BAE6FD"))
+        gradient.setColorAt(0, QColor(self._bg_color))
+        gradient.setColorAt(1, QColor(self._accent_color).lighter(150))
         
         painter.setBrush(gradient)
-        painter.setPen(QPen(QColor("#0D9488"), 2))
+        painter.setPen(QPen(QColor(self._accent_color), 2))
         painter.drawRoundedRect(1, 1, 198, 48, 8, 8)
         
         painter.setFont(QFont("Arial", 10, QFont.Bold))
-        painter.setPen(QColor("#0D9488"))
+        painter.setPen(QColor(self._accent_color))
         painter.drawText(12, 24, schedule.name[:22] if schedule.name else "Schedule")
         
         painter.setFont(QFont("Arial", 9))
@@ -469,6 +693,9 @@ class ScheduleCard(QFrame):
         drag.exec_(Qt.CopyAction)
     
     def _show_context_menu(self, pos: QPoint) -> None:
+        if self._select_mode:
+            return
+        
         menu = QMenu(self)
         menu.setStyleSheet("""
             QMenu {
@@ -502,12 +729,12 @@ class ScheduleCard(QFrame):
 
 
 # ============================================================================
-# SCHEDULES HUB (Main Widget with debounced search)
+# SCHEDULES HUB (Main Widget with multi-select)
 # ============================================================================
 
 class SchedulesHub(QWidget):
     """
-    Schedules Hub with optimized search (debounced to prevent lag).
+    Schedules Hub with multi-select mode for bulk deletion.
     """
     
     mode_changed = pyqtSignal(str)
@@ -527,8 +754,10 @@ class SchedulesHub(QWidget):
         
         self._schedule_cards: List[ScheduleCard] = []
         self._all_schedules: List[Schedule] = []
+        self._select_mode = False
+        self._selected_schedules: List[Schedule] = []
         
-        # Debounce timer for search (prevents lag during typing)
+        # Debounce timer for search
         self._search_timer = QTimer()
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._perform_search)
@@ -542,49 +771,87 @@ class SchedulesHub(QWidget):
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
         
         # ═══════════════════════════════════════════════════════════════
-        # HEADER: Title + Info + New Schedule Button
+        # HEADER: Title + Info + Select/Delete + New Schedule Button
         # ═══════════════════════════════════════════════════════════════
         header = QHBoxLayout()
-        header.setSpacing(8)
+        header.setSpacing(6)
         
         title = QLabel("My Schedules")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1F2937;")
         header.addWidget(title)
         
-        # Info button (small, beside title)
+        # Info button (aligned with title)
         info_btn = QPushButton("?")
-        info_btn.setFixedSize(20, 20)
+        info_btn.setFixedSize(18, 18)
         info_btn.setCursor(Qt.WhatsThisCursor)
         info_btn.setToolTip(
             "How to use:\n"
             "• Drag a card to Run/Stop to execute\n"
             "• Right-click for Edit/Delete\n"
-            "• Use search to filter by name"
+            "• Use Select for bulk deletion"
         )
         info_btn.setStyleSheet("""
             QPushButton {
-                background-color: #E5E7EB;
-                color: #6B7280;
+                background-color: #D1D5DB;
+                color: #4B5563;
                 border: none;
-                border-radius: 10px;
-                font-size: 11px;
+                border-radius: 9px;
+                font-size: 10px;
                 font-weight: 700;
             }
             QPushButton:hover {
-                background-color: #D1D5DB;
-                color: #374151;
+                background-color: #9CA3AF;
+                color: white;
             }
         """)
         header.addWidget(info_btn)
         
         header.addStretch()
         
+        # Select mode button
+        self._select_btn = QPushButton("Select")
+        self._select_btn.setMinimumHeight(30)
+        self._select_btn.setCursor(Qt.PointingHandCursor)
+        self._select_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #F3F4F6;
+                color: #374151;
+                border: 1px solid #D1D5DB;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-weight: 500;
+                font-size: 12px;
+            }
+            QPushButton:hover { background-color: #E5E7EB; }
+        """)
+        self._select_btn.clicked.connect(self._toggle_select_mode)
+        header.addWidget(self._select_btn)
+        
+        # Delete selected button (hidden by default)
+        self._delete_selected_btn = QPushButton("Delete Selected")
+        self._delete_selected_btn.setMinimumHeight(30)
+        self._delete_selected_btn.setVisible(False)
+        self._delete_selected_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #DC2626;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-weight: 500;
+                font-size: 12px;
+            }
+            QPushButton:hover { background-color: #B91C1C; }
+        """)
+        self._delete_selected_btn.clicked.connect(self._delete_selected)
+        header.addWidget(self._delete_selected_btn)
+        
         # New Schedule Button
         new_btn = QPushButton("+ New Schedule")
-        new_btn.setMinimumHeight(34)
+        new_btn.setMinimumHeight(30)
         new_btn.setCursor(Qt.PointingHandCursor)
         new_btn.setStyleSheet("""
             QPushButton {
@@ -592,12 +859,11 @@ class SchedulesHub(QWidget):
                 color: white;
                 border: none;
                 border-radius: 6px;
-                padding: 8px 16px;
+                padding: 6px 14px;
                 font-weight: 600;
                 font-size: 12px;
             }
             QPushButton:hover { background-color: #0F766E; }
-            QPushButton:pressed { background-color: #115E59; }
         """)
         new_btn.clicked.connect(self._on_new_schedule)
         header.addWidget(new_btn)
@@ -605,17 +871,17 @@ class SchedulesHub(QWidget):
         layout.addLayout(header)
         
         # ═══════════════════════════════════════════════════════════════
-        # SEARCH BAR (with debounce)
+        # SEARCH BAR
         # ═══════════════════════════════════════════════════════════════
         self._search_input = QLineEdit()
         self._search_input.setPlaceholderText("Search schedules...")
-        self._search_input.setMinimumHeight(36)
+        self._search_input.setMinimumHeight(32)
         self._search_input.setStyleSheet("""
             QLineEdit {
                 border: 1px solid #E5E7EB;
                 border-radius: 6px;
-                padding: 8px 12px;
-                font-size: 13px;
+                padding: 6px 12px;
+                font-size: 12px;
                 background-color: #FAFAFA;
             }
             QLineEdit:focus {
@@ -623,7 +889,6 @@ class SchedulesHub(QWidget):
                 background-color: #FFFFFF;
             }
         """)
-        # Use debounced search to prevent lag
         self._search_input.textChanged.connect(self._on_search_text_changed)
         layout.addWidget(self._search_input)
         
@@ -682,25 +947,98 @@ class SchedulesHub(QWidget):
         self._empty_state.hide()
         layout.addWidget(self._empty_state)
     
+    def _toggle_select_mode(self) -> None:
+        """Toggle multi-select mode."""
+        self._select_mode = not self._select_mode
+        self._selected_schedules.clear()
+        
+        if self._select_mode:
+            self._select_btn.setText("Cancel")
+            self._select_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FEE2E2;
+                    color: #DC2626;
+                    border: 1px solid #FECACA;
+                    border-radius: 6px;
+                    padding: 6px 14px;
+                    font-weight: 500;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background-color: #FECACA; }
+            """)
+            self._delete_selected_btn.setVisible(True)
+            self._delete_selected_btn.setEnabled(False)
+        else:
+            self._select_btn.setText("Select")
+            self._select_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #F3F4F6;
+                    color: #374151;
+                    border: 1px solid #D1D5DB;
+                    border-radius: 6px;
+                    padding: 6px 14px;
+                    font-weight: 500;
+                    font-size: 12px;
+                }
+                QPushButton:hover { background-color: #E5E7EB; }
+            """)
+            self._delete_selected_btn.setVisible(False)
+        
+        # Update all cards
+        for card in self._schedule_cards:
+            card.set_select_mode(self._select_mode)
+    
+    def _on_selection_toggled(self, schedule: Schedule, selected: bool) -> None:
+        """Handle card selection toggle."""
+        if selected:
+            if schedule not in self._selected_schedules:
+                self._selected_schedules.append(schedule)
+        else:
+            if schedule in self._selected_schedules:
+                self._selected_schedules.remove(schedule)
+        
+        # Update delete button
+        count = len(self._selected_schedules)
+        self._delete_selected_btn.setEnabled(count > 0)
+        self._delete_selected_btn.setText(f"Delete ({count})" if count > 0 else "Delete Selected")
+    
+    def _delete_selected(self) -> None:
+        """Delete all selected schedules."""
+        if not self._selected_schedules:
+            return
+        
+        count = len(self._selected_schedules)
+        reply = QMessageBox.question(
+            self,
+            "Delete Schedules",
+            f"Delete {count} selected schedule(s)?\n\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            for schedule in self._selected_schedules:
+                try:
+                    self.database_handler.remove_schedule(schedule.schedule_id)
+                    self.print_to_terminal(f"[SchedulesHub] Deleted: {schedule.name}")
+                except Exception as e:
+                    self.print_to_terminal(f"[SchedulesHub] Error deleting {schedule.name}: {e}")
+            
+            self._toggle_select_mode()  # Exit select mode
+            self.load_schedules()  # Refresh
+    
     def _on_new_schedule(self) -> None:
+        if self._select_mode:
+            self._toggle_select_mode()
         self.print_to_terminal("[SchedulesHub] Redirecting to Schedule Wizard...")
         self.create_requested.emit()
     
     def _on_search_text_changed(self, text: str) -> None:
-        """
-        Debounced search - waits 300ms after last keystroke before searching.
-        
-        Best Practice: Prevents UI lag during rapid typing by delaying
-        expensive filtering operations until user pauses typing.
-        
-        Reference: Qt QTimer for debouncing
-        """
         self._pending_search = text.strip().lower()
         self._search_timer.stop()
-        self._search_timer.start(300)  # 300ms debounce
+        self._search_timer.start(300)
     
     def _perform_search(self) -> None:
-        """Execute the actual search after debounce delay."""
         self._display_schedules(self._pending_search)
     
     def load_schedules(self) -> None:
@@ -736,10 +1074,12 @@ class SchedulesHub(QWidget):
             row = idx // cols
             col = idx % cols
             
-            card = ScheduleCard(schedule, self.database_handler)
+            card = ScheduleCard(schedule, self.database_handler, color_index=idx)
             card.clicked.connect(self._on_schedule_clicked)
             card.edit_requested.connect(self._on_edit_schedule)
             card.delete_requested.connect(self._on_delete_schedule)
+            card.selection_toggled.connect(self._on_selection_toggled)
+            card.set_select_mode(self._select_mode)
             
             self._schedule_cards.append(card)
             self._grid_layout.addWidget(card, row, col)
@@ -791,6 +1131,8 @@ class SchedulesHub(QWidget):
     
     def refresh(self) -> None:
         self._search_input.clear()
+        if self._select_mode:
+            self._toggle_select_mode()
         self.load_schedules()
     
     # Compatibility methods

@@ -57,7 +57,7 @@ class WizardProgress(QWidget):
     
     def _init_ui(self) -> None:
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(16, 10, 16, 10)  # More compact
         layout.setSpacing(0)
         
         self._step_widgets: List[QWidget] = []
@@ -200,26 +200,26 @@ class WizardContainer(QWidget):
         self._content_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self._content_stack, 1)
         
-        # Navigation buttons
+        # Navigation buttons (compact)
         nav_container = QWidget()
         nav_layout = QHBoxLayout(nav_container)
-        nav_layout.setContentsMargins(20, 16, 20, 16)
-        nav_layout.setSpacing(12)
+        nav_layout.setContentsMargins(16, 10, 16, 10)  # Compact margins
+        nav_layout.setSpacing(10)
         
-        self._back_button = QPushButton("‹     Back")
+        self._back_button = QPushButton("‹ Back")
         self._back_button.setObjectName("WizardBackButton")
-        self._back_button.setMinimumWidth(120)
-        self._back_button.setMinimumHeight(48)
+        self._back_button.setMinimumWidth(90)
+        self._back_button.setMinimumHeight(36)  # Smaller buttons
         self._back_button.clicked.connect(self._go_back)
         
         nav_layout.addWidget(self._back_button)
         nav_layout.addStretch()
         
-        self._next_button = QPushButton("Next     ›")
+        self._next_button = QPushButton("Next ›")
         self._next_button.setObjectName("WizardNextButton")
         self._next_button.setProperty("variant", "primary")
-        self._next_button.setMinimumWidth(140)
-        self._next_button.setMinimumHeight(48)
+        self._next_button.setMinimumWidth(100)
+        self._next_button.setMinimumHeight(36)  # Smaller buttons
         self._next_button.clicked.connect(self._go_next)
         
         nav_layout.addWidget(self._next_button)
@@ -255,7 +255,7 @@ class WizardContainer(QWidget):
         
         # Next button
         is_last = self._current_index == len(self._steps) - 1
-        self._next_button.setText("Finish     ›" if is_last else "Next     ›")
+        self._next_button.setText("Finish ›" if is_last else "Next ›")
         
         # Validate current step
         current_step = self._steps[self._current_index]
