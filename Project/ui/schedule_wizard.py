@@ -1163,8 +1163,6 @@ class Step3ConfigureParameters(QWidget):
 class Step4Review(QWidget):
     """Step 4: Review configuration and save schedule."""
     
-    save_without_running = pyqtSignal()
-    
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._config: Dict[str, Any] = {}
@@ -1172,70 +1170,65 @@ class Step4Review(QWidget):
     
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(20)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
         
-        # Step header
+        # Compact step header
         header = self._create_header(
-            icon="[>]",
+            icon="✓",
             title="Review & Save",
             description="Confirm your schedule settings before saving"
         )
         layout.addWidget(header)
         
-        # Scrollable summary area for dynamic number of animals
+        # Scrollable summary area - takes all available space
         from PyQt5.QtWidgets import QScrollArea
         
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QScrollArea.NoFrame)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet("background: transparent;")
         
-        # Summary card inside scroll area
+        # Summary card inside scroll area - compact spacing
         summary_group = QGroupBox()
+        summary_group.setStyleSheet("QGroupBox { border: none; background: transparent; }")
         self._summary_layout = QFormLayout(summary_group)
-        self._summary_layout.setSpacing(12)
+        self._summary_layout.setSpacing(8)
+        self._summary_layout.setContentsMargins(8, 8, 8, 8)
         self._summary_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self._summary_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignTop)
         
         scroll_area.setWidget(summary_group)
-        layout.addWidget(scroll_area, 1)
-        
-        # Save without running option
-        from PyQt5.QtWidgets import QPushButton
-        btn_container = QWidget()
-        btn_layout = QHBoxLayout(btn_container)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
-        btn_layout.addStretch()
-        
-        save_only_btn = QPushButton("Save Without Running")
-        save_only_btn.clicked.connect(self.save_without_running.emit)
-        btn_layout.addWidget(save_only_btn)
-        
-        layout.addWidget(btn_container)
+        layout.addWidget(scroll_area, 1)  # stretch=1 to fill space
     
     def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header."""
+        """Create compact step header."""
         container = QWidget()
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
+        layout.setContentsMargins(0, 0, 0, 8)
+        layout.setSpacing(12)
         
         icon_label = QLabel(icon)
-        icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
+        icon_label.setFixedSize(36, 36)
         icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setStyleSheet("""
+            font-size: 18px;
+            color: #0D9488;
+            background: #E6FFFA;
+            border-radius: 18px;
+        """)
         layout.addWidget(icon_label)
         
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(2)
         
         title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
+        title_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #1F2937;")
         text_layout.addWidget(title_label)
         
         desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
+        desc_label.setStyleSheet("font-size: 11px; color: #6B7280;")
         desc_label.setWordWrap(True)
         text_layout.addWidget(desc_label)
         
@@ -1304,18 +1297,13 @@ class Step4Review(QWidget):
     
     def _add_summary_section(self, title: str) -> None:
         """Add a section header to the summary with proper spacing."""
-        # Add spacer for visual separation
-        spacer = QLabel("")
-        spacer.setFixedHeight(8)
-        self._summary_layout.addRow(spacer)
-        
-        # Section header label - spans both columns via addRow with single widget
+        # Section header label - compact, spans both columns
         section = QLabel(title)
         section.setStyleSheet("""
-            font-size: 13px; 
+            font-size: 12px; 
             font-weight: 600;
             color: #0D9488; 
-            padding-top: 4px;
+            padding-top: 6px;
             padding-bottom: 4px;
             border-bottom: 1px solid #E5E7EB;
         """)
@@ -1323,12 +1311,12 @@ class Step4Review(QWidget):
         self._summary_layout.addRow(section)
     
     def _add_summary_row(self, label: str, value: str) -> None:
-        """Add a row to the summary."""
+        """Add a compact row to the summary."""
         label_widget = QLabel(label)
-        label_widget.setStyleSheet("font-weight: 500; color: #4E5D6C; font-size: 13px;")
+        label_widget.setStyleSheet("font-weight: 500; color: #4E5D6C; font-size: 11px;")
         
         value_widget = QLabel(value)
-        value_widget.setStyleSheet("font-weight: 600; color: #1A1D1F; font-size: 13px;")
+        value_widget.setStyleSheet("font-weight: 600; color: #1A1D1F; font-size: 11px;")
         value_widget.setAlignment(Qt.AlignRight)
         value_widget.setTextInteractionFlags(Qt.TextSelectableByMouse)
         
@@ -1438,7 +1426,6 @@ class ScheduleCreationWizard(QWidget):
         )
         
         self._step4 = Step4Review()
-        self._step4.save_without_running.connect(self._save_without_running)
         
         # Add step contents to wizard
         self._wizard.add_step_content("type", self._step1)
@@ -1543,26 +1530,6 @@ class ScheduleCreationWizard(QWidget):
                 self.schedule_created.emit(config)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to create schedule: {e}")
-    
-    def _save_without_running(self) -> None:
-        """Save schedule without immediately running it."""
-        config = self._build_config()
-        
-        # Validate
-        params = config.get("parameters", {})
-        if not params.get("name", "").strip():
-            QMessageBox.warning(self, "Validation Error", 
-                               "Please enter a schedule name.")
-            return
-        
-        try:
-            schedule = self._create_schedule(config)
-            if schedule:
-                QMessageBox.information(self, "Success", 
-                    f"Schedule '{params['name']}' saved successfully!")
-                self.schedule_created.emit(config)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save schedule: {e}")
     
     def _create_schedule(self, config: Dict[str, Any]) -> Optional[int]:
         """Create schedule in database using existing Schedule model and correct methods."""
