@@ -425,11 +425,11 @@ class RunStopSection(QWidget):
             # Show progress tracker with Material Design cards
             self.show_progress_tracker(schedule)
             
-            # Transition: "Starting..." → "Running" after prep completes
-            self.run_button.setText("Running")
+            # Button stays "Starting..." until background init completes
+            # _execute_program runs in background thread and sets "Running" when done
             
-            # Execute immediately - no need to defer again since we're already deferred
-            print(f"[RUN] Launching execution for {schedule.name}")
+            # Launch execution in background thread (keeps UI responsive)
+            print(f"[RUN] Launching execution for {schedule.name} (background thread)")
             self._execute_program(schedule, mode, window_start, window_end)
             
         except Exception as e:
@@ -444,19 +444,60 @@ class RunStopSection(QWidget):
 
     def _execute_program(self, schedule, mode, window_start, window_end):
         """
-        Execute the schedule program via callback.
+        Execute the schedule program via callback in a background thread.
         
-        On success: Button stays "Running" until stopped
-        On error: Reset to initial state with error message
+        Optimization: The run_program_callback contains blocking operations:
+        - Flow sensor initialization (serial port)
+        - wait_for_frames() with 5s timeout
+        - Thread cleanup (wait up to 5s)
+        
+        By running this in a QThread, we keep the UI responsive.
+        
+        Qt Best Practice: Heavy I/O and hardware init should be off the GUI thread.
+        Reference: https://doc.qt.io/qt-5/threads-technologies.html
         """
-        try:
-            self.run_program_callback(schedule, mode, window_start, window_end)
-        except Exception as e:
-            # Reset to initial state on error
+        from PyQt5.QtCore import QThread, pyqtSignal
+        
+        class SetupWorker(QThread):
+            """Background worker for schedule initialization."""
+            finished_ok = pyqtSignal()
+            finished_error = pyqtSignal(str)
+            
+            def __init__(self, callback, schedule, mode, window_start, window_end):
+                super().__init__()
+                self._callback = callback
+                self._schedule = schedule
+                self._mode = mode
+                self._window_start = window_start
+                self._window_end = window_end
+            
+            def run(self):
+                try:
+                    self._callback(self._schedule, self._mode, self._window_start, self._window_end)
+                    self.finished_ok.emit()
+                except Exception as e:
+                    self.finished_error.emit(str(e))
+        
+        # Store worker reference to prevent garbage collection
+        self._setup_worker = SetupWorker(
+            self.run_program_callback, schedule, mode, window_start, window_end
+        )
+        
+        def on_setup_complete():
+            self.run_button.setText("Running")
+            print("[RUN] Schedule initialization complete")
+        
+        def on_setup_error(error_msg):
             self.job_in_progress = False
             self.run_button.setText("Run")
             self.update_button_states()
-            QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to run program: {error_msg}")
+        
+        self._setup_worker.finished_ok.connect(on_setup_complete)
+        self._setup_worker.finished_error.connect(on_setup_error)
+        self._setup_worker.start()
+        
+        print("[RUN] Schedule initialization started in background thread")
 
     def stop_program(self):
         try:
