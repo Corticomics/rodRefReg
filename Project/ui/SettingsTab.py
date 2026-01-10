@@ -14,7 +14,7 @@ from datetime import datetime
 import pandas as pd
 from models.animal import Animal
 from ui.PrimingControlWidget import PrimingControlWidget
-from ui.cage_manager_widget import CageManagerWidget
+# CageManagerWidget removed - cage management moved to Projects Section (CagesVisualizationTab)
 from PyQt5.QtWidgets import QApplication
 
 class SettingsTab(QWidget):
@@ -56,14 +56,13 @@ class SettingsTab(QWidget):
         self.hardware_pump_settings = self._create_hardware_pump_settings()  # MERGED
         self.calibration_tab = self._create_calibration_tab()  # NEW
         self.priming_control = self._create_priming_control()
-        self.cage_manager_tab = self._create_cage_manager_tab()  # Cage naming
         self.general_tab = self._create_general_tab()
         
         # Add sub-tabs to settings
+        # Note: Cage management moved to Projects Section (CagesVisualizationTab)
         self.tab_widget.addTab(self.hardware_pump_settings, "Delivery")
         self.tab_widget.addTab(self.calibration_tab, "Calibration")
         self.tab_widget.addTab(self.priming_control, "Priming")
-        self.tab_widget.addTab(self.cage_manager_tab, "Cages")  # Cage naming tab
         self.tab_widget.addTab(self.general_tab, "General")
         
         layout.addWidget(self.tab_widget)
@@ -83,13 +82,9 @@ class SettingsTab(QWidget):
     
     def _on_subtab_changed(self, index: int):
         """Handle settings sub-tab changes."""
-        # If General tab is selected (index 4 after adding Cages tab), refresh mode state
-        if index == 4 and hasattr(self, '_update_mode_button_state'):
+        # If General tab is selected (index 3), refresh mode state
+        if index == 3 and hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
-        
-        # Refresh cage manager when its tab is selected (index 3)
-        if index == 3 and hasattr(self, 'cage_manager'):
-            self.cage_manager.refresh()
 
     def _connect_auto_save_handlers(self):
         """
@@ -994,42 +989,6 @@ class SettingsTab(QWidget):
         
         return scroll
     
-    def _create_cage_manager_tab(self):
-        """
-        Create cage naming/management tab.
-        
-        Design:
-        - Allows users to assign friendly names to cages
-        - Names appear in wizard dropdowns for easy identification
-        - Persisted to database for cross-session retention
-        
-        Best Practices:
-        - Modular widget pattern (CageManagerWidget)
-        - Database-backed persistence
-        - Reactive UI (immediate save on edit)
-        
-        Reference: Qt Widgets - Composition pattern
-        """
-        from PyQt5.QtWidgets import QScrollArea, QFrame
-        
-        # Create the cage manager widget
-        cage_manager = CageManagerWidget(
-            database_handler=self.database_handler,
-            system_controller=self.system_controller,
-            parent=self
-        )
-        
-        # Store reference for potential refresh calls
-        self.cage_manager = cage_manager
-        
-        # Wrap in scroll area for proper overflow handling
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(cage_manager)
-        scroll.setFrameShape(QFrame.NoFrame)
-        
-        return scroll
-
     def _create_system_settings(self):
         """Create system settings tab with proper type handling"""
         system_group = QGroupBox("System Settings")
