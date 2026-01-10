@@ -386,15 +386,15 @@ class ScheduleEditDialog(QDialog):
 
 
 # ============================================================================
-# SCHEDULE CARD (Green theme accents, animal count badge, created at timestamp)
+# SCHEDULE CARD (Mode badge, animal count, created at timestamp)
 # ============================================================================
 
 class ScheduleCard(QFrame):
     """
-    Material Design card with green theme accents and multi-select support.
+    Material Design card with mode badge and multi-select support.
     Features:
-    - Animal count badge (replaces mode badge)
-    - Green accent border on hover
+    - Mode badge (Staggered/Instant)
+    - Animal count in body
     - Created at timestamp in bottom right
     - Multi-select checkbox (iPhone-style)
     """
@@ -419,7 +419,7 @@ class ScheduleCard(QFrame):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         
-        self.setFixedHeight(100)
+        self.setFixedHeight(110)
         self.setMinimumWidth(220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
@@ -427,7 +427,7 @@ class ScheduleCard(QFrame):
         layout.setContentsMargins(12, 10, 12, 8)
         layout.setSpacing(4)
         
-        # Row 1: Checkbox + Name + Animal Count Badge
+        # Row 1: Checkbox + Name + Mode Badge
         header = QHBoxLayout()
         header.setSpacing(8)
         
@@ -443,50 +443,60 @@ class ScheduleCard(QFrame):
         header.addWidget(self._checkbox)
         
         name = self._schedule.name or "Untitled"
-        name_label = QLabel(name if len(name) <= 18 else name[:16] + "...")
+        name_label = QLabel(name if len(name) <= 16 else name[:14] + "...")
         name_label.setStyleSheet("font-size: 13px; font-weight: 600; color: #1F2937; background: transparent;")
-        if len(name) > 18:
+        if len(name) > 16:
             name_label.setToolTip(name)
         header.addWidget(name_label, 1)
         
-        # Animal count badge (green accent)
-        animal_count = len(self._schedule.animals) if hasattr(self._schedule, 'animals') and self._schedule.animals else 0
-        count_badge = QLabel(str(animal_count))
-        count_badge.setFixedSize(24, 24)
-        count_badge.setAlignment(Qt.AlignCenter)
-        count_badge.setStyleSheet("""
-            background-color: #0D9488;
+        # Mode badge (Staggered/Instant)
+        mode = getattr(self._schedule, 'delivery_mode', 'staggered') or 'staggered'
+        mode_text = "Staggered" if mode == "staggered" else "Instant"
+        badge_color = "#0D9488" if mode == "staggered" else "#6366F1"
+        mode_badge = QLabel(mode_text)
+        mode_badge.setStyleSheet(f"""
+            background-color: {badge_color};
             color: white;
-            border-radius: 12px;
-            font-weight: 700;
-            font-size: 11px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 9px;
+            padding: 3px 8px;
         """)
-        count_badge.setToolTip(f"{animal_count} animals")
-        header.addWidget(count_badge)
+        header.addWidget(mode_badge)
         
         layout.addLayout(header)
         
-        # Row 2: Time range
+        # Row 2: Animal count + Time range
+        info_layout = QHBoxLayout()
+        info_layout.setSpacing(12)
+        
+        animal_count = len(self._schedule.animals) if hasattr(self._schedule, 'animals') and self._schedule.animals else 0
+        animals_label = QLabel(f"{animal_count} animals")
+        animals_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
+        info_layout.addWidget(animals_label)
+        
         time_str = self._format_time_range()
         time_label = QLabel(time_str)
         time_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
-        layout.addWidget(time_label)
+        info_layout.addWidget(time_label)
         
-        # Row 3: Hint + Created at
-        footer = QHBoxLayout()
-        footer.setSpacing(4)
+        info_layout.addStretch()
+        layout.addLayout(info_layout)
         
-        hint = QLabel("Drag to run · Right-click")
+        # Row 3: Hint
+        hint = QLabel("Drag to run · Right-click to edit")
         hint.setStyleSheet("color: #9CA3AF; font-size: 9px; background: transparent;")
-        footer.addWidget(hint)
+        layout.addWidget(hint)
         
+        # Row 4: Created at (bottom right)
+        footer = QHBoxLayout()
         footer.addStretch()
         
-        # Created at timestamp (green accent)
         created_str = self._format_created_time()
-        created_label = QLabel(created_str)
-        created_label.setStyleSheet("color: #0D9488; font-size: 9px; font-weight: 500; background: transparent;")
-        footer.addWidget(created_label)
+        if created_str:
+            created_label = QLabel(f"Created: {created_str}")
+            created_label.setStyleSheet("color: #0D9488; font-size: 9px; font-weight: 500; background: transparent;")
+            footer.addWidget(created_label)
         
         layout.addLayout(footer)
         
@@ -520,7 +530,7 @@ class ScheduleCard(QFrame):
             return f"{start_str} → {end_str}"
         elif start_str:
             return start_str
-        return "No time set"
+        return ""
     
     def _format_created_time(self) -> str:
         try:
@@ -529,7 +539,7 @@ class ScheduleCard(QFrame):
                     dt = datetime.fromisoformat(self._schedule.start_time)
                 else:
                     dt = self._schedule.start_time
-                return dt.strftime("%m/%d %H:%M")
+                return dt.strftime("%m/%d/%Y %H:%M")
         except:
             pass
         return ""
@@ -726,21 +736,22 @@ class SchedulesHub(QWidget):
         
         # Header row
         header = QHBoxLayout()
-        header.setSpacing(8)
+        header.setSpacing(10)
+        header.setContentsMargins(0, 0, 0, 0)
         
         title = QLabel("My Schedules")
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1F2937;")
-        header.addWidget(title)
+        header.addWidget(title, alignment=Qt.AlignVCenter)
         
-        # Info button (properly aligned with title)
+        # Info button (circular, clickable)
         info_btn = QPushButton("?")
-        info_btn.setFixedSize(20, 20)
-        info_btn.setCursor(Qt.WhatsThisCursor)
-        info_btn.setToolTip("How to use:\n• Drag a card to Run/Stop to execute\n• Right-click for Edit/Delete\n• Use Select for bulk deletion")
+        info_btn.setFixedSize(24, 24)
+        info_btn.setCursor(Qt.PointingHandCursor)
         info_btn.setStyleSheet("""
-            QPushButton { background-color: #D1D5DB; color: #4B5563; border: none; border-radius: 10px; font-size: 11px; font-weight: 700; }
-            QPushButton:hover { background-color: #9CA3AF; color: white; }
+            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 12px; font-size: 13px; font-weight: 700; }
+            QPushButton:hover { background-color: #0F766E; }
         """)
+        info_btn.clicked.connect(self._show_info)
         header.addWidget(info_btn, alignment=Qt.AlignVCenter)
         
         header.addStretch()
@@ -891,6 +902,19 @@ class SchedulesHub(QWidget):
             
             self._toggle_select_mode()
             self.load_schedules()
+    
+    def _show_info(self) -> None:
+        """Show info dialog about how to use the schedules hub."""
+        QMessageBox.information(
+            self,
+            "How to Use Schedules",
+            "Welcome to the Schedules Hub!\n\n"
+            "• Drag a card to the Run/Stop section to execute it\n"
+            "• Right-click a card for Edit/Delete options\n"
+            "• Click 'Select' for bulk deletion mode\n"
+            "• Use the search bar to filter by name\n"
+            "• Click '+ New Schedule' to create via wizard"
+        )
     
     def _on_new_schedule(self) -> None:
         if self._select_mode:

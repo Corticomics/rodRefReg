@@ -220,41 +220,33 @@ class CagesVisualizationTab(QWidget):
         # HEADER with title and info button
         # ═══════════════════════════════════════════════════════════════
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(8)
+        header_layout.setSpacing(10)
+        header_layout.setContentsMargins(0, 0, 0, 0)
         
         title = QLabel("Relay Board Layout")
         title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1F2937;")
-        header_layout.addWidget(title)
+        header_layout.addWidget(title, alignment=Qt.AlignVCenter)
         
-        # Info button (small, next to title) - uses "?" which renders reliably
+        # Info button (circular, next to title) - click shows info dialog
         from PyQt5.QtWidgets import QPushButton
         info_btn = QPushButton("?")
-        info_btn.setFixedSize(22, 22)
-        info_btn.setCursor(Qt.WhatsThisCursor)
-        info_btn.setToolTip(
-            "Relay-to-Cage Relationship:\n\n"
-            "Each relay (R1-R15) controls one cage's water valve.\n\n"
-            "R1-R8: Left side terminals\n"
-            "R9-R15: Right side terminals\n"
-            "R16: Master solenoid (water supply)\n\n"
-            "Wire each cage's valve to its relay terminal.\n"
-            "Double-click cage names to rename them."
-        )
+        info_btn.setFixedSize(24, 24)
+        info_btn.setCursor(Qt.PointingHandCursor)
         info_btn.setStyleSheet("""
             QPushButton {
-                background-color: #E5E7EB;
-                color: #6B7280;
+                background-color: #0D9488;
+                color: white;
                 border: none;
-                border-radius: 11px;
-                font-size: 12px;
+                border-radius: 12px;
+                font-size: 13px;
                 font-weight: 700;
             }
             QPushButton:hover {
-                background-color: #D1D5DB;
-                color: #374151;
+                background-color: #0F766E;
             }
         """)
-        header_layout.addWidget(info_btn)
+        info_btn.clicked.connect(self._show_relay_info)
+        header_layout.addWidget(info_btn, alignment=Qt.AlignVCenter)
         
         header_layout.addStretch()
         
@@ -411,6 +403,20 @@ class CagesVisualizationTab(QWidget):
         for widget in self._relay_widgets.values():
             widget.deselect()
         self._selected_relay = None
+    
+    def _show_relay_info(self) -> None:
+        """Show relay-to-cage relationship info dialog."""
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.information(
+            self,
+            "Relay-to-Cage Relationship",
+            "Each relay (R1-R15) controls one cage's water valve.\n\n"
+            "• R1-R8: Left side terminals on the HAT\n"
+            "• R9-R15: Right side terminals\n"
+            "• R16: Master solenoid (controls water supply)\n\n"
+            "Wire each cage's valve to its corresponding relay terminal.\n"
+            "Double-click on cage names to rename them for easy identification."
+        )
     
     def _load_cage_data(self) -> None:
         """Load cage data and populate terminals."""
