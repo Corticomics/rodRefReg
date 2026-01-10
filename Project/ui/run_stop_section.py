@@ -207,16 +207,20 @@ class RunStopSection(QWidget):
         """
         Execute the loaded schedule with optimized UI responsiveness.
         
-        Optimization Strategy:
-        1. Update UI state immediately (Qt handles repaint automatically)
-        2. Defer database queries using QTimer.singleShot(0)
-        3. Let Qt's event loop handle UI updates naturally
+        Optimization Strategy (3-Phase):
+        1. IMMEDIATE: Update button states + show loading in execution monitor
+        2. DEFERRED (0ms): Database queries and validation
+        3. DEFERRED (after phase 2): Card population and execution
+        
+        This ensures the user sees immediate feedback (< 16ms frame time)
+        while heavy database/widget work happens progressively.
         
         Security: Verifies login status before execution (defense in depth).
         
         Reference: 
         - Qt Event Loop: https://doc.qt.io/qt-5/qcoreapplication.html#processEvents
           "Avoid processEvents() except in special circumstances"
+        - 60fps target: 16.67ms per frame - immediate UI must complete within this
         """
         # Security check: verify login status (defense in depth)
         if self.login_system and not self.login_system.is_logged_in():
@@ -231,14 +235,24 @@ class RunStopSection(QWidget):
             QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
             return
         
-        # Update UI state - Qt's event loop will handle repaint before singleShot fires
+        # ═══════════════════════════════════════════════════════════════════
+        # PHASE 1: Immediate UI feedback (must complete < 16ms)
+        # ═══════════════════════════════════════════════════════════════════
         self.job_in_progress = True
         self.run_button.setEnabled(False)
         self.run_button.setText("Starting...")
         self.stop_button.setEnabled(True)
         
-        # Defer heavy work to next event loop iteration
-        # QTimer.singleShot(0) allows pending paint events to process first
+        # Show execution monitor immediately with loading state
+        # This gives instant visual feedback while DB queries run
+        schedule_name = getattr(self.schedule_drop_area.current_schedule, 'name', 'Schedule')
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'show_execution_monitor_loading'):
+            parent_gui.show_execution_monitor_loading(schedule_name)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # PHASE 2: Defer heavy work to next event loop iteration
+        # ═══════════════════════════════════════════════════════════════════
         QTimer.singleShot(0, self._prepare_and_execute_schedule)
     
     def _prepare_and_execute_schedule(self):
@@ -512,7 +526,11 @@ class RunStopSection(QWidget):
         self.run_button.setText("Run")
         self.stop_button.setText("Stop")
         self.update_button_states()
-        # No need to switch views - both panes persist
+        
+        # Hide execution monitor (with delay to show final state)
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
+            parent_gui.hide_execution_monitor()
 
     def change_relay_hats(self):
         try:

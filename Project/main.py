@@ -328,12 +328,20 @@ def run_program(schedule, mode, window_start, window_end):
                 # Use QueuedConnection to ensure tracker updates happen in GUI thread
                 worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)
                 
-                # Finished: mark schedule complete in tracker (also queued to GUI thread)
+                # Finished: mark schedule complete in tracker + reset UI (also queued to GUI thread)
                 def _on_finished():
                     try:
                         _tracker_ref.schedule_complete()
                     except Exception as e:
                         print(f"[main.py] ERROR on schedule_complete: {e}")
+                    
+                    # Reset run/stop section UI when schedule completes naturally
+                    try:
+                        if gui and hasattr(gui, 'run_stop_section'):
+                            gui.run_stop_section.reset_ui()
+                            print("[main.py] Reset run_stop_section UI after schedule completion")
+                    except Exception as e:
+                        print(f"[main.py] ERROR resetting UI: {e}")
                 
                 worker.finished.connect(_on_finished, Qt.QueuedConnection)
                 print(f"[main.py] Progress tracker connected successfully")

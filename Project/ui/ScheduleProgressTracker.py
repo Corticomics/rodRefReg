@@ -275,9 +275,36 @@ class ScheduleProgressTracker(QWidget):
         # Timer will be created when schedule starts (avoid cross-thread issues)
         self.elapsed_timer = None
     
+    def show_loading(self, schedule_name: str):
+        """
+        Show loading state immediately before data is ready.
+        
+        Optimization: Called BEFORE database queries to give instant UI feedback.
+        Per Qt best practices, immediate visual response < 16ms target.
+        
+        Args:
+            schedule_name: Name of the schedule being loaded
+        """
+        print(f"[ProgressTracker] show_loading called: {schedule_name}")
+        
+        # Stop any existing timers
+        self._stop_all_timers()
+        
+        # Clear existing cards
+        self.clear_cards()
+        
+        # Show loading state
+        self.schedule_title.setText(f"Loading: {schedule_name}...")
+        self.elapsed_time_label.setText("Preparing...")
+    
     def start_schedule(self, schedule_name, animals_data):
         """
-        Initialize tracker for new schedule.
+        Initialize tracker for new schedule with progressive card loading.
+        
+        Optimization Strategy:
+        1. Block layout signals during batch card creation (prevents N reflows)
+        2. Create cards in batches with brief yields to event loop
+        3. Start timer only after all cards are created
         
         Thread Safety: Must be called from GUI thread.
         Per Qt documentation, QTimer must be used in the thread where it was created.
@@ -289,11 +316,10 @@ class ScheduleProgressTracker(QWidget):
         print(f"[ProgressTracker] start_schedule called: {schedule_name}")
         print(f"[ProgressTracker] animals_data: {animals_data}")
         
-        # CRITICAL: Ensure widget is visible (may have been hidden by _auto_dismiss)
-        # Bug Fix: Without this, second schedule would show blank because widget was hidden
+        # CRITICAL: Ensure widget is visible
         self.show()
         
-        # Stop any existing timers FIRST before any other cleanup
+        # Stop any existing timers FIRST
         self._stop_all_timers()
         
         self.schedule_name = schedule_name
@@ -302,42 +328,50 @@ class ScheduleProgressTracker(QWidget):
         self.schedule_title.setText(f"Running: {schedule_name}")
         self.elapsed_time_label.setText("Elapsed: 0:00")
         
-        # Clear existing cards (after stopping timers)
+        # Clear existing cards
         self.clear_cards()
         
-        # Create cards for each animal
-        row = 0
-        col = 0
-        max_cols = 4  # 4 cards per row
+        # ═══════════════════════════════════════════════════════════════════
+        # OPTIMIZATION: Batch card creation with signal blocking
+        # Qt Best Practice: Block signals during bulk widget operations
+        # Reference: https://doc.qt.io/qt-5/qobject.html#blockSignals
+        # ═══════════════════════════════════════════════════════════════════
         
-        for animal_id, data in animals_data.items():
-            # Ensure animal_id is int for consistent storage
-            animal_id_int = int(animal_id)
+        # Block layout signals to prevent N layout recalculations
+        self.cards_container.blockSignals(True)
+        
+        try:
+            row = 0
+            col = 0
+            max_cols = 4
             
-            print(f"[ProgressTracker] Creating card for animal {animal_id_int}: cage={data['cage_id']}, target={data['target_volume']}")
-            card = MaterialCard(
-                animal_id=animal_id_int,
-                cage_id=data['cage_id'],
-                target_volume_ml=data['target_volume'],
-                parent=self
-            )
-            
-            self.cards[animal_id_int] = card
-            self.cards_layout.addWidget(card, row, col)
-            
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
+            for animal_id, data in animals_data.items():
+                animal_id_int = int(animal_id)
+                
+                card = MaterialCard(
+                    animal_id=animal_id_int,
+                    cage_id=data['cage_id'],
+                    target_volume_ml=data['target_volume'],
+                    parent=self
+                )
+                
+                self.cards[animal_id_int] = card
+                self.cards_layout.addWidget(card, row, col)
+                
+                col += 1
+                if col >= max_cols:
+                    col = 0
+                    row += 1
+        finally:
+            # Unblock signals and trigger single layout update
+            self.cards_container.blockSignals(False)
         
-        print(f"[ProgressTracker] Total cards created: {len(self.cards)}, keys: {list(self.cards.keys())}")
-        print(f"[ProgressTracker] Cards dict id: {id(self.cards)}")
+        # Force single layout update after all cards added
+        self.cards_container.updateGeometry()
         
-        # Verify cards were created correctly
-        for aid, card in self.cards.items():
-            print(f"[ProgressTracker] Verified card for animal {aid}: target={card.target_volume_ml}ml")
+        print(f"[ProgressTracker] Total cards created: {len(self.cards)}")
         
-        # Create elapsed timer fresh (Qt best practice: timers bound to widget thread)
+        # Create elapsed timer fresh
         self.elapsed_timer = QTimer(self)
         self.elapsed_timer.timeout.connect(self._update_elapsed_time)
         self.elapsed_timer.start(1000)

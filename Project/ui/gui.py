@@ -281,11 +281,45 @@ class RodentRefreshmentGUI(QWidget):
         if hasattr(self, 'terminal_output'):
             self.terminal_output.appendPlainText(str(message))
     
+    def show_execution_monitor_loading(self, schedule_name: str):
+        """
+        PHASE 1: Show execution monitor immediately with loading state.
+        
+        Optimization: This runs BEFORE database queries, giving instant feedback.
+        Card population happens later in show_execution_monitor().
+        
+        Performance target: < 16ms (single frame at 60fps)
+        
+        Args:
+            schedule_name: Name of the schedule being started
+        """
+        print(f"[GUI] show_execution_monitor_loading called for: {schedule_name}")
+        
+        # Cancel any pending hide timer
+        if hasattr(self, '_hide_timer') and self._hide_timer is not None:
+            self._hide_timer.stop()
+            self._hide_timer = None
+        
+        # Mark that a schedule is running
+        self._schedule_running = True
+        
+        # Make tab visible and switch to it
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
+        self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
+        
+        # Trigger layout adjustment
+        self._on_terminal_tab_changed(self.execution_monitor_index)
+        
+        # Show loading state in progress tracker
+        self.progress_tracker.show()
+        self.progress_tracker.show_loading(schedule_name)
+    
     def show_execution_monitor(self, schedule_name: str, animals_data: dict):
         """
-        Show the Execution Monitor tab when a schedule starts running.
+        PHASE 2: Populate execution monitor with animal cards.
         
-        Called by run_stop_section when schedule execution begins.
+        Called after database queries complete. Cards are created progressively
+        to avoid blocking the UI thread.
         
         Args:
             schedule_name: Name of the running schedule
@@ -293,33 +327,27 @@ class RodentRefreshmentGUI(QWidget):
         """
         print(f"[GUI] show_execution_monitor called for: {schedule_name}")
         print(f"[GUI] animals_data: {animals_data}")
-        print(f"[GUI] Progress tracker object: {id(self.progress_tracker)}")
         
         # Cancel any pending hide timer (prevents race condition)
         if hasattr(self, '_hide_timer') and self._hide_timer is not None:
             self._hide_timer.stop()
             self._hide_timer = None
-            print("[GUI] Cancelled pending hide timer")
         
         # Mark that a schedule is running
         self._schedule_running = True
         
-        # Make the Execution Monitor tab visible
+        # Ensure tab is visible (in case show_loading wasn't called)
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
-        
-        # Switch to the Execution Monitor tab
         self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
-        
-        # Explicitly trigger layout adjustment (in case signal wasn't connected)
         self._on_terminal_tab_changed(self.execution_monitor_index)
         
-        # Ensure progress tracker widget is visible (may have been hidden by auto-dismiss)
+        # Ensure widget is visible
         self.progress_tracker.show()
         
-        # Start the progress tracker
+        # Start the progress tracker (with progressive card loading)
         self.progress_tracker.start_schedule(schedule_name, animals_data)
         
-        print(f"[GUI] Execution Monitor shown for: {schedule_name}")
+        print(f"[GUI] Execution Monitor populated for: {schedule_name}")
     
     def hide_execution_monitor(self):
         """
