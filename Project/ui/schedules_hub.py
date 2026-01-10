@@ -419,13 +419,13 @@ class ScheduleCard(QFrame):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         
-        self.setFixedHeight(110)
+        self.setFixedHeight(115)
         self.setMinimumWidth(220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 8)
-        layout.setSpacing(4)
+        layout.setSpacing(3)
         
         # Row 1: Checkbox + Name + Mode Badge
         header = QHBoxLayout()
@@ -466,35 +466,33 @@ class ScheduleCard(QFrame):
         
         layout.addLayout(header)
         
-        # Row 2: Animal count + Time range
-        info_layout = QHBoxLayout()
-        info_layout.setSpacing(12)
-        
+        # Row 2: Animal count (with proper pluralization)
         animal_count = len(self._schedule.animals) if hasattr(self._schedule, 'animals') and self._schedule.animals else 0
-        animals_label = QLabel(f"{animal_count} animals")
+        animal_word = "animal" if animal_count == 1 else "animals"
+        animals_label = QLabel(f"{animal_count} {animal_word}")
         animals_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
-        info_layout.addWidget(animals_label)
+        layout.addWidget(animals_label)
         
+        # Row 3: Time range (below animal count)
         time_str = self._format_time_range()
-        time_label = QLabel(time_str)
-        time_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
-        info_layout.addWidget(time_label)
+        if time_str:
+            time_label = QLabel(time_str)
+            time_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
+            layout.addWidget(time_label)
         
-        info_layout.addStretch()
-        layout.addLayout(info_layout)
-        
-        # Row 3: Hint
-        hint = QLabel("Drag to run · Right-click to edit")
-        hint.setStyleSheet("color: #9CA3AF; font-size: 9px; background: transparent;")
-        layout.addWidget(hint)
-        
-        # Row 4: Created at (bottom right)
+        # Row 4: Hint + Created at
         footer = QHBoxLayout()
+        footer.setSpacing(4)
+        
+        hint = QLabel("Drag · Right-click")
+        hint.setStyleSheet("color: #9CA3AF; font-size: 9px; background: transparent;")
+        footer.addWidget(hint)
+        
         footer.addStretch()
         
         created_str = self._format_created_time()
         if created_str:
-            created_label = QLabel(f"Created: {created_str}")
+            created_label = QLabel(created_str)
             created_label.setStyleSheet("color: #0D9488; font-size: 9px; font-weight: 500; background: transparent;")
             footer.addWidget(created_label)
         
@@ -533,13 +531,27 @@ class ScheduleCard(QFrame):
         return ""
     
     def _format_created_time(self) -> str:
+        """Format created time as Today/Yesterday/Full date."""
         try:
             if self._schedule.start_time:
                 if isinstance(self._schedule.start_time, str):
                     dt = datetime.fromisoformat(self._schedule.start_time)
                 else:
                     dt = self._schedule.start_time
-                return dt.strftime("%m/%d/%Y %H:%M")
+                
+                now = datetime.now()
+                today = now.date()
+                yesterday = today - timedelta(days=1)
+                created_date = dt.date()
+                
+                time_str = dt.strftime("%H:%M")
+                
+                if created_date == today:
+                    return f"Today {time_str}"
+                elif created_date == yesterday:
+                    return f"Yesterday {time_str}"
+                else:
+                    return dt.strftime("%m/%d/%Y %H:%M")
         except:
             pass
         return ""
@@ -743,14 +755,10 @@ class SchedulesHub(QWidget):
         title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1F2937;")
         header.addWidget(title, alignment=Qt.AlignVCenter)
         
-        # Info button (circular, clickable)
+        # Info button (uses global QSS via InfoButton objectName)
         info_btn = QPushButton("?")
-        info_btn.setFixedSize(24, 24)
+        info_btn.setObjectName("InfoButton")
         info_btn.setCursor(Qt.PointingHandCursor)
-        info_btn.setStyleSheet("""
-            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 12px; font-size: 13px; font-weight: 700; }
-            QPushButton:hover { background-color: #0F766E; }
-        """)
         info_btn.clicked.connect(self._show_info)
         header.addWidget(info_btn, alignment=Qt.AlignVCenter)
         
@@ -938,8 +946,23 @@ class SchedulesHub(QWidget):
         else:
             self._all_schedules = self.database_handler.get_all_schedules()
         
+        # Sort by most recent first (newest at top, oldest at bottom)
+        self._all_schedules.sort(key=self._get_schedule_sort_key, reverse=True)
+        
         self._display_schedules()
         self.print_to_terminal(f"[SchedulesHub] Loaded {len(self._all_schedules)} schedules")
+    
+    def _get_schedule_sort_key(self, schedule: Schedule):
+        """Get sort key for schedule (start_time for ordering)."""
+        try:
+            if schedule.start_time:
+                if isinstance(schedule.start_time, str):
+                    return datetime.fromisoformat(schedule.start_time)
+                return schedule.start_time
+        except:
+            pass
+        # Return minimum datetime for schedules without valid start_time
+        return datetime.min
     
     def _display_schedules(self, filter_text: str = "") -> None:
         self._clear_grid()

@@ -177,6 +177,27 @@ QTableWidget QPushButton {
     border-radius: 6px;
 }
 
+/* Info Button - Circular help icon */
+QPushButton#InfoButton {
+    background-color: #0D9488;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 700;
+}
+QPushButton#InfoButton:hover {
+    background-color: #0F766E;
+}
+QPushButton#InfoButton:pressed {
+    background-color: #115E59;
+}
+
 QPushButton#CompactButton {
     padding: 8px 12px;
     min-height: 32px;

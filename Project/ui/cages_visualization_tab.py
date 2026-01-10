@@ -227,24 +227,11 @@ class CagesVisualizationTab(QWidget):
         title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1F2937;")
         header_layout.addWidget(title, alignment=Qt.AlignVCenter)
         
-        # Info button (circular, next to title) - click shows info dialog
+        # Info button (uses global QSS via InfoButton objectName)
         from PyQt5.QtWidgets import QPushButton
         info_btn = QPushButton("?")
-        info_btn.setFixedSize(24, 24)
+        info_btn.setObjectName("InfoButton")
         info_btn.setCursor(Qt.PointingHandCursor)
-        info_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0D9488;
-                color: white;
-                border: none;
-                border-radius: 12px;
-                font-size: 13px;
-                font-weight: 700;
-            }
-            QPushButton:hover {
-                background-color: #0F766E;
-            }
-        """)
         info_btn.clicked.connect(self._show_relay_info)
         header_layout.addWidget(info_btn, alignment=Qt.AlignVCenter)
         
