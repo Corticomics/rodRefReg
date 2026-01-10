@@ -4,7 +4,6 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdi
                              QStackedWidget, QGroupBox)
 from PyQt5.QtCore import QDateTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from .schedule_drop_area import ScheduleDropArea
-from .edit_schedule_dialog import EditScheduleDialog
 from gpio.relay_worker import RelayWorker
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication
@@ -84,22 +83,16 @@ class RunStopSection(QWidget):
         self.run_button.setProperty("variant", "primary")
         self.stop_button = QPushButton("Stop", self)
         self.relay_hats_button = QPushButton("Change Relay Hats", self)
-        self.edit_button = QPushButton("Edit Schedule")
-        
-        self.edit_button.setObjectName("edit_button")
-        self.edit_button.setEnabled(False)
-        self.edit_button.clicked.connect(self.edit_current_schedule)
 
         self.run_button.clicked.connect(self.run_program)
         self.stop_button.clicked.connect(self.stop_program)
         self.relay_hats_button.clicked.connect(self.change_relay_hats)
 
-        # Controls group
+        # Controls group (Edit button removed - edit via Schedules tab)
         controls_group = QGroupBox("Controls")
         self.button_layout = QHBoxLayout()
         self.button_layout.setSpacing(8)
         self.button_layout.setContentsMargins(12, 8, 12, 8)
-        self.button_layout.addWidget(self.edit_button)
         self.button_layout.addWidget(self.run_button)
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
@@ -153,7 +146,6 @@ class RunStopSection(QWidget):
         self.run_button.setEnabled(is_logged_in and not self.job_in_progress)
         self.stop_button.setEnabled(is_logged_in and self.job_in_progress)
         self.relay_hats_button.setEnabled(is_logged_in and not self.job_in_progress)
-        self.edit_button.setEnabled(is_logged_in and self.current_schedule is not None and not self.job_in_progress)
         
         # Update schedule drop area
         self.schedule_drop_area.setEnabled(is_logged_in)
@@ -164,14 +156,12 @@ class RunStopSection(QWidget):
             self.run_button.setToolTip(disabled_tooltip)
             self.stop_button.setToolTip(disabled_tooltip)
             self.relay_hats_button.setToolTip(disabled_tooltip)
-            self.edit_button.setToolTip(disabled_tooltip)
             self.schedule_drop_area.setToolTip("Please log in to drop schedules")
         else:
             # Restore normal tooltips
             self.run_button.setToolTip("Start the loaded schedule")
             self.stop_button.setToolTip("Stop the running schedule")
             self.relay_hats_button.setToolTip("Configure relay HAT hardware")
-            self.edit_button.setToolTip("Edit the current schedule")
             self.schedule_drop_area.setToolTip("Drag and drop a schedule here to load it")
 
     def update_button_states(self):
@@ -190,14 +180,12 @@ class RunStopSection(QWidget):
         run_enabled = is_logged_in and not self.job_in_progress
         stop_enabled = is_logged_in and self.job_in_progress
         relay_enabled = is_logged_in and not self.job_in_progress
-        edit_enabled = is_logged_in and self.current_schedule is not None and not self.job_in_progress
         
-        print(f"[SEC] Button states: run={run_enabled}, stop={stop_enabled}, relay={relay_enabled}, edit={edit_enabled}")
+        print(f"[SEC] Button states: run={run_enabled}, stop={stop_enabled}, relay={relay_enabled}")
         
         self.run_button.setEnabled(run_enabled)
         self.stop_button.setEnabled(stop_enabled)
         self.relay_hats_button.setEnabled(relay_enabled)
-        self.edit_button.setEnabled(edit_enabled)
         self.schedule_drop_area.setEnabled(is_logged_in)
         
         # Set appropriate tooltips
@@ -536,18 +524,6 @@ class RunStopSection(QWidget):
 
     def _on_mode_changed(self, mode):
         pass
-
-    def edit_current_schedule(self):
-        if not self.current_schedule:
-            return
-        
-        try:
-            dialog = EditScheduleDialog(self.current_schedule, self.database_handler, self)
-            if dialog.exec_() == QDialog.Accepted:
-                self.schedule_drop_area.update_table(self.current_schedule)
-                self.schedule_updated.emit(self.current_schedule.schedule_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to edit schedule: {str(e)}")
 
     @pyqtSlot(object)
     def on_schedule_dropped(self, schedule):
