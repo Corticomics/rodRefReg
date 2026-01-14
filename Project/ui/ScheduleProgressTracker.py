@@ -341,27 +341,27 @@ class ScheduleProgressTracker(QWidget):
         self.cards_container.blockSignals(True)
         
         try:
-        row = 0
-        col = 0
+            row = 0
+            col = 0
             max_cols = 4
-        
-        for animal_id, data in animals_data.items():
+
+            for animal_id, data in animals_data.items():
                 animal_id_int = int(animal_id)
-                
-            card = MaterialCard(
+
+                card = MaterialCard(
                     animal_id=animal_id_int,
-                cage_id=data['cage_id'],
-                target_volume_ml=data['target_volume'],
-                parent=self
-            )
-            
+                    cage_id=data['cage_id'],
+                    target_volume_ml=data['target_volume'],
+                    parent=self
+                )
+
                 self.cards[animal_id_int] = card
-            self.cards_layout.addWidget(card, row, col)
-            
-            col += 1
-            if col >= max_cols:
-                col = 0
-                row += 1
+                self.cards_layout.addWidget(card, row, col)
+
+                col += 1
+                if col >= max_cols:
+                    col = 0
+                    row += 1
         finally:
             # Unblock signals and trigger single layout update
             self.cards_container.blockSignals(False)
@@ -386,8 +386,8 @@ class ScheduleProgressTracker(QWidget):
         """
         if self.elapsed_timer is not None:
             try:
-            self.elapsed_timer.stop()
-            self.elapsed_timer.deleteLater()
+                self.elapsed_timer.stop()
+                self.elapsed_timer.deleteLater()
             except RuntimeError:
                 pass  # Timer was already deleted
             self.elapsed_timer = None
@@ -445,7 +445,7 @@ class ScheduleProgressTracker(QWidget):
         # Stop elapsed timer (but keep auto_dismiss for later)
         if self.elapsed_timer is not None:
             try:
-            self.elapsed_timer.stop()
+                self.elapsed_timer.stop()
             except RuntimeError:
                 pass
         
@@ -460,8 +460,8 @@ class ScheduleProgressTracker(QWidget):
         # Cancel any pending auto-dismiss timer
         if self.auto_dismiss_timer is not None:
             try:
-            self.auto_dismiss_timer.stop()
-            self.auto_dismiss_timer.deleteLater()
+                self.auto_dismiss_timer.stop()
+                self.auto_dismiss_timer.deleteLater()
             except RuntimeError:
                 pass
             self.auto_dismiss_timer = None
