@@ -69,6 +69,9 @@ class SettingsTab(QWidget):
         
         # Update mode state when General tab is selected
         self.tab_widget.currentChanged.connect(self._on_subtab_changed)
+
+        # Track if calibration data has been loaded
+        self._calibration_data_loaded = False
         
         # Connect all settings widgets to auto-save (Best Practice: immediate persistence)
         self._connect_auto_save_handlers()
@@ -79,11 +82,123 @@ class SettingsTab(QWidget):
         # Refresh mode state in case login status changed
         if hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
-    
+
+    def _load_calibration_data(self):
+        """Load calibration data when tab becomes visible (prevents recursion during init)"""
+        try:
+            # Get all calibrations from database
+            calibrations = self.database_handler.get_all_valve_calibrations()
+        except Exception as e:
+            self.print_to_terminal(f"Error loading calibrations: {e}")
+            calibrations = {}
+
+        try:
+            # Get all cage names from database
+            cage_names = self.database_handler.get_all_cage_names()
+        except Exception as e:
+            self.print_to_terminal(f"Error loading cage names: {e}")
+            cage_names = {}
+
+        # Update the table with real data
+        self._update_calibration_table_with_data(calibrations, cage_names)
+        self._calibration_data_loaded = True
+
+    def _update_calibration_table_with_data(self, calibrations, cage_names):
+        """Update table with loaded calibration and cage name data"""
+        from PyQt5.QtWidgets import QPushButton
+        from PyQt5.QtGui import QColor
+        from PyQt5.QtCore import Qt
+        from datetime import datetime
+
+        for cage_id in range(1, 16):
+            row = cage_id - 1
+            cal = calibrations.get(cage_id)
+
+            # Cage name - use custom name if set, otherwise "Cage N"
+            cage_info = cage_names.get(cage_id, {})
+            custom_name = cage_info.get('name', '')
+            display_name = custom_name if custom_name else f"Cage {cage_id}"
+
+            # Update cage name column
+            name_item = self.calibration_table.item(row, 0)
+            if name_item:
+                name_item.setText(display_name)
+
+            if cal:
+                # Has calibration data
+                volume_per_pulse = cal.get('volume_per_pulse_ml', 0)
+                cv_pct = cal.get('coefficient_of_variation_pct', 0)
+                cal_date = cal.get('calibration_date')
+
+                # Status
+                if cv_pct < 5:
+                    status = "Excellent"
+                    status_color = QColor("#10B981")  # Green
+                elif cv_pct < 10:
+                    status = "Good"
+                    status_color = QColor("#F59E0B")  # Yellow
+                else:
+                    status = "Poor"
+                    status_color = QColor("#EF4444")  # Red
+
+                status_item = self.calibration_table.item(row, 1)
+                if status_item:
+                    status_item.setText(status)
+                    status_item.setBackground(status_color)
+                    status_item.setForeground(QColor("white"))
+
+                # Volume per pulse
+                volume_item = self.calibration_table.item(row, 2)
+                if volume_item:
+                    volume_item.setText(f"{volume_per_pulse:.3f}")
+
+                # CV%
+                cv_item = self.calibration_table.item(row, 3)
+                if cv_item:
+                    cv_item.setText(f"{cv_pct:.1f}")
+
+                # Date
+                date_item = self.calibration_table.item(row, 4)
+                if date_item:
+                    if cal_date:
+                        try:
+                            date_obj = datetime.fromisoformat(cal_date.replace('Z', '+00:00'))
+                            date_item.setText(date_obj.strftime('%Y-%m-%d'))
+                        except:
+                            date_item.setText("Invalid")
+                    else:
+                        date_item.setText("Never")
+
+                # Action button - update existing button
+                action_widget = self.calibration_table.cellWidget(row, 5)
+                if action_widget and hasattr(action_widget, 'setText'):
+                    action_widget.setText("Re-calibrate")
+            else:
+                # No calibration data
+                status_item = self.calibration_table.item(row, 1)
+                if status_item:
+                    status_item.setText("Not calibrated")
+                    status_item.setBackground(QColor("#6B7280"))  # Gray
+                    status_item.setForeground(QColor("white"))
+
+                # Clear other columns
+                for col in [2, 3, 4]:
+                    item = self.calibration_table.item(row, col)
+                    if item:
+                        item.setText("")
+
+                # Action button
+                action_widget = self.calibration_table.cellWidget(row, 5)
+                if action_widget and hasattr(action_widget, 'setText'):
+                    action_widget.setText("Calibrate")
+
     def _on_subtab_changed(self, index: int):
         """Handle settings sub-tab changes."""
+        # If Calibration tab is selected (index 1), load data if not already loaded
+        if index == 1 and not self._calibration_data_loaded:
+            self._load_calibration_data()
         # If General tab is selected (index 3), refresh mode state
-        if index == 3 and hasattr(self, '_update_mode_button_state'):
+        elif index == 3 and hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
     
     def refresh_calibration_table(self) -> None:
@@ -622,7 +737,7 @@ class SettingsTab(QWidget):
         refresh_btn.setObjectName("CompactButton")
         refresh_btn.setFixedHeight(28)
         refresh_btn.setToolTip("Reload calibration data from database")
-        refresh_btn.clicked.connect(self._populate_calibration_table)
+        refresh_btn.clicked.connect(lambda: self._load_calibration_data())
         button_row.addWidget(refresh_btn)
         
         button_row.addStretch()
@@ -662,122 +777,40 @@ class SettingsTab(QWidget):
         return scroll
     
     def _populate_calibration_table(self):
-        """Load calibration data from database and populate table"""
+        """Set up calibration table structure (data loaded lazily when tab becomes visible)"""
         from PyQt5.QtWidgets import QPushButton
         from PyQt5.QtGui import QColor
         from PyQt5.QtCore import Qt
-        from datetime import datetime
-        
+
         self.calibration_table.setRowCount(15)  # 15 cages
-        
-        # Get all calibrations from database
-        calibrations = {}
-        try:
-            calibrations = self.database_handler.get_all_valve_calibrations()
-        except Exception as e:
-            self.print_to_terminal(f"Error loading calibrations: {e}")
-        
-        # Get all cage names from database (Best Practice: batch query instead of N+1)
-        cage_names = {}
-        try:
-            cage_names = self.database_handler.get_all_cage_names()
-        except Exception as e:
-            self.print_to_terminal(f"Error loading cage names: {e}")
-        
+
+        # Set up empty table structure - data loaded when tab becomes visible
         for cage_id in range(1, 16):
             row = cage_id - 1
-            cal = calibrations.get(cage_id)
-            
-            # Cage name - use custom name if set, otherwise "Cage N"
-            cage_info = cage_names.get(cage_id, {})
-            custom_name = cage_info.get('name', '')
-            if custom_name and custom_name != f"Cage {cage_id}":
-                display_name = f"{cage_id}: {custom_name}"
-            else:
-                display_name = f"Cage {cage_id}"
-            
-            cage_item = QTableWidgetItem(display_name)
-            cage_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            cage_item.setToolTip(f"Cage {cage_id} - Relay {cage_info.get('relay_id', cage_id)}")
-            self.calibration_table.setItem(row, 0, cage_item)
-            
-            if cal:
-                # Calibrated - show data
-                status_item = QTableWidgetItem("[OK] Calibrated")
-                status_item.setForeground(QColor(0, 150, 0))
-                
-                volume_item = QTableWidgetItem(f"{cal['volume_per_pulse_ml']:.6f}")
-                volume_item.setTextAlignment(Qt.AlignCenter)
-                
-                cv_pct = cal['coefficient_of_variation_pct']
-                cv_item = QTableWidgetItem(f"{cv_pct:.2f}%")
-                cv_item.setTextAlignment(Qt.AlignCenter)
-                
-                # Color code quality
-                if cv_pct < 1.0:
-                    cv_item.setForeground(QColor(0, 150, 0))  # Excellent - green
-                elif cv_pct < 3.0:
-                    cv_item.setForeground(QColor(50, 150, 50))  # Good - lighter green
-                elif cv_pct < 5.0:
-                    cv_item.setForeground(QColor(200, 150, 0))  # Acceptable - yellow
-                else:
-                    cv_item.setForeground(QColor(200, 0, 0))  # Poor - red
-                
-                # Format date
-                try:
-                    date_obj = datetime.fromisoformat(cal['calibration_date'])
-                    date_str = date_obj.strftime('%Y-%m-%d')
-                except:
-                    date_str = cal['calibration_date'][:10]
-                
-                date_item = QTableWidgetItem(date_str)
-                date_item.setTextAlignment(Qt.AlignCenter)
-                
-                self.calibration_table.setItem(row, 1, status_item)
-                self.calibration_table.setItem(row, 2, volume_item)
-                self.calibration_table.setItem(row, 3, cv_item)
-                self.calibration_table.setItem(row, 4, date_item)
-                
-                # Action button - Recalibrate (compact for table)
-                btn = QPushButton("Recalibrate")
-                btn.setFixedHeight(28)
-                btn.setMinimumWidth(90)
-                btn.setToolTip(f"Recalibrate cage {cage_id}")
-                btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, btn)
-                
-            else:
-                # Not calibrated - show warning
-                status_item = QTableWidgetItem("[X] Not Calibrated")
-                status_item.setForeground(QColor(200, 0, 0))
-                
-                volume_item = QTableWidgetItem("—")
-                volume_item.setTextAlignment(Qt.AlignCenter)
-                volume_item.setForeground(QColor(150, 150, 150))
-                
-                cv_item = QTableWidgetItem("—")
-                cv_item.setTextAlignment(Qt.AlignCenter)
-                cv_item.setForeground(QColor(150, 150, 150))
-                
-                date_item = QTableWidgetItem("—")
-                date_item.setTextAlignment(Qt.AlignCenter)
-                date_item.setForeground(QColor(150, 150, 150))
-                
-                self.calibration_table.setItem(row, 1, status_item)
-                self.calibration_table.setItem(row, 2, volume_item)
-                self.calibration_table.setItem(row, 3, cv_item)
-                self.calibration_table.setItem(row, 4, date_item)
-                
-                # Action button - Calibrate (compact for table)
-                btn = QPushButton("Calibrate")
-                btn.setProperty("variant", "primary")
-                btn.setFixedHeight(28)
-                btn.setMinimumWidth(90)
-                btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
-                btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, btn)
 
-    
+            # Cage name column
+            cage_item = QTableWidgetItem(f"Cage {cage_id}")
+            cage_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.calibration_table.setItem(row, 0, cage_item)
+
+            # Status column - initially "Loading..."
+            status_item = QTableWidgetItem("Loading...")
+            status_item.setTextAlignment(Qt.AlignCenter)
+            self.calibration_table.setItem(row, 1, status_item)
+
+            # Empty columns for now
+            for col in [2, 3, 4]:
+                empty_item = QTableWidgetItem("")
+                empty_item.setTextAlignment(Qt.AlignCenter)
+                self.calibration_table.setItem(row, col, empty_item)
+
+            # Action button
+            calibrate_btn = QPushButton("Calibrate")
+            calibrate_btn.setObjectName("CompactButton")
+            calibrate_btn.setFixedHeight(24)
+            calibrate_btn.clicked.connect(lambda checked, cid=cage_id: self._launch_calibration_wizard(cid))
+            self.calibration_table.setCellWidget(row, 5, calibrate_btn)
+
     def _launch_calibration_wizard(self, cage_id):
         """
         Launch calibration wizard for specific cage.
