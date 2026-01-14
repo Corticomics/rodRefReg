@@ -554,7 +554,7 @@ class SettingsTab(QWidget):
         self.calibration_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.calibration_table.setShowGrid(True)
         self.calibration_table.verticalHeader().setVisible(False)
-        self.calibration_table.verticalHeader().setDefaultSectionSize(36)  # Compact rows
+        self.calibration_table.verticalHeader().setDefaultSectionSize(40)  # Accommodate buttons
         self.calibration_table.setMinimumHeight(300)
         # Don't set maxHeight - let the parent scroll area handle overflow
         # This ensures the table displays naturally and the tab scrolls when needed
@@ -563,14 +563,33 @@ class SettingsTab(QWidget):
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         # Rely on global QSS styling
         
-        # Column resize modes
-        self.calibration_table.horizontalHeader().setStretchLastSection(False)
-        self.calibration_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.calibration_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.calibration_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.calibration_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.calibration_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.calibration_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        # Column resize modes - ensure all text is visible
+        header = self.calibration_table.horizontalHeader()
+        header.setStretchLastSection(False)
+        
+        # Set minimum section sizes to ensure text visibility
+        header.setMinimumSectionSize(60)
+        
+        # Column 0: Cage (fixed width)
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(0, 70)
+        
+        # Column 1: Status (fixed width for "[X] Not Calibrated")
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(1, 120)
+        
+        # Column 2: Volume/Pulse - stretch to fill
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        
+        # Column 3: Quality (CV%)
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        
+        # Column 4: Date
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        
+        # Column 5: Action (fixed width for button)
+        header.setSectionResizeMode(5, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(5, 100)
         
         # Populate table with 15 cages
         self._populate_calibration_table()
@@ -695,8 +714,8 @@ class SettingsTab(QWidget):
                 
                 # Action button - Recalibrate (compact for table)
                 btn = QPushButton("Recalibrate")
-                btn.setFixedHeight(26)  # Force compact height
-                btn.setMaximumWidth(95)
+                btn.setFixedHeight(28)
+                btn.setMinimumWidth(90)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
@@ -726,8 +745,8 @@ class SettingsTab(QWidget):
                 # Action button - Calibrate (compact for table)
                 btn = QPushButton("Calibrate")
                 btn.setProperty("variant", "primary")
-                btn.setFixedHeight(26)  # Force compact height
-                btn.setMaximumWidth(95)
+                btn.setFixedHeight(28)
+                btn.setMinimumWidth(90)
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
