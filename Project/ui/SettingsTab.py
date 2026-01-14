@@ -85,6 +85,17 @@ class SettingsTab(QWidget):
         # If General tab is selected (index 3), refresh mode state
         if index == 3 and hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
+    
+    def refresh_calibration_table(self) -> None:
+        """
+        Public method to refresh the calibration table.
+        
+        Called when cage names are updated in the Cages tab to keep
+        calibration table in sync. Follows Observer pattern via Qt signals.
+        """
+        if hasattr(self, 'calibration_table'):
+            self._populate_calibration_table()
+            self.print_to_terminal("Calibration table refreshed with updated cage names")
 
     def _connect_auto_save_handlers(self):
         """
@@ -563,33 +574,33 @@ class SettingsTab(QWidget):
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         # Rely on global QSS styling
         
-        # Column resize modes - ensure all text is visible
+        # Column resize modes - all fixed widths for consistent layout
         header = self.calibration_table.horizontalHeader()
         header.setStretchLastSection(False)
-        header.setMinimumSectionSize(50)
+        header.setMinimumSectionSize(40)
         
-        # Column 0: Cage - stretch to show custom names
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        # Column 0: Cage - fixed width (compact)
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(0, 100)
         
-        # Column 1: Status (fixed width for "[X] Not Calibrated")
-        header.setSectionResizeMode(1, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(1, 115)
+        # Column 1: Status - stretch to fill available space
+        header.setSectionResizeMode(1, QHeaderView.Stretch)
         
-        # Column 2: Volume/Pulse - compact fixed width
+        # Column 2: mL/Pulse - compact fixed width
         header.setSectionResizeMode(2, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(2, 80)
+        self.calibration_table.setColumnWidth(2, 70)
         
-        # Column 3: Quality (CV%) - compact fixed width
+        # Column 3: CV% - compact fixed width
         header.setSectionResizeMode(3, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(3, 65)
+        self.calibration_table.setColumnWidth(3, 55)
         
         # Column 4: Date - compact fixed width
         header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(4, 85)
+        self.calibration_table.setColumnWidth(4, 80)
         
-        # Column 5: Action (fixed width for button)
+        # Column 5: Action - fixed width for button with padding
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(5, 95)
+        self.calibration_table.setColumnWidth(5, 90)
         
         # Populate table with 15 cages
         self._populate_calibration_table()

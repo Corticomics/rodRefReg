@@ -196,6 +196,12 @@ class RodentRefreshmentGUI(QWidget):
             self.run_stop_section._on_mode_changed
         )
         
+        # Connect cage name updates to refresh calibration table
+        # Observer pattern: CagesTab -> SettingsTab (keeps data in sync)
+        self.projects_section.cages_tab.cage_names_updated.connect(
+            self.settings_tab.refresh_calibration_table
+        )
+        
         # Reactive layout: adjust stretches when main tab or settings subtabs change
         self.main_tab_widget.currentChanged.connect(self._on_main_tab_changed)
         try:

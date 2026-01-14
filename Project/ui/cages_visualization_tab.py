@@ -191,6 +191,7 @@ class CagesVisualizationTab(QWidget):
     """
     
     cage_selected = pyqtSignal(int)
+    cage_names_updated = pyqtSignal()  # Emitted when any cage name is changed
     
     def __init__(self, database_handler, system_controller=None, 
                  print_to_terminal=None, parent=None):
@@ -471,7 +472,7 @@ class CagesVisualizationTab(QWidget):
         self.cage_selected.emit(relay_id)
     
     def _on_name_changed(self, relay_id: int, new_name: str) -> None:
-        """Save cage name to database."""
+        """Save cage name to database and notify other components."""
         try:
             # relay_id == cage_id in solenoid mode (1:1 mapping)
             cage_id = relay_id
@@ -481,6 +482,9 @@ class CagesVisualizationTab(QWidget):
                 name=new_name
             )
             self._print_to_terminal(f"[CagesTab] Saved: Cage {cage_id} → '{new_name}'")
+            
+            # Emit signal to notify other tabs (e.g., Calibration) to refresh
+            self.cage_names_updated.emit()
         except Exception as e:
             self._print_to_terminal(f"[CagesTab] Save error: {e}")
     
