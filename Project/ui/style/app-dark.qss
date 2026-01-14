@@ -262,11 +262,12 @@ QTabBar::tab {
     background: #1A2028;
     border: 1px solid #2D3748;
     border-bottom: none;
-    padding: 10px 20px;
+    padding: 8px 16px;
+    min-width: 70px;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
     margin-right: 2px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: #A0AEC0;
 }
@@ -279,6 +280,10 @@ QTabBar::tab:selected {
     border-bottom-color: #1E2530;
     color: #14B8A6;
     font-weight: 600;
+}
+/* Ensure tab bar doesn't scroll prematurely */
+QTabBar {
+    qproperty-expanding: false;
 }
 
 /* ============================================

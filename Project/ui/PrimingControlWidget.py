@@ -17,7 +17,7 @@ Date: 2025-10-16
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, 
-    QPushButton, QComboBox, QTextEdit, QMessageBox
+    QPushButton, QComboBox, QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from datetime import datetime
@@ -151,8 +151,8 @@ class PrimingControlWidget(QWidget):
         # Emergency controls
         layout.addWidget(self._create_emergency_group())
         
-        # Status log
-        layout.addWidget(self._create_status_log_group())
+        # Note: Activity log removed - all messages now go to main Terminal tab
+        # via the print_callback and status_message signal
         
         # Push everything to top
         layout.addStretch()
@@ -245,20 +245,6 @@ class PrimingControlWidget(QWidget):
         self.emergency_btn.clicked.connect(self._on_emergency_stop_clicked)
         layout.addWidget(self.emergency_btn)
         layout.addStretch()
-        
-        group.setLayout(layout)
-        return group
-    
-    def _create_status_log_group(self) -> QGroupBox:
-        """Create status log display group."""
-        group = QGroupBox("Activity Log")
-        layout = QVBoxLayout()
-        
-        self.status_log = QTextEdit()
-        self.status_log.setReadOnly(True)
-        self.status_log.setMaximumHeight(120)
-        self.status_log.setObjectName("WizardLog")  # Reuse existing style
-        layout.addWidget(self.status_log)
         
         group.setLayout(layout)
         return group
@@ -504,17 +490,14 @@ class PrimingControlWidget(QWidget):
     # ==================== Logging Methods ====================
     
     def _log_message(self, message: str, level: str = "INFO"):
-        """Log message to status display and emit signal."""
+        """Log message to main terminal via callback and signal."""
         timestamp = datetime.now().strftime("%H:%M:%S")
-        log_entry = f"[{timestamp}] {message}"
+        log_entry = f"[Priming {timestamp}] {message}"
         
-        self.status_log.append(log_entry)
-        self._auto_scroll_log()
-        
-        # Emit signal for parent widget
+        # Emit signal for parent widget (e.g., main GUI terminal)
         self.status_message.emit(log_entry)
         
-        # Call print callback if provided
+        # Call print callback if provided (logs to Terminal tab)
         self._print_callback(log_entry)
     
     def _log_success(self, message: str):
@@ -529,11 +512,6 @@ class PrimingControlWidget(QWidget):
         """Log warning message."""
         self._log_message(f"⚠ {message}", "WARNING")
     
-    def _auto_scroll_log(self):
-        """Auto-scroll log to bottom."""
-        scrollbar = self.status_log.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
-    
     # ==================== Public API ====================
     
     def cleanup(self):
@@ -544,8 +522,8 @@ class PrimingControlWidget(QWidget):
                 self._relay_handler.set_all_relays(0)
             
             self._model.reset()
-            self._log_message("Priming control widget cleaned up")
+            self._print_callback("Priming control widget cleaned up")
             
         except Exception as e:
-            print(f"Cleanup error: {e}")
+            self._print_callback(f"Cleanup error: {e}")
 
