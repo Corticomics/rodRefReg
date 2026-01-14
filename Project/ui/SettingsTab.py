@@ -545,7 +545,7 @@ class SettingsTab(QWidget):
         self.calibration_table = QTableWidget()
         self.calibration_table.setColumnCount(6)
         self.calibration_table.setHorizontalHeaderLabels([
-            "Cage", "Status", "Volume/Pulse (mL)", "Quality (CV%)", "Date", "Action"
+            "Cage", "Status", "mL/Pulse", "CV%", "Date", "Action"
         ])
         
         # Table styling - Match app's Material Design theme
@@ -566,30 +566,30 @@ class SettingsTab(QWidget):
         # Column resize modes - ensure all text is visible
         header = self.calibration_table.horizontalHeader()
         header.setStretchLastSection(False)
+        header.setMinimumSectionSize(50)
         
-        # Set minimum section sizes to ensure text visibility
-        header.setMinimumSectionSize(60)
-        
-        # Column 0: Cage (fixed width)
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(0, 70)
+        # Column 0: Cage - stretch to show custom names
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
         
         # Column 1: Status (fixed width for "[X] Not Calibrated")
         header.setSectionResizeMode(1, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(1, 120)
+        self.calibration_table.setColumnWidth(1, 115)
         
-        # Column 2: Volume/Pulse - stretch to fill
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        # Column 2: Volume/Pulse - compact fixed width
+        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(2, 80)
         
-        # Column 3: Quality (CV%)
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        # Column 3: Quality (CV%) - compact fixed width
+        header.setSectionResizeMode(3, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(3, 65)
         
-        # Column 4: Date
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        # Column 4: Date - compact fixed width
+        header.setSectionResizeMode(4, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(4, 85)
         
         # Column 5: Action (fixed width for button)
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(5, 100)
+        self.calibration_table.setColumnWidth(5, 95)
         
         # Populate table with 15 cages
         self._populate_calibration_table()
@@ -666,13 +666,28 @@ class SettingsTab(QWidget):
         except Exception as e:
             self.print_to_terminal(f"Error loading calibrations: {e}")
         
+        # Get all cage names from database (Best Practice: batch query instead of N+1)
+        cage_names = {}
+        try:
+            cage_names = self.database_handler.get_all_cage_names()
+        except Exception as e:
+            self.print_to_terminal(f"Error loading cage names: {e}")
+        
         for cage_id in range(1, 16):
             row = cage_id - 1
             cal = calibrations.get(cage_id)
             
-            # Cage number
-            cage_item = QTableWidgetItem(f"Cage {cage_id}")
-            cage_item.setTextAlignment(Qt.AlignCenter)
+            # Cage name - use custom name if set, otherwise "Cage N"
+            cage_info = cage_names.get(cage_id, {})
+            custom_name = cage_info.get('name', '')
+            if custom_name and custom_name != f"Cage {cage_id}":
+                display_name = f"{cage_id}: {custom_name}"
+            else:
+                display_name = f"Cage {cage_id}"
+            
+            cage_item = QTableWidgetItem(display_name)
+            cage_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            cage_item.setToolTip(f"Cage {cage_id} - Relay {cage_info.get('relay_id', cage_id)}")
             self.calibration_table.setItem(row, 0, cage_item)
             
             if cal:
