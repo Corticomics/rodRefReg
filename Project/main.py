@@ -151,6 +151,7 @@ def setup():
     if not login_system.is_logged_in():
         login_system.set_guest_mode()
 
+    print("[SETUP] Creating GUI...")
     gui = RodentRefreshmentGUI(
         run_program,
         stop_program,
@@ -172,6 +173,8 @@ def setup():
         print_to_terminal=gui.print_to_terminal,
         database_handler=database_handler
     )
+
+    print("[SETUP] Setup completed successfully")
 
 # =============================================================================
 # run_program() – create a new worker and thread and start it.
@@ -526,9 +529,8 @@ def _update_gui_relay_units(relay_units):
 # =============================================================================
 
 # Toggle splash screen (set to False for debugging startup issues)
-# OPTIMIZED: Splash screen now enabled with background initialization
-# and lazy loading for improved startup performance
-USE_SPLASH_SCREEN = True
+# TEMPORARILY DISABLED: Testing GUI display issues
+USE_SPLASH_SCREEN = False
 
 
 def _create_gui_from_components(components: dict):
@@ -586,16 +588,28 @@ def _create_gui_from_components(components: dict):
 def main():
     """
     Application entry point with optional splash screen.
-    
+
     Optimization Strategy:
     1. Show splash screen immediately for visual feedback
     2. Initialize heavy components in background thread
     3. Create GUI after initialization completes
     4. Transition from splash to main window
-    
+
     Set USE_SPLASH_SCREEN = False to debug without splash.
     """
     global gui, system_controller
+
+    # Check for display availability
+    import os
+    display = os.environ.get('DISPLAY')
+    qt_platform = os.environ.get('QT_QPA_PLATFORM')
+
+    if not display and not qt_platform:
+        print("[MAIN] WARNING: No DISPLAY environment variable set.")
+        print("[MAIN] This may be a headless environment.")
+        print("[MAIN] If running in a container, try setting QT_QPA_PLATFORM=offscreen")
+        print("[MAIN] If using SSH, enable X11 forwarding with 'ssh -X' or 'ssh -Y'")
+        # Continue anyway - Qt might still work with offscreen platform
     
     # Single-instance guard using QLocalServer
     instance_key = 'rrr_single_instance_v1'
@@ -630,10 +644,36 @@ def main():
         pass
 
     # Choose startup mode
+    startup_success = False
     if USE_SPLASH_SCREEN:
-        _main_with_splash(app, instance_key)
+        try:
+            print("[MAIN] Starting with splash screen...")
+            _main_with_splash(app, instance_key)
+            startup_success = True
+        except Exception as e:
+            print(f"[MAIN] ERROR: Splash screen startup failed: {e}")
+            print("[MAIN] Falling back to synchronous startup...")
+            try:
+                _main_without_splash(app, instance_key)
+                startup_success = True
+            except Exception as e2:
+                print(f"[MAIN] ERROR: Fallback startup also failed: {e2}")
+                return 1
     else:
-        _main_without_splash(app, instance_key)
+        try:
+            print("[MAIN] Starting without splash screen...")
+            _main_without_splash(app, instance_key)
+            startup_success = True
+        except Exception as e:
+            print(f"[MAIN] ERROR: Startup failed: {e}")
+            return 1
+
+    if startup_success:
+        print("[MAIN] Starting Qt event loop...")
+        sys.exit(app.exec_())
+    else:
+        print("[MAIN] ERROR: Application startup failed completely")
+        return 1
     
     sys.exit(app.exec_())
 
@@ -659,7 +699,10 @@ def _main_with_splash(app, instance_key):
     def on_initialization_complete(components: dict):
         """Handle completion of background initialization."""
         global gui, system_controller
-        
+
+        print("[SPLASH] Initialization complete callback called")
+        print(f"[SPLASH] Components received: {bool(components)}")
+
         if not components:
             # Fallback to synchronous initialization on error
             print("[SPLASH] Background init failed, falling back to synchronous")
@@ -667,7 +710,9 @@ def _main_with_splash(app, instance_key):
         else:
             try:
                 # Create GUI from initialized components
+                print("[SPLASH] Creating GUI from components...")
                 _create_gui_from_components(components)
+                print("[SPLASH] GUI created successfully")
             except Exception as e:
                 print(f"[SPLASH] Error creating GUI: {e}")
                 traceback.print_exc()
@@ -696,7 +741,10 @@ def _main_with_splash(app, instance_key):
             pass
         
         # Show main window
+        print("[MAIN] Showing main GUI window...")
         gui.show()
+        print("[MAIN] Main GUI window shown successfully")
+        app.processEvents()  # Force processing of show event
         
         # Setup single-instance server
         _state['server'] = QLocalServer()
@@ -777,8 +825,11 @@ def _main_without_splash(app, instance_key):
         UpdateNotifier.check_for_updates()
     except Exception:
         pass
-    
+
+    print("[MAIN] Showing GUI window...")
     gui.show()
+    print("[MAIN] GUI window shown successfully")
+    app.processEvents()  # Force processing of show event
 
     # Local server
     server = QLocalServer()

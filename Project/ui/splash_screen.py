@@ -272,6 +272,9 @@ class SplashScreen(QWidget):
     
     def _complete(self, components: dict):
         """Complete initialization and close splash."""
+        print("[SPLASH] Emitting initialization_complete signal")
         self.initialization_complete.emit(components)
+        print("[SPLASH] Closing splash screen")
         self.close()
+        print("[SPLASH] Splash screen closed")
 
