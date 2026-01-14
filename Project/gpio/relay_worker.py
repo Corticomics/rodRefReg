@@ -207,150 +207,147 @@ class RelayWorker(QObject):
         self.progress.emit("🔧 Initializing hardware (flow sensor, valves)...")
         
         print(f"[DEBUG] ✅ ENTERED solenoid mode block (deferred)!")
-            print(f"[DEBUG] Entering solenoid mode initialization...")
-            print(f"[DEBUG] flow_sensor_optional: {self.flow_sensor_optional}")
-            
-            # Build solenoid components using factory pattern
-            print(f"[DEBUG] Step 1: Importing flow sensor factory...")
-            from drivers.flow_sensor_factory import create_flow_sensor
-            from drivers.uart_flow_sensor import TeensyUnavailableError
-            print(f"[DEBUG] Step 1:  Imports successful")
-            
-            print(f"[DEBUG] Step 2: Creating flow sensor...")
-            flow_sensor = None
-            try:
-                flow_sensor = create_flow_sensor(system_settings)
-                self.flow_sensor_available = True
-                print(f"[DEBUG] Step 2:  Flow sensor created: {type(flow_sensor)}")
-            except TeensyUnavailableError as e:
-                print(f"[DEBUG] Step 2:  TeensyUnavailableError: {e}")
-                self.progress.emit(f"⚠️ Flow sensor unavailable: {e}")
-                if not self.flow_sensor_optional:
-                    self.progress.emit("Cannot run solenoid schedule without flow sensor. Please check Teensy connection.")
-                    raise RuntimeError("Flow sensor required for solenoid mode (flow_sensor_optional=False)")
-                else:
-                    self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no real-time flow feedback)")
-                    flow_sensor = None
-            except Exception as e:
-                print(f"[DEBUG] Step 2:  Exception: {type(e).__name__}: {e}")
-                import traceback
-                print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
-                if not self.flow_sensor_optional:
-                    raise
-                else:
-                    self.progress.emit(f"⚠️ Flow sensor init failed: {e}")
-                    self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no real-time flow feedback)")
-                    flow_sensor = None
+        print(f"[DEBUG] Entering solenoid mode initialization...")
+        print(f"[DEBUG] flow_sensor_optional: {self.flow_sensor_optional}")
 
-            # Build cage map and solenoid controller
-            print(f"[DEBUG] Step 3: Building cage map and solenoid controller...")
-            cage_map = system_settings.get('cage_relays', {})
-            print(f"[DEBUG] Step 3a: cage_map from settings: {cage_map}")
-            if not cage_map:
-                try:
-                    num_hats = int(system_settings.get('num_hats', 1))
-                    total_relays = 16 * num_hats
-                    master_id = int(system_settings.get('global_master_relay_id', 16))
-                    seq_map = {}
-                    cage_id = 1
-                    for relay_id in range(1, total_relays + 1):
-                        if relay_id == master_id:
-                            continue
-                        seq_map[str(cage_id)] = relay_id
-                        cage_id += 1
-                    cage_map = seq_map
-                print(f"[DEBUG] Built fallback cage_map with {len(cage_map)} cages")
-                except Exception as e:
-                    print(f"Failed to build sequential cage_relays: {e}")
-            print(f"[DEBUG] Step 3b: Building SolenoidController...")
-            master_id = int(system_settings.get('global_master_relay_id', 16))
-            print(f"[DEBUG] Step 3b: master_id={master_id}, cage_map={cage_map}")
-            solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
-            print(f"[DEBUG] Step 3b:  SolenoidController created")
-            
-            print(f"[DEBUG] Step 4: Creating strategy...")
-            cal_store = CalibrationStore()
-            self.strategy = StrategyFactory.create(
-                self.hardware_mode,
-                solenoid_controller=solenoid,
-                flow_sensor=flow_sensor,
-                calibration_store=cal_store,
-                settings=system_settings,
-                pump_controller=self.pump_controller,
-                volume_calculator=self.volume_calculator,
-            database_handler=self.system_controller.database_handler,
-            )
-            print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
-            
-            # Start flow sensor in continuous mode (only if available)
-            print(f"[DEBUG] Step 5: Starting flow sensor...")
-            if flow_sensor is not None:
-                try:
-                    print(f"[DEBUG] Step 5a: Checking if flow_sensor has start() method...")
-                    if hasattr(flow_sensor, 'start'):
-                        print(f"[DEBUG] Step 5a:  Has start() method, calling it...")
-                        flow_sensor.start()
-                        print(f"[DEBUG] Step 5a:  start() completed successfully!")
-                        
-                        # Verify stream health immediately after start
-                        print(f"[DEBUG] Step 5b: Verifying stream health...")
-                        if hasattr(flow_sensor, 'wait_for_frames'):
-                            if not flow_sensor.wait_for_frames(min_frames=5, timeout_s=5.0):
-                                warning_msg = (
-                                    "Flow sensor started but not streaming measurements. "
-                                    "Check: 1) Teensy USB connection, 2) I²C wiring (SDA/SCL/GND), "
-                                    "3) Pullup resistors (2kΩ), 4) Teensy firmware loaded"
-                                )
-                                print(f"[DEBUG] Step 5b:  {warning_msg}")
-                                self.progress.emit(f"⚠️ WARNING: {warning_msg}")
-                                
-                                if not self.flow_sensor_optional:
-                                    raise RuntimeError(warning_msg)
-                                else:
-                                    self.progress.emit("ℹ️ Continuing with CALIBRATION-ONLY mode")
-                                    self.flow_sensor_available = False
-                            else:
-                                print(f"[DEBUG] Step 5b:  Stream health verified")
-                                self.flow_sensor_available = True
-                        else:
-                            self.flow_sensor_available = True
-                        
-                        if self.flow_sensor_available:
-                            if hasattr(flow_sensor, 'port'):
-                                sensor_info = f"uart on {flow_sensor.port}"
-                            elif hasattr(flow_sensor, 'bus_id'):
-                                sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
-                            else:
-                                sensor_info = f"unknown interface"
-                            print(f"[DEBUG] Step 5c:  Flow sensor fully operational ({sensor_info})")
-                            self.progress.emit(f"✅ Flow sensor operational: {sensor_info}")
-                    else:
-                        print(f"[DEBUG] Step 5a:  Flow sensor has no start() method!")
-                        if not self.flow_sensor_optional:
-                            raise RuntimeError("Flow sensor missing start() method")
-                    else:
-                        self.flow_sensor_available = False
-                        self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode")
-                except Exception as e:
-                print(f"[DEBUG] Step 5:  Flow sensor error: {type(e).__name__}: {e}")
-                    if not self.flow_sensor_optional:
-                        raise RuntimeError(f"Flow sensor startup failed: {e}")
-                    else:
-                        self.flow_sensor_available = False
-                        self.progress.emit(f"⚠️ Flow sensor failed: {e}")
-                        self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode")
+        # Build solenoid components using factory pattern
+        print(f"[DEBUG] Step 1: Importing flow sensor factory...")
+        from drivers.flow_sensor_factory import create_flow_sensor
+        from drivers.uart_flow_sensor import TeensyUnavailableError
+        print(f"[DEBUG] Step 1:  Imports successful")
+
+        print(f"[DEBUG] Step 2: Creating flow sensor...")
+        flow_sensor = None
+        try:
+            flow_sensor = create_flow_sensor(system_settings)
+            self.flow_sensor_available = True
+            print(f"[DEBUG] Step 2:  Flow sensor created: {type(flow_sensor)}")
+        except TeensyUnavailableError as e:
+            print(f"[DEBUG] Step 2:  TeensyUnavailableError: {e}")
+            self.progress.emit(f"⚠️ Flow sensor unavailable: {e}")
+            if not self.flow_sensor_optional:
+                self.progress.emit("Cannot run solenoid schedule without flow sensor. Please check Teensy connection.")
+                raise RuntimeError("Flow sensor required for solenoid mode (flow_sensor_optional=False)")
             else:
-                print(f"[DEBUG] Step 5: Flow sensor is None (optional mode)")
-                self.flow_sensor_available = False
-                self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no flow sensor)")
-            
+                self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no real-time flow feedback)")
+                flow_sensor = None
+        except Exception as e:
+            print(f"[DEBUG] Step 2:  Exception: {type(e).__name__}: {e}")
+            import traceback
+            print(f"[DEBUG] Stack trace:\n{traceback.format_exc()}")
+            if not self.flow_sensor_optional:
+                raise
+            else:
+                self.progress.emit(f"⚠️ Flow sensor init failed: {e}")
+                self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no real-time flow feedback)")
+                flow_sensor = None
+
+        # Build cage map and solenoid controller
+        print(f"[DEBUG] Step 3: Building cage map and solenoid controller...")
+        cage_map = system_settings.get('cage_relays', {})
+        print(f"[DEBUG] Step 3a: cage_map from settings: {cage_map}")
+        if not cage_map:
+            try:
+                num_hats = int(system_settings.get('num_hats', 1))
+                total_relays = 16 * num_hats
+                master_id = int(system_settings.get('global_master_relay_id', 16))
+                seq_map = {}
+                cage_id = 1
+                for relay_id in range(1, total_relays + 1):
+                    if relay_id == master_id:
+                        continue
+                    seq_map[str(cage_id)] = relay_id
+                    cage_id += 1
+                cage_map = seq_map
+                print(f"[DEBUG] Built fallback cage_map with {len(cage_map)} cages")
+            except Exception as e:
+                print(f"Failed to build sequential cage_relays: {e}")
+        print(f"[DEBUG] Step 3b: Building SolenoidController...")
+        master_id = int(system_settings.get('global_master_relay_id', 16))
+        print(f"[DEBUG] Step 3b: master_id={master_id}, cage_map={cage_map}")
+        solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
+        print(f"[DEBUG] Step 3b:  SolenoidController created")
+
+        print(f"[DEBUG] Step 4: Creating strategy...")
+        cal_store = CalibrationStore()
+        self.strategy = StrategyFactory.create(
+            self.hardware_mode,
+            solenoid_controller=solenoid,
+            flow_sensor=flow_sensor,
+            calibration_store=cal_store,
+            settings=system_settings,
+            pump_controller=self.pump_controller,
+            volume_calculator=self.volume_calculator,
+            database_handler=self.system_controller.database_handler,
+        )
+        print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
+
+        # Start flow sensor in continuous mode (only if available)
+        print(f"[DEBUG] Step 5: Starting flow sensor...")
+        if flow_sensor is not None:
+            try:
+                print(f"[DEBUG] Step 5a: Checking if flow_sensor has start() method...")
+                if hasattr(flow_sensor, 'start'):
+                    print(f"[DEBUG] Step 5a:  Has start() method, calling it...")
+                    flow_sensor.start()
+                    print(f"[DEBUG] Step 5a:  start() completed successfully!")
+
+                    # Verify stream health immediately after start
+                    print(f"[DEBUG] Step 5b: Verifying stream health...")
+                    if hasattr(flow_sensor, 'wait_for_frames'):
+                        if not flow_sensor.wait_for_frames(min_frames=5, timeout_s=5.0):
+                            warning_msg = (
+                                "Flow sensor started but not streaming measurements. "
+                                "Check: 1) Teensy USB connection, 2) I²C wiring (SDA/SCL/GND), "
+                                "3) Pullup resistors (2kΩ), 4) Teensy firmware loaded"
+                            )
+                            print(f"[DEBUG] Step 5b:  {warning_msg}")
+                            self.progress.emit(f"⚠️ WARNING: {warning_msg}")
+
+                            if not self.flow_sensor_optional:
+                                raise RuntimeError(warning_msg)
+                            else:
+                                self.progress.emit("ℹ️ Continuing with CALIBRATION-ONLY mode")
+                                self.flow_sensor_available = False
+                        else:
+                            print(f"[DEBUG] Step 5b:  Stream health verified")
+                            self.flow_sensor_available = True
+                    else:
+                        self.flow_sensor_available = True
+
+                    if self.flow_sensor_available:
+                        if hasattr(flow_sensor, 'port'):
+                            sensor_info = f"uart on {flow_sensor.port}"
+                        elif hasattr(flow_sensor, 'bus_id'):
+                            sensor_info = f"i2c on bus {flow_sensor.bus_id()}"
+                        else:
+                            sensor_info = f"unknown interface"
+                        print(f"[DEBUG] Step 5c:  Flow sensor fully operational ({sensor_info})")
+                        self.progress.emit(f"✅ Flow sensor operational: {sensor_info}")
+                else:
+                    print(f"[DEBUG] Step 5a:  Flow sensor has no start() method!")
+                    if not self.flow_sensor_optional:
+                        raise RuntimeError("Flow sensor missing start() method")
+            except Exception as e:
+                print(f"[DEBUG] Step 5:  Flow sensor error: {type(e).__name__}: {e}")
+                if not self.flow_sensor_optional:
+                    raise RuntimeError(f"Flow sensor startup failed: {e}")
+                else:
+                    self.flow_sensor_available = False
+                    self.progress.emit(f"⚠️ Flow sensor failed: {e}")
+                    self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode")
+        else:
+            print(f"[DEBUG] Step 5: Flow sensor is None (optional mode)")
+            self.flow_sensor_available = False
+            self.progress.emit("ℹ️ Running in CALIBRATION-ONLY mode (no flow sensor)")
+
             # Final status summary
             if self.flow_sensor_available:
                 print(f"[DEBUG] ========== SOLENOID INITIALIZATION COMPLETE (WITH SENSOR) ==========\n")
-            self.progress.emit("✅ Hardware initialization complete")
+                self.progress.emit("✅ Hardware initialization complete")
             else:
                 print(f"[DEBUG] ========== SOLENOID INITIALIZATION COMPLETE (CALIBRATION-ONLY) ==========\n")
-            self.progress.emit("✅ Hardware initialization complete (calibration mode)")
+                self.progress.emit("✅ Hardware initialization complete (calibration mode)")
 
     def run_instant_cycle(self):
         """Handle precise time-based deliveries"""
