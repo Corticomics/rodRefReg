@@ -282,9 +282,9 @@ class RunStopSection(QWidget):
             
             if needs_refresh:
                 # Fetch missing data
-            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
-            schedule.animals = schedule_details['animal_ids']
-            schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
+                schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+                schedule.animals = schedule_details['animal_ids']
+                schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
                 schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
             else:
                 # Use cached data, just ensure desired_water_outputs exists
