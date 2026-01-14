@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
     QSizePolicy, QLineEdit, QApplication
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QPixmap
 from typing import Optional, Dict, Any
 import os
@@ -209,8 +209,25 @@ class CagesVisualizationTab(QWidget):
         self._relay_widgets: Dict[int, RelayTerminalWidget] = {}
         self._selected_relay: Optional[int] = None
         self._init_ui()
-        self._load_cage_data()
-    
+        # Defer loading cage data until tab becomes visible (lazy loading)
+        self._cages_loaded = False
+        self._deferred_load_timer = QTimer()
+        self._deferred_load_timer.setSingleShot(True)
+        self._deferred_load_timer.timeout.connect(self._deferred_load_cages)
+
+    def showEvent(self, event):
+        """Lazy load cage data when tab becomes visible."""
+        super().showEvent(event)
+        if not self._cages_loaded:
+            # Delay loading by 200ms to allow UI to render first
+            self._deferred_load_timer.start(200)
+
+    def _deferred_load_cages(self):
+        """Load cage data after UI is visible."""
+        if not self._cages_loaded:
+            self._load_cage_data()
+            self._cages_loaded = True
+
     def _init_ui(self) -> None:
         """Build the visualization layout."""
         main_layout = QVBoxLayout(self)

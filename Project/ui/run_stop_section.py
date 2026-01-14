@@ -228,13 +228,13 @@ class RunStopSection(QWidget):
                 "You must be logged in to run schedules.")
             return
         
-        if self.job_in_progress:
-            return
-        
-        if not self.schedule_drop_area.current_schedule:
-            QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
-            return
-        
+            if self.job_in_progress:
+                return
+            
+            if not self.schedule_drop_area.current_schedule:
+                QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
+                return
+            
         # ═══════════════════════════════════════════════════════════════════
         # PHASE 1: Immediate UI feedback (must complete < 16ms)
         # ═══════════════════════════════════════════════════════════════════
@@ -282,16 +282,16 @@ class RunStopSection(QWidget):
             
             if needs_refresh:
                 # Fetch missing data
-                schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
-                schedule.animals = schedule_details['animal_ids']
-                schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
+            schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
+            schedule.animals = schedule_details['animal_ids']
+            schedule.relay_unit_assignments = schedule_details.get('relay_unit_assignments', {})
                 schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
             else:
                 # Use cached data, just ensure desired_water_outputs exists
                 if not hasattr(schedule, 'desired_water_outputs') or not schedule.desired_water_outputs:
                     # Only fetch what we need
                     schedule_details = self.database_handler.get_schedule_details(schedule.schedule_id)[0]
-                    schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
+            schedule.desired_water_outputs = schedule_details.get('desired_water_outputs', {})
             
             if not schedule.animals:
                 self._reset_run_button()

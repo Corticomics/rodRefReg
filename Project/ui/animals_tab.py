@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushButton,
     QLabel, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout, QDialog, QDialogButtonBox, QDateTimeEdit, QHeaderView, QComboBox, QSizePolicy
 )
-from PyQt5.QtCore import Qt, QDateTime
+from PyQt5.QtCore import Qt, QDateTime, QTimer
 from models.animal import Animal
 from .edit_animal_dialog import EditAnimalDialog
 import traceback
@@ -115,8 +115,24 @@ class AnimalsTab(QWidget):
         remove_button.clicked.connect(self.remove_animal)
         self.filter_input.textChanged.connect(self.apply_filter)
 
-        # Initial load
-        self.load_animals()
+        # Defer loading animals until tab becomes visible (lazy loading)
+        self._animals_loaded = False
+        self._deferred_load_timer = QTimer()
+        self._deferred_load_timer.setSingleShot(True)
+        self._deferred_load_timer.timeout.connect(self._deferred_load_animals)
+
+    def showEvent(self, event):
+        """Lazy load animals when tab becomes visible."""
+        super().showEvent(event)
+        if not self._animals_loaded:
+            # Delay loading by 150ms to allow UI to render first
+            self._deferred_load_timer.start(150)
+
+    def _deferred_load_animals(self):
+        """Load animals after UI is visible."""
+        if not self._animals_loaded:
+            self.load_animals()
+            self._animals_loaded = True
 
     def calculate_days_ago(self, timestamp_str):
         """Convert timestamp to 'X days ago' format"""

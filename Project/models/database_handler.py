@@ -12,10 +12,39 @@ from datetime import datetime
 class DatabaseHandler:
     def __init__(self, db_path='rrr_database.db'):
         self.db_path = db_path
-        self.create_tables()
+        self._tables_created = False
+        # Simple in-memory cache for frequently accessed data
+        self._cache = {}
+        self._cache_timeout = 300  # 5 minutes
+        from time import time
+        self._cache_timestamps = {}
+
+    def _get_cached(self, key):
+        """Get cached data if still valid."""
+        if key in self._cache:
+            if time() - self._cache_timestamps.get(key, 0) < self._cache_timeout:
+                return self._cache[key]
+            else:
+                # Cache expired, remove it
+                del self._cache[key]
+                del self._cache_timestamps[key]
+        return None
+
+    def _set_cached(self, key, data):
+        """Cache data with timestamp."""
+        from time import time
+        self._cache[key] = data
+        self._cache_timestamps[key] = time()
+
+    def _ensure_tables_created(self):
+        """Lazy creation of database tables."""
+        if not self._tables_created:
+            self.create_tables()
+            self._tables_created = True
 
     def connect(self):
         """Establish a new connection to the SQLite database."""
+        self._ensure_tables_created()
         return sqlite3.connect(self.db_path)
 
     def create_tables(self):
@@ -627,6 +656,11 @@ class DatabaseHandler:
 
     def get_schedules_by_trainer(self, trainer_id):
         """Get all schedules created by a specific trainer."""
+        cache_key = f"schedules_trainer_{trainer_id}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
         schedules = []
         try:
             with self.connect() as conn:
@@ -685,6 +719,7 @@ class DatabaseHandler:
                         }
                     
                     schedules.append(schedule)
+                self._set_cached(cache_key, schedules)
                 return schedules
         except sqlite3.Error as e:
             print(f"Error retrieving schedules for trainer_id {trainer_id}: {e}")
@@ -874,6 +909,11 @@ class DatabaseHandler:
 
     def get_animals_by_trainer(self, trainer_id):
         """Retrieve animals belonging to a specific trainer."""
+        cache_key = f"animals_trainer_{trainer_id}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached
+
         animals = []
         try:
             with self.connect() as conn:
@@ -899,6 +939,7 @@ class DatabaseHandler:
                         sex=row[7]
                     )
                     animals.append(animal)
+            self._set_cached(cache_key, animals)
         except sqlite3.Error as e:
             print(f"Error retrieving animals for trainer_id {trainer_id}: {e}")
             traceback.print_exc()

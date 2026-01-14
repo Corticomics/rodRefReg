@@ -249,7 +249,7 @@ def run_program(schedule, mode, window_start, window_end):
                 # Check if thread is still a valid Qt object before accessing
                 if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
                     if thread.isRunning():
-                        thread.quit()
+            thread.quit()
                         thread.wait(5000)  # 5 second timeout
             except RuntimeError:
                 # Thread was already deleted, ignore
@@ -374,12 +374,12 @@ def cleanup():
     print("[DEBUG] Starting cleanup process")
     
     try:
-        # Only proceed if the worker is not running.
+    # Only proceed if the worker is not running.
         if worker:
             try:
                 if hasattr(worker, '_is_running') and worker._is_running:
-                    print("[DEBUG] Worker still running, waiting for completion")
-                    return
+        print("[DEBUG] Worker still running, waiting for completion")
+        return
             except RuntimeError:
                 # Worker was already deleted
                 pass
@@ -396,7 +396,7 @@ def cleanup():
             try:
                 if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
                     if thread.isRunning():
-                        thread.quit()
+            thread.quit()
                         thread.wait(5000)
             except RuntimeError:
                 # Thread was already deleted
@@ -405,7 +405,7 @@ def cleanup():
         
         # Reset the UI (only once)
         if gui and hasattr(gui, 'run_stop_section'):
-            gui.run_stop_section.reset_ui()
+        gui.run_stop_section.reset_ui()
         print("[DEBUG] Cleanup completed. Program ready for the next job.")
     except Exception as e:
         print(f"[ERROR] Unexpected error during cleanup: {e}")
@@ -423,8 +423,8 @@ def stop_program():
         # Safely request worker stop
         if worker:
             try:
-                control_signals.stop_requested.emit()
-                print("[DEBUG] Worker stop() called")
+            control_signals.stop_requested.emit()
+            print("[DEBUG] Worker stop() called")
             except RuntimeError:
                 print("[DEBUG] Worker already deleted")
         
@@ -433,11 +433,11 @@ def stop_program():
             try:
                 if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
                     if thread.isRunning():
-                        if not thread.wait(2000):
-                            print("[DEBUG] Thread timeout - forcing termination")
-                            thread.terminate()
-                        thread.wait()
-                        print("[DEBUG] Thread stopped")
+            if not thread.wait(2000):
+                print("[DEBUG] Thread timeout - forcing termination")
+                thread.terminate()
+            thread.wait()
+            print("[DEBUG] Thread stopped")
             except RuntimeError:
                 print("[DEBUG] Thread already deleted")
         
@@ -526,9 +526,9 @@ def _update_gui_relay_units(relay_units):
 # =============================================================================
 
 # Toggle splash screen (set to False for debugging startup issues)
-# TEMPORARILY DISABLED - splash screen causing hang on Raspberry Pi
-# Set to True once threading issues are resolved
-USE_SPLASH_SCREEN = False
+# OPTIMIZED: Splash screen now enabled with background initialization
+# and lazy loading for improved startup performance
+USE_SPLASH_SCREEN = True
 
 
 def _create_gui_from_components(components: dict):
@@ -718,8 +718,8 @@ def _main_with_splash(app, instance_key):
                 gui.show()
                 gui.raise_()
                 gui.activateWindow()
-            except Exception:
-                pass
+    except Exception:
+        pass
         
         _state['server'].newConnection.connect(_handle_new_connection)
     
@@ -779,7 +779,7 @@ def _main_without_splash(app, instance_key):
         pass
     
     gui.show()
-    
+
     # Local server
     server = QLocalServer()
     try:
@@ -787,7 +787,7 @@ def _main_without_splash(app, instance_key):
     except Exception:
         pass
     server.listen(instance_key)
-    
+
     def _handle_new_connection():
         conn = server.nextPendingConnection()
         if conn:
@@ -802,7 +802,7 @@ def _main_without_splash(app, instance_key):
             gui.activateWindow()
         except Exception:
             pass
-    
+
     server.newConnection.connect(_handle_new_connection)
 
 if __name__ == "__main__":

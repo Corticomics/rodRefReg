@@ -737,10 +737,27 @@ class SchedulesHub(QWidget):
         self._pending_search = ""
         
         self._init_ui()
-        self.load_schedules()
-        
+        # Defer loading schedules until tab becomes visible (lazy loading)
+        self._schedules_loaded = False
+        self._deferred_load_timer = QTimer()
+        self._deferred_load_timer.setSingleShot(True)
+        self._deferred_load_timer.timeout.connect(self._deferred_load_schedules)
+
         self.login_system.login_status_changed.connect(self.refresh)
-    
+
+    def showEvent(self, event):
+        """Lazy load schedules when tab becomes visible."""
+        super().showEvent(event)
+        if not self._schedules_loaded:
+            # Delay loading by 100ms to allow UI to render first
+            self._deferred_load_timer.start(100)
+
+    def _deferred_load_schedules(self):
+        """Load schedules after UI is visible."""
+        if not self._schedules_loaded:
+            self.load_schedules()
+            self._schedules_loaded = True
+
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)

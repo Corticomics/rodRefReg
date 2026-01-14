@@ -137,34 +137,27 @@ class RodentRefreshmentGUI(QWidget):
         # Tab widget
         self.main_tab_widget = QTabWidget()
         
-        # Create tabs
-        self.settings_tab = SettingsTab(
-            system_controller=self.system_controller,
-            suggest_callback=self.suggest_settings_callback,
-            push_callback=self.push_settings_callback,
-            save_slack_callback=self.save_slack_credentials_callback,
-            run_stop_section=self.run_stop_section,
-            login_system=self.login_system,
-            print_to_terminal=self.print_to_terminal,
-            database_handler=self.database_handler
-        )
-        
-        # Profile Tab
+        # Profile Tab (always created immediately since it's shown first)
         self.user_tab = UserTab(self.login_system)
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
-        
-        # Help Tab
-        self.help_tab = HelpTab()
-        
-        # Add tabs in desired order
+
+        # Defer creation of heavy tabs until needed
+        self.settings_tab = None
+        self.help_tab = None
+        self._tabs_created = set()
+
+        # Add tabs in desired order (deferred tabs use placeholders)
         self.main_tab_widget.addTab(self.user_tab, "Profile")  # Profile tab first
-        self.settings_tab_index = self.main_tab_widget.addTab(self.settings_tab, "Settings")
-        self.help_tab_index = self.main_tab_widget.addTab(self.help_tab, "Help")
+        self.settings_tab_index = self.main_tab_widget.addTab(QWidget(), "Settings")  # Placeholder
+        self.help_tab_index = self.main_tab_widget.addTab(QWidget(), "Help")  # Placeholder
         
         # Initially disable restricted tabs
         self._update_tab_access()
-        
+
+        # Connect tab change signal to lazy creation
+        self.main_tab_widget.currentChanged.connect(self._on_tab_changed)
+
         # Set the initial tab to Profile
         self.main_tab_widget.setCurrentWidget(self.user_tab)
         
@@ -185,11 +178,45 @@ class RodentRefreshmentGUI(QWidget):
         
         # Connect tab changes to dynamic layout adjustment
         self.terminal_tab_widget.currentChanged.connect(self._on_terminal_tab_changed)
-        
+
         # Store left layout reference for dynamic resizing
         self.left_layout = left_layout
         self.left_widget = left_widget
         self.content_layout = content_layout
+
+    def _on_tab_changed(self, index):
+        """Lazy creation of tabs when accessed."""
+        if index == self.settings_tab_index and 'settings' not in self._tabs_created:
+            self._create_settings_tab()
+        elif index == self.help_tab_index and 'help' not in self._tabs_created:
+            self._create_help_tab()
+
+    def _create_settings_tab(self):
+        """Create SettingsTab when first accessed."""
+        from .SettingsTab import SettingsTab
+        self.settings_tab = SettingsTab(
+            system_controller=self.system_controller,
+            suggest_callback=self.suggest_settings_callback,
+            push_callback=self.push_settings_callback,
+            save_slack_callback=self.save_slack_credentials_callback,
+            run_stop_section=self.run_stop_section,
+            login_system=self.login_system,
+            print_to_terminal=self.print_to_terminal,
+            database_handler=self.database_handler
+        )
+        self.main_tab_widget.removeTab(self.settings_tab_index)
+        self.settings_tab_index = self.main_tab_widget.insertTab(self.settings_tab_index, self.settings_tab, "Settings")
+        self.main_tab_widget.setCurrentIndex(self.settings_tab_index)
+        self._tabs_created.add('settings')
+
+    def _create_help_tab(self):
+        """Create HelpTab when first accessed."""
+        from .HelpTab import HelpTab
+        self.help_tab = HelpTab()
+        self.main_tab_widget.removeTab(self.help_tab_index)
+        self.help_tab_index = self.main_tab_widget.insertTab(self.help_tab_index, self.help_tab, "Help")
+        self.main_tab_widget.setCurrentIndex(self.help_tab_index)
+        self._tabs_created.add('help')
         
         # Connect signals
         self.projects_section.schedules_tab.mode_changed.connect(
