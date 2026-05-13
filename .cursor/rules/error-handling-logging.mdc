@@ -1,0 +1,118 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+7. Error Handling and Logging Rules
+
+7.1 Exception Hierarchy
+
+•
+Rule: Implement a consistent exception hierarchy
+
+•
+Implementation:
+
+•
+Base exception classes for major categories
+
+•
+Specific exception types for different error conditions
+
+•
+Include context information in exceptions
+
+•
+Cursor IDE should verify exception hierarchy usage
+
+
+
+7.2 Structured Logging
+
+•
+Rule: Use structured logging throughout the system
+
+•
+Implementation:
+
+•
+JSON format for all logs
+
+•
+Include context: timestamp, component, severity, correlation ID
+
+•
+Consistent log levels across components
+
+•
+Cursor IDE should verify logging format compliance
+
+
+
+7.3 Error Recovery Strategies
+
+•
+Rule: Implement appropriate error recovery strategies
+
+•
+Implementation:
+
+•
+Retry with backoff for transient failures
+
+•
+Circuit breaker for recurring failures
+
+•
+Graceful degradation for non-critical components
+
+•
+Cursor IDE should verify recovery strategy implementation
+
+
+
+7.4 User-Facing Error Messages
+
+•
+Rule: Provide clear, actionable error messages to users
+
+•
+Implementation:
+
+•
+Separate technical details from user messages
+
+•
+Include suggested actions where applicable
+
+•
+Consistent error presentation in UI
+
+•
+Cursor IDE should verify user error message quality
+
+
+
+7.5 Monitoring and Alerting
+
+•
+Rule: Implement comprehensive monitoring and alerting
+
+•
+Implementation:
+
+•
+Health check endpoints for all services
+
+•
+Metric collection for performance monitoring
+
+•
+Alert thresholds for critical conditions
+
+•
+
+
+
+
+

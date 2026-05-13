@@ -1,0 +1,149 @@
+#include <Wire.h>
+
+// SLF3S-0600F I2C specifics (datasheet)
+// Address: 0x08
+// Start continuous measurement (H2O): 0x3608
+// Stop continuous measurement: 0x3FF9
+// Scale factors: flow = value / 10.0 (µL/min), temp = value / 200.0 (°C)
+
+static const uint8_t SLF3X_ADDR = 0x08;
+static const uint16_t CMD_START_WATER = 0x3608;
+static const uint16_t CMD_STOP = 0x3FF9;
+
+float currentFlow_uL_min = 0.0f;       // instantaneous flow (µL/min)
+float currentTemp_C = 0.0f;            // sensor temperature (°C)
+uint16_t flags = 0;                    // status flags (air-in-line, high flow, smoothing)
+double total_uL = 0.0;                 // integrated volume (µL)
+unsigned long lastMs = 0;
+float lastFlow_uL_min = 0.0f;          // for trapezoidal integration
+bool haveLast = false;
+
+// CRC-8 (poly 0x31, init 0xFF) used by Sensirion
+uint8_t sensirion_crc8(const uint8_t *data, int len) {
+  uint8_t crc = 0xFF;
+  for (int i = 0; i < len; i++) {
+    crc ^= data[i];
+    for (int b = 0; b < 8; b++) {
+      if (crc & 0x80)
+        crc = (crc << 1) ^ 0x31;
+      else
+        crc <<= 1;
+    }
+  }
+  return crc;
+}
+
+bool writeCommand(uint16_t cmd) {
+  Wire.beginTransmission(SLF3X_ADDR);
+  Wire.write((uint8_t)((cmd >> 8) & 0xFF));  // MSB
+  Wire.write((uint8_t)(cmd & 0xFF));         // LSB
+  return Wire.endTransmission() == 0;
+}
+
+// Reads one measurement set: flow (2B+CRC), temp (2B+CRC), flags (2B+CRC)
+bool readMeasurement(int16_t &flow_raw, int16_t &temp_raw, uint16_t &flags_raw) {
+  const uint8_t BYTES_TO_READ = 9;
+  Wire.requestFrom((int)SLF3X_ADDR, (int)BYTES_TO_READ);
+  if (Wire.available() != BYTES_TO_READ) return false;
+
+  uint8_t fmsb = Wire.read();
+  uint8_t flsb = Wire.read();
+  uint8_t fcrc = Wire.read();
+
+  uint8_t tmsb = Wire.read();
+  uint8_t tlsb = Wire.read();
+  uint8_t tcrc = Wire.read();
+
+  uint8_t cmsb = Wire.read();
+  uint8_t clsb = Wire.read();
+  uint8_t ccrc = Wire.read();
+
+  // Verify CRCs
+  uint8_t pair[2];
+
+  pair[0] = fmsb; pair[1] = flsb;
+  if (sensirion_crc8(pair, 2) != fcrc) return false;
+
+  pair[0] = tmsb; pair[1] = tlsb;
+  if (sensirion_crc8(pair, 2) != tcrc) return false;
+
+  pair[0] = cmsb; pair[1] = clsb;
+  if (sensirion_crc8(pair, 2) != ccrc) return false;
+
+  flow_raw  = (int16_t)((fmsb << 8) | flsb);
+  temp_raw  = (int16_t)((tmsb << 8) | tlsb);
+  flags_raw = (uint16_t)((cmsb << 8) | clsb);
+
+  return true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+  Wire.begin();                         // Teensy uses 3.3V I/O
+  Wire.setClock(400000);               // 400 kHz I2C (sensor supports up to 1 MHz)
+
+  Serial.println("SLF3S-0600F volume counter (water mode)");
+
+  // Start continuous measurement for H2O
+  if (!writeCommand(CMD_START_WATER)) {
+    Serial.println("Failed to send start command.");
+  }
+
+  // First result ~12 ms after start; allow warm-up (~60 ms total)
+  delay(60);
+  lastMs = millis();
+}
+
+void loop() {
+  int16_t flow_raw = 0, temp_raw = 0;
+  uint16_t flags_raw = 0;
+
+  // Read as often as you like; sensor averages internally (see datasheet)
+  if (readMeasurement(flow_raw, temp_raw, flags_raw)) {
+    // Convert to physical units
+    currentFlow_uL_min = flow_raw / 10.0f;       // µL/min
+    currentTemp_C      = temp_raw / 200.0f;      // °C
+    flags              = flags_raw;
+
+    // Time since last successful read
+    unsigned long now = millis();
+    float dt_min = (now - lastMs) / 60000.0f;    // convert ms -> minutes
+    lastMs = now;
+
+    // Integrate volume using trapezoidal rule (better than rectangular)
+    if (haveLast) {
+      double avg_uL_min = 0.5 * (lastFlow_uL_min + currentFlow_uL_min);
+      total_uL += avg_uL_min * dt_min;           // µL
+    } else {
+      haveLast = true;  // first sample—no integration yet
+    }
+    lastFlow_uL_min = currentFlow_uL_min;
+
+    // Print every ~200 ms
+    static unsigned long lastPrint = 0;
+    if (now - lastPrint >= 200) {
+      lastPrint = now;
+
+      // Helpful flags: bit0 = air-in-line, bit1 = high-flow, bit5 = smoothing
+      bool airInLine = flags & (1 << 0);
+      bool highFlow  = flags & (1 << 1);
+
+      Serial.print("Flow: ");
+      Serial.print(currentFlow_uL_min, 1);
+      Serial.print(" uL/min,  Temp: ");
+      Serial.print(currentTemp_C, 2);
+      Serial.print(" C,  Total: ");
+      Serial.print(total_uL / 1000.0, 4);
+      Serial.print(" mL");
+
+      if (airInLine) Serial.print("  [Air-in-line]");
+      if (highFlow)  Serial.print("  [High flow]");
+      Serial.println();
+    }
+
+  } else {
+    // CRC or I2C issue; skip this sample
+    delay(10);
+  }
+}

@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+1. Architecture and System Design Rules
+1.1 Layered Architecture Enforcement
+Rule: Maintain strict separation between architectural layers
+Implementation:
+Use explicit imports that respect layer boundaries
+No direct hardware access from business logic layer
+No direct database access from presentation layer
+Cursor IDE should suggest proper layer-specific imports

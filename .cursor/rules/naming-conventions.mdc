@@ -1,0 +1,119 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+3.1 Python Style Compliance
+
+•
+Rule: Follow PEP 8 style guidelines for Python code
+
+•
+Implementation:
+
+•
+Use snake_case for variables, functions, methods, modules
+
+•
+Use PascalCase for classes
+
+•
+Use UPPER_CASE for constants
+
+•
+Cursor IDE should enforce PEP 8 compliance
+
+
+
+3.2 Database Entity Naming
+
+•
+Rule: Use consistent naming for database entities
+
+•
+Implementation:
+
+•
+Table names: plural, lowercase, snake_case
+
+•
+Column names: singular, snake_case
+
+•
+Primary keys: id or <entity>_id
+
+•
+Foreign keys: <referenced_entity>_id
+
+•
+Cursor IDE should validate database naming conventions
+
+
+
+3.3 API Endpoint Naming
+
+•
+Rule: Use consistent naming for API endpoints and commands
+
+•
+Implementation:
+
+•
+Command names: UPPER_CASE, descriptive verbs
+
+•
+Parameters: camelCase for JSON properties
+
+•
+Status codes: UPPER_CASE, descriptive adjectives
+
+•
+Cursor IDE should validate command naming conventions
+
+
+
+3.4 GUI Element Naming
+
+•
+Rule: Use consistent naming for GUI elements
+
+•
+Implementation:
+
+•
+Widget variables: descriptive, with type suffix (e.g., status_label)
+
+•
+Action methods: verb_noun format (e.g., update_status)
+
+•
+Form classes: descriptive, with Form suffix (e.g., AnimalConfigForm)
+
+•
+Cursor IDE should suggest naming corrections for GUI elements
+
+
+
+3.5 Hardware Interface Naming
+
+•
+Rule: Use consistent naming for hardware interfaces
+
+•
+Implementation:
+
+•
+Port names: descriptive of function, not hardware specifics
+
+•
+Controller classes: descriptive, with Controller suffix
+
+•
+Configuration keys: match physical labeling where applicable
+
+•
+
+
+
+
+

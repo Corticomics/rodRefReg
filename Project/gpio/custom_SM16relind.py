@@ -128,12 +128,26 @@ os.open = patched_open
 
 # Create a function to find available I2C buses
 def find_available_i2c_buses():
-    """Find available I2C buses on the system"""
+    """Find available I2C buses on the system, optimized for Raspberry Pi 5"""
     available_buses = []
     try:
-        for i in range(0, 20):  # Check a reasonable range of I2C devices
+        # Extended range to cover Raspberry Pi 5's higher numbered buses (13, 14)
+        for i in range(0, 50):  
             if os.path.exists(f"/dev/i2c-{i}"):
                 available_buses.append(i)
+        
+        # Sort buses and prioritize higher-numbered ones for Pi 5
+        available_buses.sort()
+        
+        # Log the detection for debugging
+        if available_buses:
+            logging.info(f"Found I2C buses: {available_buses}")
+            # Check if this looks like Pi 5 configuration
+            if any(bus >= 13 for bus in available_buses):
+                logging.info("Raspberry Pi 5 I2C configuration detected (buses >= 13)")
+        else:
+            logging.warning("No I2C buses found")
+            
         return available_buses
     except Exception as e:
         logging.error(f"Error finding I2C buses: {e}")

@@ -42,9 +42,13 @@ class SchedulesTab(QWidget):
         available_animals_layout.setContentsMargins(12, 12, 12, 12)
         available_animals_layout.setSpacing(8)
         
-        # Add mode selector at the top
-        mode_layout = QHBoxLayout()
-        mode_label = QLabel("Delivery Mode:")
+        # Add mode selector at the top - stack vertically to save horizontal space
+        mode_layout = QVBoxLayout()
+        mode_layout.setSpacing(2)
+        mode_layout.setContentsMargins(2, 2, 2, 2)
+        
+        mode_label = QLabel("DeliveryMode:")
+        mode_label.setAlignment(Qt.AlignLeft)
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
@@ -52,8 +56,18 @@ class SchedulesTab(QWidget):
         mode_layout.addWidget(self.mode_selector)
         available_animals_layout.addLayout(mode_layout)
         
+        # Set a narrow fixed width for the mode selector
+        self.mode_selector.setFixedWidth(130)
+        
         available_animals_layout.addWidget(self.available_animals_list)
         available_animals_group.setLayout(available_animals_layout)
+        
+        # Set fixed width constraints on the available animals group
+        available_animals_group.setFixedWidth(180)
+        
+        # Prevent the available animals list from expanding
+        self.available_animals_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.available_animals_list.setMaximumWidth(170)
         
         # Relay units section (middle column)
         self.relay_units_container = QScrollArea()
@@ -108,10 +122,15 @@ class SchedulesTab(QWidget):
         schedules_layout.addStretch()
         schedules_group.setLayout(schedules_layout)
         
-        # Set column proportions (4:12:4 ratio) - narrower side columns, wider center
-        main_layout.addWidget(available_animals_group, 4)  # Left column - 20%
-        main_layout.addWidget(relay_units_group, 12)       # Middle column - 60% 
-        main_layout.addWidget(schedules_group, 4)          # Right column - 20%
+        # Set fixed width constraints on the schedules group like we did for animals
+        schedules_group.setFixedWidth(180)
+        self.schedule_list.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self.schedule_list.setMaximumWidth(170)
+        
+        # Set column proportions (2:16:2 ratio) - much narrower side columns, wider center
+        main_layout.addWidget(available_animals_group, 3)  # Left column - 10%
+        main_layout.addWidget(relay_units_group, 14)       # Middle column - 80% 
+        main_layout.addWidget(schedules_group, 3)          # Right column - 10%
         
         self.setLayout(main_layout)
         
@@ -176,6 +195,9 @@ class SchedulesTab(QWidget):
         # Show success message
         schedule_name = config.get("parameters", {}).get("name", "New Schedule")
         self.print_to_terminal(f"Schedule '{schedule_name}' created successfully via wizard")
+
+        # Set maximum width on the available animals list to force it to be narrow
+        self.available_animals_list.setMaximumWidth(200)
 
     def initialize_relay_units(self):
         """
@@ -351,9 +373,8 @@ class SchedulesTab(QWidget):
             
             self.available_animals_list.clear()
             for animal in animals:
-                item_text = f"{animal.lab_animal_id} - {animal.name}"
-                item = QListWidgetItem(item_text)
-                item.setData(Qt.UserRole, animal)
+                # Use the custom create method instead of creating items directly
+                item = self.available_animals_list.create_available_animal_item(animal)
                 self.available_animals_list.addItem(item)
                 
         except Exception as e:
@@ -361,9 +382,12 @@ class SchedulesTab(QWidget):
 
     def load_schedules(self):
         """Load saved schedules and display them in the schedule list."""
-        # Safety check in case schedule_list hasn't been initialized yet
-        if not hasattr(self, 'schedule_list'):
-            self.print_to_terminal("Warning: schedule_list not initialized. Skipping schedule loading.")
+        # Safety check to ensure UI is fully initialized
+        if not hasattr(self, 'schedule_list') or self.schedule_list is None:
+            self.print_to_terminal("Warning: schedule_list not initialized. Deferring schedule loading.")
+            # Use QTimer to defer loading until UI is fully initialized
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(100, self.load_schedules)
             return
             
         self.schedule_list.clear()

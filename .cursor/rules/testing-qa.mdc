@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+8.1 Unit Testing
+
+•
+Rule: Implement comprehensive unit tests
+
+•
+Implementation:
+
+•
+Use pytest framework
+
+•
+Mock external dependencies
+
+•
+Test edge cases and error conditions
+
+•
+Cursor IDE should verify test coverage
+
+
+
+8.2 Integration Testing
+
+•
+Rule: Implement integration tests for component interactions
+
+•
+Implementation:
+
+•
+Test communication between components
+
+•
+Verify data flow through the system
+
+•
+Test error handling and recovery
+
+•
+Cursor IDE should suggest integration test scenarios
+
+
+
+8.3 Mock Objects
+
+•
+Rule: Use mock objects for external dependencies in tests
+
+•
+Implementation:
+
+•
+Mock hardware interfaces
+
+•
+Mock network connections
+
+•
+Mock database operations
+
+•
+Cursor IDE should verify mock usage in tests
+
+
+
+8.4 Test Data Management
+
+•
+Rule: Manage test data systematically
+
+•
+Implementation:
+
+•
+Use fixtures for common test data
+
+•
+Clean up test data after tests
+
+•
+Isolate test environments
+
+•
+Cursor IDE should verify test data management
+
+
+
+8.5 Continuous Integration
+
+•
+Rule: Support continuous integration workflows
+
+•
+Implementation:
+
+•
+Automated test execution
+
+•
+Code quality checks
+
+•
+Build verification
+
+•
+
+
+
+
+

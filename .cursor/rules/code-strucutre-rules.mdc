@@ -1,0 +1,123 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+2.1 Module Organization
+
+•
+Rule: Organize code into functional modules with clear responsibilities
+
+•
+Implementation:
+
+•
+RSO Core modules: gui/, app_logic/, communication/, data_management/, database/
+
+•
+RenAndStimPi modules: tasks/, controllers/, hardware/, nwbfiles/, rso_comm/
+
+•
+Shared modules: utils/, models/, constants/
+
+•
+Cursor IDE should suggest appropriate module placement for new files
+
+
+
+2.2 File Naming Conventions
+
+•
+Rule: Use consistent file naming patterns that reflect content purpose
+
+•
+Implementation:
+
+•
+Controllers: *_controller.py
+
+•
+Repositories: *_repository.py
+
+•
+Models: *_model.py or models.py
+
+•
+Tasks: *_task.py
+
+•
+States: *_state.py or states.py
+
+•
+Cursor IDE should enforce naming conventions for new files
+
+
+
+2.3 Class and Function Organization
+
+•
+Rule: Organize classes and functions logically within files
+
+•
+Implementation:
+
+•
+Order: imports, constants, classes, functions, main execution
+
+•
+Within classes: constants, constructor, public methods, private methods
+
+•
+Group related functions together
+
+•
+Cursor IDE should suggest reorganization when structure deviates
+
+
+
+2.4 Import Management
+
+•
+Rule: Organize imports systematically and avoid circular dependencies
+
+•
+Implementation:
+
+•
+Group imports: standard library, third-party, local application
+
+•
+Use absolute imports for application modules
+
+•
+Avoid wildcard imports (from x import *)
+
+•
+Cursor IDE should organize imports and detect circular dependencies
+
+
+
+2.5 Configuration Management
+
+•
+Rule: Externalize all configuration parameters
+
+•
+Implementation:
+
+•
+Hardware configurations in JSON/YAML files
+
+•
+Environment-specific settings in environment variables
+
+•
+Default configurations with clear override mechanisms
+
+•
+
+
+
+
+
+

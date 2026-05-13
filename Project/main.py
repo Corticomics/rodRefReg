@@ -19,8 +19,17 @@ from models.relay_unit_manager import RelayUnitManager
 from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
 
+# Conditionally import IR module integration
+try:
+    from ir_module.integration import IRModuleIntegration
+    from ir_module.config import is_feature_enabled
+    IR_MODULE_AVAILABLE = True
+except ImportError:
+    IR_MODULE_AVAILABLE = False
+    print("IR module not available - IR features will be disabled")
+
 # =============================================================================
-# Global exception hook and stream redirection (unchanged)
+# Global exception hook and stream redirection 
 # =============================================================================
 import os
 from datetime import datetime
@@ -100,6 +109,7 @@ class StreamRedirector(QObject):
 # =============================================================================
 thread = None
 worker = None
+ir_integration = None  # Add global variable for IR module integration
 
 class ControlSignals(QObject):
     stop_requested = pyqtSignal()
@@ -110,7 +120,7 @@ control_signals = ControlSignals()
 # setup() – create our global objects and UI
 # =============================================================================
 def setup():
-    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
+    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller, ir_integration
 
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
@@ -151,6 +161,19 @@ def setup():
     if not login_system.is_logged_in():
         login_system.set_guest_mode()
 
+    # Conditionally initialize IR module integration if available and enabled
+    ir_integration = None
+    if IR_MODULE_AVAILABLE and is_feature_enabled("ENABLE_INTEGRATION"):
+        try:
+            ir_integration = IRModuleIntegration(
+                app_controller=system_controller,
+                database_handler=database_handler
+            )
+            print("IR module integration initialized")
+        except Exception as e:
+            print(f"Error initializing IR module: {e}")
+            ir_integration = None
+
     gui = RodentRefreshmentGUI(
         run_program,
         stop_program,
@@ -159,7 +182,8 @@ def setup():
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler
+        notification_handler=notification_handler,
+        ir_integration=ir_integration  # Pass IR integration to GUI (will be None if disabled)
     )
 
     gui.settings_tab = SettingsTab(

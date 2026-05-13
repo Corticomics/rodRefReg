@@ -28,7 +28,12 @@ if USE_CUSTOM_SM16:
 if not USE_CUSTOM_SM16 or not 'USING_CUSTOM_MODULE' in globals() or not USING_CUSTOM_MODULE:
     # Fall back to standard module
     try:
-        import SM16relind
+        import SM16relind as _sm_mod
+        # Determine if module contains a class named SM16relind or is the class itself
+        if hasattr(_sm_mod, 'SM16relind'):
+            SM16relind = _sm_mod.SM16relind
+        else:
+            SM16relind = _sm_mod
         USING_CUSTOM_MODULE = False
         print("Using standard SM16relind module")
     except ImportError:
