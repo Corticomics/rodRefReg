@@ -25,6 +25,7 @@ This document defines the validated, industry-grade architecture for Solenoid + 
 
 **Core Guarantees:**
 - Hardware modes: Pump (existing) and Solenoid (new). User selects in Settings.
+- **Per-valve calibration**: each valve maintains its own `mL/pulse` factor (in the DB, applied at runtime). The single global calibration assumed in earlier revisions of this document is superseded by the per-valve approach — see [`Project/VALVE_CALIBRATION_GUIDE.md`](Project/VALVE_CALIBRATION_GUIDE.md) and the in-app `Settings → Calibration` wizard.
 - Serial delivery: One cage at a time (matches Pump strategy).
 - Time-window behavior: We always deliver full volume. The time window is scheduling guidance; if infeasible, we continue in "overtime" until the target is reached, with clear UI warnings.
 - Safety: Double shutoff (Option A) or master + per-cage shutoff (Option B), leak detection, watchdogs, and fail-closed behavior on power loss.

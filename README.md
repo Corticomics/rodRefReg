@@ -58,28 +58,42 @@ curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rr
 
 1. Go to the **Animals** tab
 2. Click **Add Animal**
-3. Enter the animal's infomation as requested.
+3. Enter the animal's information as requested
 4. Click **Save**
 5. Repeat for each animal
 
+#### Naming Cages
+
+1. Go to the **Cages** tab to see a visual layout of the relay board
+2. Click any cage tile to assign a custom name (e.g., "Rack A — Cage 3")
+3. Names sync automatically to the Wizard, Schedules, and Calibration views
+
 #### Creating a Water Delivery Schedule
 
-1. Go to the **Schedules** tab
-2. Click **Create New Schedule**
-3. Enter a name for your schedule
-4. Choose between:
-   - **Instant Delivery**: All animals get the selected water volumes at once on the selected time, if time is conflicting the sorting algorithm will create a queue.
-   - **Staggered Delivery**: Animals get the selected volume uniformly divided in the time window selected
-5. Drag animals from the list to assign them to water pumps
-6. Set your water delivery times 
-7. Click **Save Schedule**
+The **Schedule Wizard** walks you through schedule creation in 4 steps:
+
+1. Go to the **Wizard** tab (or click **+ New Schedule** in the Schedules hub)
+2. **Step 1 — Type**: Choose between:
+   - **Instant Delivery**: All animals receive their volume at the same time; conflicting times are auto-queued
+   - **Staggered Delivery**: The total volume is divided uniformly across the selected time window
+3. **Step 2 — Animals**: Multi-select the animals/cages to include (limited by your hardware — typically 15 cages per HAT)
+4. **Step 3 — Parameters**: Set per-animal volume, time window, and schedule name
+5. **Step 4 — Review**: Confirm the configuration and click **Save Schedule**
+
+The new schedule appears as a card in the **Schedules** hub.
+
+#### Managing Schedules
+
+- The **Schedules** tab is a hub that shows every schedule as a card with a search bar and multi-select for bulk delete
+- Click **Edit** on any card to reopen the wizard-style editor
+- Click **Info** for full schedule details
 
 #### Starting Water Delivery
 
-1. Drag across the screen the desired schedule from the "Saved Schedules" section under the "Schedules" tab and drop it in the drop area labeled "Drop schedule here"
+1. In the **Schedules** hub, drag a schedule card onto the **Run/Stop** drop area on the right
 2. Click **Run Program**
-3. The system will begin delivering water according to your schedule
-4. Monitor the terminal window for real-time updates
+3. The **Execution Monitor** tab appears next to the Terminal and shows live per-cage progress
+4. Monitor the terminal output or the Execution Monitor cards for real-time updates
 
 
 #### Stopping the Program
@@ -105,11 +119,6 @@ The RRR system is designed to run continuously even when you disconnect your dis
    ```bash
    ssh pi@your-pi-ip 'systemctl status rodent-regulator.service'
    ```
-
-For more details, see the full power management guide at:
-```bash
-~/rodent-refreshment-regulator/Project/power_management.md
-```
 
 ## Daily Use Guide
 
@@ -144,7 +153,14 @@ You can create a new schedule at any time. Stop the current program, create your
 
 ### How do I calibrate the system for accurate water delivery?
 
-Go to the **Settings** tab and input the correct pump settings that you are using. This should be done before starting a new experiment and periodically to ensure accuracy.
+Go to **Settings → Calibration** and click **Run Calibration Wizard**. The wizard guides you through:
+
+1. Selecting which cages to calibrate (uses the same custom names you set in the Cages tab)
+2. Priming the tubing via the **Priming** sub-tab if you haven't already
+3. Dispensing a measured pulse per cage and recording the actual volume
+4. Saving per-cage calibration factors automatically
+
+Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used independently any time you swap tubing or refill the reservoir.
 
 ### How do I resolve "i2c-1 not found" or other I2C errors?
 

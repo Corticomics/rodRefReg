@@ -191,7 +191,7 @@ reset() -> None
 - Individual cage relay control
 - Safety interlock (master must be open before cages)
 - Emergency stop (close all relays)
-- Activity logging
+- Status messages emitted to the main Terminal tab (in-widget Terminal tab was removed — see commit `1ba5a46`)
 - Visual state indicators
 
 **Public API**:
@@ -227,7 +227,7 @@ def _create_priming_control(self):
 
 3. **Add to tab widget**:
 ```python
-self.tab_widget.addTab(self.priming_control, "Priming / Manual Control")
+self.tab_widget.addTab(self.priming_control, "Priming")
 ```
 
 ---
@@ -237,7 +237,7 @@ self.tab_widget.addTab(self.priming_control, "Priming / Manual Control")
 ### User Workflow
 
 #### 1. **Access Priming Control**
-- Navigate to: **Settings** → **Priming / Manual Control**
+- Navigate to: **Settings** → **Priming**
 
 #### 2. **Prime Tubes (Standard Procedure)**
 
@@ -250,11 +250,11 @@ self.tab_widget.addTab(self.priming_control, "Priming / Manual Control")
 1. Select desired cage from dropdown
 2. Click **"Open Selected"** button
 3. Water flows through selected cage tube
-4. Monitor activity log for confirmation
+4. Monitor Terminal tab for confirmation
 
 **Step 3: Close Cage Relay**
 1. Once primed (water flowing), click **"Close Selected"**
-2. Verify closure in activity log
+2. Verify closure in Terminal tab
 
 **Step 4: Close Master**
 1. Click **"Close Master"** button
@@ -283,7 +283,7 @@ self.tab_widget.addTab(self.priming_control, "Priming / Manual Control")
 4. **Visual Feedback**
    - Color-coded buttons (green=safe, red=danger)
    - Real-time status indicators
-   - Timestamped activity log
+   - Timestamped Terminal tab
 
 ---
 
@@ -465,7 +465,7 @@ def test_hardware_priming_sequence():
 
 3. **User experience**
    - Visual feedback
-   - Activity logging
+   - Logs to main Terminal tab
    - Error handling
 
 4. **Best practices**
@@ -506,7 +506,7 @@ def test_hardware_priming_sequence():
   - Master/cage relay control
   - Safety interlocks
   - Emergency stop
-  - Activity logging
+  - Logs to main Terminal tab
   - Visual state indicators
 
 ### Modified Files
@@ -514,7 +514,7 @@ def test_hardware_priming_sequence():
 #### `Project/ui/SettingsTab.py` (UPDATED)
 - **Added import**: `from ui.PrimingControlWidget import PrimingControlWidget`
 - **Added method**: `_create_priming_control()` - instantiates widget via composition
-- **Added tab**: "Priming / Manual Control" in settings tabs
+- **Added tab**: "Priming" in settings tabs
 - **Changes**: +16 lines (minimal, clean integration)
 
 ---

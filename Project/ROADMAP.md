@@ -99,9 +99,10 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 Security Gap Analysis
+### 2.2 Security Gap Analysis (resolved — SEC-001 / SEC-002)
 
-**Finding:** `RunStopSection` bypasses authentication gate.
+**Original finding:** `RunStopSection` bypassed the authentication gate.
+**Resolution:** `RunStopSection` now receives `login_system` and gates its own controls (see `run_stop_section.py`). Retained below for historical context.
 
 **Current Flow:**
 ```python
@@ -110,7 +111,7 @@ self.projects_section = ProjectsSection(...)
 self.login_gate = LoginGateWidget(self.projects_section, self.login_system)  # ✅ Gated
 left_layout.addWidget(self.login_gate)
 
-self.run_stop_section = RunStopSection(...)  # ⚠️ NOT GATED
+self.run_stop_section = RunStopSection(..., login_system=self.login_system)  # ✅ Gated internally (SEC-001/002)
 right_layout.addWidget(self.run_stop_section)
 ```
 

@@ -54,49 +54,61 @@ rodent-refreshment-regulator/
 │   ├── utils/               # Installer utility functions  
 │   └── requirements.txt     # Python dependencies for installer
 ├── Project/                 # Main application code
-│   ├── main.py              # Application entry point
+│   ├── main.py              # Application entry point (boots Qt, lazy hardware init)
 │   ├── settings.json        # Configuration file
 │   ├── rrr_database.db      # SQLite database
 │   ├── models/              # Data models
-│   │   ├── animal.py        # Animal data model
-│   │   ├── Schedule.py      # Water schedule model
-│   │   ├── database_handler.py # Database operations
-│   │   ├── login_system.py  # User authentication model
-│   │   ├── relay_unit.py    # Relay unit model
-│   │   └── relay_unit_manager.py # Relay unit management
-│   ├── views/ (ui/)         # UI components
-│   │   ├── gui.py           # Main application window
-│   │   ├── welcome_section.py # Welcome & instructions UI
-│   │   ├── SettingsTab.py   # Settings configuration UI
-│   │   ├── UserTab.py       # User management UI
-│   │   ├── animals_tab.py   # Animal management UI
-│   │   ├── schedules_tab.py # Schedule management UI
-│   │   ├── HelpTab.py       # Help documentation UI
-│   │   ├── run_stop_section.py # Run/stop controls
-│   │   ├── terminal_output.py # Terminal display component
+│   │   ├── animal.py
+│   │   ├── Schedule.py
+│   │   ├── cage.py          # Cage entity (custom names, relay mapping)
+│   │   ├── database_handler.py
+│   │   ├── login_system.py
+│   │   ├── relay_unit.py
+│   │   └── relay_unit_manager.py
+│   ├── ui/                  # PyQt5 widgets and tabs
+│   │   ├── gui.py                       # RodentRefreshmentGUI main window
+│   │   ├── splash_screen.py             # Splash on startup
+│   │   ├── login_gate_widget.py         # Gates content behind login
+│   │   ├── projects_section.py          # Container for Schedules/Animals/Wizard/Cages
+│   │   ├── schedules_hub.py             # Schedule cards grid (replaces drag-drop tab)
+│   │   ├── schedule_wizard.py           # 4-step schedule creation wizard
+│   │   ├── wizard_tab.py                # Wizard tab host
+│   │   ├── animals_tab.py
+│   │   ├── cages_visualization_tab.py   # Visual relay-board layout
+│   │   ├── cage_manager_widget.py
+│   │   ├── SettingsTab.py               # Delivery / Calibration / Priming / General
+│   │   ├── CalibrationWizard.py         # Per-cage calibration flow
+│   │   ├── PrimingControlWidget.py
+│   │   ├── ScheduleProgressTracker.py   # Execution Monitor (live cards)
+│   │   ├── run_stop_section.py
+│   │   ├── UserTab.py
+│   │   ├── HelpTab.py
+│   │   ├── terminal_output.py
+│   │   ├── components/, widgets/, style/, src/
 │   │   └── [additional UI components]
 │   ├── controllers/         # Business logic
-│   │   ├── system_controller.py   # System configuration
-│   │   ├── pump_controller.py     # Pump control
-│   │   ├── projects_controller.py # Project management
-│   │   ├── schedule_controller.py # Schedule management
-│   │   └── delivery_queue_controller.py # Water delivery management
-│   ├── gpio/                # Hardware interaction
-│   │   ├── gpio_handler.py  # GPIO pin control
-│   │   ├── relay_worker.py  # Relay HAT worker thread
-│   │   └── mock_gpio_handler.py # Mock for testing
-│   ├── utils/               # Utility functions
-│   │   ├── volume_calculator.py   # Water volume calculations
-│   │   ├── timing_calculator.py   # Timing calculations
-│   │   └── help_content_manager.py # Help content
-│   ├── notifications/       # Notification systems
-│   │   └── notifications.py # Notification handling
-│   ├── settings/            # Settings management
-│   │   └── config.py        # Configuration management
-│   └── saved_settings/      # Saved configuration profiles
-├── docs/                    # Additional documentation
-│   └── FAQ.md               # Frequently asked questions
-└── STL Files/               # 3D printing files for hardware
+│   │   ├── system_controller.py
+│   │   ├── pump_controller.py
+│   │   ├── projects_controller.py
+│   │   ├── schedule_controller.py
+│   │   ├── delivery_queue_controller.py
+│   │   └── WateringController.py
+│   ├── gpio/                # Hardware control
+│   │   ├── gpio_handler.py
+│   │   ├── relay_worker.py              # Worker thread; lazy hardware init
+│   │   └── mock_gpio_handler.py
+│   ├── strategies/          # Delivery strategies
+│   │   ├── solenoid_flow_strategy.py    # Solenoid + flow sensor
+│   │   └── (peristaltic legacy)
+│   ├── drivers/             # Hardware drivers
+│   │   └── uart_flow_sensor.py          # Teensy 4.1 UART bridge
+│   ├── teensy_flow_reader/  # Teensy sketch + helper
+│   ├── ir_module/           # Optional IR drinking-detection extension
+│   ├── utils/, notifications/, settings/, saved_settings/, migrations/
+│   ├── tests/
+│   └── docs/                # Project-level developer docs
+├── docs/                    # Repo-level docs (SOP, FAQ)
+└── STL Files/               # 3D printing files
 ```
 
 ## Data Flow
@@ -178,18 +190,35 @@ The system uses Sequent Microsystems' library to communicate with the HATs. The 
 
 ## User Interface
 
-The UI is built with PyQt5 and follows a tab-based organization.
+The UI is built with PyQt5 and uses a tab-based organization with a login gate.
 
 ### Main Components:
 
-- `gui.py`: The application's main window class `RodentRefreshmentGUI`
-- `welcome_section.py`: Provides instructions and overview
-- `SettingsTab.py`: Detailed configuration settings
-- `animals_tab.py`: Animal management
-- `schedules_tab.py`: Schedule creation and management
-- `run_stop_section.py`: Controls for starting and stopping delivery
-- `terminal_output.py`: Displays system messages
-- `HelpTab.py`: Provides searchable help content
+- `gui.py` — `RodentRefreshmentGUI` main window; hosts the tabbed Projects section and the Run/Stop section
+- `login_gate_widget.py` — gates the Projects content behind authentication
+- `projects_section.py` — container for the **Schedules**, **Animals**, **Wizard**, **Cages** tabs
+- `schedules_hub.py` — Schedules tab; grid of schedule cards with search, multi-select, edit, drag-to-run
+- `schedule_wizard.py` + `wizard_tab.py` — 4-step schedule creation wizard (Type → Animals → Parameters → Review)
+- `cages_visualization_tab.py` + `cage_manager_widget.py` — visual relay-board layout, cage naming
+- `SettingsTab.py` — sub-tabs: **Delivery**, **Calibration**, **Priming**, **General**
+- `CalibrationWizard.py` — per-cage calibration flow, launched from Settings → Calibration
+- `PrimingControlWidget.py` — prime tubing / valves
+- `ScheduleProgressTracker.py` — Execution Monitor with live per-cage cards (appears as a second tab next to the Terminal during a run)
+- `run_stop_section.py` — Run/Stop controls (gated by `login_system`)
+- `terminal_output.py`, `HelpTab.py`, `UserTab.py`
+
+### Cross-tab Synchronization:
+
+Cage renaming uses an observer pattern: `CagesVisualizationTab.cage_names_updated` →
+`SettingsTab.refresh_calibration_table` (see `gui.py:208`). The same names are read by the
+Wizard via `database_handler.get_cages_for_dropdown()`.
+
+### Lazy Hardware Initialization:
+
+Hardware (`RelayHandler`, flow sensor) is instantiated on a `QThread` worker inside
+`gpio/relay_worker.py` to keep the UI responsive. The Run/Stop section connects
+to worker signals; signal connections are reset between consecutive schedule runs
+(see `run_stop_section.py` and commit `4c99f5a`).
 
 ### UI Data Binding:
 
@@ -226,15 +255,18 @@ The scheduling system manages when water is delivered to each animal.
 
 ### Components:
 
-- `Schedule.py`: Data structure for delivery timing and volumes
-- `schedule_controller.py`: Logic for running schedules
-- `delivery_queue_controller.py`: System for managing delivery queue
+- `models/Schedule.py` — schedule data structure (per-animal volumes, windows, mode)
+- `controllers/schedule_controller.py` — runs schedules
+- `controllers/delivery_queue_controller.py` — queues and orders pulses
+- `controllers/WateringController.py` — orchestrates a single delivery pulse
+- `strategies/solenoid_flow_strategy.py` — closed-loop solenoid delivery using flow-sensor feedback
 
-### Scheduling Algorithms:
+### Delivery Modes:
 
-1. **Fixed Interval**: Water delivered at fixed time intervals
-2. **Time Window**: Restricts deliveries to specific hours
-3. **Staggered Delivery**: Prevents simultaneous triggers
+1. **Instant** — animals receive their target volume at one or more specific times; conflicts auto-queue
+2. **Staggered** — total target volume is divided uniformly across a user-defined time window
+3. **Time-window guard** — `ScheduleController` validates the active window before each pulse
+4. **Per-valve calibration** — calibration factors per cage stored in the DB and applied at runtime
 
 ## Notification System
 

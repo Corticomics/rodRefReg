@@ -17,20 +17,30 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 | Task | How To Do It |
 |------|--------------|
-| Create schedule | Schedules tab → Create New Schedule → Enter details → Save |
-| Edit schedule | Schedules tab → Select schedule → Edit → Update → Save |
-| Delete schedule | Schedules tab → Select schedule → Delete → Confirm |
-| Assign animals to pumps | Schedules tab → Drag animals from list → Drop onto pump slots |
+| Create schedule | Wizard tab (or "+ New Schedule" in Schedules hub) → Step 1–4 → Save |
+| Edit schedule | Schedules tab → card menu → Edit → Update → Save |
+| Delete schedule | Schedules tab → card menu → Delete (or multi-select → bulk delete) |
+| Assign animals to cages | Inside the Wizard, Step 2 — multi-select from the available list |
+| View schedule details | Schedules tab → card **Info** button |
+
+### 🔢 Cage Management
+
+| Task | How To Do It |
+|------|--------------|
+| Rename a cage | Cages tab → click cage tile → enter custom name → Save |
+| View relay layout | Cages tab — shows the full HAT board with master vs. animal relays |
 
 ### ⚙️ System Operations
 
 | Task | How To Do It |
 |------|--------------|
-| Start water delivery | Select schedule → Run Program |
+| Start water delivery | Drag schedule card onto Run/Stop drop area → Run Program |
 | Stop water delivery | Stop Program |
-| Test pumps | Settings tab → Test Relay → Select relay → Run Test |
-| Calibrate pumps | Settings tab → Calibration → Follow on-screen instructions |
-| Set up notifications | Settings tab → Notifications → Enter Slack credentials → Save |
+| Monitor a live run | Execution Monitor tab appears next to Terminal during a run |
+| Test relays | Settings → Delivery → Test Relay → select relay → Run Test |
+| Calibrate pumps/valves | Settings → Calibration → Run Calibration Wizard |
+| Prime tubing | Settings → Priming → Run priming sequence |
+| Set up notifications | Settings → General → Slack credentials → Save |
 
 ## Troubleshooting Guide
 
