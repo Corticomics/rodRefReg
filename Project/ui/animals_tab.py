@@ -22,27 +22,14 @@ class AnimalsTab(QWidget):
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
-        # Modern styling for the instruction label
+        # Section title - uses global QSS
         instruction_label = QLabel("Manage Animal Data")
-        instruction_label.setStyleSheet("""
-            QLabel {
-                color: #202124;
-                font-size: 18px;
-                font-weight: 600;
-                padding: 16px 0;
-            }
-        """)
+        instruction_label.setObjectName("Title")
         self.layout.addWidget(instruction_label)
 
-        # Setup filter section with modern styling
+        # Filter section - uses global QSS
         filter_container = QWidget()
-        filter_container.setStyleSheet("""
-            QWidget {
-                background-color: white;
-                border-radius: 8px;
-                padding: 16px;
-            }
-        """)
+        filter_container.setObjectName("Card")
         filter_layout = QHBoxLayout(filter_container)
         
         filter_label = QLabel("Filter:")
@@ -93,90 +80,16 @@ class AnimalsTab(QWidget):
         self.animals_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.animals_table.setMinimumWidth(self.width())  # Make table full width of container
         
-        # Improve table appearance with alternating colors and grid
+        # Table appearance - uses global QSS styles
         self.animals_table.setAlternatingRowColors(True)
-        self.animals_table.setShowGrid(True)  # Show grid lines for better visibility
-        self.animals_table.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #1a73e8;      /* Blue border to match theme */
-                border-radius: 8px;
-                padding: 4px;
-                gridline-color: #d0d0d0;        /* Darker grid lines */
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #e0e4e8;
-                color: #333333;                  /* Darker text for readability */
-                font-weight: 500;                /* Semi-bold text */
-            }
-            QTableWidget::item:selected {
-                background-color: #e8f0fe;       /* Light blue selection */
-                color: #1a73e8;                  /* Blue text on selection */
-            }
-            QHeaderView::section {
-                background-color: #e8f0fe;       /* Light blue headers */
-                color: #1a73e8;                  /* Blue text for headers */
-                padding: 10px 8px;               /* More vertical padding */
-                border: 1px solid #1a73e8;       /* Blue border */
-                border-bottom: 2px solid #1a73e8;/* Emphasize bottom border */
-                font-weight: 600;                /* Bolder headers */
-                font-size: 13px;                 /* Larger font size */
-            }
-            /* When table is empty, show a nicer message */
-            QTableWidget[empty="true"]::item {
-                border: none;
-                padding: 20px;
-                text-align: center;
-            }
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QTableWidget:hover QScrollBar::handle:horizontal, 
-            QTableWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on table hover */
-            }
-        """)
+        self.animals_table.setShowGrid(True)
 
         # Add table to layout with a title
         table_container = QWidget()
         table_layout = QVBoxLayout(table_container)
-        table_layout.setContentsMargins(0, 0, 0, 0)  # Reduce container margins
+        table_layout.setContentsMargins(0, 0, 0, 0)
         table_label = QLabel("Animals")
-        table_label.setStyleSheet("""
-            QLabel {
-                color: #5f6368;
-                font-size: 14px;
-                font-weight: 500;
-                margin-bottom: 8px;
-            }
-        """)
+        table_label.setObjectName("Subtitle")
         table_layout.addWidget(table_label)
         table_layout.addWidget(self.animals_table)
         self.layout.addWidget(table_container)

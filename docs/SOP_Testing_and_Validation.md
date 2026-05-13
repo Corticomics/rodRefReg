@@ -36,17 +36,20 @@ Establish a rigorous, reproducible protocol for validating the **RRR** hardware 
    • Autoclave cages, sipper tubes, connectors.  
    • Wipe Pi case, pumps, sensors with 70 % EtOH.
 3. **Hardware Installation**  
-   • Mount Pi & SM16-RELIND hats on rack side-panel.  
-   • Route 4 × peristaltic pumps + tubing (ensure <30 cm head drop).  
-   • Position IR beam-break sensors (see `Project/ir_module/hardware/ir_sensor.py`).
+   • Mount Pi & SM16-RELIND HATs on rack side-panel.  
+   • Choose delivery hardware:  
+     – **Solenoid mode (default)**: pressurized reservoir → master solenoid on relay 16 → per-cage solenoid valves on relays 1–15; Teensy 4.1 + SLF3S-0600F flow sensor on the master line (see `Project/docs/FLOW_SENSOR_INTEGRATION_GUIDE.md`).  
+     – **Peristaltic mode (legacy)**: 4–8 peristaltic pumps + tubing (ensure < 30 cm head drop).  
+   • Position IR beam-break sensors per cage (see `Project/ir_module/`).
 4. **Software Flash & Configuration**  
-   • Flash Raspberry Pi OS 12-Lite, enable I²C (`enable_i2c.sh`).  
-   • Clone repo, create venv: `python -m venv venv && source venv/bin/activate`.  
-   • `pip install -r installer/requirements.txt`.  
-   • Run **Installer UI** (`installer/main.py`) → generate `settings.json`.  
-   • Verify DB migration runs (`python Project/migrations/migrate_settings.py`).
-5. **Pump Calibration & QA** (see § 8)  
-6. **IR Module Bench Test** (see § 9)
+   • Flash Raspberry Pi OS 12-Lite.  
+   • Run the one-line installer: `curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh | sudo bash` (handles I²C, dependencies, venv, DB, service).  
+   • Confirm I²C bus auto-detected (the installer probes both bus 1 and bus 0).  
+   • If migrating an older install, run `python Project/migrations/migrate_settings.py`.
+5. **Cage Naming**: open the **Cages** tab and assign a custom name to each relay channel; names propagate to the Wizard and Calibration tables.
+6. **Calibration & QA** (see § 8) — use **Settings → Calibration → Run Calibration Wizard**.
+7. **Priming** — use **Settings → Priming** to flush lines before any data collection.
+8. **IR Module Bench Test** (see § 10)
 7. **Regulatory Approvals**  
    • IACUC / AWERB amendment approved & logged.
 
@@ -115,20 +118,25 @@ The entire software & hardware stack passed all the initial verification tests
 
 ---
 
-## 9. Pump Testing Protocol
-1. **Environment Stress Test**  
- explain why we need to prime the pumps and let the use decide
-2. **Metrics Recorded**  
+## 9. Delivery Hardware Testing Protocol
+
+This section covers both delivery modes. Use the **Calibration Wizard** (Settings → Calibration → Run Calibration Wizard) to execute the per-cage runs; bench tests can be run from `tools/valve_calibration_tool.py` if Pi access is required without the UI.
+
+1. **Prime First** — Always prime tubing via **Settings → Priming** before recording calibration data. Air slugs invalidate volumes.
+2. **Solenoid Mode Metrics**  
+   • Per-pulse volume from the inline SLF3S-0600F flow sensor (mL).  
+   • Master-valve open duration and pulse count.  
+   • Flow-sensor stream health (no NACK / packet-loss events).
+3. **Peristaltic Mode Metrics**  
    • Delivered volume per trigger (mass/ρ).  
    • Flow rate (mL/s).  
-   • Leak incidence.  
-   • Temperature & Humidity.
-3. **Acceptance Criteria**  
-   • Mean ± CV ≤ 5 %.  
-   • No leaks or missed triggers.  
    • Motor temperature < 40 °C.
-4. **Database Logging**  
-   Results stored in `dispensing_history` with `schedule_id = -1` (calibration).
+4. **Shared Acceptance Criteria**  
+   • Mean ± CV ≤ 5 % across 100 pulses per channel.  
+   • No leaks or missed triggers.  
+   • All channels produce non-zero, monotonic volumes.
+5. **Database Logging**  
+   Calibration results are stored in `dispensing_history` with `schedule_id = -1`; per-channel calibration factors are written to the calibration table and applied automatically at runtime.
 
 
 ---
@@ -138,7 +146,14 @@ The entire software & hardware stack passed all the initial verification tests
 
 ---
 
-## 10. IR Drinking Module Validation & 11. Progressive-Ratio (PR) Task Plan d
+## 10. IR Drinking Module Validation
+
+1. **Enable the module** per `Project/ir_module/ENABLING.md` (sets the `ir_module.enabled` flag in `settings.json`).
+2. **Bench test**: with the Pi powered, interrupt each beam manually for 1 s; verify an event appears in the Drinking Analysis tab and in `ir_module/data`.
+3. **Cross-check**: after running a 24 h schedule, the cumulative drink-event count per cage should correlate with the corresponding `dispensing_history` totals (Spearman ρ ≥ 0.8).
+4. **Sensor health**: confirm fault rate ≤ 1 % per 24 h via the daily QC script.
+
+## 11. Progressive-Ratio (PR) Task Plan
 
 ## 13. Deployment & 4-Week Trial
 1. **Day -2**: Move calibrated pumps & Pi to cleaned rack.  

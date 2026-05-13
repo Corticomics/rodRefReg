@@ -21,54 +21,34 @@ class UserTab(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # Main layout with reduced spacing
+        # Main layout
         self.layout = QVBoxLayout()
         self.layout.setSpacing(16)
         self.layout.setContentsMargins(20, 20, 20, 20)
         self.setLayout(self.layout)
 
-        # Info label with smaller font
+        # Info label
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.info_label.setAlignment(Qt.AlignCenter)
-        self.info_label.setFont(QFont("Segoe UI", 12))
-        self.info_label.setStyleSheet("""
-            QLabel {
-                color: #1a73e8;
-                padding: 12px;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f8f9fa, stop:1 #ffffff);
-                border-radius: 6px;
-            }
-        """)
+        self.info_label.setObjectName("InfoBanner")
         self.layout.addWidget(self.info_label)
 
-        # Login form container
-        self.login_container = QFrame()
-        self.login_container.setFrameStyle(QFrame.NoFrame)
-        self.login_container.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border-radius: 6px;
-                padding: 16px;
-                margin: 8px;
-                border: 1px solid #e0e4e8;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            }
-        """)
+        # Login form container - use Card component
+        from ui.components.card import Card
+        self.login_container = Card()
 
         # Form layout for login inputs
         form_layout = QFormLayout()
         form_layout.setSpacing(12)
-        form_layout.setContentsMargins(8, 8, 8, 8)
+        form_layout.setContentsMargins(16, 16, 16, 16)
 
-        # Create and style input fields
+        # Create input fields - rely on QSS styling
         self.username_input = QLineEdit()
         self.username_input.setPlaceholderText("Enter username")
-        self.username_input.setStyleSheet(self._get_input_style())
         
         self.password_input = QLineEdit()
         self.password_input.setPlaceholderText("Enter password")
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.password_input.setStyleSheet(self._get_input_style())
 
         # Add fields to form layout
         form_layout.addRow("Username:", self.username_input)
@@ -82,56 +62,20 @@ class UserTab(QWidget):
         self._setup_buttons()
         self.layout.addStretch()
 
-    def _get_input_style(self):
-        return """
-            QLineEdit {
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 6px 12px;
-                background: white;
-                font-size: 11px;
-                min-height: 24px;
-            }
-            QLineEdit:hover {
-                border-color: #1a73e8;
-            }
-            QLineEdit:focus {
-                border-color: #1a73e8;
-                background: white;
-                box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
-            }
-        """
 
     def _setup_buttons(self):
         # Create buttons container
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(8)
         
-        # Create and style buttons
+        # Create buttons - use property-based styling
         self.login_button = QPushButton("Log In")
-        self.create_profile_button = QPushButton("Create New Profile")
-        self.logout_button = QPushButton("Log Out")
+        self.login_button.setProperty("variant", "primary")
         
-        # Style each button
-        for button in [self.login_button, self.create_profile_button, self.logout_button]:
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color: white;
-                    color: #1a73e8;
-                    border: 1px solid #1a73e8;
-                    border-radius: 4px;
-                    padding: 6px 12px;
-                    min-width: 80px;
-                    font-size: 11px;
-                }
-                QPushButton:hover {
-                    background-color: #1a73e8;
-                    color: white;
-                }
-                QPushButton:pressed {
-                    background-color: #1557b0;
-                }
-            """)
+        self.create_profile_button = QPushButton("Create New Profile")
+        
+        self.logout_button = QPushButton("Log Out")
+        self.logout_button.setProperty("variant", "danger")
         
         # Connect button signals
         self.login_button.clicked.connect(self.handle_login)
@@ -188,36 +132,25 @@ class UserTab(QWidget):
             self.login_button.hide()
             self.create_profile_button.hide()
             
-            # Create profile container
-            self.profile_container = QWidget()
+            # Create profile container using Card
+            from ui.components.card import Card
+            self.profile_container = Card()
             profile_layout = QVBoxLayout(self.profile_container)
             profile_layout.setSpacing(16)
-            profile_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+            profile_layout.setContentsMargins(20, 20, 20, 20)
             
             # Welcome message
             welcome_label = QLabel(f"Welcome, {user_info['username']}")
-            welcome_label.setStyleSheet("""
-                QLabel {
-                    color: #202124;
-                    font-size: 18px;
-                    font-weight: 600;
-                }
-            """)
+            welcome_label.setObjectName("ProfileWelcome")
             welcome_label.setAlignment(Qt.AlignCenter)
             profile_layout.addWidget(welcome_label)
             
-            # Stats container
-            stats_container = QFrame()
+            # Stats container - use a simple QFrame styled by QSS
+            from PyQt5.QtWidgets import QGroupBox
+            stats_container = QGroupBox("Profile Information")
             stats_layout = QGridLayout(stats_container)
-            stats_layout.setSpacing(8)
-            stats_container.setStyleSheet("""
-                QFrame {
-                    background-color: white;
-                    border: 1px solid #e0e4e8;
-                    border-radius: 8px;
-                    padding: 16px;
-                }
-            """)
+            stats_layout.setSpacing(12)
+            stats_layout.setContentsMargins(12, 12, 12, 12)
             
             # Simplified stats
             stats = [
@@ -227,6 +160,7 @@ class UserTab(QWidget):
             
             for i, (label, value) in enumerate(stats):
                 stat_label = QLabel(label + ":")
+                stat_label.setProperty("variant", "label")
                 stat_value = QLabel(value)
                 stats_layout.addWidget(stat_label, i, 0)
                 stats_layout.addWidget(stat_value, i, 1)
@@ -234,7 +168,8 @@ class UserTab(QWidget):
             profile_layout.addWidget(stats_container)
             
             # Logout button
-            self.logout_button = self._create_button("Log Out", "#dc3545")
+            self.logout_button = QPushButton("Log Out")
+            self.logout_button.setProperty("variant", "danger")
             self.logout_button.clicked.connect(self.logout)
             profile_layout.addWidget(self.logout_button)
             
@@ -290,31 +225,6 @@ class UserTab(QWidget):
         dialog = QDialog(self)
         dialog.setWindowTitle("Create New Profile")
         dialog.setMinimumWidth(350)
-        dialog.setStyleSheet("""
-            QDialog {
-                background-color: white;
-                border-radius: 6px;
-            }
-            QLabel {
-                color: #202124;
-                font-size: 11px;
-            }
-            QLineEdit {
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 6px 12px;
-                background: white;
-                font-size: 11px;
-                min-height: 24px;
-            }
-            QLineEdit:hover {
-                border-color: #1a73e8;
-            }
-            QLineEdit:focus {
-                border-color: #1a73e8;
-                background: white;
-            }
-        """)
         
         # Create layout
         layout = QVBoxLayout()
@@ -344,16 +254,7 @@ class UserTab(QWidget):
         
         # Show password link
         show_password_label = QLabel("Show password")
-        show_password_label.setStyleSheet("""
-            QLabel {
-                color: #1a73e8;
-                font-size: 10px;
-            }
-            QLabel:hover {
-                color: #174ea6;
-                text-decoration: underline;
-            }
-        """)
+        show_password_label.setObjectName("LinkLabel")
         show_password_label.setCursor(Qt.PointingHandCursor)
         
         def toggle_password_visibility(event):
@@ -378,38 +279,7 @@ class UserTab(QWidget):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel
         )
         button_box.button(QDialogButtonBox.Ok).setText("Create Profile")
-        button_box.button(QDialogButtonBox.Ok).setStyleSheet("""
-            QPushButton {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 16px;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #174ea6;
-            }
-            QPushButton:pressed {
-                background-color: #143c7c;
-            }
-        """)
-        button_box.button(QDialogButtonBox.Cancel).setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #1a73e8;
-                border: 1px solid #1a73e8;
-                border-radius: 4px;
-                padding: 6px 16px;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #f6fafe;
-            }
-            QPushButton:pressed {
-                background-color: #e8f1fc;
-            }
-        """)
+        button_box.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
         
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
@@ -465,36 +335,3 @@ class UserTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "View Error", f"An unexpected error occurred while resetting to guest view: {str(e)}")
             print(f"Unexpected error in set_guest_view: {e}")
-
-    def _create_button(self, text, color):
-        button = QPushButton(text)
-        button.setCursor(Qt.PointingHandCursor)
-        button.setFont(QFont("Segoe UI", 11, QFont.Medium))
-        button.setMinimumHeight(44)
-        button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {color};
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 12px 24px;
-                font-weight: 500;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            }}
-            QPushButton:hover {{
-                background-color: {self._darken_color(color, 20)};
-                color: white;
-            }}
-            QPushButton:pressed {{
-                background-color: {self._darken_color(color, 20)};
-                border-color: {self._darken_color(color, 20)};
-            }}
-        """)
-        return button
-
-    def _darken_color(self, hex_color, amount=10):
-        # Simple color darkening function
-        hex_color = hex_color.lstrip('#')
-        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        rgb = tuple(max(0, c - amount) for c in rgb)
-        return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"

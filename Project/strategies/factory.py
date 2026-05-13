@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+from typing import Optional
+
+from .pump_strategy import PumpStrategy
+from .solenoid_flow_strategy import SolenoidFlowStrategy
+
+
+class StrategyFactory:
+    """Creates delivery strategies based on hardware mode.
+
+    Parameters expected by create():
+    - hardware_mode: 'pump' | 'solenoid' | None (defaults to 'pump')
+    - pump_controller: required for pump mode
+    - volume_calculator: required for pump mode
+    - solenoid_controller: required for solenoid mode
+    - flow_sensor: required for solenoid mode
+    - calibration_store: optional for solenoid mode
+    - settings: required for all modes
+    
+    Best Practices:
+    - Factory Pattern: Centralized strategy creation
+    - Fail-fast: Validate required dependencies
+    - Backward compatibility: Fallback to pump mode for unknown values
+    
+    Note: SolenoidFlowStrategy auto-detects pulse mode from settings
+    """
+
+    @staticmethod
+    def create(
+        hardware_mode: Optional[str],
+        *,
+        pump_controller=None,
+        volume_calculator=None,
+        solenoid_controller=None,
+        flow_sensor=None,
+        calibration_store=None,
+        settings=None,
+        database_handler=None,
+        **kwargs,
+    ):
+        mode = (hardware_mode or "pump").strip().lower()
+
+        if mode == "pump":
+            return PumpStrategy(pump_controller, volume_calculator)
+
+        if mode == "solenoid":
+            # Solenoid strategy auto-detects pulse mode from settings
+            # Best Practice: Single strategy handles both continuous and pulse modes
+            # Note: flow_sensor can be None for calibration-only mode
+            if not (solenoid_controller and settings is not None):
+                raise ValueError("Solenoid strategy requires solenoid_controller and settings")
+            return SolenoidFlowStrategy(
+                solenoid_controller=solenoid_controller,
+                flow_sensor=flow_sensor,  # Can be None for calibration-only mode
+                calibration_store=calibration_store,
+                settings=settings,
+                database_handler=database_handler,  # For per-valve calibration
+            )
+
+        # Fallback to pump mode for unknown values to preserve current behavior.
+        return PumpStrategy(pump_controller, volume_calculator)
+
+

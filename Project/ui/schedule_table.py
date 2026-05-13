@@ -27,77 +27,9 @@ class ScheduleTable(QTableWidget):
         self.verticalHeader().setDefaultSectionSize(40)  # Taller rows
         self.verticalHeader().setVisible(False)  # Hide row numbers
         
-        # Improved style and behavior
+        # Table appearance - uses global QSS styles (app-light.qss / app-dark.qss)
         self.setAlternatingRowColors(True)
-        self.setShowGrid(True)  # Show grid for better readability
-        self.setStyleSheet("""
-            QTableWidget {
-                background-color: #ffffff;
-                alternate-background-color: #f5f5f5;
-                border: 1px solid #1a73e8;
-                border-radius: 6px;
-                gridline-color: #d0d0d0;
-                font-size: 13px;
-            }
-            QHeaderView::section {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-                padding: 10px 8px;
-                border: 1px solid #1a73e8;
-                border-bottom: 2px solid #1a73e8;
-                font-weight: 600;
-                font-size: 13px;
-            }
-            QTableWidget::item {
-                padding: 8px;
-                border-bottom: 1px solid #e0e4e8;
-                color: #333333;
-                font-weight: 500;
-            }
-            QTableWidget::item:selected {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-            }
-            /* Empty table styling */
-            QTableWidget[empty="true"]::item {
-                border: none;
-                padding: 20px;
-                text-align: center;
-            }
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QTableWidget:hover QScrollBar::handle:horizontal, 
-            QTableWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on table hover */
-            }
-        """)
+        self.setShowGrid(True)
         
         # Set minimum height for better visibility
         self.setMinimumHeight(200)

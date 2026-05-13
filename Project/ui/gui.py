@@ -9,6 +9,7 @@ import traceback
 from .run_stop_section import RunStopSection
 from .projects_section import ProjectsSection
 from .UserTab import UserTab
+from .ScheduleProgressTracker import ScheduleProgressTracker
 from notifications.notifications import NotificationHandler
 from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
@@ -46,6 +47,10 @@ class RodentRefreshmentGUI(QWidget):
 
         # Default to guest mode
         self.current_user = None
+        
+        # Execution monitor state
+        self._schedule_running = False
+        self._hide_timer = None
 
         # Connect system message signal
         self.system_message_signal.connect(self.print_to_terminal)
@@ -57,155 +62,7 @@ class RodentRefreshmentGUI(QWidget):
         self.setWindowTitle("Rodent Refreshment Regulator")
         self.setMinimumSize(1200, 800)
 
-        # First, set the base styles
-        base_style = """
-            QWidget {
-                background-color: #f8f9fa;
-                color: #2c3e50;
-                font-family: 'Segoe UI', Arial, sans-serif;
-            }
-        """
-        
-        # Then add the modern component styles
-        modern_style = """
-            /* Modern Table Styling */
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #e0e4e8;
-                border-radius: 8px;
-                padding: 4px;
-                gridline-color: transparent;
-                selection-background-color: #e8f0fe;
-            }
-            
-            QTableWidget QHeaderView::section {
-                background-color: #f8f9fa;
-                color: #5f6368;
-                padding: 16px;
-                border: none;
-                border-bottom: 2px solid #e0e4e8;
-                font-weight: bold;
-                font-size: 13px;
-                text-align: left;
-            }
-            
-            QTableWidget::item {
-                padding: 16px;
-                border-bottom: 1px solid #f0f0f0;
-                color: #202124;
-                font-size: 13px;
-            }
-            
-            QTableWidget::item:selected {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-            }
-            
-            /* Scrollbar Styling */
-            QScrollBar:vertical {
-                background-color: transparent;
-                width: 8px;
-                margin: 0;
-            }
-            
-            QScrollBar::handle:vertical {
-                background-color: #dadce0;
-                min-height: 30px;
-                border-radius: 4px;
-            }
-            
-            QScrollBar::handle:vertical:hover {
-                background-color: #1a73e8;
-            }
-            
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            
-            /* Button Styling */
-            QPushButton {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: 500;
-                font-size: 13px;
-                min-width: 100px;
-            }
-            
-            QPushButton:hover {
-                background-color: #1557b0;
-            }
-            
-            QPushButton:pressed {
-                background-color: #104d92;
-            }
-            
-            /* Input Styling */
-            QLineEdit {
-                border: 1px solid #dadce0;
-                border-radius: 4px;
-                padding: 8px 12px;
-                background: white;
-                font-size: 13px;
-                color: #202124;
-            }
-            
-            QLineEdit:focus {
-                border-color: #1a73e8;
-                background: white;
-            }
-            
-            /* Tab Styling */
-            QTabWidget::pane {
-                border: 1px solid #e0e4e8;
-                border-radius: 8px;
-                background-color: white;
-                top: -1px;
-            }
-            
-            QTabBar::tab {
-                background-color: #f8f9fa;
-                color: #5f6368;
-                padding: 8px 16px;
-                margin-right: 4px;
-                border: 1px solid #e0e4e8;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                font-size: 13px;
-                min-width: 100px;
-            }
-            
-            QTabBar::tab:selected {
-                background-color: white;
-                color: #1a73e8;
-                border-bottom: 2px solid #1a73e8;
-            }
-            
-            /* ComboBox Styling */
-            QComboBox {
-                background-color: white;
-                border: 1px solid #dadce0;
-                border-radius: 4px;
-                padding: 8px 12px;
-                min-width: 150px;
-                font-size: 13px;
-            }
-            
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            
-            QComboBox::down-arrow {
-                image: url(:/icons/down-arrow.png);
-            }
-        """
-        
-        # Apply the styles in order
-        self.setStyleSheet(base_style + modern_style)
+        # Use centralized app-level QSS (StyleManager). No per-widget styles here.
 
         # Main layout
         main_layout = QVBoxLayout(self)
@@ -219,12 +76,38 @@ class RodentRefreshmentGUI(QWidget):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         
-        # Terminal output
+        # === TERMINAL / EXECUTION MONITOR TABBED INTERFACE ===
+        # When schedule runs, Execution Monitor tab appears
+        self.terminal_tab_widget = QTabWidget()
+        self.terminal_tab_widget.setMinimumHeight(180)
+        
+        # Terminal tab (always visible)
+        terminal_container = QWidget()
+        terminal_layout = QVBoxLayout(terminal_container)
+        terminal_layout.setContentsMargins(0, 0, 0, 0)
         self.terminal_output = QPlainTextEdit()
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
-        self.terminal_output.setMinimumHeight(150)
-        left_layout.addWidget(self.terminal_output)
+        terminal_layout.addWidget(self.terminal_output)
+        self.terminal_tab_widget.addTab(terminal_container, "Terminal")
+        
+        # Execution Monitor tab (hidden until schedule runs)
+        monitor_container = QWidget()
+        monitor_layout = QVBoxLayout(monitor_container)
+        monitor_layout.setContentsMargins(0, 0, 0, 0)
+        self.progress_tracker = ScheduleProgressTracker()
+        self.progress_tracker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        monitor_layout.addWidget(self.progress_tracker)
+        self.execution_monitor_index = self.terminal_tab_widget.addTab(monitor_container, "Execution Monitor")
+        
+        # Hide Execution Monitor tab initially
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
+        
+        left_layout.addWidget(self.terminal_tab_widget)
+        
+        # Initial stretch: Projects section gets more space, Terminal is compact
+        # This is adjusted dynamically when switching to Execution Monitor
+        left_layout.setStretch(0, 1)  # Terminal area (compact by default)
         
         # Projects section with login gate
         self.projects_section = ProjectsSection(
@@ -235,12 +118,15 @@ class RodentRefreshmentGUI(QWidget):
         )
         self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
         left_layout.addWidget(self.login_gate)
+        left_layout.setStretch(1, 3)  # Projects section (expanded by default)
         
         # Right side
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
+        self.right_layout = right_layout
         
-        # Create Run/Stop section first
+        # Create Run/Stop section with login system for access control
+        # Security: RunStopSection gates controls behind login status
         self.run_stop_section = RunStopSection(
             self.run_program,
             self.stop_program,
@@ -248,7 +134,8 @@ class RodentRefreshmentGUI(QWidget):
             self.system_controller,
             database_handler=self.database_handler,
             relay_handler=self.relay_handler,
-            notification_handler=self.notification_handler
+            notification_handler=self.notification_handler,
+            login_system=self.login_system
         )
         
         # Tab widget
@@ -266,7 +153,7 @@ class RodentRefreshmentGUI(QWidget):
         self.settings_tab = None  # Will be set later
         
         # User tab (tab3)
-        self.user_tab = UserTab(self.database_handler, self.login_system, self.print_to_terminal)
+        self.user_tab = UserTab(self.login_system, self.database_handler)
         self.tab_widget.addTab(self.user_tab, "Users")
         
         # Help tab (tab4)
@@ -288,8 +175,13 @@ class RodentRefreshmentGUI(QWidget):
             except Exception as e:
                 self.print_to_terminal(f"Error adding IR drinking analysis tab: {e}")
         
-        right_layout.addWidget(self.tab_widget)
+        # Make run/stop section expand when needed
+        self.run_stop_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        right_layout.addWidget(self.main_tab_widget)
         right_layout.addWidget(self.run_stop_section)
+        # Default stretch favors tab content; adjusted dynamically below
+        right_layout.setStretch(0, 3)
+        right_layout.setStretch(1, 1)
         
         # Add to content layout
         content_layout.addWidget(left_widget, 3)
@@ -298,15 +190,31 @@ class RodentRefreshmentGUI(QWidget):
         # Add content layout to main layout
         main_layout.addLayout(content_layout)
         
-        # Mode toggle button at bottom
-        self.mode_toggle_button = QPushButton("Switch to Super Mode")
-        self.mode_toggle_button.clicked.connect(self.toggle_mode)
-        main_layout.addWidget(self.mode_toggle_button)
+        # Connect tab changes to dynamic layout adjustment
+        self.terminal_tab_widget.currentChanged.connect(self._on_terminal_tab_changed)
+        
+        # Store left layout reference for dynamic resizing
+        self.left_layout = left_layout
+        self.left_widget = left_widget
+        self.content_layout = content_layout
         
         # Connect signals
         self.projects_section.schedules_tab.mode_changed.connect(
             self.run_stop_section._on_mode_changed
         )
+        
+        # Connect cage name updates to refresh calibration table
+        # Observer pattern: CagesTab -> SettingsTab (keeps data in sync)
+        self.projects_section.cages_tab.cage_names_updated.connect(
+            self.settings_tab.refresh_calibration_table
+        )
+        
+        # Reactive layout: adjust stretches when main tab or settings subtabs change
+        self.main_tab_widget.currentChanged.connect(self._on_main_tab_changed)
+        try:
+            self.settings_tab.tab_widget.currentChanged.connect(self._on_settings_subtab_changed)
+        except Exception:
+            pass
         
         # Initialize
         self.load_animals_tab()
@@ -315,23 +223,190 @@ class RodentRefreshmentGUI(QWidget):
         # Continue with existing tab access updates
         self._update_tab_access()
     
+    def _apply_right_stretch(self):
+        """Adjust right column stretches based on active tab and settings sub-tab."""
+        current = self.main_tab_widget.currentWidget()
+        if current is self.user_tab:
+            # Profile has sparse content; give more height to Run/Stop
+            self.right_layout.setStretch(0, 2)
+            self.right_layout.setStretch(1, 2)
+        elif current is self.settings_tab:
+            # If Valve Calibration is selected, prioritize tab content
+            try:
+                idx = self.settings_tab.tab_widget.currentIndex()
+                cal_idx = self.settings_tab.tab_widget.indexOf(self.settings_tab.calibration_tab)
+                if idx == cal_idx:
+                    self.right_layout.setStretch(0, 4)
+                    self.right_layout.setStretch(1, 1)
+                else:
+                    self.right_layout.setStretch(0, 3)
+                    self.right_layout.setStretch(1, 1)
+            except Exception:
+                self.right_layout.setStretch(0, 3)
+                self.right_layout.setStretch(1, 1)
+        else:
+            # Help or others
+            self.right_layout.setStretch(0, 3)
+            self.right_layout.setStretch(1, 1)
+
+    def _on_main_tab_changed(self, _index: int):
+        self._apply_right_stretch()
+
+    def _on_settings_subtab_changed(self, _index: int):
+        self._apply_right_stretch()
+    
     def toggle_mode(self):
+        """Toggle between Normal and Super mode."""
         try:
             self.login_system.switch_mode()
             new_role = self.login_system.get_current_trainer()['role']
-            self.mode_toggle_button.setText("Switch to Normal Mode" if new_role == 'super' else "Switch to Super Mode")
             self.print_to_terminal(f"Switched to {new_role.capitalize()} Mode.")
             # Refresh animals and schedules tabs
             self.projects_section.schedules_tab.load_animals()
             self.projects_section.animals_tab.load_animals()
+            # Emit signal for SettingsTab to update button text
+            return new_role
         except Exception as e:
             self.print_to_terminal(f"Error toggling mode: {e}")
             QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
+            return None
+    
+    def _on_terminal_tab_changed(self, index: int):
+        """
+        Dynamically adjust left pane layout when switching between Terminal and Execution Monitor.
+        
+        When Execution Monitor is active, we expand the terminal section to show cards properly.
+        Also sets minimum height to ensure visibility during schedule execution.
+        """
+        if index == self.execution_monitor_index:
+            # Execution Monitor selected - give it much more space for cards
+            # Use 4:1 ratio to ensure monitor is clearly visible during execution
+            self.left_layout.setStretch(0, 4)  # Terminal/Monitor area (expanded)
+            self.left_layout.setStretch(1, 1)  # Projects section (compressed)
+            # Set minimum height to ensure cards are visible
+            self.terminal_tab_widget.setMinimumHeight(350)
+        else:
+            # Terminal selected - restore default proportions
+            self.left_layout.setStretch(0, 1)  # Terminal area
+            self.left_layout.setStretch(1, 3)  # Projects section
+            # Reset minimum height for terminal mode
+            self.terminal_tab_widget.setMinimumHeight(180)
 
     def print_to_terminal(self, message):
         """Print message to terminal output"""
         if hasattr(self, 'terminal_output'):
             self.terminal_output.appendPlainText(str(message))
+    
+    def show_execution_monitor_loading(self, schedule_name: str):
+        """
+        PHASE 1: Show execution monitor immediately with loading state.
+        
+        Optimization: This runs BEFORE database queries, giving instant feedback.
+        Card population happens later in show_execution_monitor().
+        
+        Performance target: < 16ms (single frame at 60fps)
+        
+        Args:
+            schedule_name: Name of the schedule being started
+        """
+        print(f"[GUI] show_execution_monitor_loading called for: {schedule_name}")
+        
+        # Cancel any pending hide timer
+        if hasattr(self, '_hide_timer') and self._hide_timer is not None:
+            self._hide_timer.stop()
+            self._hide_timer = None
+        
+        # Mark that a schedule is running
+        self._schedule_running = True
+        
+        # Make tab visible and switch to it
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
+        self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
+        
+        # Trigger layout adjustment
+        self._on_terminal_tab_changed(self.execution_monitor_index)
+        
+        # Show loading state in progress tracker
+        self.progress_tracker.show()
+        self.progress_tracker.show_loading(schedule_name)
+    
+    def show_execution_monitor(self, schedule_name: str, animals_data: dict):
+        """
+        PHASE 2: Populate execution monitor with animal cards.
+        
+        Called after database queries complete. Cards are created progressively
+        to avoid blocking the UI thread.
+        
+        Args:
+            schedule_name: Name of the running schedule
+            animals_data: Dict of {animal_id: {'cage_id': int, 'target_volume': float}}
+        """
+        print(f"[GUI] show_execution_monitor called for: {schedule_name}")
+        print(f"[GUI] animals_data: {animals_data}")
+        
+        # Cancel any pending hide timer (prevents race condition)
+        if hasattr(self, '_hide_timer') and self._hide_timer is not None:
+            self._hide_timer.stop()
+            self._hide_timer = None
+        
+        # Mark that a schedule is running
+        self._schedule_running = True
+        
+        # Ensure tab is visible (in case show_loading wasn't called)
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
+        self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
+        self._on_terminal_tab_changed(self.execution_monitor_index)
+        
+        # Ensure widget is visible
+        self.progress_tracker.show()
+        
+        # Start the progress tracker (with progressive card loading)
+        self.progress_tracker.start_schedule(schedule_name, animals_data)
+        
+        print(f"[GUI] Execution Monitor populated for: {schedule_name}")
+    
+    def hide_execution_monitor(self):
+        """
+        Hide the Execution Monitor tab when schedule stops/completes.
+        
+        Called by run_stop_section when schedule execution ends.
+        """
+        # Mark that no schedule is running
+        self._schedule_running = False
+        
+        # Switch back to Terminal tab
+        self.terminal_tab_widget.setCurrentIndex(0)
+        
+        # Explicitly restore normal layout proportions
+        self._on_terminal_tab_changed(0)
+        
+        # Hide the Execution Monitor tab (with 10-second delay to show final state)
+        from PyQt5.QtCore import QTimer
+        self._hide_timer = QTimer()
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self._hide_execution_monitor_tab)
+        self._hide_timer.start(10000)
+        
+        print("[GUI] Execution Monitor will hide in 10 seconds")
+    
+    def _hide_execution_monitor_tab(self):
+        """Actually hide the tab after delay."""
+        # Only hide if no schedule is currently running
+        if hasattr(self, '_schedule_running') and self._schedule_running:
+            print("[GUI] Hide cancelled - new schedule is running")
+            return
+        
+        self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
+        self.progress_tracker.clear_cards()
+        self._hide_timer = None
+    
+    def get_progress_tracker(self):
+        """
+        Provide access to progress tracker for signal connections.
+        
+        Used by main.py to connect worker signals to progress tracker.
+        """
+        return self.progress_tracker
 
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()
@@ -363,6 +438,10 @@ class RodentRefreshmentGUI(QWidget):
             
             # Update tab access
             self._update_tab_access()
+            
+            # Update mode toggle button in settings
+            if hasattr(self.settings_tab, '_update_mode_button_state'):
+                self.settings_tab._update_mode_button_state()
             
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
@@ -405,6 +484,10 @@ class RodentRefreshmentGUI(QWidget):
             
             # Update tab access
             self._update_tab_access()
+            
+            # Update mode toggle button in settings
+            if hasattr(self.settings_tab, '_update_mode_button_state'):
+                self.settings_tab._update_mode_button_state()
             
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")

@@ -206,9 +206,9 @@ chmod +x /tmp/enable_i2c_temp.sh
 /tmp/enable_i2c_temp.sh || log "Warning: I2C setup encountered issues, but continuing"
 rm /tmp/enable_i2c_temp.sh
 
-# Enhanced I2C bus detection and configuration
-log "=== Enhanced I2C Bus Detection ==="
-log "Checking for available I2C buses..."
+# I2C bus detection and configuration (for legacy I2C mode)
+log "=== I2C Bus Detection (Legacy Mode) ==="
+log "Checking for available I2C buses (only needed for legacy I2C flow sensor)..."
 
 # Function to detect available I2C buses
 detect_i2c_buses() {
@@ -302,171 +302,27 @@ fi
 # Smart installation directory setup – handles all execution contexts
 log "=== Setting up application directory ==="
 
-# Set repository URL
+# Set repository URL and desired branch
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
+BRANCH="ze-dev"
 
-# Function to detect current execution context
-detect_execution_context() {
-    local current_dir
-    current_dir=$(pwd)
-
-    # Check if we're already in a git repository
-    if [ -d ".git" ]; then
-        local repo_url
-        repo_url=$(git remote get-url origin 2>/dev/null || echo "")
-        if [[ "$repo_url" == *"rodRefReg"* ]] || [[ "$repo_url" == *"rodent-refreshment-regulator"* ]]; then
-            echo "EXISTING_REPO"
-            return
-        fi
+# Clone or update the repository on the specified branch (best-practice git flow)
+if [ -d ".git" ]; then
+    log "Repository already exists. Checking out branch $BRANCH"
+    git fetch origin "$BRANCH" || log "Warning: Failed to fetch branch $BRANCH"
+    git checkout "$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
+    git pull --ff-only origin "$BRANCH" || log "Warning: git pull failed, but continuing"
+else
+    if [ -z "$(ls -A)" ]; then
+        log "=== Cloning the repository (branch $BRANCH) ==="
+        git clone --depth 1 --branch "$BRANCH" "$REPO_URL" . || error_exit "Failed to clone repository"
+    else
+        log "Directory not empty and no Git repo, initializing repository"
+        git init . || error_exit "Failed to initialize git repository"
+        git remote add origin "$REPO_URL" || error_exit "Failed to add remote origin"
+        git fetch --depth 1 origin "$BRANCH" || error_exit "Failed to fetch branch $BRANCH"
+        git checkout -b "$BRANCH" "origin/$BRANCH" || error_exit "Failed to checkout branch $BRANCH"
     fi
-
-    # Check if we're in the target directory
-    if [ "$current_dir" = "$TARGET_DIR" ]; then
-        echo "TARGET_DIR"
-        return
-    fi
-
-    # Check if target directory exists and is a valid git repo
-    if [ -d "$TARGET_DIR/.git" ]; then
-        echo "TARGET_EXISTS_VALID_REPO"
-        return
-    fi
-
-    # Check if target directory exists (but isn't a git repo)
-    if [ -d "$TARGET_DIR" ]; then
-        echo "TARGET_EXISTS_INVALID_REPO"
-        return
-    fi
-
-    # Default case – fresh installation
-    echo "FRESH_INSTALL"
-}
-
-# Execute context‑aware installation
-CONTEXT=$(detect_execution_context)
-log "Detected execution context: $CONTEXT"
-
-case "$CONTEXT" in
-    "EXISTING_REPO")
-        log "Running from existing repository – setting up in place"
-
-        # Ask user about repository handling
-        echo ""
-        echo "🔄 Repository Update Options:"
-        echo "1. Keep existing repository and try to update (preserves any local changes)"
-        echo "2. Fresh clone from GitHub (overwrites any local changes with latest version)"
-        echo ""
-        read -rp "Choose option (1 or 2, default is 1): " repo_choice
-        echo ""
-
-        if [[ "$repo_choice" == "2" ]]; then
-            log "User chose fresh clone – removing existing repository"
-            current_dir=$(pwd)
-            cd /tmp
-            rm -rf "$current_dir"
-
-            # Fresh clone
-            log "Fresh cloning repository to target directory"
-            run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
-            cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
-            log "Fresh repository cloned successfully"
-        else
-            log "User chose to keep existing repository"
-
-            # If we're not in the target directory, copy/move to target
-            if [ "$(pwd)" != "$TARGET_DIR" ]; then
-                log "Moving repository to standard location: $TARGET_DIR"
-
-                # Create backup if target exists
-                if [ -d "$TARGET_DIR" ]; then
-                    backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
-                    log "Creating backup: $backup_dir"
-                    mv "$TARGET_DIR" "$backup_dir"
-                fi
-
-                # Copy current repo to target location
-                run_as_user cp -r "$(pwd)" "$TARGET_DIR"
-                cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
-            fi
-
-            # Configure git to handle divergent branches
-            git config pull.rebase false || log "Warning: could not set git config"
-
-            # Update the repository with conflict resolution
-            log "Updating repository..."
-            if ! git fetch origin; then
-                log "Warning: fetch failed, continuing with existing code"
-            else
-                # Try to pull with automatic conflict resolution
-                if ! git pull origin main; then
-                    if ! git pull origin master; then
-                        log "Warning: pull failed due to conflicts, resetting to remote state"
-                        # Stash any local changes and reset to remote
-                        git stash push -m "Auto-stash during installation $(date)" || true
-                        git reset --hard origin/main || git reset --hard origin/master || log "Warning: could not reset to remote"
-                    fi
-                fi
-            fi
-        fi
-        ;;
-
-    "TARGET_DIR")
-        log "Already in target directory – updating repository"
-        if [ -d ".git" ]; then
-            git fetch origin || log "Warning: fetch failed, continuing"
-            git pull origin main || git pull origin master || log "Warning: pull failed, continuing"
-        else
-            log "Warning: In target directory but no git repository found"
-            # Try to initialize from remote
-            run_as_user git clone "$REPO_URL" temp_clone || error_exit "Failed to clone repository"
-            run_as_user cp -r temp_clone/* .
-            run_as_user cp -r temp_clone/.git .
-            run_as_user rm -rf temp_clone
-        fi
-        ;;
-
-    "TARGET_EXISTS_VALID_REPO")
-        log "Target directory exists with valid git repository – updating installation"
-        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
-        log "Valid git repository found, updating..."
-        run_as_user git fetch origin || log "Warning: fetch failed, continuing"
-        run_as_user git pull origin main || run_as_user git pull origin master || log "Warning: pull failed, continuing"
-        ;;
-
-    "TARGET_EXISTS_INVALID_REPO")
-        log "Target directory exists but is not a valid git repository – performing fresh clone"
-        # Create backup of existing directory
-        backup_dir="${TARGET_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
-        log "Creating backup: $backup_dir"
-        mv "$TARGET_DIR" "$backup_dir" || log "Warning: backup failed"
-
-        # Fresh clone
-        log "Cloning fresh repository..."
-        run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
-        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
-        log "Fresh repository cloned successfully"
-        ;;
-
-    "FRESH_INSTALL")
-        log "Fresh installation – cloning repository to target directory"
-
-        # Create parent directory if needed
-        run_as_user mkdir -p "$(dirname "$TARGET_DIR")"
-
-        # Clone repository
-        run_as_user git clone "$REPO_URL" "$TARGET_DIR" || error_exit "Failed to clone repository"
-        cd "$TARGET_DIR" || error_exit "Failed to change to target directory"
-        log "Repository cloned successfully to $TARGET_DIR"
-        ;;
-
-    *)
-        error_exit "Unknown execution context: $CONTEXT"
-        ;;
-esac
-
-# Verify we're in the correct location with the correct structure
-if [ ! -f "Project/main.py" ]; then
-    error_exit "Installation verification failed – Project/main.py not found in $(pwd)"
 fi
 
 log "✓ Repository setup complete – using directory: $(pwd)"
@@ -524,8 +380,25 @@ else
     REQUIREMENTS_PATH=""
 fi
 
-# Dependencies already installed in user context above
-log "=== Python dependencies installed successfully ==="
+# Install Python dependencies
+log "=== Installing Python dependencies ==="
+pip install --upgrade pip || log "Warning: pip upgrade failed, but continuing"
+
+# If we have a modified requirements file, use it
+if [ -n "$REQUIREMENTS_PATH" ]; then
+    log "Installing dependencies from modified requirements file..."
+    # Use --break-system-packages only if needed
+    if pip install -r "$REQUIREMENTS_PATH"; then
+        log "Dependencies installed successfully."
+    else
+        log "Initial installation failed, trying with --break-system-packages..."
+        pip install --break-system-packages -r "$REQUIREMENTS_PATH" || log "Warning: pip install failed, but continuing"
+    fi
+else
+    log "Installing essential packages individually..."
+    # Install everything except problem packages
+    pip install gitpython==3.1.31 requests==2.31.0 slack_sdk==3.21.3 lgpio==0.2.2.0 smbus2==0.4.1 pyserial==3.5 Flask==2.2.2 Jinja2==3.1.2 jsonschema==4.23.0 attrs==24.2.0 certifi==2024.8.30 idna==3.10 chardet==5.1.0 cryptography==38.0.4 matplotlib-inline==0.1.7 || log "Warning: individual package installation failed, but continuing"
+fi
 
 # Verify slack_sdk installation
 log "=== Verifying slack_sdk installation ==="
@@ -535,6 +408,44 @@ else
     log "Installing slack_sdk in venv..."
     run_as_user bash -c "source '$TARGET_DIR/venv/bin/activate' && pip install slack_sdk==3.21.3" \
         || error_exit "Failed to install slack_sdk"
+fi
+
+# Verify pyserial installation (needed for Teensy UART flow sensor)
+log "=== Verifying pyserial installation ==="
+if pip show pyserial > /dev/null; then
+    log "pyserial is installed correctly."
+else
+    log "Installing pyserial separately..."
+    pip install pyserial==3.5 --break-system-packages || error_exit "Failed to install pyserial"
+fi
+
+# Create persistent Teensy serial symlink and ensure permissions
+log "=== Creating persistent Teensy serial symlink ==="
+UDEV_RULE_PATH="/etc/udev/rules.d/99-teensy-flow.rules"
+sudo bash -c "cat > ${UDEV_RULE_PATH}" << 'EOF'
+# Teensy 4.x (Teensyduino Serial) stable symlink for RRR
+SUBSYSTEM=="tty", ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="0483", SYMLINK+="teensy_flow", MODE="0660", GROUP="dialout"
+EOF
+if [ $? -eq 0 ]; then
+    log "Udev rule installed at ${UDEV_RULE_PATH}"
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+else
+    log "Warning: failed to write udev rule at ${UDEV_RULE_PATH}"
+fi
+
+# Ensure user has serial access
+if groups $USER | grep -q dialout; then
+    log "User already in dialout group."
+else
+    log "Adding user ${USER} to dialout group (serial access)"
+    sudo usermod -a -G dialout $USER || log "Warning: failed to add user to dialout group"
+fi
+
+if [ -e "/dev/teensy_flow" ]; then
+    log "Detected /dev/teensy_flow symlink created successfully."
+else
+    log "Symlink /dev/teensy_flow not present yet. It will appear after replug or reboot."
 fi
 
 # Verify PyQt5 is accessible from the virtual environment
@@ -949,7 +860,7 @@ run_as_user chmod +x "$TARGET_DIR/test_hardware.sh"
 
 # Create a diagnostic script
 log "=== Creating diagnostic script ==="
-run_as_user bash -c "cat > '$TARGET_DIR/diagnose.sh' << 'EOF'
+run_as_user tee "$TARGET_DIR/diagnose.sh" > /dev/null << 'EOF'
 #!/bin/bash
 echo "=== RRR Diagnostic Script ==="
 echo "Checking environment..."
@@ -993,12 +904,11 @@ else
     ls -la
 fi
 EOF
-"
 run_as_user chmod +x "$TARGET_DIR/diagnose.sh"
 
 # Add quick fix script for missing pandas
 log "=== Creating quick fix script for missing packages ==="
-run_as_user bash -c "cat > '$TARGET_DIR/fix_dependencies.sh' << 'EOF'
+run_as_user tee "$TARGET_DIR/fix_dependencies.sh" > /dev/null << 'EOF'
 #!/bin/bash
 echo "=== RRR Dependency Fix Script ==="
 cd "$(dirname "$0")"
@@ -1040,12 +950,11 @@ pip install numpy matplotlib seaborn scipy scikit-learn statsmodels --break-syst
 
 echo "All dependencies should now be installed. Try running the application again."
 EOF
-"
 run_as_user chmod +x "$TARGET_DIR/fix_dependencies.sh"
 
 # Create an I2C troubleshooting script
 log "=== Creating I2C troubleshooting script ==="
-run_as_user bash -c ""cat > '$TARGET_DIR/fix_i2c.sh' << 'EOF'
+run_as_user tee "$TARGET_DIR/fix_i2c.sh" > /dev/null << 'EOF'
 #!/bin/bash
 echo "=== RRR I2C Troubleshooting Script ==="
 echo "This script helps diagnose and fix I2C connection issues."
@@ -1192,7 +1101,6 @@ else
     fi
 fi
 EOF
-"
 run_as_user chmod +x "$TARGET_DIR/fix_i2c.sh"
 
 # Disable power management and screen blanking
@@ -1302,7 +1210,22 @@ else
 fi
 
 echo ""
-echo "🎉 ===== INSTALLATION COMPLETE! ===== 🎉"
+echo "=== Installation complete! ==="
+echo ""
+echo "=== Flow Sensor Configuration Options ==="
+echo "1. UART Mode (Teensy Bridge) - RECOMMENDED for production"
+echo "   • Eliminates I²C conflicts with relay HAT"
+echo "   • More reliable sensor communication"
+echo "   • Setup: cd Project && ./setup_teensy_flow.sh"
+echo ""
+echo "2. I²C Mode (Direct Pi Connection) - Legacy/development only"
+echo "   • May have bus conflicts with relay HAT"
+echo "   • Already configured by this installer"
+echo ""
+echo "=== To run the application ==="
+echo "1. Double-click the desktop shortcut"
+echo "2. Run the startup script: ~/rodent-refreshment-regulator/start_rrr.sh"
+echo "3. Manually navigate to the Project directory and run: python3 main.py"
 echo ""
 echo "The Rodent Refreshment Regulator has been successfully installed!"
 echo "Installation directory: $TARGET_DIR"

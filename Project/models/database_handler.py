@@ -203,6 +203,57 @@ class DatabaseHandler:
                     )
                 ''')
 
+                # Add valve_calibration table for per-valve empirical calibration
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS valve_calibration (
+                        calibration_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cage_id INTEGER NOT NULL UNIQUE,
+                        relay_id INTEGER NOT NULL,
+                        pulse_width_ms INTEGER NOT NULL,
+                        volume_per_pulse_ml REAL NOT NULL,
+                        stddev_ml REAL,
+                        coefficient_of_variation_pct REAL,
+                        num_samples INTEGER NOT NULL,
+                        calibration_date TEXT NOT NULL,
+                        calibrated_by INTEGER,
+                        notes TEXT,
+                        FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+                
+                # Add valve_calibration_history table for tracking changes
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS valve_calibration_history (
+                        history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cage_id INTEGER NOT NULL,
+                        relay_id INTEGER NOT NULL,
+                        pulse_width_ms INTEGER NOT NULL,
+                        volume_per_pulse_ml REAL NOT NULL,
+                        stddev_ml REAL,
+                        coefficient_of_variation_pct REAL,
+                        num_samples INTEGER NOT NULL,
+                        calibration_date TEXT NOT NULL,
+                        calibrated_by INTEGER,
+                        notes TEXT,
+                        FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+                
+                # Add cage_names table for user-defined cage naming
+                # Design: Maps cage_id (1-15 per HAT) to user-friendly name
+                # Reference: SQLite Documentation - CREATE TABLE IF NOT EXISTS
+                # ensures idempotent schema creation
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS cage_names (
+                        cage_id INTEGER PRIMARY KEY,
+                        relay_id INTEGER NOT NULL,
+                        name TEXT NOT NULL DEFAULT '',
+                        description TEXT DEFAULT '',
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                ''')
+
                 # Add sex column to animals table if it doesn't exist
                 cursor.execute("PRAGMA table_info(animals)")
                 columns = [col[1] for col in cursor.fetchall()]
@@ -446,6 +497,68 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             print(f"Database error when removing schedule: {e}")
             traceback.print_exc()
+
+    def update_schedule(self, schedule_id, name=None, start_time=None, end_time=None, 
+                        water_volume=None, desired_outputs=None):
+        """
+        Update an existing schedule in the database.
+        
+        Args:
+            schedule_id: ID of the schedule to update
+            name: New schedule name (optional)
+            start_time: New start time as ISO string (optional)
+            end_time: New end time as ISO string (optional)
+            water_volume: New total water volume (optional)
+            desired_outputs: Dict of {animal_id: volume} to update per-animal outputs (optional)
+        
+        Best Practice:
+            - Only updates provided fields (None values are skipped)
+            - Uses parameterized queries for SQL injection prevention
+            - Transactional: all updates succeed or all fail
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                
+                # Build dynamic UPDATE query for schedules table
+                updates = []
+                params = []
+                
+                if name is not None:
+                    updates.append("name = ?")
+                    params.append(name)
+                if start_time is not None:
+                    updates.append("start_time = ?")
+                    params.append(start_time)
+                if end_time is not None:
+                    updates.append("end_time = ?")
+                    params.append(end_time)
+                if water_volume is not None:
+                    updates.append("water_volume = ?")
+                    params.append(water_volume)
+                
+                if updates:
+                    params.append(schedule_id)
+                    query = f"UPDATE schedules SET {', '.join(updates)} WHERE schedule_id = ?"
+                    cursor.execute(query, params)
+                
+                # Update per-animal desired outputs if provided
+                if desired_outputs:
+                    for animal_id, volume in desired_outputs.items():
+                        cursor.execute('''
+                            UPDATE schedule_desired_outputs 
+                            SET desired_water_output = ?
+                            WHERE schedule_id = ? AND animal_id = ?
+                        ''', (volume, schedule_id, int(animal_id)))
+                
+                conn.commit()
+                print(f"Schedule {schedule_id} updated successfully.")
+                return True
+                
+        except sqlite3.Error as e:
+            print(f"Database error when updating schedule: {e}")
+            traceback.print_exc()
+            return False
 
     def get_all_schedules(self):
         schedules = []
@@ -799,7 +912,7 @@ class DatabaseHandler:
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                timestamp = datetime.datetime.now().isoformat()
+                timestamp = datetime.now().isoformat()
                 cursor.execute('''
                     INSERT INTO logs (timestamp, action, super_user_id, details)
                     VALUES (?, ?, ?, ?)
@@ -1418,3 +1531,438 @@ class DatabaseHandler:
         except sqlite3.Error as e:
             print(f"Error updating system setting: {e}")
             return False
+    
+    # ==================== VALVE CALIBRATION METHODS ====================
+    
+    def save_valve_calibration(self, cage_id, relay_id, pulse_width_ms, 
+                               volume_per_pulse_ml, stddev_ml, cv_pct, 
+                               num_samples, calibrated_by=None, notes=None):
+        """
+        Save valve calibration data (per-valve empirical calibration).
+        
+        Args:
+            cage_id: Cage identifier
+            relay_id: Physical relay ID
+            pulse_width_ms: Pulse width used for calibration
+            volume_per_pulse_ml: Measured volume per pulse
+            stddev_ml: Standard deviation of measurements
+            cv_pct: Coefficient of variation percentage
+            num_samples: Number of pulses measured
+            calibrated_by: Trainer ID who performed calibration
+            notes: Optional notes
+        
+        Returns:
+            calibration_id if successful, None otherwise
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                calibration_date = datetime.now().isoformat()
+                
+                # Insert into history first
+                cursor.execute('''
+                    INSERT INTO valve_calibration_history 
+                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml, 
+                     stddev_ml, coefficient_of_variation_pct, num_samples, 
+                     calibration_date, calibrated_by, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+                      stddev_ml, cv_pct, num_samples, calibration_date,
+                      calibrated_by, notes))
+                
+                # Update or insert current calibration
+                cursor.execute('''
+                    INSERT OR REPLACE INTO valve_calibration 
+                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml, 
+                     stddev_ml, coefficient_of_variation_pct, num_samples, 
+                     calibration_date, calibrated_by, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+                      stddev_ml, cv_pct, num_samples, calibration_date,
+                      calibrated_by, notes))
+                
+                conn.commit()
+                calibration_id = cursor.lastrowid
+                
+                print(f"Valve calibration saved: cage={cage_id}, "
+                      f"{volume_per_pulse_ml:.6f}mL/pulse (CV: {cv_pct:.1f}%)")
+                
+                return calibration_id
+                
+        except sqlite3.Error as e:
+            print(f"Error saving valve calibration: {e}")
+            traceback.print_exc()
+            return None
+    
+    def get_valve_calibration(self, cage_id):
+        """
+        Get current calibration for a specific cage.
+        
+        Returns:
+            dict with calibration data, or None if not calibrated
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT calibration_id, cage_id, relay_id, pulse_width_ms,
+                           volume_per_pulse_ml, stddev_ml, 
+                           coefficient_of_variation_pct, num_samples,
+                           calibration_date, calibrated_by, notes
+                    FROM valve_calibration
+                    WHERE cage_id = ?
+                ''', (cage_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'calibration_id': row[0],
+                        'cage_id': row[1],
+                        'relay_id': row[2],
+                        'pulse_width_ms': row[3],
+                        'volume_per_pulse_ml': row[4],
+                        'stddev_ml': row[5],
+                        'coefficient_of_variation_pct': row[6],
+                        'num_samples': row[7],
+                        'calibration_date': row[8],
+                        'calibrated_by': row[9],
+                        'notes': row[10]
+                    }
+                return None
+                
+        except sqlite3.Error as e:
+            print(f"Error getting valve calibration: {e}")
+            return None
+    
+    def get_all_valve_calibrations(self):
+        """
+        Get calibration data for all valves.
+        
+        Returns:
+            dict mapping cage_id to calibration data
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT cage_id, relay_id, pulse_width_ms,
+                           volume_per_pulse_ml, stddev_ml,
+                           coefficient_of_variation_pct, num_samples,
+                           calibration_date, calibrated_by, notes
+                    FROM valve_calibration
+                    ORDER BY cage_id
+                ''')
+                
+                calibrations = {}
+                for row in cursor.fetchall():
+                    calibrations[row[0]] = {
+                        'cage_id': row[0],
+                        'relay_id': row[1],
+                        'pulse_width_ms': row[2],
+                        'volume_per_pulse_ml': row[3],
+                        'stddev_ml': row[4],
+                        'coefficient_of_variation_pct': row[5],
+                        'num_samples': row[6],
+                        'calibration_date': row[7],
+                        'calibrated_by': row[8],
+                        'notes': row[9]
+                    }
+                
+                return calibrations
+                
+        except sqlite3.Error as e:
+            print(f"Error getting valve calibrations: {e}")
+            return {}
+    
+    def get_valve_calibration_history(self, cage_id, limit=10):
+        """Get calibration history for a cage"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT history_id, cage_id, relay_id, pulse_width_ms,
+                           volume_per_pulse_ml, stddev_ml,
+                           coefficient_of_variation_pct, num_samples,
+                           calibration_date, calibrated_by, notes
+                    FROM valve_calibration_history
+                    WHERE cage_id = ?
+                    ORDER BY calibration_date DESC
+                    LIMIT ?
+                ''', (cage_id, limit))
+                
+                history = []
+                for row in cursor.fetchall():
+                    history.append({
+                        'history_id': row[0],
+                        'cage_id': row[1],
+                        'relay_id': row[2],
+                        'pulse_width_ms': row[3],
+                        'volume_per_pulse_ml': row[4],
+                        'stddev_ml': row[5],
+                        'coefficient_of_variation_pct': row[6],
+                        'num_samples': row[7],
+                        'calibration_date': row[8],
+                        'calibrated_by': row[9],
+                        'notes': row[10]
+                    })
+                
+                return history
+                
+        except sqlite3.Error as e:
+            print(f"Error getting valve calibration history: {e}")
+            return []
+    
+    # =========================================================================
+    # CAGE NAMES CRUD OPERATIONS
+    # =========================================================================
+    # Design: Provides user-friendly names for cages to help identify them
+    # in the schedule wizard and other UI components.
+    # Reference: SQLite3 Python docs - https://docs.python.org/3/library/sqlite3.html
+    # =========================================================================
+    
+    def get_cage_name(self, cage_id: int) -> dict:
+        """
+        Get the name and details for a specific cage.
+        
+        Args:
+            cage_id: The cage ID (1-15 per HAT)
+            
+        Returns:
+            dict with cage_id, relay_id, name, description, created_at, updated_at
+            or None if not found
+            
+        Design Pattern: Repository pattern for data access
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT cage_id, relay_id, name, description, created_at, updated_at
+                    FROM cage_names
+                    WHERE cage_id = ?
+                ''', (cage_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'cage_id': row[0],
+                        'relay_id': row[1],
+                        'name': row[2],
+                        'description': row[3],
+                        'created_at': row[4],
+                        'updated_at': row[5]
+                    }
+                return None
+                
+        except sqlite3.Error as e:
+            print(f"Error getting cage name for cage {cage_id}: {e}")
+            return None
+    
+    def get_all_cage_names(self) -> dict:
+        """
+        Get names for all cages.
+        
+        Returns:
+            dict mapping cage_id to cage data dict
+            
+        Use Case: Populate cage dropdowns in wizard
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT cage_id, relay_id, name, description, created_at, updated_at
+                    FROM cage_names
+                    ORDER BY cage_id
+                ''')
+                
+                cages = {}
+                for row in cursor.fetchall():
+                    cages[row[0]] = {
+                        'cage_id': row[0],
+                        'relay_id': row[1],
+                        'name': row[2],
+                        'description': row[3],
+                        'created_at': row[4],
+                        'updated_at': row[5]
+                    }
+                
+                return cages
+                
+        except sqlite3.Error as e:
+            print(f"Error getting all cage names: {e}")
+            return {}
+    
+    def set_cage_name(self, cage_id: int, relay_id: int, name: str, description: str = '') -> bool:
+        """
+        Set or update the name for a cage (INSERT or UPDATE - upsert pattern).
+        
+        Args:
+            cage_id: The cage ID (1-15 per HAT)
+            relay_id: The physical relay ID this cage maps to
+            name: User-friendly name for the cage
+            description: Optional description
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Design: Uses INSERT OR REPLACE for upsert semantics.
+        Reference: SQLite - INSERT OR REPLACE documentation
+        """
+        try:
+            now = datetime.now().isoformat()
+            
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                
+                # Check if exists to preserve created_at
+                cursor.execute('SELECT created_at FROM cage_names WHERE cage_id = ?', (cage_id,))
+                existing = cursor.fetchone()
+                created_at = existing[0] if existing else now
+                
+                cursor.execute('''
+                    INSERT OR REPLACE INTO cage_names 
+                    (cage_id, relay_id, name, description, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (cage_id, relay_id, name, description, created_at, now))
+                
+                conn.commit()
+                print(f"[DatabaseHandler] Set cage {cage_id} name to '{name}'")
+                return True
+                
+        except sqlite3.Error as e:
+            print(f"Error setting cage name for cage {cage_id}: {e}")
+            return False
+    
+    def delete_cage_name(self, cage_id: int) -> bool:
+        """
+        Delete a cage name entry (reverts to default "Cage N" display).
+        
+        Args:
+            cage_id: The cage ID to delete
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM cage_names WHERE cage_id = ?', (cage_id,))
+                conn.commit()
+                print(f"[DatabaseHandler] Deleted cage name for cage {cage_id}")
+                return True
+                
+        except sqlite3.Error as e:
+            print(f"Error deleting cage name for cage {cage_id}: {e}")
+            return False
+    
+    def initialize_default_cage_names(self, num_hats: int = 1, master_relay: int = 16) -> None:
+        """
+        Initialize default cage names for all available cages.
+        
+        Called on first run or when user wants to reset to defaults.
+        Does NOT overwrite existing names (only inserts if not exists).
+        
+        Args:
+            num_hats: Number of relay HATs installed (default 1)
+            master_relay: The relay ID reserved for master solenoid (default 16)
+            
+        Design: 
+        - Solenoid mode: 15 cages per HAT (cage 16 is master)
+        - Uses INSERT OR IGNORE to preserve existing user customizations
+        
+        Reference: SQLite INSERT OR IGNORE documentation
+        """
+        try:
+            now = datetime.now().isoformat()
+            
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                
+                cage_id = 1
+                for hat_index in range(num_hats):
+                    base_relay = hat_index * 16
+                    
+                    for relay_offset in range(1, 17):
+                        relay_id = base_relay + relay_offset
+                        
+                        # Skip master relay
+                        if relay_id == master_relay:
+                            continue
+                        
+                        # Default name: "Cage N"
+                        default_name = f"Cage {cage_id}"
+                        
+                        # INSERT OR IGNORE preserves existing customizations
+                        cursor.execute('''
+                            INSERT OR IGNORE INTO cage_names 
+                            (cage_id, relay_id, name, description, created_at, updated_at)
+                            VALUES (?, ?, ?, '', ?, ?)
+                        ''', (cage_id, relay_id, default_name, now, now))
+                        
+                        cage_id += 1
+                
+                conn.commit()
+                print(f"[DatabaseHandler] Initialized default cage names for {num_hats} HAT(s)")
+                
+        except sqlite3.Error as e:
+            print(f"Error initializing default cage names: {e}")
+    
+    def get_cages_for_dropdown(self, num_hats: int = 1, master_relay: int = 16) -> list:
+        """
+        Get cage data formatted for dropdown/combobox display.
+        
+        Returns a list of dicts with display_name for filtering/searching.
+        Includes both user-defined name and cage ID for comprehensive search.
+        
+        Args:
+            num_hats: Number of relay HATs (for generating full list)
+            master_relay: Master relay to exclude
+            
+        Returns:
+            List of dicts: [{'cage_id': 1, 'relay_id': 1, 'name': 'Mouse A', 
+                           'display_name': 'Cage 1 - Mouse A'}, ...]
+                           
+        Use Case: Filterable QComboBox in schedule wizard
+        """
+        # First ensure defaults exist
+        self.initialize_default_cage_names(num_hats, master_relay)
+        
+        # Get all cage names
+        cage_names = self.get_all_cage_names()
+        
+        # Build dropdown list
+        cages = []
+        cage_id = 1
+        
+        for hat_index in range(num_hats):
+            base_relay = hat_index * 16
+            
+            for relay_offset in range(1, 17):
+                relay_id = base_relay + relay_offset
+                
+                if relay_id == master_relay:
+                    continue
+                
+                # Get custom name or use default
+                cage_data = cage_names.get(cage_id, {})
+                name = cage_data.get('name', f"Cage {cage_id}")
+                description = cage_data.get('description', '')
+                
+                # Build display name for dropdown: "Cage N - CustomName"
+                if name == f"Cage {cage_id}":
+                    display_name = name  # Just "Cage N" if no custom name
+                else:
+                    display_name = f"Cage {cage_id} - {name}"
+                
+                cages.append({
+                    'cage_id': cage_id,
+                    'relay_id': relay_id,
+                    'name': name,
+                    'description': description,
+                    'display_name': display_name
+                })
+                
+                cage_id += 1
+        
+        return cages

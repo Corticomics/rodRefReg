@@ -2,7 +2,8 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QInputDialog,
-    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox, QSizePolicy
+    QPushButton, QMessageBox, QScrollArea, QListWidget, QListWidgetItem, QComboBox, QDialog, QGroupBox,
+    QStackedWidget, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData, QRect, QPoint, QSize, QThread
 from PyQt5.QtGui import QDrag, QPixmap, QPainter, QLinearGradient, QPen, QColor, QFont
@@ -10,56 +11,36 @@ from datetime import datetime
 from .relay_unit_widget import RelayUnitWidget, WaterDeliverySlot
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
-from .available_animals_list import AvailableAnimalsList  # Import the custom list
+from .available_animals_list import AvailableAnimalsList
+from .schedule_wizard import ScheduleCreationWizard
 import traceback
 
 class SchedulesTab(QWidget):
     mode_changed = pyqtSignal(str)  # Signal to emit mode changes
     assignments_cleared = pyqtSignal()  # New signal for when assignments are cleared
 
-    def __init__(self, settings, print_to_terminal, database_handler, login_system):
+    def __init__(self, settings, print_to_terminal, database_handler, login_system, 
+                 system_controller=None):
         super().__init__()
 
         self.settings = settings
         self.print_to_terminal = print_to_terminal
         self.database_handler = database_handler
         self.login_system = login_system
+        self.system_controller = system_controller  # For hardware limits
         self.pump_controller = settings.get('pump_controller')
         self.relay_units = {}  # Dictionary to store relay unit widgets by ID
 
         # Main layout
         main_layout = QHBoxLayout()
-        main_layout.setContentsMargins(10, 10, 10, 10)  # Restore reasonable margins
-        
-        # Common GroupBox style for all columns
-        groupbox_style = """
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #e0e4e8;
-                border-radius: 8px;
-                margin-top: 1.5ex;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top center;
-                padding: 0 5px;
-                background-color: white;
-            }
-        """
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
         # Available animals section (left column)
         self.available_animals_list = AvailableAnimalsList(self.database_handler, self)
-        available_animals_group = QGroupBox("Animals")
-        available_animals_group.setStyleSheet(groupbox_style + """
-            QGroupBox::title {
-                font-size: 12px;
-                padding: 0 3px;
-            }
-        """)
+        available_animals_group = QGroupBox("Available Animals")
         available_animals_layout = QVBoxLayout()
-        available_animals_layout.setContentsMargins(4, 8, 4, 4)
-        available_animals_layout.setSpacing(4)
+        available_animals_layout.setContentsMargins(12, 12, 12, 12)
+        available_animals_layout.setSpacing(8)
         
         # Add mode selector at the top - stack vertically to save horizontal space
         mode_layout = QVBoxLayout()
@@ -71,20 +52,6 @@ class SchedulesTab(QWidget):
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Staggered", "Instant"])
         self.mode_selector.currentTextChanged.connect(self.on_mode_changed)
-        self.mode_selector.setStyleSheet("""
-            QComboBox {
-                background-color: #1a73e8;
-                color: blue;
-                border: none;
-                border-radius: 4px;
-                padding: 2px 4px;
-                font-size: 11px;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 15px;
-            }
-        """)
         mode_layout.addWidget(mode_label)
         mode_layout.addWidget(self.mode_selector)
         available_animals_layout.addLayout(mode_layout)
@@ -112,44 +79,30 @@ class SchedulesTab(QWidget):
         self.relay_units_container.setWidget(relay_units_widget)
         
         relay_units_group = QGroupBox("Relay Units")
-        relay_units_group.setStyleSheet(groupbox_style)
         relay_units_group_layout = QVBoxLayout()
+        relay_units_group_layout.setContentsMargins(12, 12, 12, 12)
+        relay_units_group_layout.setSpacing(8)
         
         # Add Clear All Assignments button at the top
         self.clear_assignments_button = QPushButton("Clear All Assignments")
-        self.clear_assignments_button.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 12px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
+        self.clear_assignments_button.setProperty("variant", "danger")
         self.clear_assignments_button.clicked.connect(self.clear_all)
         relay_units_group_layout.addWidget(self.clear_assignments_button)
         relay_units_group_layout.addWidget(self.relay_units_container)
         relay_units_group.setLayout(relay_units_group_layout)
         
         # Saved schedules section (right column)
-        schedules_group = QGroupBox("Schedules")
-        schedules_group.setStyleSheet(groupbox_style + """
-            QGroupBox::title {
-                font-size: 12px;
-                padding: 0 3px;
-            }
-        """)
+        schedules_group = QGroupBox("Saved Schedules")
         schedules_layout = QVBoxLayout()
-        schedules_layout.setContentsMargins(4, 8, 4, 4)
-        schedules_layout.setSpacing(4)
+        schedules_layout.setContentsMargins(12, 12, 12, 12)
+        schedules_layout.setSpacing(8)
+        
+        # NEW: Create New Schedule button (opens wizard)
+        self.new_schedule_button = QPushButton("+ New Schedule (Wizard)")
+        self.new_schedule_button.setMinimumHeight(44)
+        self.new_schedule_button.setProperty("variant", "primary")
+        self.new_schedule_button.clicked.connect(self.open_schedule_wizard)
+        schedules_layout.addWidget(self.new_schedule_button)
         
         # Schedule list widget with improved styling
         self.schedule_list = QListWidget()
@@ -158,47 +111,11 @@ class SchedulesTab(QWidget):
         # Connect mousePressEvent to handle dragging schedules
         self.schedule_list.mousePressEvent = self.schedule_list_mouse_press
         self.schedule_list.setDragEnabled(True)  # Enable dragging from the list
-        self.schedule_list.setStyleSheet("""
-            QListWidget {
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-                padding: 2px;
-                margin-bottom: 8px;
-                background-color: #f8f9fa;
-                font-size: 11px;
-            }
-            QListWidget::item {
-                padding: 3px;
-                border-bottom: 1px solid #f0f0f0;
-                min-height: 18px;
-            }
-            QListWidget::item:selected {
-                background-color: #e8f0fe;
-                color: #1a73e8;
-            }
-        """)
         schedules_layout.addWidget(self.schedule_list)
         
-        # Save Schedule button - the only button we'll keep
-        self.save_button = QPushButton("Save Schedule")
-        self.save_button.setMinimumHeight(30)  # Slightly smaller
-        self.save_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1666d4;
-            }
-            QPushButton:pressed {
-                background-color: #125bbf;
-            }
-        """)
+        # Save Schedule button (for legacy manual assignment flow)
+        self.save_button = QPushButton("Save Current Assignments")
+        self.save_button.setMinimumHeight(40)
         self.save_button.clicked.connect(self.save_current_schedule)
         schedules_layout.addWidget(self.save_button)
         
@@ -233,99 +150,103 @@ class SchedulesTab(QWidget):
         # Connect assignments_cleared signal to refresh method
         self.assignments_cleared.connect(self.refresh)
 
-        # Refine table headers styling
-        self.setStyleSheet("""
-            QHeaderView::section {
-                background-color: #f8f9fa;
-                color: #5f6368;
-                padding: 8px;
-                border: none;
-                border-bottom: 1px solid #e0e4e8;
-                font-weight: 500;
-                font-size: 12px;
-            }
-            
-            QTableWidget {
-                gridline-color: #f0f0f0;
-                border: 1px solid #e0e4e8;
-                border-radius: 4px;
-            }
-            
-            QTableWidget::item {
-                padding: 4px 8px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QScrollArea:hover QScrollBar::handle:horizontal, 
-            QScrollArea:hover QScrollBar::handle:vertical,
-            QListWidget:hover QScrollBar::handle:horizontal,
-            QListWidget:hover QScrollBar::handle:vertical,
-            QTableWidget:hover QScrollBar::handle:horizontal, 
-            QTableWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on hover */
-            }
-        """)
+        # Inherit table and scrollbar styling from app QSS (no per-widget CSS)
+    
+    def open_schedule_wizard(self):
+        """
+        Open the Schedule Creation Wizard in a dialog.
+        
+        RSO-Inspired Pattern:
+        - 4-step guided flow: Type → Animals → Parameters → Review
+        - Cleaner UX compared to drag-and-drop
+        - Signal-based completion for loose coupling
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Create New Schedule")
+        dialog.setMinimumSize(800, 600)
+        dialog.setModal(True)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create wizard (pass system_controller for hardware limits)
+        wizard = ScheduleCreationWizard(
+            database_handler=self.database_handler,
+            login_system=self.login_system,
+            system_controller=self.system_controller,
+            parent=dialog
+        )
+        
+        # Connect signals
+        wizard.schedule_created.connect(lambda config: self._on_wizard_complete(config, dialog))
+        wizard.cancelled.connect(dialog.reject)
+        
+        layout.addWidget(wizard)
+        
+        dialog.exec_()
+    
+    def _on_wizard_complete(self, config: dict, dialog: QDialog) -> None:
+        """Handle successful schedule creation from wizard."""
+        dialog.accept()
+        
+        # Refresh schedule list
+        self.load_schedules()
+        
+        # Show success message
+        schedule_name = config.get("parameters", {}).get("name", "New Schedule")
+        self.print_to_terminal(f"Schedule '{schedule_name}' created successfully via wizard")
 
         # Set maximum width on the available animals list to force it to be narrow
         self.available_animals_list.setMaximumWidth(200)
 
     def initialize_relay_units(self):
-        """Initialize the relay unit widgets based on the database configuration."""
+        """
+        Initialize relay unit widgets based on hardware mode.
+        
+        Architecture:
+        - Uses RelayUnitManager from settings (mode-aware)
+        - Falls back to database or defaults if manager unavailable
+        - Creates UI widgets for each configured relay unit
+        
+        Best Practices:
+        - Single source of truth (settings/RelayUnitManager)
+        - Graceful degradation (fallbacks for legacy configs)
+        - Separation of concerns (UI widgets vs business logic)
+        """
         # Clear existing relay units
         self.clear_relay_units_layout()
         
-        # Get relay units from database or use defaults if not configured
-        try:
-            # Try to use get_relay_units first
-            relay_units = self.database_handler.get_relay_units()
-        except AttributeError:
-            try:
-                # Fall back to get_all_relay_units if available
-                print("Falling back to get_all_relay_units")
-                relay_units = self.database_handler.get_all_relay_units()
-            except AttributeError:
-                # No relay unit retrieval method available, use defaults
-                print("No relay unit retrieval method available, using defaults")
-                relay_units = []
+        relay_units = []
         
+        # Priority 1: Get relay units from RelayUnitManager in settings (mode-aware)
+        relay_unit_manager = self.settings.get('relay_unit_manager')
+        if relay_unit_manager and hasattr(relay_unit_manager, 'get_all_relay_units'):
+            relay_units = relay_unit_manager.get_all_relay_units()
+            hardware_mode = getattr(relay_unit_manager, 'hardware_mode', 'unknown')
+            print(f"[SchedulesTab] Loaded {len(relay_units)} relay units from RelayUnitManager ({hardware_mode} mode)")
+        
+        # Priority 2: Fall back to database (legacy compatibility)
+        elif not relay_units:
+            try:
+                relay_units = self.database_handler.get_relay_units()
+                print(f"[SchedulesTab] Loaded {len(relay_units)} relay units from database")
+            except AttributeError:
+                try:
+                    relay_units = self.database_handler.get_all_relay_units()
+                    print(f"[SchedulesTab] Loaded {len(relay_units)} relay units from database (alt method)")
+                except AttributeError:
+                    print("[SchedulesTab] No database method available for relay units")
+        
+        # Priority 3: Use hardcoded defaults (pump mode, 6 paired units)
         if not relay_units or len(relay_units) == 0:
-            # Default setup: 6 relay units with 2 relays each
+            print("[SchedulesTab] No relay units found, using default pump mode configuration")
             relay_units = []
             for i in range(1, 7):
                 relay_ids = (i * 2 - 1, i * 2)
                 relay_unit = RelayUnit(i, relay_ids)
                 relay_units.append(relay_unit)
         
-        # Create widgets for each relay unit
+        # Create UI widgets for each relay unit
         for relay_unit in relay_units:
             widget = RelayUnitWidget(
                 relay_unit,
@@ -337,6 +258,8 @@ class SchedulesTab(QWidget):
             widget.set_mode(self.mode_selector.currentText())
             self.relay_units[relay_unit.unit_id] = widget
             self.relay_units_layout.addWidget(widget)
+        
+        print(f"[SchedulesTab] Initialized {len(self.relay_units)} relay unit widgets")
         
     def clear_relay_units_layout(self):
         """Clear all relay unit widgets from the layout."""

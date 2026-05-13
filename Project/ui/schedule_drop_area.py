@@ -23,25 +23,13 @@ class ScheduleDropArea(QWidget):
         
         # Drop area
         self.drop_widget = QWidget()
-        self.drop_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; 
-                border: 2px dashed #1a73e8;
-                border-radius: 4px;
-                min-height: 80px;
-            }
-        """)
+        self.drop_widget.setObjectName("DropArea")
+        self.drop_widget.setProperty("state", "idle")
         self.drop_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         # Placeholder label
         self.placeholder = QLabel("Drop Schedule Here")
         self.placeholder.setAlignment(Qt.AlignCenter)
-        self.placeholder.setStyleSheet("""
-            border: none; 
-            background: none;
-            font-size: 14px;
-            color: #5f6368;
-        """)
         
         drop_layout = QVBoxLayout()
         drop_layout.addWidget(self.placeholder)
@@ -53,42 +41,7 @@ class ScheduleDropArea(QWidget):
         self.schedule_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.schedule_table.hide()
         
-        # Apply custom scrollbar style to the entire widget
-        self.setStyleSheet("""
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QWidget:hover QScrollBar::handle:horizontal, 
-            QWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on widget hover */
-            }
-        """)
+        # Scrollbars inherit from app QSS
         
         self.layout.addWidget(self.drop_widget)
         self.layout.addWidget(self.schedule_table)
@@ -108,27 +61,15 @@ class ScheduleDropArea(QWidget):
         
         if mime_data.hasFormat('application/x-schedule'):
             print(f"Accepting drag with schedule data")
-            # Change the appearance to indicate a valid drop target
-            self.drop_widget.setStyleSheet("""
-                QWidget {
-                    background-color: #e8f0fe; 
-                    border: 3px solid #1a73e8;
-                    border-radius: 4px;
-                    min-height: 80px;
-                }
-            """)
+            self.drop_widget.setProperty("state", "drag")
+            self.drop_widget.style().unpolish(self.drop_widget)
+            self.drop_widget.style().polish(self.drop_widget)
             event.acceptProposedAction()
         elif mime_data.hasText():
             print(f"Accepting drag with text: {mime_data.text()}")
-            # Change the appearance to indicate a valid drop target
-            self.drop_widget.setStyleSheet("""
-                QWidget {
-                    background-color: #e8f0fe; 
-                    border: 3px solid #1a73e8;
-                    border-radius: 4px;
-                    min-height: 80px;
-                }
-            """)
+            self.drop_widget.setProperty("state", "drag")
+            self.drop_widget.style().unpolish(self.drop_widget)
+            self.drop_widget.style().polish(self.drop_widget)
             event.acceptProposedAction()
         else:
             print(f"Rejecting drag - no recognized format")
@@ -136,15 +77,9 @@ class ScheduleDropArea(QWidget):
     def dragLeaveEvent(self, event):
         """Reset appearance when drag leaves the area"""
         print("Drag left the drop area")
-        # Reset the appearance
-        self.drop_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; 
-                border: 2px dashed #1a73e8;
-                border-radius: 4px;
-                min-height: 80px;
-            }
-        """)
+        self.drop_widget.setProperty("state", "idle")
+        self.drop_widget.style().unpolish(self.drop_widget)
+        self.drop_widget.style().polish(self.drop_widget)
             
     def dropEvent(self, event):
         print(f"Drop event received")
@@ -152,15 +87,9 @@ class ScheduleDropArea(QWidget):
         formats = data.formats()
         print(f"Available formats: {formats}")
         
-        # Reset the appearance
-        self.drop_widget.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa; 
-                border: 2px dashed #1a73e8;
-                border-radius: 4px;
-                min-height: 80px;
-            }
-        """)
+        self.drop_widget.setProperty("state", "idle")
+        self.drop_widget.style().unpolish(self.drop_widget)
+        self.drop_widget.style().polish(self.drop_widget)
         
         if data.hasFormat('application/x-schedule'):
             try:
@@ -177,7 +106,8 @@ class ScheduleDropArea(QWidget):
                 schedule_detail = schedule_details[0]
                 print(f"Retrieved schedule details: {schedule_detail}")
                 
-                # Create Schedule instance without relay_unit_id
+                # Create Schedule instance with all available data
+                # This caches data to avoid re-querying on run
                 self.current_schedule = Schedule(
                     schedule_id=schedule_dict['schedule_id'],
                     name=schedule_dict['name'],
@@ -188,6 +118,11 @@ class ScheduleDropArea(QWidget):
                     is_super_user=schedule_dict['is_super_user'],
                     delivery_mode=schedule_detail['delivery_mode']
                 )
+                
+                # Cache animal IDs and relay assignments to avoid re-query on run
+                self.current_schedule.animals = schedule_detail.get('animal_ids', [])
+                self.current_schedule.relay_unit_assignments = schedule_detail.get('relay_unit_assignments', {})
+                self.current_schedule.desired_water_outputs = schedule_detail.get('desired_water_outputs', {})
                 
                 # Load instant deliveries if in instant mode
                 if self.current_schedule.delivery_mode.lower() == 'instant':
@@ -357,11 +292,16 @@ class ScheduleDropArea(QWidget):
                         self.schedule_table.setItem(row, 1, name_item)
                         self.schedule_table.setItem(row, 2, vol_item)
                         
-                        # Format start/end times
-                        start_time = QDateTime.fromString(schedule.start_time, "yyyy-MM-ddTHH:mm:ss") \
-                            .toString("yyyy-MM-dd HH:mm:ss")
-                        end_time = QDateTime.fromString(schedule.end_time, "yyyy-MM-ddTHH:mm:ss") \
-                            .toString("yyyy-MM-dd HH:mm:ss")
+                        # Format start/end times (handle with or without microseconds)
+                        try:
+                            # Try parsing with microseconds first
+                            start_dt = datetime.datetime.fromisoformat(schedule.start_time)
+                            end_dt = datetime.datetime.fromisoformat(schedule.end_time)
+                            start_time = start_dt.strftime("%Y-%m-%d %H:%M")
+                            end_time = end_dt.strftime("%Y-%m-%d %H:%M")
+                        except (ValueError, TypeError):
+                            start_time = schedule.start_time or ""
+                            end_time = schedule.end_time or ""
                             
                         start_item = QTableWidgetItem(start_time)
                         end_item = QTableWidgetItem(end_time)

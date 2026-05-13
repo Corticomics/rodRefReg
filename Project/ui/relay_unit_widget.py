@@ -35,8 +35,7 @@ class WaterDeliverySlot(QWidget):
         self.datetime_picker.setDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setDisplayFormat("yyyy-MM-dd hh:mm AP")
-        self.datetime_picker.setMinimumWidth(180)
-        self.datetime_picker.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        # Keep natural size; avoid inline styling for theme consistency
         
         # Volume label and input
         volume_label = QLabel("Volume (mL):")
@@ -45,30 +44,10 @@ class WaterDeliverySlot(QWidget):
         self.volume_input.setFixedWidth(100)
         self.volume_input.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
-        # Delete button with refined styling
+        # Delete button with variant styling
         self.delete_button = QPushButton("×")
-        self.delete_button.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 2px;
-                min-width: 24px;
-                min-height: 24px;
-                max-width: 24px;
-                max-height: 24px;
-                font-size: 16px;
-                font-weight: bold;
-                margin: 0px;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
+        self.delete_button.setProperty("variant", "danger")
+        self.delete_button.setFixedSize(24, 24)
         self.delete_button.clicked.connect(self.handle_delete)
         self.delete_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         
@@ -125,26 +104,13 @@ class RelayUnitWidget(QWidget):
         # Title Label
         self.title_label = QLabel(f"Relay Unit {relay_unit.unit_id}")
         self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet("""
-            font-weight: bold;
-            font-size: 14px;
-            color: #333;
-            padding: 4px;
-        """)
         self.layout.addWidget(self.title_label)
 
         # Drag-and-Drop Area - keep visible
         self.drag_area_label = QLabel("Drop Animal Here")
         self.drag_area_label.setAlignment(Qt.AlignCenter)
-        self.drag_area_label.setStyleSheet("""
-            background-color: #f8f9fa; 
-            border: 2px dashed #1a73e8; 
-            font-size: 14px;
-            color: #5f6368;
-            min-height: 50px;
-            border-radius: 4px;
-            padding: 8px;
-        """)
+        self.drag_area_label.setObjectName("DropArea")
+        self.drag_area_label.setProperty("state", "idle")
         self.layout.addWidget(self.drag_area_label)
 
         # Enable drag-and-drop
@@ -183,86 +149,11 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setShowGrid(True)       # Show grid for better visibility
         self.animal_table.setAlternatingRowColors(True)  # Alternate row colors
         
-        # Enhanced table styling with better contrast and readability
-        self.animal_table.setStyleSheet("""
-            QTableWidget {
-                font-size: 13px;              /* Larger font size for readability */
-                border: 1px solid #1a73e8;    /* Blue border to match application theme */
-                border-radius: 4px;
-                gridline-color: #d0d0d0;      /* Darker grid lines for visibility */
-                background-color: white;
-            }
-            QHeaderView::section {
-                font-size: 13px;              /* Larger font */
-                font-weight: bold;
-                padding: 8px;                 /* More padding */
-                background-color: #e8f0fe;    /* Light blue header background */
-                border: 1px solid #1a73e8;    /* Blue border to match theme */
-                border-bottom: 2px solid #1a73e8;
-                color: #1a73e8;               /* Blue text for headers */
-            }
-            QTableWidget::item {
-                padding: 8px;                 /* More padding in cells */
-                border-bottom: 1px solid #e0e4e8;
-                color: #333333;               /* Darker text for better readability */
-                font-weight: 500;             /* Slightly bolder text */
-            }
-            QTableWidget::item:selected {
-                background-color: #e8f0fe;    /* Light blue selection */
-                color: #1a73e8;               /* Blue text on selection */
-            }
-            /* Scrollbar styling - appear only on hover */
-            QScrollBar:horizontal {
-                height: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar:vertical {
-                width: 8px;
-                background: transparent;
-                margin: 0px;
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal, QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.2);  /* Transparent blue matching theme */
-                border-radius: 4px;
-            }
-            QScrollBar::handle:horizontal:hover, QScrollBar::handle:vertical:hover {
-                background: rgba(26, 115, 232, 0.5);  /* More visible on handle hover */
-            }
-            /* Hide scrollbar when not needed */
-            QScrollBar::add-line, QScrollBar::sub-line {
-                width: 0px;
-                height: 0px;
-            }
-            QScrollBar::add-page, QScrollBar::sub-page {
-                background: transparent;
-            }
-            /* Hide scrollbar until hover */
-            QTableWidget {
-                /* Start with transparent scrollbars */
-                scrollbar-width: thin;
-            }
-            QTableWidget:hover QScrollBar::handle:horizontal, 
-            QTableWidget:hover QScrollBar::handle:vertical {
-                background: rgba(26, 115, 232, 0.5);  /* Show on table hover */
-            }
-        """)
+        # Inherit table styling from app QSS
         self.layout.addWidget(self.animal_table)
 
         # Water Volume Display - improved styling
         self.recommended_water_label = QLabel("Recommended water volume: N/A")
-        self.recommended_water_label.setStyleSheet("""
-            font-size: 13px;
-            padding: 8px;
-            background-color: #e8f0fe;         /* Light blue background */
-            border: 1px solid #1a73e8;         /* Blue border */
-            border-radius: 4px;
-            color: #1a73e8;                    /* Blue text to match theme */
-            font-weight: 500;
-            margin-top: 4px;
-        """)
         self.layout.addWidget(self.recommended_water_label)
 
         # Instant Delivery Components
@@ -286,22 +177,7 @@ class RelayUnitWidget(QWidget):
         
         # Add delivery slot button for instant mode
         self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
-        self.add_instant_slot_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #1666d4;
-            }
-            QPushButton:pressed {
-                background-color: #125bbf;
-            }
-        """)
+        self.add_instant_slot_button.setProperty("variant", "primary")
         self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
         self.layout.addWidget(self.add_instant_slot_button)
         
@@ -314,22 +190,7 @@ class RelayUnitWidget(QWidget):
         
         # Add delivery slot button for staggered mode
         self.add_staggered_slot_button = QPushButton("+ Add Time Window")
-        self.add_staggered_slot_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1a73e8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 5px;
-                font-size: 12px;
-            }
-            QPushButton:hover {
-                background-color: #1666d4;
-            }
-            QPushButton:pressed {
-                background-color: #125bbf;
-            }
-        """)
+        self.add_staggered_slot_button.setProperty("variant", "primary")
         self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
         self.layout.addWidget(self.add_staggered_slot_button)
         
@@ -347,17 +208,10 @@ class RelayUnitWidget(QWidget):
             event (QDragEnterEvent): The drag enter event.
         """
         if event.mimeData().hasFormat('application/x-animal-id'):
-            # Change the appearance to indicate a valid drop target
-            self.drag_area_label.setStyleSheet("""
-                background-color: #e8f0fe; 
-                border: 3px solid #1a73e8; 
-                font-size: 14px;
-                color: #1a73e8;
-                font-weight: bold;
-                min-height: 50px;
-                border-radius: 4px;
-                padding: 8px;
-            """)
+            # Indicate valid drop target via property
+            self.drag_area_label.setProperty("state", "drag")
+            self.drag_area_label.style().unpolish(self.drag_area_label)
+            self.drag_area_label.style().polish(self.drag_area_label)
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -369,16 +223,10 @@ class RelayUnitWidget(QWidget):
         Args:
             event (QDragLeaveEvent): The drag leave event.
         """
-        # Reset the appearance
-        self.drag_area_label.setStyleSheet("""
-            background-color: #f8f9fa; 
-            border: 2px dashed #1a73e8; 
-            font-size: 14px;
-            color: #5f6368;
-            min-height: 50px;
-            border-radius: 4px;
-            padding: 8px;
-        """)
+        # Reset appearance
+        self.drag_area_label.setProperty("state", "idle")
+        self.drag_area_label.style().unpolish(self.drag_area_label)
+        self.drag_area_label.style().polish(self.drag_area_label)
 
     def dropEvent(self, event):
         """
@@ -387,16 +235,10 @@ class RelayUnitWidget(QWidget):
         Args:
             event (QDropEvent): The drop event.
         """
-        # Reset the appearance
-        self.drag_area_label.setStyleSheet("""
-            background-color: #f8f9fa; 
-            border: 2px dashed #1a73e8; 
-            font-size: 14px;
-            color: #5f6368;
-            min-height: 50px;
-            border-radius: 4px;
-            padding: 8px;
-        """)
+        # Reset appearance
+        self.drag_area_label.setProperty("state", "idle")
+        self.drag_area_label.style().unpolish(self.drag_area_label)
+        self.drag_area_label.style().polish(self.drag_area_label)
         
         source_widget = event.source()
         if isinstance(source_widget, AvailableAnimalsList):  # Ensure source is the custom list
