@@ -153,7 +153,7 @@ class RodentRefreshmentGUI(QWidget):
         self.settings_tab = None  # Will be set later
         
         # User tab (tab3)
-        self.user_tab = UserTab(self.database_handler, self.login_system, self.print_to_terminal)
+        self.user_tab = UserTab(self.login_system, self.database_handler)
         self.tab_widget.addTab(self.user_tab, "Users")
         
         # Help tab (tab4)
