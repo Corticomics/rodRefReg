@@ -157,7 +157,7 @@ class RodentRefreshmentGUI(QWidget):
         self.tab_widget.addTab(self.user_tab, "Users")
         
         # Help tab (tab4)
-        self.help_tab = HelpTab(self.database_handler)
+        self.help_tab = HelpTab()
         self.tab_widget.addTab(self.help_tab, "Help")
         
         # IR Drinking Analysis tab (if enabled)
