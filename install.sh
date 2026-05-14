@@ -36,7 +36,11 @@ BRANCH=""
 ONLY=""
 SKIP=()
 
-usage() { sed -n '2,16p' "$SCRIPT_PATH" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() {
+  # Print the top-of-file doc block (the "# ..." comment lines after the shebang).
+  awk 'NR>1 && /^#/{ sub(/^# ?/,""); print; next } NR>1{ exit }' "$SCRIPT_PATH"
+  exit "${1:-0}"
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

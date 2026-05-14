@@ -132,6 +132,7 @@ _lib_cleanup() {
   for d in "${_RRR_TMPDIRS[@]:-}"; do
     [[ -n "$d" && -d "$d" ]] && rm -rf "$d"
   done
+  return 0
 }
 trap _lib_cleanup EXIT
 

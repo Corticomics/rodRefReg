@@ -9,9 +9,14 @@ TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 BIN_DIR="$TARGET_HOME/.local/bin"
 APPS_DIR="$TARGET_HOME/.local/share/applications"
 UNIT_DIR="$TARGET_HOME/.config/systemd/user"
+# Localized "Desktop" folder name varies by locale; honor the user's setting.
+DESKTOP_DIR=$(
+  sudo -u "$TARGET_USER" -- xdg-user-dir DESKTOP 2>/dev/null \
+    || echo "$TARGET_HOME/Desktop"
+)
 
 run install -d -m 0755 -o "$TARGET_USER" -g "$TARGET_USER" \
-  "$BIN_DIR" "$APPS_DIR" "$UNIT_DIR"
+  "$BIN_DIR" "$APPS_DIR" "$UNIT_DIR" "$DESKTOP_DIR"
 
 # ---- rrr launcher ------------------------------------------------------
 LAUNCHER_SRC="$REPO_ROOT/scripts/runtime/launch.sh"
@@ -21,8 +26,9 @@ run install -m 0755 -o "$TARGET_USER" -g "$TARGET_USER" "$LAUNCHER_SRC" "$LAUNCH
 info "installed launcher: $LAUNCHER_DST"
 
 # ---- Desktop entry -----------------------------------------------------
-DESKTOP_DST="$APPS_DIR/rrr.desktop"
-write_file_atomic "$DESKTOP_DST" 0644 "$TARGET_USER:$TARGET_USER" <<EOF
+# Menu entry under Applications.
+APPS_DST="$APPS_DIR/rrr.desktop"
+write_file_atomic "$APPS_DST" 0644 "$TARGET_USER:$TARGET_USER" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Rodent Refreshment Regulator
@@ -32,6 +38,15 @@ Icon=applications-science
 Terminal=false
 Categories=Science;Education;
 EOF
+
+# Icon on the desktop itself. On Pi OS Bookworm (Wayfire/PCManFM) the file
+# must be executable; some file managers also require the GIO "trusted"
+# metadata flag. Set both; ignore failures (gio may be absent on some setups).
+DESKTOP_DST="$DESKTOP_DIR/rrr.desktop"
+run install -m 0755 -o "$TARGET_USER" -g "$TARGET_USER" "$APPS_DST" "$DESKTOP_DST"
+run sudo -u "$TARGET_USER" -- \
+  gio set -t string "$DESKTOP_DST" metadata::trusted true 2>/dev/null || true
+info "installed desktop icon: $DESKTOP_DST"
 
 # ---- Systemd --user unit (optional autostart) -------------------------
 UNIT_SRC="$REPO_ROOT/scripts/systemd/rrr.service"
