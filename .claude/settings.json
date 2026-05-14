@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/opt/homebrew/bin/bash --version)",
+      "Bash(/opt/homebrew/bin/bash ./install.sh --dry-run --only 99-nonexistent)"
+    ]
+  }
+}

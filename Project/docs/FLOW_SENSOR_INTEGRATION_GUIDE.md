@@ -3,7 +3,7 @@
 
 **Version:** 1.0  
 **Date:** October 6, 2025  
-**Status:** Production-Ready (pending Phase 1 integration test)
+**Status:** Production — integrated into `strategies/solenoid_flow_strategy.py` and `drivers/uart_flow_sensor.py`.
 
 ---
 

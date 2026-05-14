@@ -1,0 +1,16 @@
+[Unit]
+Description=Rodent Refreshment Regulator
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/rrr
+Restart=on-failure
+RestartSec=5
+# Logs go to the journal: journalctl --user -u rrr
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target

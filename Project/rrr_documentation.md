@@ -7,17 +7,22 @@ The Rodent Refreshment Regulator (RRR) is an automated water delivery system des
 ### Key Components
 
 - **Hardware**:
-  - Raspberry Pi (central controller)
-  - Relay HATs (stackable, up to 8 per Pi)
-  - Pumps (8 per relay HAT, up to 64 total)
-  - Water reservoir (1 gallon/3.78L capacity)
-  - Water delivery tubing and lick spouts
+  - Raspberry Pi 4 (central controller)
+  - Relay HATs (stackable; up to 8 per Pi)
+  - Per-HAT layout: 15 animal channels + 1 master relay (relay 16) for pressurized delivery
+  - Delivery hardware (either configuration):
+    - Peristaltic pumps (legacy mode)
+    - Solenoid valves + Teensy 4.1 flow-sensor bridge (current default — see `RRR_Delivery_Strategy_v2.md`)
+  - Water reservoir (1 gallon / 3.78 L capacity)
+  - Tubing and lick spouts
+  - Optional IR drinking-detection module (per cage)
 
 - **Software**:
-  - PyQt5-based user interface
-  - SQLite database for animal and schedule storage
-  - Hardware control system for precise water delivery
-  - Authentication system for user management
+  - PyQt5 desktop interface
+  - SQLite database for animal, schedule, calibration, and cage-name storage
+  - Per-valve / per-pump calibration with persistent factors
+  - Authentication system with Admin / Lab User roles
+  - Optional Slack notifications
 
 ```mermaid
 graph TD
@@ -37,38 +42,34 @@ The RRR system is installed via a bash script that sets up all necessary depende
 
 ### Installation Steps
 
-1. **Download the installer script**
-   ```bash
-   wget https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh
-   ```
+1. **Run the one-line installer** from any directory on your Raspberry Pi:
 
-2. **Make the script executable**
    ```bash
-   chmod +x setup_rrr.sh
-   ```
-
-3. **Run the installer**
-   ```bash
-   ./setup_rrr.sh
+   curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh | sudo bash
    ```
 
    ![Terminal Running Installer](rrr_installer_running.png)
 
-4. **The installer will**:
-   - Install system dependencies (Python, PyQt5, SQLite, GPIO libraries)
-   - Create a virtual environment
-   - Clone the repository
-   - Configure the database
-   - Set up desktop shortcuts
-   - Configure I2C for hardware communication
-   - Create startup scripts
+2. **The installer automatically**:
+   - Detects your Raspberry Pi model and Pi OS variant
+   - Installs system dependencies (Python, PyQt5, SQLite, I2C/GPIO libraries)
+   - Creates a virtual environment under `~/rodent-refreshment-regulator/`
+   - Clones the repository and configures the database
+   - Enables and tests I2C on the appropriate bus for your Pi model
+   - Installs the optional `rodent-regulator.service` systemd unit for unattended operation
+   - Creates desktop shortcuts and a `start_rrr.sh` launcher
 
    ![Installation Progress](rrr_installation_progress.png)
 
-5. **Reboot the system**
-   - After installation, the system will prompt for a reboot to apply I2C changes
+3. **Reboot when prompted** to apply I2C changes.
 
    ![Reboot Prompt](rrr_reboot_prompt.png)
+
+4. **Optional — enable 24/7 service mode**:
+
+   ```bash
+   ~/rodent-refreshment-regulator/toggle_service.sh
+   ```
 
 ## 3. First-Time Setup
 
@@ -88,26 +89,26 @@ The RRR system is installed via a bash script that sets up all necessary depende
 
 ### Creating an Admin Account
 
-1. **Navigate to the Profile tab**
-   - This is the first tab in the application
+On first launch the app opens in **guest mode**, with most controls gated behind a login overlay (`LoginGateWidget`).
 
-   ![Profile Tab Navigation](rrr_profile_tab.png)
+1. **Open the Users tab**
+
+   ![Users Tab Navigation](rrr_profile_tab.png)
 
 2. **Create a new account**
-   - Click "Create Account"
+   - Click **Create Account**
    - Fill in the required fields:
      - Username
      - Password
      - Full Name
-     - Select "Admin" role
-   - Click "Register"
+     - Role (the first account created should be **Admin**)
+   - Click **Register**
 
    ![Account Creation Form](rrr_create_account.png)
 
 3. **Login**
-   - Enter your credentials
-   - Click "Login"
-   - The system will unlock additional features
+   - Enter your credentials and click **Login**
+   - The login gate unlocks the Schedules / Animals / Wizard / Cages tabs and the Run/Stop controls
 
    ![Login Screen](rrr_login_screen.png)
 
@@ -177,96 +178,56 @@ The RRR system is installed via a bash script that sets up all necessary depende
 
    ![Weight History View](rrr_weight_history.png)
 
-## 5. Creating Water Delivery Schedules
+## 5. Cages and Schedules
 
-### Accessing the Schedules Tab
+The schedule UI consists of three coordinated tabs in the Projects section:
 
-1. **Navigate to the Projects section**
-   - Click on the "Schedules" tab
+| Tab | Purpose |
+|-----|---------|
+| **Schedules** | Hub of schedule cards (search, edit, delete, drag-to-run) |
+| **Wizard** | Step-by-step creation/editing of a schedule |
+| **Cages** | Visual relay-board map for naming cages |
 
-   ![Navigate to Schedules Tab](rrr_navigate_to_schedules.png)
+### 5.1 Naming Cages
 
-### Understanding the Schedules Interface
+1. Open the **Cages** tab to see the physical relay layout (animal channels in color, master relay highlighted separately).
 
-The interface is divided into three columns:
-1. **Available Animals** (left)
-   - List of animals available for scheduling
-   - Filterable by trainer
+   ![Cages Visualization Tab](rrr_cages_tab.png)
 
-2. **Relay Units** (middle)
-   - Representation of physical relay units
-   - Each unit can be assigned animals and water delivery parameters
+2. Click any cage tile, enter a descriptive name (e.g., "Rack A — Cage 3"), and save.
 
-3. **Schedule Actions** (right)
-   - Controls for saving, applying, and managing schedules
+3. Cage names propagate automatically to the Wizard, the Schedules hub, and the Calibration table.
 
-   ![Schedules Interface Overview](rrr_schedules_interface.png)
+### 5.2 Creating a Schedule (Wizard)
 
-### Selecting Delivery Mode
+The wizard is a 4-step guided flow. Open it from the **Wizard** tab or by clicking **+ New Schedule** in the Schedules hub.
 
-1. **Choose a delivery mode** from the dropdown menu
-   - **Staggered**: Delivers water gradually over a time window
-   - **Instant**: Delivers water at specific times
+1. **Step 1 — Type**: pick **Instant** (deliver at specific times) or **Staggered** (split a volume uniformly across a time window).
 
-   ![Delivery Mode Selection](rrr_delivery_mode_selection.png)
+   ![Wizard Step 1 — Type](rrr_wizard_step1_type.png)
 
-### Creating a Staggered Schedule
+2. **Step 2 — Animals**: multi-select animals/cages from the Available list. The wizard enforces hardware limits (15 cages × number of HATs; the master relay is excluded automatically).
 
-1. **Select "Staggered" from the mode dropdown**
+   ![Wizard Step 2 — Animals](rrr_wizard_step2_animals.png)
 
-   ![Staggered Mode Selected](rrr_staggered_mode_selected.png)
+3. **Step 3 — Parameters**: set the schedule name, per-animal volume, time window or specific delivery times.
 
-2. **Assign animals to relay units**
-   - Drag an animal from the Available Animals list
-   - Drop onto a relay unit
-   - Multiple animals can be assigned to a single relay unit
+   ![Wizard Step 3 — Parameters](rrr_wizard_step3_parameters.png)
 
-   ![Dragging Animal to Relay Unit](rrr_drag_animal_staggered.png)
+4. **Step 4 — Review**: confirm everything and click **Save Schedule**. The new schedule appears as a card in the Schedules hub.
 
-3. **Configure water parameters**
-   - Set the water volume (in mL)
-   - Set time window start and end
-   - The system will automatically distribute water delivery
+   ![Wizard Step 4 — Review](rrr_wizard_step4_review.png)
 
-   ![Staggered Water Parameters](rrr_staggered_parameters.png)
+### 5.3 Managing Schedules (Hub)
 
-### Creating an Instant Schedule
+The **Schedules** tab is a grid of schedule cards with a debounced search bar.
 
-1. **Select "Instant" from the mode dropdown**
+- **Edit**: opens the same wizard-style editor (`ScheduleEditDialog`) so you can tweak any field
+- **Info**: shows the full schedule details (animals, volumes, windows)
+- **Delete**: single delete from the card menu, or enable multi-select mode for bulk delete
+- **Drag**: drag the card onto the Run/Stop drop area to queue it for execution
 
-   ![Instant Mode Selected](rrr_instant_mode_selected.png)
-
-2. **Assign animals to relay units**
-   - Drag an animal from the Available Animals list
-   - Drop onto a relay unit
-
-   ![Dragging Animal to Relay Unit](rrr_drag_animal_instant.png)
-
-3. **Add delivery times**
-   - Click "Add Delivery Time" button
-   - Set the exact time for delivery
-   - Set the precise water volume
-   - Add multiple delivery times as needed
-
-   ![Adding Delivery Times](rrr_add_delivery_times.png)
-
-### Saving a Schedule
-
-1. **After configuring all parameters, click "Save Schedule"**
-
-   ![Save Schedule Button](rrr_save_schedule_button.png)
-
-2. **Enter a name for the schedule**
-   - Choose a descriptive name
-   - Click "OK"
-
-   ![Schedule Name Dialog](rrr_schedule_name_dialog.png)
-
-3. **The saved schedule will appear in the Saved Schedules list**
-   - Located in the right column
-   - Can be reused later
-
-   ![Saved Schedules List](rrr_saved_schedules_list.png)
+   ![Schedules Hub](rrr_schedules_hub.png)
 
 ## 6. Running Water Delivery Schedules
 
@@ -279,32 +240,29 @@ The interface is divided into three columns:
 
 ### Loading a Schedule
 
-1. **Drag a saved schedule** from the Saved Schedules list
-2. **Drop it onto the "Drop Schedule Here" area** in the Run/Stop section
+1. **Drag a schedule card** from the Schedules hub onto the **Drop Schedule Here** area in the Run/Stop section.
 
    ![Dragging Schedule to Run/Stop](rrr_drag_schedule_to_run.png)
 
-3. **A table will appear** showing schedule details:
-   - Animal information
-   - Water volumes
-   - Delivery time windows
+2. A summary table appears showing animals, volumes, and delivery windows.
 
    ![Schedule Details Table](rrr_schedule_details_table.png)
 
 ### Running the Schedule
 
-1. **Review the schedule** in the table
+1. Review the loaded schedule.
 
    ![Schedule Review](rrr_review_schedule.png)
 
-2. **Click the "Run" button**
+2. Click **Run Program**. Hardware is initialized lazily on a worker thread, so the UI remains responsive.
 
    ![Run Button](rrr_run_button.png)
 
-3. **The system will**:
-   - Activate relay units according to the schedule
-   - Deliver water at specified times or intervals
-   - Track completion status
+3. The **Execution Monitor** tab appears next to the Terminal and shows one card per cage with live progress. The system:
+   - Validates the time window before each pulse
+   - Activates relays according to the schedule
+   - Streams flow-sensor data (solenoid mode) or pulse counts (peristaltic mode)
+   - Auto-hides the monitor after completion
 
    ![Running Schedule Status](rrr_running_status.png)
 
@@ -397,14 +355,22 @@ The RRR follows an MVC (Model-View-Controller) architecture:
    - `User/Trainer` - Represents system users
 
 2. **Views** (user interface):
-   - PyQt5-based interface with tabs
-   - Drag-and-drop scheduling
-   - Visual water delivery planning
+   - PyQt5 tabbed interface (`gui.py`)
+   - Schedules Hub + Wizard pair (`schedules_hub.py`, `schedule_wizard.py`)
+   - Cages Visualization tab (`cages_visualization_tab.py`)
+   - Settings sub-tabs: Delivery / Calibration / Priming / General (`SettingsTab.py`)
+   - Calibration Wizard (`CalibrationWizard.py`)
+   - Priming Control widget (`PrimingControlWidget.py`)
+   - Execution Monitor / Schedule Progress Tracker (`ScheduleProgressTracker.py`)
 
-3. **Controllers**:
-   - Database Handler - Manages data persistence
-   - GPIO Handler - Controls hardware
-   - System Controller - Manages application state
+3. **Controllers & Strategies**:
+   - `database_handler.py` — persistence layer
+   - `system_controller.py` — application state
+   - `WateringController.py`, `schedule_controller.py`, `pump_controller.py`, `delivery_queue_controller.py`
+   - `strategies/solenoid_flow_strategy.py` — solenoid + flow-sensor delivery
+   - `drivers/uart_flow_sensor.py` — Teensy bridge for SLF3S-0600F flow sensor
+   - `gpio/relay_worker.py` — runs delivery on a worker thread with lazy hardware init
+   - `ir_module/` — optional IR drinking-detection extension
 
 ![Software Architecture Diagram](rrr_software_architecture.png)
 

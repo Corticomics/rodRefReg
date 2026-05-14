@@ -1,48 +1,53 @@
 # Valve Calibration Quick Start
 
-## 🚨 Emergency: Fix Your Over-Delivery NOW
+Per-valve calibration corrects for manufacturing variance between solenoid valves. Each valve gets its own `mL/pulse` factor stored in the DB and applied automatically at runtime.
 
-**Problem:** Delivering 2.863 mL instead of 1.0 mL (186% error)  
-**Root Cause:** Wrong calibration value (0.026 mL/pulse vs. actual ~0.075 mL/pulse)  
-**Solution:** Run per-valve calibration
+The **recommended path is the in-app Calibration Wizard**. A CLI tool is available for headless use.
 
 ---
 
-## ⚡ 5-Minute Setup
+## ⚡ Option A — In-App Wizard (Recommended, ~10 min per valve)
 
 ### Step 1: Prepare (2 min)
-```bash
-# 1. Place empty beaker under cage 15 output
-# 2. Tare lab scale with empty beaker
-# 3. Verify reservoir is FULL
-# 4. Let system warm up (if just started, wait 30 min)
-```
+1. Place an empty pre-tared beaker under the target cage outlet.
+2. Verify the reservoir is full and pressurized.
+3. If the system was just started, let it warm up for ~30 min.
+4. Open **Settings → Priming** and prime the lines if they contain air.
 
-### Step 2: Run Calibration (8 min)
+### Step 2: Run the Wizard
+1. Open **Settings → Calibration** and click **Run Calibration Wizard**.
+2. Select the cage(s) to calibrate (cage names from the Cages tab are shown).
+3. Follow the on-screen prompts — the wizard executes the pulse train automatically.
+
+### Step 3: Measure & Save
+1. When prompted, enter the measured volume (in mL) from your lab scale.
+2. The wizard computes the new `mL/pulse` factor and saves it to the DB.
+
+### Step 4: Verify
+Run a small test schedule (e.g. 0.5 mL) and confirm the delivered volume is within ±5 %.
+
+---
+
+## ⚡ Option B — CLI Tool (Headless / advanced)
+
+### Step 1: Prepare (same as Option A)
+
+### Step 2: Run Calibration
 ```bash
-cd /Users/zes/.cursor/worktrees/rodRefReg/P9fOC/Project
+cd ~/rodent-refreshment-regulator/Project
 python tools/valve_calibration_tool.py --cage 15 --interactive
 ```
 
-### Step 3: Measure & Save (1 min)
+### Step 3: Measure & Save
 ```
-# Tool will execute 250 pulses (~8 minutes)
-# Then prompt for measurement:
-
-Enter measured volume (mL): [weigh beaker on scale]
-
-# Example: If scale shows 18.750g → enter 18.750
+# Tool executes 250 pulses (~8 min) then prompts:
+Enter measured volume (mL): 18.750
 # Tool calculates: 18.750 / 250 = 0.075 mL/pulse
-
 Save this calibration to database? yes
 ```
 
-### Step 4: Verify (2 min)
-```bash
-# Run small test schedule (0.5 mL)
-# Measure output with scale
-# Expected: 0.500 ± 0.025 mL ✓
-```
+### Step 4: Verify
+Run a small test schedule (0.5 mL) and confirm output is within ±5 %.
 
 ---
 
@@ -57,17 +62,13 @@ Save this calibration to database? yes
 
 ## 🔧 Calibrate All Valves
 
+**In-app**: The Calibration Wizard supports multi-cage selection — pick all cages at once and the wizard sequences them with confirmation prompts.
+
+**CLI**:
 ```bash
-# Cage 1
-python tools/valve_calibration_tool.py --cage 1 --interactive
-
-# Cage 2  
-python tools/valve_calibration_tool.py --cage 2 --interactive
-
-# ... repeat for all active cages
-
-# Cage 15
-python tools/valve_calibration_tool.py --cage 15 --interactive
+for cage in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  python tools/valve_calibration_tool.py --cage "$cage" --interactive
+done
 ```
 
 ---

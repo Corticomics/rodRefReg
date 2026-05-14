@@ -1,6 +1,8 @@
 # Valve Calibration Guide - RRR System
 ## Per-Valve Empirical Calibration for Precision Water Delivery
 
+> **User-facing entry point:** `Settings → Calibration → Run Calibration Wizard` (`ui/CalibrationWizard.py`). For a step-by-step walkthrough use [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). This document is the technical reference behind the wizard.
+
 ---
 
 ## Table of Contents

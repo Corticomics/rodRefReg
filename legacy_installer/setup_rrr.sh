@@ -257,7 +257,7 @@ cd ~/rodent-refreshment-regulator || error_exit "Failed to change to application
 
 # Set repository URL and desired branch
 REPO_URL="https://github.com/Corticomics/rodRefReg.git"
-BRANCH="ze-dev"
+BRANCH="main"
 
 # Clone or update the repository on the specified branch (best-practice git flow)
 if [ -d ".git" ]; then

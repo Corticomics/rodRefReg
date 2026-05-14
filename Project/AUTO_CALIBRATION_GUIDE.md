@@ -65,7 +65,8 @@ Project/
 ├── strategies/
 │   └── solenoid_flow_strategy.py  ← MODIFIED (auto-loads calibration)
 └── ui/
-    └── PrimingControlWidget.py    ← TODO (add calibration button)
+    ├── PrimingControlWidget.py    ← Settings → Priming sub-tab (priming flow)
+    └── CalibrationWizard.py       ← Settings → Calibration → "Run Calibration Wizard"
 ```
 
 ---
@@ -94,7 +95,7 @@ self._logger.info(
 
 **UI Interaction:**
 ```
-User clicks: [Run Valve Calibration] button in Priming tab
+User clicks: [Run Calibration Wizard] in Settings → Calibration
   ↓
 Progress updates:
   "Starting calibration for cage 15..."
@@ -411,12 +412,13 @@ python3 test_valve_characterization.py --cage 15
 
 ## 📋 **IMPLEMENTATION STATUS**
 
-| Component | Status | Lines |
-|-----------|--------|-------|
-| `utils/pulse_calibration.py` | ✅ **COMPLETE** | +400 |
-| `strategies/solenoid_flow_strategy.py` | ✅ **COMPLETE** | +30 |
-| `ui/PrimingControlWidget.py` | ⏳ **TODO** | +80 |
-| **TOTAL** | **95% DONE** | **510 lines** |
+| Component | Status |
+|-----------|--------|
+| `utils/pulse_calibration.py` | ✅ **COMPLETE** |
+| `strategies/solenoid_flow_strategy.py` | ✅ **COMPLETE** (auto-loads calibration) |
+| `ui/PrimingControlWidget.py` | ✅ **COMPLETE** (priming sub-tab) |
+| `ui/CalibrationWizard.py` | ✅ **COMPLETE** (calibration entry point) |
+| **TOTAL** | **✅ Shipped — see Settings → Calibration** |
 
 ---
 
@@ -434,7 +436,7 @@ python3 test_valve_characterization.py --cage 15
 
 ```
 1. Enable pulse mode
-2. Open Priming tab
+2. Open Settings → Calibration
 3. Click [Run Valve Calibration]
 4. Wait 3-5 minutes (tests run automatically)
 5. ✓ System now uses YOUR actual valve characteristics!
@@ -444,7 +446,7 @@ python3 test_valve_characterization.py --cage 15
 ### **Scenario 3: Re-Calibration (Valve Wear)**
 
 ```
-1. Open Priming tab
+1. Open Settings → Calibration
 2. Click [Run Valve Calibration] again
 3. ✓ Old calibration backed up to .bak
 4. ✓ New values measured and saved

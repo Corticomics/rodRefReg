@@ -1,0 +1,22 @@
+# Rodent Refreshment Regulator — Python dependencies
+#
+# System packages (PyQt5, pandas, numpy, RPi.GPIO, gpiozero) are installed
+# via apt and exposed to the venv through --system-site-packages. They are
+# intentionally NOT listed here to avoid pip clobbering the apt builds.
+#
+# Pin everything. Update via `pip install -U <pkg>` then refresh this file.
+
+attrs==24.2.0
+certifi==2024.8.30
+charset-normalizer==3.3.2
+click==8.1.7
+cryptography==42.0.8
+idna==3.10
+jsonschema==4.23.0
+python-dateutil==2.9.0.post0
+pytz==2024.2
+pyserial==3.5
+requests==2.32.3
+slack_sdk==3.27.1
+smbus2==0.4.3
+urllib3==2.2.3
