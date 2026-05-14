@@ -14,9 +14,16 @@ check_import() {
 }
 
 # Python deps
-for m in PyQt5.QtCore pandas numpy RPi.GPIO gpiozero serial slack_sdk smbus2 jsonschema requests; do
+for m in PyQt5.QtCore pandas numpy RPi.GPIO gpiozero serial slack_sdk smbus2 jsonschema requests SM16relind; do
   check_import "$m"
 done
+
+# 16relind CLI tool (separate from the Python module)
+if command -v 16relind >/dev/null; then
+  info "cli ok: 16relind ($(command -v 16relind))"
+else
+  warn "cli MISSING: 16relind"
+fi
 
 # I2C buses
 BUSES=$(detect_i2c_buses)

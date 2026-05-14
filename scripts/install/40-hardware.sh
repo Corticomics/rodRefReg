@@ -45,6 +45,20 @@ else
   warn "16relind not on PATH after install"
 fi
 
+# Install the SM16relind Python wrapper into the project venv.
+# Upstream ships it under python/ with a setup.py (modern build).
+SM_PY_DIR="$VENDOR_DIR/python"
+VENV_PIP="$REPO_ROOT/.venv/bin/pip"
+if [[ -d "$SM_PY_DIR" && -x "$VENV_PIP" ]]; then
+  if [[ -f "$SM_PY_DIR/pyproject.toml" || -f "$SM_PY_DIR/setup.py" ]]; then
+    run "$VENV_PIP" install --disable-pip-version-check "$SM_PY_DIR"
+  else
+    warn "SM16relind python source dir present but no setup.py/pyproject.toml"
+  fi
+elif [[ ! -d "$SM_PY_DIR" ]]; then
+  warn "upstream python/ dir missing at $SM_PY_DIR — SM16relind module not installed"
+fi
+
 # ---- Teensy udev rule (stable /dev/teensy_flow symlink) ----------------
 UDEV_RULE=/etc/udev/rules.d/99-rrr-teensy.rules
 write_file_atomic "$UDEV_RULE" 0644 root:root <<'EOF'
