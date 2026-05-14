@@ -24,22 +24,61 @@ The Rodent Refreshment Regulator (RRR) helps you automatically deliver precise a
 
 If the system is already installed in your lab, skip to [Using the Application](#2-using-the-application). If you need to set up a new system, contact your IT support team for assistance with hardware installation.
 
-To install the software on a new Raspberry Pi:
+**Requirements**: Raspberry Pi running **Raspberry Pi OS Bookworm (64-bit)** with internet access.
 
-1. Open a terminal window on your Raspberry Pi
-2. Run the following command to download and start the installation script:
+#### One-line install (recommended)
 
+Open a terminal on your Raspberry Pi and run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/bootstrap.sh | bash
 ```
-wget -O setup_rrr.sh https://raw.githubusercontent.com/Corticomics/rodRefReg/main/setup_rrr.sh && chmod +x setup_rrr.sh && ./setup_rrr.sh
+
+That command downloads a small bootstrap script, which installs `git`, clones the repository into `~/rodRefReg`, and then runs the full installer non-interactively. The whole process takes ~5–10 minutes on a fresh Pi (sudo password prompted once for apt).
+
+To preview without changing anything:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/bootstrap.sh | bash -s -- --dry-run
 ```
 
-3. Follow the on-screen prompts to complete the installation
+#### Manual install
+
+If you'd rather audit the code before running it, or you already have the repo cloned:
+
+```bash
+git clone https://github.com/Corticomics/rodRefReg.git ~/rodRefReg
+cd ~/rodRefReg
+./install.sh
+``` It will:
+
+- Install all system and Python dependencies
+- Enable I²C (via `raspi-config`) without requiring a reboot
+- Compile and install the Sequent Microsystems 16-relay HAT driver
+- Set up a stable `/dev/teensy_flow` symlink for the Teensy flow sensor (via udev)
+- Create a desktop icon, an application-menu entry, and a systemd `--user` service for autostart
+- Verify every Python import and the relay HAT CLI before exiting
+
+**Useful installer flags** (work after `./install.sh` or after `bash -s --` in the curl form):
+
+| Flag | Purpose |
+|---|---|
+| `--dry-run` | Print every action without changing anything (safe to try first) |
+| `-y` / `--yes` | Non-interactive mode |
+| `--only <module>` | Run a single stage, e.g. `--only 40-hardware` |
+| `--skip <module>` | Skip a stage, repeatable |
+| `--branch <name>` | Install from a non-`main` branch |
+| `--help` | Full usage |
+
+**After install**: log out and back in once (so the new `i2c`, `gpio`, `dialout` group memberships apply), then launch via the desktop icon or `~/.local/bin/rrr`. Reboot only if you want the `consoleblank=0` boot setting to take effect.
+
+Logs from every install run live under `~/.local/state/rrr/install-<timestamp>.log`.
 
 ### 2. Using the Application
 
 #### First-Time Login
 
-1. Start the RRR application by clicking the desktop icon or running `./start_rrr.sh`
+1. Start the RRR application by clicking the desktop icon or running `~/.local/bin/rrr`
 2. You'll see a login screen - if you don't have an account, click "Create Account" to continue
 3. The main screen will appear with several tabs
 
@@ -94,19 +133,28 @@ The new schedule appears as a card in the **Schedules** hub.
 
 The RRR system is designed to run continuously even when you disconnect your display, keyboard, or mouse. For long-term experiments:
 
-1. **Service Mode**: Enable service mode for 24/7 operation
+1. **Autostart on graphical login** — enable the user-level systemd service (do **not** run this as root):
    ```bash
-   ~/rodent-refreshment-regulator/toggle_service.sh
+   systemctl --user daemon-reload
+   systemctl --user enable --now rrr.service
    ```
-   
-2. **Power Management**: The installation automatically disables power saving features
-   - HDMI sleep is disabled
-   - Console blanking is turned off
-   - Service keeps running even when you log out
 
-3. **Remote Monitoring**: You can check the service status remotely via SSH
+2. **Headless / no graphical login** — also enable user lingering so the service starts at boot:
    ```bash
-   ssh pi@your-pi-ip 'systemctl status rodent-regulator.service'
+   sudo loginctl enable-linger "$USER"
+   ```
+
+3. **Power management**: the installer adds `consoleblank=0` to `/boot/firmware/cmdline.txt` so the console will not blank during experiments. A reboot applies this.
+
+4. **Status & logs**:
+   ```bash
+   systemctl --user status rrr.service
+   journalctl --user -u rrr.service -f
+   ```
+
+5. **Stop / disable**:
+   ```bash
+   systemctl --user disable --now rrr.service
    ```
 
 ## Daily Use Guide
@@ -151,27 +199,42 @@ Go to **Settings → Calibration** and click **Run Calibration Wizard**. The wiz
 
 Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used independently any time you swap tubing or refill the reservoir.
 
-### How do I resolve "i2c-1 not found" or other I2C errors?
+### How do I resolve "i2c-1 not found" or other I²C errors?
 
-If you encounter I2C-related errors when starting the application:
+The installer enables I²C automatically via `raspi-config nonint do_i2c 0`, which makes `/dev/i2c-1` (the GPIO HAT bus) appear without a reboot on every Pi 4 and Pi 5. If the relay HAT does not respond:
 
-1. Run the I2C troubleshooting script:
+1. Confirm the bus is up:
    ```bash
-   ~/rodent-refreshment-regulator/fix_i2c.sh
+   ls /dev/i2c-*           # /dev/i2c-1 must be in the list
+   sudo i2cdetect -y 1     # the HAT should appear at its I²C address
    ```
 
-2. This script will:
-   - Check if I2C is properly enabled in your Raspberry Pi
-   - Test all available I2C buses
-   - Fix permissions issues
-   - Run the I2C fix script that adapts to different Raspberry Pi models
-
-3. After running the script, reboot your system if prompted:
+2. If `/dev/i2c-1` is missing, re-run the hardware module of the installer (idempotent, ~5 s):
    ```bash
+   cd ~/rodRefReg
+   ./install.sh -y --only 40-hardware
+   ```
+
+3. If it is still missing, run the standalone helper and reboot:
+   ```bash
+   ~/rodRefReg/scripts/runtime/fix_i2c.sh
    sudo reboot
    ```
 
-Different Raspberry Pi models use different I2C bus numbering schemes. The RRR system now includes auto-detection to work with any Pi model.
+4. As a last resort, enable I²C interactively:
+   ```bash
+   sudo raspi-config       # → Interface Options → I2C → Enable
+   ```
+
+Different Raspberry Pi models expose different *internal* I²C bus numbers (Pi 5 also shows `/dev/i2c-13` and `/dev/i2c-14`), but the relay HAT always sits on bus 1.
+
+### How can I run a Python script against the RRR install?
+
+The application uses a virtual environment at `~/rodRefReg/.venv`. Always call its Python directly — do **not** rely on the system `python3`, which (on Bookworm) is intentionally locked down by PEP 668:
+
+```bash
+~/rodRefReg/.venv/bin/python3 Project/tests/test_relay_hat.py
+```
 
 ## Getting Help
 

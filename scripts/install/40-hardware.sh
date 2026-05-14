@@ -7,15 +7,25 @@ CMDLINE_TXT="$BOOT_DIR/cmdline.txt"
 TARGET_USER=${SUDO_USER:-$USER}
 
 # ---- I2C enable --------------------------------------------------------
-if [[ -f "$CONFIG_TXT" ]]; then
-  append_line_if_missing "$CONFIG_TXT" "dtparam=i2c_arm=on"
+# Prefer raspi-config: it is the canonical, Pi-aware tool. It edits
+# /boot/firmware/config.txt, unblacklists i2c-bcm2708, appends i2c-dev to
+# /etc/modules, AND — crucially on Pi 5 — applies `dtparam i2c_arm=on` live
+# so /dev/i2c-* appears without a reboot. Manual fallbacks tend to miss the
+# last step and require the user to re-run `sudo raspi-config` by hand.
+if command -v raspi-config >/dev/null; then
+  run sudo raspi-config nonint do_i2c 0
+  info "i2c enabled via raspi-config"
 else
-  warn "config.txt not found at $CONFIG_TXT; skipping dtparam"
+  warn "raspi-config not present; falling back to manual config (reboot likely required)"
+  if [[ -f "$CONFIG_TXT" ]]; then
+    append_line_if_missing "$CONFIG_TXT" "dtparam=i2c_arm=on"
+  fi
+  append_line_if_missing /etc/modules "i2c-dev"
+  run sudo modprobe i2c-dev || warn "modprobe i2c-dev failed"
+  # Try to apply the device-tree param live; the dtparam tool ships with
+  # raspberrypi-sys-mods on Pi OS. Failures here just mean a reboot is needed.
+  command -v dtparam >/dev/null && run sudo dtparam i2c_arm=on || true
 fi
-
-# Load module now; persist for boot.
-run sudo modprobe i2c-dev || warn "modprobe i2c-dev failed (kernel may need reboot)"
-append_line_if_missing /etc/modules "i2c-dev"
 
 # ---- Groups ------------------------------------------------------------
 ensure_user_in_group "$TARGET_USER" i2c

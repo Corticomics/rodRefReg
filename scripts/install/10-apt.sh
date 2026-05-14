@@ -10,8 +10,8 @@ APT_PACKAGES=(
   git curl ca-certificates build-essential
   # Python runtime & venv
   python3 python3-pip python3-venv python3-dev
-  # Hardware / I2C / GPIO
-  i2c-tools python3-smbus python3-rpi.gpio python3-gpiozero python3-lgpio
+  # Hardware / I2C / GPIO (raspi-config is the canonical I2C/SPI enabler)
+  raspi-config i2c-tools python3-smbus python3-rpi.gpio python3-gpiozero python3-lgpio
   # Scientific / GUI (apt builds; venv inherits via --system-site-packages)
   python3-pyqt5 python3-pandas python3-numpy
   # Serial (Teensy)

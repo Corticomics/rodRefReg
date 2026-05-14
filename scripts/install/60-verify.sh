@@ -27,15 +27,21 @@ fi
 
 # I2C buses
 BUSES=$(detect_i2c_buses)
-if [[ -n "$BUSES" ]]; then
-  info "i2c buses: $BUSES"
-  for b in $BUSES; do
-    if command -v i2cdetect >/dev/null; then
-      run sudo i2cdetect -y "$b" || warn "i2cdetect -y $b failed"
-    fi
-  done
+if [[ -z "$BUSES" ]]; then
+  err "no /dev/i2c-* present — I2C did not come up. Try: sudo raspi-config nonint do_i2c 0 && sudo reboot"
 else
-  warn "no i2c buses present (reboot may be required after first install)"
+  info "i2c buses: $BUSES"
+  # Identify the user-GPIO bus (the one HATs sit on). On Pi 4 it's bus 1;
+  # on Pi 5 it's bus 1 once dtparam=i2c_arm=on is live. We treat the
+  # presence of /dev/i2c-1 as the canary for "I2C is truly enabled."
+  if [[ -e /dev/i2c-1 ]]; then
+    info "i2c-1 present (relay HAT bus)"
+    if command -v i2cdetect >/dev/null; then
+      run sudo i2cdetect -y 1 || warn "i2cdetect -y 1 failed"
+    fi
+  else
+    warn "/dev/i2c-1 NOT present — HAT bus is not live. Reboot, then re-run scripts/runtime/fix_i2c.sh"
+  fi
 fi
 
 # Teensy symlink (advisory)
