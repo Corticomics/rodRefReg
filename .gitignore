@@ -3,3 +3,19 @@ Project/rrr_database.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Virtualenvs
+.venv/
+venv/
+Project/rodrefreg/
+
+# Build & packaging artifacts (incl. release bundles from build-bundle.sh)
+build/
+dist/
+
+# macOS
+.DS_Store
