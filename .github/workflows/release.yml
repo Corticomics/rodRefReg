@@ -1,0 +1,50 @@
+name: Release
+
+# Cuts a GitHub Release whenever a version tag is pushed.
+#   git tag v1.2.0 && git push origin v1.2.0
+# See docs/UPDATE_SYSTEM.md §10.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # required to create the Release and upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          APP_VERSION="$(python3 -c 'exec(open("Project/version.py").read()); print(__version__)')"
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$GITHUB_REF_NAME"     >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches Project/version.py
+        run: |
+          if [[ "${{ steps.ver.outputs.tag }}" != "v${{ steps.ver.outputs.app_version }}" ]]; then
+            echo "::error::tag ${{ steps.ver.outputs.tag }} does not match v${{ steps.ver.outputs.app_version }} from Project/version.py"
+            exit 1
+          fi
+
+      - name: Build bundle
+        run: bash scripts/release/build-bundle.sh
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE=""
+          [[ "${{ steps.ver.outputs.tag }}" == *-beta* ]] && PRERELEASE="--prerelease"
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            "dist/rrr-${{ steps.ver.outputs.app_version }}.rrrupdate" \
+            "dist/rrr-${{ steps.ver.outputs.app_version }}.rrrupdate.sha256" \
+            "dist/latest.json" \
+            --title "RRR ${{ steps.ver.outputs.app_version }}" \
+            --generate-notes \
+            $PRERELEASE

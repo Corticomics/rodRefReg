@@ -257,12 +257,50 @@ engineering effort and should be tested on a non-production Pi before fleet roll
 
 ---
 
-## 12. Open questions
+## 12. Resolved decisions (evidence-backed)
 
-1. **Migration timing** — relocate data on the *next installer run* (operator-initiated, simple)
-   or on the *app's first launch* under the new layout (automatic, but the app must handle the
-   pre-migration state)? Recommend installer-run.
-2. **Release cadence & who signs** — who holds the minisign private key, and what is the
-   expected release frequency? Affects key-custody and channel policy.
-3. **Fleet visibility** — is there any future need to know which version each device runs
-   (a check-in ping)? Out of scope here, but the design leaves room for it.
+The three pre-Phase-2 questions, resolved against the actual codebase rather than assumption.
+
+### 12.1 Migration timing → **installer-run**
+
+Relocate data in the installer, not at app launch.
+
+- The DB is created safely on demand — `create_tables()` runs in `__init__` with
+  `CREATE TABLE IF NOT EXISTS` for every table
+  ([database_handler.py:57-247](../Project/models/database_handler.py#L57)); a missing DB never
+  crashes the app.
+- **But `DatabaseHandler()` is instantiated in three uncoordinated places** —
+  [main.py:115](../Project/main.py#L115), [splash_screen.py:53](../Project/ui/splash_screen.py#L53),
+  [schedule_drop_area.py:22](../Project/ui/schedule_drop_area.py#L22) — each with the default
+  CWD-relative `rrr_database.db`. An in-app migration would race: whichever site runs first
+  creates a fresh empty DB in the wrong location.
+- The installer is the opposite — one serialized step that already runs Python
+  ([30-python.sh:11](../scripts/install/30-python.sh#L11)) and already does protected file copies
+  ([40-hardware.sh:91](../scripts/install/40-hardware.sh#L91), `cp -n`).
+
+→ Add a relocation step to the installer. The in-app `paths` module (§7) still ships, but only
+to *read* the relocated locations, never to perform the move.
+
+### 12.2 Signing key custody → **single maintainer**
+
+- `git shortlog -sn`: `zepaulojr1` = 1273 commits; next contributor = 104. All recent commits
+  are `zepaulojr1`.
+- No `.github/` existed before this work — no prior CI, no CODEOWNERS.
+- README's only contact is `zepaulojr2@gmail.com` ([README.md:246](../README.md#L246)); no lab
+  or institution named.
+
+→ No key-custody policy required. The minisign private key is held by the sole maintainer as a
+single GitHub Actions secret. Releases are manual tag pushes at the maintainer's cadence.
+
+### 12.3 Fleet visibility → **deferred; cheap interim win**
+
+- The Slack integration sends only free-text relay/error strings
+  ([notifications.py:17-22](../Project/notifications/notifications.py#L17),
+  [main.py:367](../Project/main.py#L367)) — no device ID, no version.
+- No telemetry, analytics, `device_id`, or `machine-id` code exists anywhere in the app.
+- No version string is shown in the UI — the window title is the plain
+  `"Rodent Refreshment Regulator"` ([gui.py:58](../Project/ui/gui.py#L58)).
+
+→ A real check-in service is out of scope. Interim win once `version.py` ships: append
+`__version__` to the existing Slack startup/error message — basic "which version is this
+device on" with zero new infrastructure.
