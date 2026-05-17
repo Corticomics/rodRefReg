@@ -1072,6 +1072,13 @@ class SettingsTab(QWidget):
                 style_mgr.apply(theme)
         except Exception:
             pass
+        # Re-render themed HTML content that QSS can't reach (Help tab).
+        try:
+            help_tab = getattr(self.window(), 'help_tab', None)
+            if help_tab is not None and hasattr(help_tab, 'refresh_theme'):
+                help_tab.refresh_theme()
+        except Exception:
+            pass
         # Auto-save the theme change
         self._auto_save_settings()
 

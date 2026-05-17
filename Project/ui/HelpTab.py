@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QSplitter, QLabel, QApplication,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QPalette, QTextCharFormat, QColor
+from PyQt5.QtGui import QFont, QPalette, QTextCharFormat, QColor, QTextCursor
 from urllib.parse import unquote
 
 from utils.help_content_manager import HelpContentManager
@@ -209,13 +209,10 @@ class HelpTab(QWidget):
     # ------------------------------------------------------------------
 
     def _on_anchor_clicked(self, url):
-        scheme = url.scheme()
-        if scheme == "topic":
-            # topic://<url-encoded key>
-            key = unquote(url.host() + url.path()).strip("/")
-            if not key:
-                # Qt puts the whole path in host sometimes; try path alone
-                key = unquote(url.toString()[len("topic://"):])
+        if url.scheme() == "topic":
+            # topic:<url-encoded key>  — path keeps original case & special chars
+            raw = url.path() or url.toString()[len("topic:"):]
+            key = self._resolve_topic_key(unquote(raw))
             if key:
                 self._select_tree_item_by_key(key)
                 self._load_topic(key)
@@ -223,6 +220,20 @@ class HelpTab(QWidget):
             # External URL — open in default browser
             import webbrowser
             webbrowser.open(url.toString())
+
+    def _resolve_topic_key(self, key: str):
+        """Resolve a (possibly case-shifted) key to an actual topic key, or None."""
+        key = (key or "").strip()
+        if not key:
+            return None
+        if self.help_manager.get_topic(key) is not None:
+            return key
+        kl = key.lower()
+        for topics in self.help_manager.get_categories().values():
+            for k in topics:
+                if k.lower() == kl:
+                    return k
+        return None
 
     # ------------------------------------------------------------------
     # Search
@@ -283,34 +294,26 @@ class HelpTab(QWidget):
     # ------------------------------------------------------------------
 
     def _highlight(self, term: str):
+        self.content_browser.setExtraSelections([])
+        term = (term or "").strip()
         if not term:
-            self._clear_highlight()
             return
 
         doc = self.content_browser.document()
+        hl = "#92400E" if self._current_theme() == 'dark' else "#FDE68A"
         fmt = QTextCharFormat()
-        fmt.setBackground(QColor("#FDE68A"))
+        fmt.setBackground(QColor(hl))
 
         selections = []
-        cursor = self.content_browser.textCursor()
-        cursor.setPosition(0)
-
-        find_flags = self.content_browser.document().defaultTextOption()  # not used directly
-        from PyQt5.QtGui import QTextDocument
-        pos = 0
+        cursor = QTextCursor(doc)          # starts at position 0
         while True:
-            found = doc.find(term, pos, QTextDocument.FindCaseSensitively.__class__(0))
-            # Use case-insensitive find
-            found = doc.find(term, pos)
-            if found.isNull():
+            cursor = doc.find(term, cursor)   # case-insensitive; resumes past last match
+            if cursor.isNull():
                 break
             sel = QTextBrowser.ExtraSelection()
-            sel.cursor = found
+            sel.cursor = cursor
             sel.format = fmt
             selections.append(sel)
-            pos = found.selectionEnd()
-            if pos <= found.selectionStart():
-                break
 
         self.content_browser.setExtraSelections(selections)
 
