@@ -14,6 +14,7 @@ from datetime import datetime
 import pandas as pd
 from models.animal import Animal
 from ui.PrimingControlWidget import PrimingControlWidget
+from ui.UpdatesTab import UpdatesTab
 # CageManagerWidget removed - cage management moved to Projects Section (CagesVisualizationTab)
 from PyQt5.QtWidgets import QApplication
 
@@ -57,6 +58,7 @@ class SettingsTab(QWidget):
         self.calibration_tab = self._create_calibration_tab()  # NEW
         self.priming_control = self._create_priming_control()
         self.general_tab = self._create_general_tab()
+        self.updates_tab = UpdatesTab()
         
         # Add sub-tabs to settings
         # Note: Cage management moved to Projects Section (CagesVisualizationTab)
@@ -64,6 +66,7 @@ class SettingsTab(QWidget):
         self.tab_widget.addTab(self.calibration_tab, "Calibration")
         self.tab_widget.addTab(self.priming_control, "Priming")
         self.tab_widget.addTab(self.general_tab, "General")
+        self.tab_widget.addTab(self.updates_tab, "Updates")
         
         layout.addWidget(self.tab_widget)
         
