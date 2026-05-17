@@ -1063,3 +1063,81 @@ QLabel#StepDescription {
     font-size: 14px;
     color: #A0AEC0;
 }
+
+/* ============================================
+   HELP TAB  (dark theme)
+   ============================================ */
+
+/* Sidebar container */
+QWidget#HelpSidebar {
+    background-color: #1A2028;
+    border-right: 1px solid #2D3748;
+}
+
+/* Content pane container */
+QWidget#HelpContentPane {
+    background-color: #1A2028;
+}
+
+/* Topic tree */
+QTreeWidget#HelpTree {
+    background-color: #1E2530;
+    border: 1px solid #2D3748;
+    border-radius: 8px;
+    outline: none;
+    color: #F0F4F8;
+}
+QTreeWidget#HelpTree::item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin: 1px 2px;
+    color: #F0F4F8;
+}
+QTreeWidget#HelpTree::item:hover {
+    background-color: #134E4A;
+}
+QTreeWidget#HelpTree::item:selected {
+    background-color: #134E4A;
+    color: #2DD4BF;
+    font-weight: 500;
+}
+QTreeWidget#HelpTree::branch {
+    background: transparent;
+}
+QTreeWidget#HelpTree::branch:has-children:!has-siblings:closed,
+QTreeWidget#HelpTree::branch:closed:has-children:has-siblings {
+    background: transparent;
+}
+QTreeWidget#HelpTree::branch:open:has-children:!has-siblings,
+QTreeWidget#HelpTree::branch:open:has-children:has-siblings {
+    background: transparent;
+}
+
+/* Breadcrumb */
+QLabel#HelpBreadcrumb {
+    color: #A0AEC0;
+    font-size: 12px;
+    padding: 6px 4px;
+    background: transparent;
+}
+
+/* Result count caption */
+QLabel#HelpResultCount {
+    color: #718096;
+    font-size: 11px;
+    padding: 2px 4px;
+    background: transparent;
+}
+
+/* Content browser — override QTextEdit form-input rules */
+QTextBrowser#HelpContent {
+    background-color: #1A2028;
+    border: 1px solid #2D3748;
+    border-radius: 8px;
+    padding: 0;
+    color: #F0F4F8;
+}
+QTextBrowser#HelpContent:focus {
+    border: 1px solid #2D3748;
+    padding: 0;
+}
