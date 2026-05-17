@@ -55,13 +55,7 @@ UNIT_DST="$UNIT_DIR/rrr.service"
 run install -m 0644 -o "$TARGET_USER" -g "$TARGET_USER" "$UNIT_SRC" "$UNIT_DST"
 info "installed user unit: $UNIT_DST"
 
-cat <<EOF >&2
-
-To enable autostart on graphical login (run as $TARGET_USER, not root):
-    systemctl --user daemon-reload
-    systemctl --user enable --now rrr.service
-
-For headless autostart (no graphical login), also enable lingering:
-    sudo loginctl enable-linger $TARGET_USER
-
-EOF
+info "autostart on graphical login (run as $TARGET_USER, not root):"
+info "    systemctl --user daemon-reload && systemctl --user enable --now rrr.service"
+info "headless autostart also needs lingering:"
+info "    sudo loginctl enable-linger $TARGET_USER"

@@ -13,8 +13,7 @@ TARGET_USER=${SUDO_USER:-$USER}
 # so /dev/i2c-* appears without a reboot. Manual fallbacks tend to miss the
 # last step and require the user to re-run `sudo raspi-config` by hand.
 if command -v raspi-config >/dev/null; then
-  run sudo raspi-config nonint do_i2c 0
-  info "i2c enabled via raspi-config"
+  step "enabling I2C via raspi-config" -- run sudo raspi-config nonint do_i2c 0
 else
   warn "raspi-config not present; falling back to manual config (reboot likely required)"
   if [[ -f "$CONFIG_TXT" ]]; then
@@ -25,6 +24,7 @@ else
   # Try to apply the device-tree param live; the dtparam tool ships with
   # raspberrypi-sys-mods on Pi OS. Failures here just mean a reboot is needed.
   command -v dtparam >/dev/null && run sudo dtparam i2c_arm=on || true
+  request_reboot "I2C enabled via manual config — reboot to bring up /dev/i2c-*"
 fi
 
 # ---- Groups ------------------------------------------------------------
@@ -38,15 +38,19 @@ VENDOR_DIR="$REPO_ROOT/vendor/16relind-rpi"
 REPO_URL="https://github.com/SequentMicrosystems/16relind-rpi.git"
 mkdir -p "$REPO_ROOT/vendor"
 
-if [[ -d "$VENDOR_DIR/.git" ]]; then
+_update_vendor() {
   run git -C "$VENDOR_DIR" fetch --depth 1 origin
   run git -C "$VENDOR_DIR" reset --hard origin/HEAD
+}
+if [[ -d "$VENDOR_DIR/.git" ]]; then
+  step "updating 16relind-rpi vendor checkout" -- _update_vendor
 else
-  run git clone --depth 1 "$REPO_URL" "$VENDOR_DIR"
+  step "cloning 16relind-rpi (Sequent Microsystems)" -- \
+    with_retry 3 3 -- run git clone --depth 1 "$REPO_URL" "$VENDOR_DIR"
 fi
 
 if [[ -f "$VENDOR_DIR/Makefile" ]]; then
-  run sudo make -C "$VENDOR_DIR" install
+  step "building & installing 16relind driver" -- run sudo make -C "$VENDOR_DIR" install
 fi
 
 if command -v 16relind >/dev/null; then
@@ -61,7 +65,8 @@ SM_PY_DIR="$VENDOR_DIR/python"
 VENV_PIP="$REPO_ROOT/.venv/bin/pip"
 if [[ -d "$SM_PY_DIR" && -x "$VENV_PIP" ]]; then
   if [[ -f "$SM_PY_DIR/pyproject.toml" || -f "$SM_PY_DIR/setup.py" ]]; then
-    run "$VENV_PIP" install --disable-pip-version-check "$SM_PY_DIR"
+    step "installing SM16relind python wrapper into venv" -- \
+      run "$VENV_PIP" install --disable-pip-version-check -q "$SM_PY_DIR"
   else
     warn "SM16relind python source dir present but no setup.py/pyproject.toml"
   fi
@@ -77,8 +82,8 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="16c0", ATTRS{idProduct}=="0483", \
   SYMLINK+="teensy_flow", MODE="0660", GROUP="dialout"
 EOF
 
-run sudo udevadm control --reload-rules
-run sudo udevadm trigger --subsystem-match=tty
+step "reloading udev rules" -- run sudo udevadm control --reload-rules
+step "triggering udev (tty subsystem)" -- run sudo udevadm trigger --subsystem-match=tty
 
 # ---- Console / display blanking (lab use, optional) -------------------
 # Append once; users can revert by editing cmdline.txt.
@@ -86,4 +91,5 @@ if [[ -f "$CMDLINE_TXT" ]] && ! grep -qw 'consoleblank=0' "$CMDLINE_TXT"; then
   run sudo cp -n "$CMDLINE_TXT" "${CMDLINE_TXT}.rrr-bak"
   run_sh "sudo sed -i 's/\$/ consoleblank=0/' $(printf %q "$CMDLINE_TXT")"
   info "added consoleblank=0 to $CMDLINE_TXT (backup: ${CMDLINE_TXT}.rrr-bak)"
+  request_reboot "kernel cmdline changed (consoleblank=0) — reboot to apply"
 fi

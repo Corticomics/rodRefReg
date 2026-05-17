@@ -8,30 +8,29 @@ set -Eeuo pipefail
 if [[ -z "${_RRR_LIB_LOADED:-}" ]]; then
 _RRR_LIB_LOADED=1
 
-# ---- ANSI ----------------------------------------------------------------
-if [[ -t 2 ]]; then
-  _C_RED=$'\e[31m'; _C_YEL=$'\e[33m'; _C_GRN=$'\e[32m'; _C_DIM=$'\e[2m'; _C_RST=$'\e[0m'
-else
-  _C_RED=; _C_YEL=; _C_GRN=; _C_DIM=; _C_RST=
-fi
+# Load the UI renderer (sources ui.theme.sh in turn). All user-visible
+# output is routed through ui.sh so modules never touch ANSI directly.
+# shellcheck source=ui.sh
+source "${BASH_SOURCE[0]%/*}/ui.sh"
 
-# ---- Logging -------------------------------------------------------------
+# ---- Logging shims -------------------------------------------------------
+# Back-compat helpers. Existing modules call info/warn/err/die/section; we
+# keep those names but route through the UI renderer.
 _ts() { date +'%Y-%m-%dT%H:%M:%S%z'; }
-log()  { printf '%s %s\n'        "$(_ts)" "$*" >&2; }
-info() { printf '%s %sINFO%s  %s\n' "$(_ts)" "$_C_GRN" "$_C_RST" "$*" >&2; }
-warn() { printf '%s %sWARN%s  %s\n' "$(_ts)" "$_C_YEL" "$_C_RST" "$*" >&2; }
-err()  { printf '%s %sERROR%s %s\n' "$(_ts)" "$_C_RED" "$_C_RST" "$*" >&2; }
-die()  { err "$*"; exit 1; }
+log()  { ui_info "$*"; }
+info() { ui_info "$*"; }
+warn() { ui_warn "$*"; }
+err()  { ui_err  "$*"; }
+die()  { ui_err  "$*"; exit 1; }
 
-# Section banner; modules call once at entry.
-section() { printf '\n%s== %s ==%s\n' "$_C_DIM" "$*" "$_C_RST" >&2; }
+# section() is provided by ui.sh.
 
 # ---- Dry-run aware command runner ---------------------------------------
 # Usage: run cmd args...
 # Honors DRY_RUN=1 by printing instead of executing.
 run() {
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    printf '%s[dry-run]%s %s\n' "$_C_DIM" "$_C_RST" "$(_quote "$@")" >&2
+    printf '[dry-run] %s\n' "$(_quote "$@")" >&2
     return 0
   fi
   "$@"
@@ -40,7 +39,7 @@ run() {
 # run_sh "shell snippet"  — for pipelines/redirection. Dry-run aware.
 run_sh() {
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    printf '%s[dry-run]%s sh -c %q\n' "$_C_DIM" "$_C_RST" "$1" >&2
+    printf '[dry-run] sh -c %q\n' "$1" >&2
     return 0
   fi
   bash -c "$1"
@@ -71,8 +70,7 @@ write_file_atomic() {
     return 0
   fi
   if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    printf '%s[dry-run]%s would write %s (mode=%s owner=%s)\n' \
-      "$_C_DIM" "$_C_RST" "$dest" "$mode" "$owner" >&2
+    info "[dry-run] would write $dest (mode=$mode owner=$owner)"
     rm -f "$tmp"
     return 0
   fi
@@ -93,10 +91,25 @@ ensure_user_in_group() {
   getent group "$group" >/dev/null || run sudo groupadd "$group"
   run sudo usermod -aG "$group" "$user"
   info "added $user to group $group (re-login required to take effect)"
+  request_reboot "group membership changed — re-login or reboot to apply"
 }
 
 # Require a command on PATH.
 require_cmd() { command -v "$1" >/dev/null || die "required command not found: $1"; }
+
+# ---- Reboot coordination -------------------------------------------------
+# Modules call request_reboot when a change only takes effect after a
+# reboot (or re-login). install.sh acts on the flag after the summary.
+_RRR_REBOOT_REQUIRED=0
+_RRR_REBOOT_REASONS=()
+request_reboot() {
+  local reason=$1 r
+  _RRR_REBOOT_REQUIRED=1
+  for r in "${_RRR_REBOOT_REASONS[@]:-}"; do
+    [[ "$r" == "$reason" ]] && return 0      # dedup identical reasons
+  done
+  _RRR_REBOOT_REASONS+=("$reason")
+}
 
 # Confirm prompt; auto-yes if YES=1.
 confirm() {
@@ -134,6 +147,7 @@ _lib_cleanup() {
   done
   return 0
 }
-trap _lib_cleanup EXIT
+# Chain alongside the UI EXIT trap (ui.sh installs _ui_cleanup on EXIT).
+trap '_lib_cleanup; _ui_cleanup' EXIT
 
 fi # _RRR_LIB_LOADED

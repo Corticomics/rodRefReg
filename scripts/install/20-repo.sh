@@ -24,11 +24,12 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 TARGET_BRANCH=${BRANCH:-$CURRENT_BRANCH}
 info "current branch: $CURRENT_BRANCH; target: $TARGET_BRANCH"
 
-run git fetch --prune origin
+step "fetching from origin" -- with_retry 3 3 -- run git fetch --prune origin
 
 if [[ "$TARGET_BRANCH" != "$CURRENT_BRANCH" ]]; then
-  run git checkout "$TARGET_BRANCH"
+  step "switching to branch $TARGET_BRANCH" -- run git checkout "$TARGET_BRANCH"
 fi
 
 # Fast-forward only; never rewrite history.
-run git pull --ff-only origin "$TARGET_BRANCH"
+step "pulling $TARGET_BRANCH (fast-forward only)" -- \
+  run git pull --ff-only origin "$TARGET_BRANCH"

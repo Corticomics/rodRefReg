@@ -21,5 +21,7 @@ APT_PACKAGES=(
 )
 
 export DEBIAN_FRONTEND=noninteractive
-run sudo apt-get update -y
-run sudo apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}"
+
+step "updating apt index" -- with_retry 3 5 -- run sudo apt-get update -y -q
+step "installing ${#APT_PACKAGES[@]} apt packages" -- \
+  run sudo apt-get install -y -q --no-install-recommends "${APT_PACKAGES[@]}"

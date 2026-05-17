@@ -37,7 +37,6 @@ ONLY=""
 SKIP=()
 
 usage() {
-  # Print the top-of-file doc block (the "# ..." comment lines after the shebang).
   awk 'NR>1 && /^#/{ sub(/^# ?/,""); print; next } NR>1{ exit }' "$SCRIPT_PATH"
   exit "${1:-0}"
 }
@@ -62,12 +61,23 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/install-$(date +%Y%m%d-%H%M%S).log"
 export LOG_FILE
 
-# Mirror all stdout/stderr to log (process substitution; backgrounded tee).
-exec > >(tee -a "$LOG_FILE") 2>&1
+# Mirror stdout/stderr to the log. In rich mode the UI writes styled lines
+# straight to /dev/tty, so the tee drops its terminal copy (-> /dev/null) to
+# avoid double output and to keep the log free of ANSI escapes. In plain
+# mode the tee is the only output path, so it keeps writing to the terminal.
+if [[ "${_UI_MODE:-plain}" == "rich" ]]; then
+  exec > >(tee -a "$LOG_FILE" >/dev/null) 2>&1
+else
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
 
-info "rrr installer starting"
-info "log: $LOG_FILE"
-[[ "$DRY_RUN" == "1" ]] && warn "DRY-RUN mode: no changes will be applied"
+ui_banner "Rodent Refreshment Regulator" "installer"
+[[ "$DRY_RUN" == "1" ]] && ui_warn "DRY-RUN mode: no changes will be applied"
+
+# Ensure the summary always prints — even on die() or signal.
+_SUMMARY_SHOWN=0
+_print_summary_once() { (( _SUMMARY_SHOWN )) && return 0; _SUMMARY_SHOWN=1; summary; }
+trap '_print_summary_once; _lib_cleanup; _ui_cleanup' EXIT
 
 # ---- Module discovery ---------------------------------------------------
 mapfile -t MODULES < <(find "$MODULE_DIR" -maxdepth 1 -type f -name '[0-9][0-9]-*.sh' | sort)
@@ -92,14 +102,24 @@ for m in "${MODULES[@]}"; do
   source "$m"
 done
 
-info "rrr installer finished"
-info "log: $LOG_FILE"
+# Summary + post-install notes.
+_print_summary_once
 
-cat <<EOF
+section "next steps"
+info "log out and back in so group membership (i2c, dialout) takes effect"
+info "launch: ~/.local/bin/rrr  (or run scripts/runtime/launch.sh)"
 
-Next steps:
-  - Log out and back in so group membership (i2c, dialout) takes effect.
-  - Reboot if I2C or boot config was modified: sudo reboot
-  - Launch:  ~/.local/bin/rrr   (or run scripts/runtime/launch.sh)
-
-EOF
+# Conditional reboot — only when a module flagged one as needed. Never
+# auto-reboots under -y or a non-interactive run (would kill the session).
+if (( ${_RRR_REBOOT_REQUIRED:-0} )); then
+  _ui_emit "" ""
+  for _r in "${_RRR_REBOOT_REASONS[@]:-}"; do
+    [[ -n "$_r" ]] && info "reboot needed: $_r"
+  done
+  if [[ "$DRY_RUN" != "1" && "$YES" != "1" ]] && ui_confirm "reboot now?"; then
+    info "rebooting…"
+    sudo reboot
+  else
+    info "a reboot is recommended before use:  sudo reboot"
+  fi
+fi
