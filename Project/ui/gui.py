@@ -2,9 +2,10 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy, QTabWidget
+    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy, QTabWidget, QFrame
 )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
+from PyQt5.QtGui import QDesktopServices
 import traceback
 from .run_stop_section import RunStopSection
 from .projects_section import ProjectsSection
@@ -16,6 +17,7 @@ from utils.volume_calculator import VolumeCalculator
 from .login_gate_widget import LoginGateWidget
 from .SettingsTab import SettingsTab
 from .HelpTab import HelpTab
+from version import __version__
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
@@ -55,7 +57,7 @@ class RodentRefreshmentGUI(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("Rodent Refreshment Regulator")
+        self.setWindowTitle(f"Rodent Refreshment Regulator  —  v{__version__}")
         self.setMinimumSize(1200, 800)
 
         # Use centralized app-level QSS (StyleManager). No per-widget styles here.
@@ -213,6 +215,66 @@ class RodentRefreshmentGUI(QWidget):
         self.load_animals_tab()
         self.showMaximized()
     
+    def show_update_banner(self, version, url):
+        """Show a dismissable banner announcing an available software update.
+
+        Inserted at the top of the main window. Non-modal — it never blocks
+        the operator. See docs/UPDATE_SYSTEM.md (Phase 1).
+        """
+        try:
+            # Replace any banner already shown.
+            existing = getattr(self, "_update_banner", None)
+            if existing is not None:
+                existing.setParent(None)
+                existing.deleteLater()
+
+            banner = QFrame()
+            banner.setObjectName("updateBanner")
+            banner.setFrameShape(QFrame.StyledPanel)
+            row = QHBoxLayout(banner)
+            row.setContentsMargins(12, 8, 12, 8)
+
+            label = QLabel(f"A new version of RRR is available  —  v{version}")
+            font = label.font()
+            font.setBold(True)
+            label.setFont(font)
+
+            view_button = QPushButton("View release")
+            view_button.clicked.connect(
+                lambda: QDesktopServices.openUrl(QUrl(url))
+            )
+            dismiss_button = QPushButton("Dismiss")
+            dismiss_button.clicked.connect(self._dismiss_update_banner)
+
+            row.addWidget(label)
+            row.addStretch()
+            row.addWidget(view_button)
+            row.addWidget(dismiss_button)
+
+            self.layout().insertWidget(0, banner)
+            self._update_banner = banner
+        except Exception:
+            # A failed banner must never take down the GUI.
+            pass
+
+    def _dismiss_update_banner(self):
+        """Remove the update banner when the operator dismisses it."""
+        banner = getattr(self, "_update_banner", None)
+        if banner is not None:
+            banner.setParent(None)
+            banner.deleteLater()
+            self._update_banner = None
+
+    @pyqtSlot(object)
+    def _on_update_check_result(self, info):
+        """Receive the startup update-check result (see utils.updater.run_check).
+
+        Runs on the GUI thread. Shows the banner only when a newer release
+        exists; does nothing on no-result (offline) or already up-to-date.
+        """
+        if info is not None and getattr(info, "available", False):
+            self.show_update_banner(info.version, info.url)
+
     def _apply_right_stretch(self):
         """Adjust right column stretches based on active tab and settings sub-tab."""
         current = self.main_tab_widget.currentWidget()

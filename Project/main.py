@@ -18,6 +18,7 @@ from controllers.pump_controller import PumpController
 from models.relay_unit_manager import RelayUnitManager
 from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
+from version import __version__
 
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
@@ -364,7 +365,7 @@ def run_program(schedule, mode, window_start, window_end):
     except Exception as e:
         print(f"Failed to run program: {e}")
         if notification_handler:
-            notification_handler.send_slack_notification(f"Program error: {e}")
+            notification_handler.send_slack_notification(f"[RRR v{__version__}] Program error: {e}")
 
 # =============================================================================
 # Centralized cleanup() – called once when the worker finishes.
@@ -691,7 +692,7 @@ def _main_with_splash(app, instance_key):
         # Check for updates
         try:
             from ui.update_notifier import UpdateNotifier
-            UpdateNotifier.check_for_updates()
+            UpdateNotifier.check_for_updates(gui)
         except Exception:
             pass
         
