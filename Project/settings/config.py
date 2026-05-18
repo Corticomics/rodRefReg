@@ -1,8 +1,10 @@
 import json
 import os
 
+from utils import paths
+
 def save_settings(settings):
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+    settings_path = paths.settings_path()
     try:
         with open(settings_path, 'w') as file:
             json.dump(settings, file, indent=4)
@@ -10,7 +12,7 @@ def save_settings(settings):
         print(f"Error saving settings: {e}")
 
 def load_settings():
-    settings_path = os.path.join(os.path.dirname(__file__), 'settings.json')
+    settings_path = paths.settings_path()
     if os.path.exists(settings_path):
         try:
             with open(settings_path, 'r') as file:

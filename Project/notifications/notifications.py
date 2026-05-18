@@ -7,7 +7,9 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import os
 
-LOG_FILE = "pump_log.json"
+from utils import paths
+
+LOG_FILE = paths.pump_log_path()
 
 class NotificationHandler:
     def __init__(self, slack_token, channel_id):

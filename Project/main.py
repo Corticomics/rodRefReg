@@ -5,6 +5,7 @@ from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMute
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from utils.volume_calculator import VolumeCalculator
+from utils import paths
 from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
@@ -26,7 +27,7 @@ from version import __version__
 import os
 from datetime import datetime
 
-_DEBUG_LOG_PATH = os.path.expanduser('~/rrr_app_debug.log')
+_DEBUG_LOG_PATH = paths.debug_log_path()
 
 def _dbg(message: str):
     try:

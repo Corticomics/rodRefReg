@@ -2,6 +2,8 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QPushButton
 import json
 import os
 
+from utils import paths
+
 class SlackCredentialsTab(QWidget):
     def __init__(self, settings, save_callback=None):
         super().__init__()
@@ -38,7 +40,7 @@ class SlackCredentialsTab(QWidget):
 
         # Save to settings.json
         try:
-            with open('settings.json', 'w') as f:
+            with open(paths.settings_path(), 'w') as f:
                 json.dump(self.settings, f, indent=4)
 
             # Notify the user
