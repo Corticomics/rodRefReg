@@ -62,7 +62,7 @@ fi
 # Install the SM16relind Python wrapper into the project venv.
 # Upstream ships it under python/ with a setup.py (modern build).
 SM_PY_DIR="$VENDOR_DIR/python"
-VENV_PIP="$REPO_ROOT/.venv/bin/pip"
+VENV_PIP="$RRR_VENV/bin/pip"
 if [[ -d "$SM_PY_DIR" && -x "$VENV_PIP" ]]; then
   if [[ -f "$SM_PY_DIR/pyproject.toml" || -f "$SM_PY_DIR/setup.py" ]]; then
     step "installing SM16relind python wrapper into venv" -- \

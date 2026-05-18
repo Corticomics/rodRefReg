@@ -13,6 +13,10 @@ _RRR_LIB_LOADED=1
 # shellcheck source=ui.sh
 source "${BASH_SOURCE[0]%/*}/ui.sh"
 
+# shellcheck source=layout.sh
+# Blue-green layout paths (RRR_HOME, RRR_VENV, …) — every module consumes these.
+source "${BASH_SOURCE[0]%/*}/layout.sh"
+
 # ---- Logging shims -------------------------------------------------------
 # Back-compat helpers. Existing modules call info/warn/err/die/section; we
 # keep those names but route through the UI renderer.

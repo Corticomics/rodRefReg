@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # Verify: smoke-test imports and hardware presence. Non-fatal warnings only.
 
-VENV_PY="$REPO_ROOT/.venv/bin/python3"
+VENV_PY="$RRR_VENV/bin/python3"
 [[ -x "$VENV_PY" ]] || { warn "venv python not found; skipping verify"; return 0; }
 
 _check_import() {

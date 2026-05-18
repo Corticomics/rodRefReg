@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # Python: venv with --system-site-packages, pip install -r requirements.txt.
 
-VENV_DIR="$REPO_ROOT/.venv"
+# venv lives in the shared/ tree so it survives release swaps (layout.sh).
+VENV_DIR="$RRR_VENV"
 REQ_FILE="$REPO_ROOT/requirements.txt"
 
 [[ -f "$REQ_FILE" ]] || die "requirements.txt missing at $REQ_FILE"
