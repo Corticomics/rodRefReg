@@ -9,9 +9,11 @@ from models.animal import Animal
 from models.Schedule import Schedule
 from models.relay_unit import RelayUnit
 from datetime import datetime
+from utils import paths
 class DatabaseHandler:
-    def __init__(self, db_path='rrr_database.db'):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        # db_path=None -> resolve via paths (RRR_DATA, or legacy location).
+        self.db_path = db_path or paths.database_path()
         self.create_tables()
 
     def connect(self):

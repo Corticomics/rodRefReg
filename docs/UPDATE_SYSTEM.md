@@ -304,3 +304,258 @@ single GitHub Actions secret. Releases are manual tag pushes at the maintainer's
 → A real check-in service is out of scope. Interim win once `version.py` ships: append
 `__version__` to the existing Slack startup/error message — basic "which version is this
 device on" with zero new infrastructure.
+
+---
+
+## 13. Phase 2 — detailed implementation plan
+
+Phases 0 and 1 only *added* files. Phase 2 changes **where the app runs from** and **where
+its data lives** — so it is split into three independently shippable sub-phases, each its own
+PR and release.
+
+Phase 2 status of the prerequisites: Phase 0 (versioning + release pipeline) and Phase 1
+(in-app update check, shipped as v1.1.0) are done and validated on a Raspberry Pi 5.
+
+### 13.0 Target on-device layout
+
+Guiding principle: **code is disposable and versioned; data is sacred and shared.**
+
+```
+~/rrr/                         RRR_HOME
+├── releases/
+│   └── 1.3.0/                 one extracted release bundle (Project/, scripts/,
+│                              requirements.txt, manifest.json, migrations/)
+├── current -> releases/1.3.0  atomic symlink — the running version
+├── shared/                    survives every update
+│   ├── venv/                  the virtualenv
+│   ├── data/                  rrr_database.db, settings.json   (RRR_DATA)
+│   ├── logs/
+│   └── backups/               timestamped DB snapshots taken before each migration
+└── state/
+    └── boot.json              boot sentinel for auto-rollback
+```
+
+The git clone at `~/rodRefReg` **stays**, but only as the installer / build workspace — it is
+no longer what the device runs. The runtime is `~/rrr/current`.
+
+### 13.1 Sub-phase 2a — `paths` module  (no behaviour change)  → v1.2.0
+
+The foundation. Centralises every data-file location behind one resolver, with a fallback
+that reproduces today's exact paths — so until 2b sets the env var, behaviour is *identical*.
+
+**New file `Project/utils/paths.py`** — resolves locations from the `RRR_DATA` environment
+variable, set by the launcher in 2b:
+
+| function | with `RRR_DATA` set | fallback (unset — dev clone / pre-migration) |
+|---|---|---|
+| `data_dir()` | `$RRR_DATA` | `Project/` (the code dir) |
+| `database_path()` | `$RRR_DATA/rrr_database.db` | `Project/rrr_database.db` |
+| `settings_path()` | `$RRR_DATA/settings.json` | `Project/settings/settings.json` |
+| `debug_log_path()` | `$RRR_DATA/../logs/rrr_app_debug.log` | `~/rrr_app_debug.log` |
+| `backups_dir()` | `$RRR_DATA/../backups` | `Project/` |
+
+**Reroute these call sites through `paths`:**
+
+- [models/database_handler.py](../Project/models/database_handler.py) — default `db_path`
+  argument → `paths.database_path()`. The three instantiation sites
+  ([main.py:115](../Project/main.py#L115), [splash_screen.py:53](../Project/ui/splash_screen.py#L53),
+  [schedule_drop_area.py:22](../Project/ui/schedule_drop_area.py#L22)) pass no path, so they
+  all inherit the new default — this is what kills the 3-site race from §12.1.
+- [settings/config.py](../Project/settings/config.py) — `settings.json` path → `paths.settings_path()`.
+- [ui/SlackCredentialsTab.py](../Project/ui/SlackCredentialsTab.py) — fix the CWD-relative
+  `settings.json` write → `paths.settings_path()`.
+- [main.py](../Project/main.py) — `_DEBUG_LOG_PATH` → `paths.debug_log_path()`.
+
+**Risk:** none — with `RRR_DATA` unset every path equals today's. **Test:** the offscreen
+`main.setup()` harness already used in Phase 1 validation, plus a unit assertion that the
+resolved paths match the legacy paths when the env var is absent.
+
+### 13.2 Sub-phase 2b — blue-green layout + data migration  → v1.3.0
+
+1. **Thin launcher shim.** `~/.local/bin/rrr` becomes a 3-line *stable* shim:
+   `exec ~/rrr/current/scripts/runtime/launch.sh "$@"`. It never changes again — so the
+   real launch logic, living inside the release, is itself updatable.
+2. **New `scripts/runtime/launch.sh`.** Resolves `~/rrr/current`; exports
+   `RRR_HOME=~/rrr` and `RRR_DATA=~/rrr/shared/data`; runs `current/Project/main.py` with
+   `~/rrr/shared/venv`.
+3. **New installer module `scripts/install/55-layout.sh`** — idempotent:
+   - create `~/rrr/{releases,shared/{data,logs,backups},state}`;
+   - run `build-bundle.sh`, extract the bundle into `releases/<version>/`;
+   - create `shared/venv` fresh (`python -m venv --system-site-packages` + pip install) —
+     **venvs are not relocatable**, so it is recreated, never moved;
+   - run the data migration (§13.4);
+   - point `current` → `releases/<version>`; install the thin shim.
+4. **systemd unit** `rrr.service` — `ExecStart` already targets `~/.local/bin/rrr` (the
+   shim), so no unit change is needed.
+
+Shipping an installer change means each device re-runs the installer once; that single
+re-run performs the migration. Existing `~/rodRefReg` installs are detected and migrated.
+
+### 13.3 Sub-phase 2c — apply engine + rollback + UI  → v1.4.0
+
+**`updater.py` additions:**
+- `apply_bundle(path)` — gate (refuse if a delivery schedule is running) → verify SHA256 →
+  extract to `releases/<new>/` → provision venv only if `requirements_hash` changed → run DB
+  migrations (back up first) → health-check → swap `current` → restart.
+- `revert()` — swap `current` to the previous release.
+- prune — keep the newest 3 under `releases/`.
+
+**`main.py`** — a `--selftest` flag: import core modules, open the DB, exit 0/1. Used as the
+health-check before the symlink swap.
+
+**Auto-rollback.** The launcher increments a counter in `state/boot.json`; the app clears it
+on reaching a healthy idle state; the launcher reverts `current` after 2 consecutive failed
+boots.
+
+**Restart.** If `rrr.service` is active → `systemctl --user restart rrr`; otherwise prompt the
+operator to relaunch.
+
+**UI** ([UpdatesTab.py](../Project/ui/UpdatesTab.py)) — an "Update Now" button driving
+`apply_bundle` with a progress dialog, and a "Revert to previous version" button.
+
+Online download only. Offline USB import and minisign signing/verification remain **Phase 3**.
+
+### 13.4 The data migration (the critical step)
+
+Run by `55-layout.sh`, idempotent, **copy-not-move**:
+
+```
+if ~/rrr/shared/data/rrr_database.db exists:        skip — already migrated
+else:
+    locate the legacy DB: ~/rodRefReg/Project/rrr_database.db
+    if found:  copy -> shared/data/rrr_database.db
+               copy -> shared/backups/<timestamp>/rrr_database.db
+    repeat for settings.json (Project/settings/settings.json)
+    the legacy copies are LEFT IN PLACE as a fallback — never deleted
+```
+
+Forward-only schema migrations: a `schema_version` table plus ordered scripts under
+`releases/<v>/migrations/`; the app applies pending ones at startup after backing up the DB.
+Downgrades are never automatic — rollback relies on the pre-migration backup.
+
+### 13.5 Validating 2b on the test Pi
+
+The Pi 5 already carries an old-style `~/rodRefReg` install. Validating 2b = re-running the
+installer on it and confirming: data lands in `~/rrr/shared/data`, the app runs from
+`~/rrr/current`, the legacy DB is preserved, and a second installer run changes nothing
+(idempotency).
+
+### 13.6 Decisions already made (flag on review if you disagree)
+
+- Virtualenv is **recreated** in `shared/venv`, not moved (venvs hard-code absolute paths).
+- `~/.local/bin/rrr` is a **thin immutable shim**; the real launch logic ships in the release.
+- The git clone **stays** as the installer/build workspace; it is not the runtime.
+- The installer migration step is **copy-not-move with timestamped backups** — the biggest
+  risk in Phase 2 is data loss, and this makes the migration non-destructive and reversible.
+
+### 13.7 Rollout
+
+| Sub-phase | Release | Risk | How users get it |
+|---|---|---|---|
+| 2a — `paths` module | v1.2.0 | none | normal release |
+| 2b — blue-green + migration | v1.3.0 | medium | one installer re-run per device |
+| 2c — apply engine + rollback + UI | v1.4.0 | medium | first version with one-click in-app updates |
+
+### 13.8 Deferred — Phase 2.5: settings consolidation
+
+`settings.json` today conflates three things that want different homes: secrets
+(`slack_token`), preferences (`interval`, `num_hats`, …), and domain records (`schedules`,
+`animals` — already duplicated in the SQLite tables). Phase 2a only does the *interim* fix:
+unify the two write paths into one `settings.json` and stop tracking it in git.
+
+The proper end state — best practice for this project — is **zero general-settings files**:
+
+- preferences + domain data → the SQLite DB (the `system_settings` table already exists), so
+  the update system has a *single* artifact to back up, migrate, and roll back;
+- the Slack secret → a separate mode-600, gitignored `secrets.json` (or an OS keyring);
+- retire `settings.json` and the dead `migrate_settings.py`.
+
+This is a refactor that needs an audit of how `schedules`/`animals` actually flow (JSON blob
+vs DB tables). It is scheduled as **Phase 2.5**, its own change after Phase 2 — deliberately
+not entangled with the layout work.
+
+---
+
+## 14. Phase 2 risk register
+
+Compiled from a code survey *before* implementation. Every risk below has a mitigation that
+is now part of the plan.
+
+### 14.1 Findings that correct the Phase 2 plan
+
+- **F1 — `pump_log.json` is a third CWD-relative data file.** `notifications.py` writes
+  `LOG_FILE = "pump_log.json"` relative to the working directory (`Project/`). Under
+  blue-green the working directory becomes `~/rrr/current/Project`, so this file would land
+  *inside the release directory and be lost on every update*. → 2a must also route
+  `pump_log.json` through `paths`.
+- **F2 — `settings.json` is already split across two files.** `config.py` writes
+  `Project/settings/settings.json`; `SlackCredentialsTab.save_credentials` writes
+  CWD-relative `Project/settings.json` — a *different file*. → 2a must fix
+  `SlackCredentialsTab` to use `paths.settings_path()` **before** any migration, or
+  migration copies an incomplete settings file.
+- **F3 — 2b is an installer refactor, not just a new module.** `30-python.sh` hard-codes the
+  venv at `$REPO_ROOT/.venv` and `50-services.sh` installs `launch.sh` verbatim as the
+  launcher. Both must change (venv → `shared/venv`; launcher → thin shim). A standalone
+  layout module is not sufficient.
+- **F4 — no schema-version mechanism exists.** `create_tables()` does ad-hoc
+  `PRAGMA table_info` + `ALTER TABLE` inline. A formal framework would be a *second*
+  migration system. Decision: keep `create_tables()` as-is; Phase 2's "migration" support is
+  only a `PRAGMA user_version` gate plus the pre-update DB backup — we do **not** rebuild the
+  existing ad-hoc migrations.
+- **F5 — `Project/migrations/migrate_settings.py` is dead code** (no import site anywhere).
+  Flag for removal so it is not confused with the new mechanism.
+
+### 14.2 Data-migration risks (highest severity)
+
+- **R1 — split-brain DB:** app reads the old DB path while migration populated the new one.
+  *Mitigation:* `paths` is the single resolver; the launcher always exports `RRR_DATA`;
+  migration and runtime resolve identically.
+- **R2 — SQLite copied while open → corruption** (live DB has `-wal`/`-shm` sidecars).
+  *Mitigation:* migrate with `sqlite3 "$src" ".backup '$dst'"`, not `cp`; only when the app
+  is not running.
+- **R3 — wrong source DB selected.** *Mitigation:* one deterministic legacy path; if the
+  target already exists, skip (idempotent); never guess.
+- **R4 — root-owned files in `shared/`** (installer `sudo` steps). *Mitigation:* `shared/` and
+  its contents are `chown`ed to the target user; writability asserted post-migration.
+- **R5 — destructive migration.** *Mitigation:* copy-not-move; legacy files left intact; a
+  timestamped copy also written to `shared/backups/`.
+
+### 14.3 Blue-green / runtime risks
+
+- **R6 — non-atomic symlink swap.** *Mitigation:* create the new link under a temp name then
+  `mv -T` (atomic rename); never `rm` then `ln`.
+- **R7 — dangling `current`.** *Mitigation:* prune never touches `current`'s target or the
+  previous release.
+- **R8 — a broken `launch.sh` shipped inside a release** breaks every launch. *Mitigation:*
+  keep `launch.sh` minimal and stable; boot-sentinel auto-rollback is the backstop.
+- **R9 — the venv is shared, not versioned:** rolling back code does not roll back dependency
+  versions. *Mitigation:* deps are pinned and pure-python; re-pip only on a forward update,
+  never on rollback; documented limitation.
+
+### 14.4 Apply-engine risks
+
+- **R10 — update applied mid-experiment.** *Mitigation:* hard gate — refuse to apply while a
+  delivery worker is running (not a dismissible prompt).
+- **R11 — interrupted apply.** *Mitigation:* extract to a temp directory; swap `current` only
+  as the final step after the health-check; clean stale temp dirs on the next run.
+- **R12 — shallow health-check** (`--selftest` only imports modules). *Mitigation:* accepted;
+  the boot sentinel catches runtime failures.
+- **R13 — boot sentinel cannot distinguish a crash from a clean quit** (the app exits 0 on a
+  normal quit — confirmed in Phase 1 testing). *Mitigation:* the sentinel counts boots that
+  *never reached the healthy mark*; the app writes that mark a few seconds after the GUI is
+  up, so a clean quit afterwards does not count as a failure.
+- **R14 — restart-path ambiguity** (systemd unit vs desktop-icon launch). *Mitigation:*
+  `systemctl --user is-active rrr` decides — restart the unit, or instruct the operator.
+- **R15 — disk exhaustion** from accumulating releases. *Mitigation:* check free space before
+  extracting; prune to 3 releases.
+
+### 14.5 Technical debt accepted
+
+- **D1 — permanent dual path logic** in `paths` (device layout vs dev-clone fallback).
+  Necessary; the fallback is kept dead-simple.
+- **D2 — two "homes" on a device** (`~/rodRefReg` clone + `~/rrr`). The clone is build-only;
+  documented so support is not misled.
+- **D3 — installer module ordering** becomes layout-coupled (python → layout → services).
+  Documented in each module header.
+- **D4 — `requirements_hash` state** must live in `shared/` to decide whether to re-pip.
+  A single small state file is the one source of truth.
