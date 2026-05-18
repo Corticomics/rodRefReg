@@ -559,3 +559,32 @@ is now part of the plan.
   Documented in each module header.
 - **D4 — `requirements_hash` state** must live in `shared/` to decide whether to re-pip.
   A single small state file is the one source of truth.
+
+### 14.6 Phase 2b — implementation risk log
+
+Found while designing the installer refactor; each is mitigated in the 2b code.
+
+- **B1 — root vs user home.** `install.sh` may run under `sudo`; assuming `$HOME` would build
+  the tree in `/root`. *Mitigation:* a shared `scripts/install/layout.sh` resolves the target
+  user/home via `SUDO_USER` (the pattern `50-services.sh` already uses); the tree is
+  `chown`ed to the target user.
+- **B2 — venv-path drift.** The venv path is referenced by `30-python`, `40-hardware`,
+  `60-verify`, and `launch.sh`. *Mitigation:* `layout.sh` defines `RRR_VENV` once; every
+  module consumes it — no path is hard-coded in more than one place.
+- **B3 — `--only` / `--skip` runs.** Modules now depend on layout variables. *Mitigation:*
+  `layout.sh` is sourced by `lib.sh`, so the variables exist for every module regardless of
+  which subset runs.
+- **B4 — a re-run corrupts the running release.** *Mitigation:* the bundle is extracted to
+  `.incoming-<v>` then atomically `mv`'d into place; the `current` symlink is swapped with
+  `mv -T` (atomic rename), never `rm`+`ln`.
+- **B5 — migration corruption / live DB.** *Mitigation:* the DB is copied with SQLite's
+  online-backup API (`Connection.backup()` via the stdlib — no `sqlite3` CLI dependency),
+  consistent even if the DB is open. Copy-not-move; a timestamped copy also goes to
+  `shared/backups/`.
+- **B6 — re-migration / split data.** *Mitigation:* migration is skipped entirely when
+  `shared/data/rrr_database.db` already exists.
+- **B7 — `20-repo` refuses a dirty tree.** A device whose clone has local edits will silently
+  not update through the installer. *Mitigation:* documented; a device clone is hard-reset to
+  the target branch before an installer run. OTA updates (2c) bypass this path entirely.
+- **B8 — orphaned pre-2b venv.** The old `~/rodRefReg/.venv` is left behind, unused.
+  *Mitigation:* harmless; documented as build-only cruft (relates to D2).

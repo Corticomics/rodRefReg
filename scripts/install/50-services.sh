@@ -2,9 +2,9 @@
 # Services: install launcher to ~/.local/bin/rrr, desktop entry, and an
 # optional systemd --user unit. No system-level service (GUI app).
 
-TARGET_USER=${SUDO_USER:-$USER}
-TARGET_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
-[[ -n "$TARGET_HOME" && -d "$TARGET_HOME" ]] || die "cannot resolve home for $TARGET_USER"
+# Target user/home come from layout.sh (resolves SUDO_USER correctly).
+TARGET_USER=$RRR_TARGET_USER
+TARGET_HOME=$RRR_TARGET_HOME
 
 BIN_DIR="$TARGET_HOME/.local/bin"
 APPS_DIR="$TARGET_HOME/.local/share/applications"
@@ -18,12 +18,14 @@ DESKTOP_DIR=$(
 run install -d -m 0755 -o "$TARGET_USER" -g "$TARGET_USER" \
   "$BIN_DIR" "$APPS_DIR" "$UNIT_DIR" "$DESKTOP_DIR"
 
-# ---- rrr launcher ------------------------------------------------------
-LAUNCHER_SRC="$REPO_ROOT/scripts/runtime/launch.sh"
+# ---- rrr launcher shim -------------------------------------------------
+# ~/.local/bin/rrr is a thin, stable shim — it delegates to the launcher
+# inside the current release, so launch logic itself is updatable.
+LAUNCHER_SRC="$REPO_ROOT/scripts/runtime/rrr-shim.sh"
 LAUNCHER_DST="$BIN_DIR/rrr"
 [[ -f "$LAUNCHER_SRC" ]] || die "missing $LAUNCHER_SRC"
 run install -m 0755 -o "$TARGET_USER" -g "$TARGET_USER" "$LAUNCHER_SRC" "$LAUNCHER_DST"
-info "installed launcher: $LAUNCHER_DST"
+info "installed launcher shim: $LAUNCHER_DST"
 
 # ---- Desktop entry -----------------------------------------------------
 # Menu entry under Applications.

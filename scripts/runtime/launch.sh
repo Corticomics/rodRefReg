@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
-# Launch the RRR application. Installed to ~/.local/bin/rrr.
+# RRR launcher — runs the application from the current release.
+#
+# Lives inside each release at scripts/runtime/launch.sh and is invoked by the
+# stable shim at ~/.local/bin/rrr. It resolves the blue-green layout, exports
+# RRR_DATA so the app stores data outside the swappable code, and execs the app.
+# See docs/UPDATE_SYSTEM.md §13.2.
 set -Eeuo pipefail
 
-# Resolve repo root: this file lives at <repo>/scripts/runtime/launch.sh
-# When installed to ~/.local/bin/rrr, RRR_REPO env var or fallback path is used.
-if [[ -n "${RRR_REPO:-}" && -d "$RRR_REPO" ]]; then
-  REPO="$RRR_REPO"
-elif [[ -d "$HOME/rodRefReg" ]]; then
-  REPO="$HOME/rodRefReg"
-elif [[ -d "$HOME/Documents/GitHub/rodRefReg" ]]; then
-  REPO="$HOME/Documents/GitHub/rodRefReg"
-else
-  echo "rrr: cannot locate repo; set RRR_REPO=/path/to/rodRefReg" >&2
-  exit 1
-fi
+RRR_HOME="${RRR_HOME:-$HOME/rrr}"
+CURRENT="$RRR_HOME/current"
+VENV="$RRR_HOME/shared/venv"
 
-VENV="$REPO/.venv"
-[[ -x "$VENV/bin/python3" ]] || { echo "rrr: venv missing at $VENV; run install.sh" >&2; exit 1; }
+[[ -d "$CURRENT/Project" ]] || {
+  echo "rrr: no current release at $CURRENT — run install.sh" >&2; exit 1; }
+[[ -x "$VENV/bin/python3" ]] || {
+  echo "rrr: venv missing at $VENV — run install.sh" >&2; exit 1; }
 
-cd "$REPO/Project"
+export RRR_HOME
+export RRR_DATA="$RRR_HOME/shared/data"
+mkdir -p "$RRR_DATA"
+
+cd "$CURRENT/Project"
 exec "$VENV/bin/python3" main.py "$@"
