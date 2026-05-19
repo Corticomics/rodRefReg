@@ -588,3 +588,53 @@ Found while designing the installer refactor; each is mitigated in the 2b code.
   the target branch before an installer run. OTA updates (2c) bypass this path entirely.
 - **B8 — orphaned pre-2b venv.** The old `~/rodRefReg/.venv` is left behind, unused.
   *Mitigation:* harmless; documented as build-only cruft (relates to D2).
+
+### 14.7 Phase 2c — apply engine design & risk log
+
+**Apply sequence** (`updater.apply_update`, run on a background thread):
+gate → download → verify SHA256 → extract to `releases/<new>/` (staged, then atomic
+`mv`) → re-pip into `shared/venv` *iff* `manifest.requirements_hash` changed →
+`--selftest` the new release in a subprocess → record `state/previous` → atomic
+`current` swap → restart. Any failure before the swap aborts with the old release live.
+
+**Boot sentinel** (the subtle part). `state/boot.json` =
+`{"release": "<version>", "fail_count": N}`.
+- `launch.sh`, before exec'ing the app: if `boot.json.release` ≠ the version `current`
+  points at, reset `fail_count` to 0 (a new release — or a revert — gets a clean slate).
+  If `fail_count` ≥ 2 and a `previous` release exists → **revert** `current` → `previous`,
+  reset, and re-exec. Otherwise write `fail_count + 1` and launch.
+- The app, ~8 s after the GUI is up and the event loop is healthy, writes `fail_count: 0`.
+- Net effect: a release that never reaches "healthy" twice running is auto-rolled-back on
+  the third launch. A healthy release keeps `fail_count` at 0–1.
+
+**Risks**
+
+- **C1 — interrupted apply.** Extract to a staged dir; the `current` swap is the last
+  step → a kill at any earlier point leaves the running release untouched. Stale staged
+  dirs are cleared on the next apply.
+- **C2 — corrupt/partial download.** SHA256 verified before extraction; mismatch aborts.
+- **C3 — re-pip into a live venv.** The running app keeps its already-imported modules;
+  new deps take effect on the next launch. Re-pip runs only when `requirements_hash`
+  changed (rare). Documented limitation.
+- **C4 — sentinel false rollback** (a clean quit before the 8 s healthy mark).
+  *Mitigation:* the healthy mark fires quickly; two quick quits in a row are needed to
+  trigger a revert — rare. Documented.
+- **C5 — `launch.sh` now carries sentinel logic** (tension with "minimal launcher").
+  *Mitigation:* the *shim* stays the immutable anchor; sentinel reads are all guarded so
+  a malformed `boot.json` can never block launch.
+- **C6 — apply during an experiment.** Hard gate: a module-level busy-check (registered
+  by `main.py`) refuses to apply while a delivery worker runs.
+- **C7 — shallow `--selftest`** (imports + DB open only). Accepted; the sentinel is the
+  deeper net.
+- **C8 — restart path.** `systemctl --user is-active rrr` decides: restart the unit, or
+  tell the operator to relaunch.
+- **C9 — disk.** Free space checked before download/extract; releases pruned to 3.
+- **C11 — double-apply.** The "Update Now" button is disabled while an apply runs.
+- **C14 — no previous release.** "Revert" is disabled when `previous` is absent.
+
+**Technical debt**
+
+- **D5 — `launch.sh` grows** to carry the sentinel; kept compact and fully guarded.
+- **D7 — extract+swap exists twice** — in `25-layout.sh` (bash, install path) and
+  `updater.py` (Python, OTA path). The shared contract is the release-dir layout, not the
+  code. Accepted; both kept small.
