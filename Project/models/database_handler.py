@@ -2,6 +2,7 @@
 
 import sqlite3
 import hashlib
+import json
 import os
 import traceback
 import datetime
@@ -1511,6 +1512,11 @@ class DatabaseHandler:
                         settings[key] = float(value)
                     elif type_name == 'bool':
                         settings[key] = value.lower() == 'true'
+                    elif type_name == 'json':
+                        try:
+                            settings[key] = json.loads(value)
+                        except Exception:
+                            settings[key] = value
                     else:
                         settings[key] = value
                 return settings
