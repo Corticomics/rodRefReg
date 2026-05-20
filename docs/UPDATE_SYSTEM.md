@@ -1,6 +1,6 @@
 # RRR Update System — Design
 
-**Status:** Proposed · **Date:** 2026-05-17 · **Owner:** TBD
+**Status:** Phase 2 shipped (v1.4.0) — Phase 3 (offline + signing) deferred · **Date:** 2026-05-19 · **Owner:** zepaulojr1
 
 Design for shipping updates to deployed Rodent Refreshment Regulator (RRR) devices —
 automatically, safely, and without requiring operators to touch a terminal.
