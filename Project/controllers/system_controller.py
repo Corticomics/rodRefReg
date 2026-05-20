@@ -3,6 +3,8 @@ import json
 import os
 from datetime import datetime
 
+from utils import paths
+
 class SystemController(QObject):
     settings_updated = pyqtSignal(dict)
     system_status = pyqtSignal(str)
@@ -10,47 +12,35 @@ class SystemController(QObject):
     def __init__(self, database_handler):
         super().__init__()
         self.database_handler = database_handler
-        self.settings_file = 'settings.json'
         self.settings = self.load_settings()
-        
+
     def load_settings(self):
-        """Load settings from JSON file and database"""
+        """Load settings from the SQLite ``system_settings`` table.
+
+        On first run after the v1.5.0 upgrade, any values in the legacy
+        ``settings.json`` are copied into the DB and the file is never touched
+        again. Defaults fill in any keys still missing. See
+        docs/UPDATE_SYSTEM.md §13.8.
+        """
         try:
-            # Load from JSON
-            if os.path.exists(self.settings_file):
-                with open(self.settings_file, 'r') as f:
-                    settings = json.load(f)
-            else:
-                settings = self._create_default_settings()
-            
-            # Merge with database settings
-            db_settings = self._load_database_settings()
-            settings.update(db_settings)
-            
+            self._migrate_legacy_json_if_needed()
+            settings = self._create_default_settings()
+            settings.update(self._load_database_settings())
             return settings
         except Exception as e:
             self.system_status.emit(f"Error loading settings: {str(e)}")
             return self._create_default_settings()
-    
+
     def save_settings(self, settings_dict):
-        """Save settings to appropriate storage"""
+        """Persist managed settings to the DB; merge into ``self.settings``.
+
+        Unmanaged keys (runtime objects, ephemeral state) are kept in memory
+        but not persisted — see :meth:`_get_persisted_keys`.
+        """
         try:
-            # Separate settings based on storage type
-            json_settings = {k: v for k, v in settings_dict.items() 
-                           if k in self._get_json_settings_keys()}
-            db_settings = {k: v for k, v in settings_dict.items() 
-                         if k in self._get_db_settings_keys()}
-            
-            # Save to JSON
-            with open(self.settings_file, 'w') as f:
-                json.dump(json_settings, f, indent=4)
-            
-            # Save to database
-            self._save_database_settings(db_settings)
-            
-            self.settings = settings_dict
-            self.settings_updated.emit(settings_dict)
-            
+            self._save_database_settings(settings_dict)
+            self.settings.update(settings_dict)
+            self.settings_updated.emit(self.settings)
         except Exception as e:
             self.system_status.emit(f"Error saving settings: {str(e)}")
     
@@ -85,8 +75,14 @@ class SystemController(QObject):
             }
         }
     
-    def _get_json_settings_keys(self):
-        """Define which settings go in JSON file"""
+    def _get_persisted_keys(self):
+        """Every setting persisted to the SQLite system_settings table.
+
+        Anything else lives in self.settings in memory only — useful for
+        runtime objects (e.g. relay_unit_manager) and ephemeral state.
+        Single source of truth as of v1.5.0; replaces the prior split
+        between ``_get_json_settings_keys`` and ``_get_db_settings_keys``.
+        """
         return {
             'num_hats', 'slack_token', 'channel_id', 'hardware_mode',
             'global_master_relay_id', 'i2c_bus', 'flow_sensor_type', 'uart_port',
@@ -96,14 +92,12 @@ class SystemController(QObject):
             # Pulse-mode persistence (Parker Series 3)
             'use_pulse_delivery', 'pulse_width_ms', 'pulse_settling_ms',
             'max_pulses_per_delivery', 'max_pulse_delivery_time_s',
-            'debug_mode', 'log_level'
-        }
-    
-    def _get_db_settings_keys(self):
-        """Define which settings go in database"""
-        return {
-            'min_trigger_interval_ms', 'cycle_interval',
-            'stagger_interval'
+            'debug_mode', 'log_level',
+            # Scheduler tuning
+            'min_trigger_interval_ms', 'cycle_interval', 'stagger_interval',
+            # UI (silently dropped pre-v1.5.0 because it was missing from the
+            # JSON key list; managed properly from this release on)
+            'theme',
         }
 
     def _get_setting_type(self, key):
@@ -411,28 +405,81 @@ class SystemController(QObject):
             import traceback
             traceback.print_exc()
 
+    # Sentinel row marking that the v1.5.0 migration from settings.json
+    # has already run on this device; presence skips the migration thereafter.
+    _MIGRATION_SENTINEL_KEY = '_migrated_from_json_v1'
+
     def _load_database_settings(self):
-        """Load settings from database.
-        
-        Currently returns empty dict as DB settings storage is not yet implemented.
-        Settings are persisted to JSON file instead.
-        
-        Future implementation: Query database for user preferences, system config, etc.
-        """
-        return {}
-    
+        """Settings persisted in the SQLite system_settings table."""
+        try:
+            return self.database_handler.get_system_settings()
+        except Exception as exc:
+            self.system_status.emit(f"Could not read DB settings: {exc}")
+            return {}
+
     def _save_database_settings(self, settings_dict):
-        """Save settings to database.
-        
-        Currently no-op as DB settings storage is not yet implemented.
-        Settings are persisted to JSON file instead.
-        
-        Future implementation: Save user preferences, system config to database.
-        
-        Args:
-            settings_dict: Dictionary of settings to save
+        """Write each managed setting to the system_settings table."""
+        managed = self._get_persisted_keys()
+        for key, value in settings_dict.items():
+            if key in managed:
+                self._write_setting_to_db(key, value)
+
+    def _write_setting_to_db(self, key, value):
+        """Type-tag and persist a single setting via DatabaseHandler."""
+        if isinstance(value, bool):
+            type_name = 'bool'
+        elif isinstance(value, int):
+            type_name = 'int'
+        elif isinstance(value, float):
+            type_name = 'float'
+        elif isinstance(value, (list, dict)):
+            type_name = 'json'
+            value = json.dumps(value, default=str)
+        else:
+            type_name = 'str'
+        self.database_handler.update_system_setting(key, value, type_name)
+
+    def _migrate_legacy_json_if_needed(self):
+        """One-time copy of legacy settings.json into the system_settings table.
+
+        Runs the first time SystemController starts on a device that was on a
+        pre-v1.5.0 release; leaves a sentinel row so later launches skip it.
+        The legacy file is left untouched (copy-not-move).
         """
-        pass
+        existing = {}
+        try:
+            existing = self.database_handler.get_system_settings()
+        except Exception:
+            pass
+        if self._MIGRATION_SENTINEL_KEY in existing:
+            return
+
+        legacy = {}
+        legacy_path = paths.settings_path()
+        if os.path.exists(legacy_path):
+            try:
+                with open(legacy_path, 'r') as handle:
+                    legacy = json.load(handle)
+            except Exception as exc:
+                self.system_status.emit(
+                    f"Could not read legacy settings.json for migration: {exc}"
+                )
+
+        for key in self._get_persisted_keys():
+            if key in legacy:
+                try:
+                    self._write_setting_to_db(key, legacy[key])
+                except Exception as exc:
+                    self.system_status.emit(
+                        f"Could not migrate setting {key}: {exc}"
+                    )
+
+        try:
+            self.database_handler.update_system_setting(
+                self._MIGRATION_SENTINEL_KEY, '1', 'str'
+            )
+        except Exception:
+            pass
 
     def get_pump_controller(self):
         """Get or create a pump controller instance"""

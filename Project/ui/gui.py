@@ -12,7 +12,6 @@ from .projects_section import ProjectsSection
 from .UserTab import UserTab
 from .ScheduleProgressTracker import ScheduleProgressTracker
 from notifications.notifications import NotificationHandler
-from settings.config import save_settings
 from utils.volume_calculator import VolumeCalculator
 from .login_gate_widget import LoginGateWidget
 from .SettingsTab import SettingsTab
@@ -605,7 +604,7 @@ class RodentRefreshmentGUI(QWidget):
         """Save Slack credentials and reinitialize NotificationHandler."""
         self.settings['slack_token'] = self.settings_section.slack_token_input.text()
         self.settings['channel_id'] = self.settings_section.slack_channel_input.text()
-        save_settings(self.settings)
+        self.system_controller.save_settings(self.settings)
 
         # Update NotificationHandler
         global notification_handler

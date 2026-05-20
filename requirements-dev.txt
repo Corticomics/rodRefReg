@@ -1,0 +1,7 @@
+# Development-only Python dependencies — never shipped to devices.
+# Install in the venv with:
+#   ~/rrr/shared/venv/bin/pip install -r requirements-dev.txt
+# Run the test suite from the repo root with:
+#   ~/rrr/shared/venv/bin/python3 -m pytest
+
+pytest>=7.0

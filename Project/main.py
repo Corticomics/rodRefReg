@@ -10,7 +10,6 @@ from gpio.relay_worker import RelayWorker
 from ui.gui import RodentRefreshmentGUI
 from gpio.gpio_handler import RelayHandler
 from notifications.notifications import NotificationHandler
-from settings.config import load_settings, save_settings
 from controllers.projects_controller import ProjectsController
 from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem
@@ -519,7 +518,7 @@ def change_relay_hats():
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
     _update_gui_relay_units(relay_unit_manager.get_all_relay_units())
-    save_settings(app_settings)
+    system_controller.save_settings(app_settings)
     cleanup()
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
