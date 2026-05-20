@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy, QTabWidget, QFrame
 )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl, QTimer
 from PyQt5.QtGui import QDesktopServices
 import traceback
 from .run_stop_section import RunStopSection
@@ -214,6 +214,10 @@ class RodentRefreshmentGUI(QWidget):
         # Initialize
         self.load_animals_tab()
         self.showMaximized()
+
+        # Boot sentinel: once the GUI is up and stable, clear the launcher's
+        # boot-failure counter (see docs/UPDATE_SYSTEM.md §14.7).
+        QTimer.singleShot(8000, self._mark_boot_healthy)
     
     def show_update_banner(self, version, url):
         """Show a dismissable banner announcing an available software update.
@@ -274,6 +278,14 @@ class RodentRefreshmentGUI(QWidget):
         """
         if info is not None and getattr(info, "available", False):
             self.show_update_banner(info.version, info.url)
+
+    def _mark_boot_healthy(self):
+        """Tell the update system this release started cleanly (boot sentinel)."""
+        try:
+            from utils.updater import mark_boot_healthy
+            mark_boot_healthy()
+        except Exception:
+            pass
 
     def _apply_right_stretch(self):
         """Adjust right column stretches based on active tab and settings sub-tab."""

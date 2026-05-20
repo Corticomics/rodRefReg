@@ -20,6 +20,7 @@ from models.relay_unit_manager import RelayUnitManager
 from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
 from version import __version__
+from utils import updater
 
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
@@ -107,6 +108,33 @@ class ControlSignals(QObject):
     stop_requested = pyqtSignal()
 
 control_signals = ControlSignals()
+
+
+def _schedule_is_running():
+    """True while a delivery worker thread is active — gates in-app updates."""
+    try:
+        return thread is not None and hasattr(thread, "isRunning") and thread.isRunning()
+    except Exception:
+        return False
+
+
+def _selftest():
+    """Health-check a candidate release for the update apply engine.
+
+    Imports the core modules and opens the database, then exits 0 (healthy) or
+    1 (broken). Invoked as ``main.py --selftest`` by updater.apply_update before
+    a release is activated. See docs/UPDATE_SYSTEM.md §14.7.
+    """
+    try:
+        from models.database_handler import DatabaseHandler
+        from controllers.system_controller import SystemController  # noqa: F401
+        from ui.gui import RodentRefreshmentGUI  # noqa: F401
+        DatabaseHandler().connect().close()
+        print("rrr selftest: OK")
+        sys.exit(0)
+    except Exception as exc:
+        print(f"rrr selftest: FAILED: {exc}")
+        sys.exit(1)
 
 # =============================================================================
 # setup() – create our global objects and UI
@@ -615,6 +643,9 @@ def main():
 
     # Create application
     app = SafeQApplication(sys.argv)
+
+    # Gate in-app updates: never apply one while a delivery schedule runs.
+    updater.set_busy_check(_schedule_is_running)
     
     # Apply initial theme
     try:
@@ -808,4 +839,7 @@ def _main_without_splash(app, instance_key):
     server.newConnection.connect(_handle_new_connection)
 
 if __name__ == "__main__":
-    main()
+    if "--selftest" in sys.argv:
+        _selftest()
+    else:
+        main()

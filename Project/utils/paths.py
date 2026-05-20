@@ -71,3 +71,54 @@ def debug_log_path():
         return os.path.join(logs, "rrr_app_debug.log")
     # Legacy: home directory.
     return os.path.expanduser("~/rrr_app_debug.log")
+
+
+# ---------------------------------------------------------------------------
+# Blue-green layout (~/rrr) — used by the update apply engine (Phase 2c).
+# These resolve only when the launcher has exported RRR_HOME; on a developer
+# clone they return None and in-app updates are simply unavailable.
+# ---------------------------------------------------------------------------
+
+def home_dir():
+    """The blue-green home (~/rrr) when running under it, else None."""
+    return os.environ.get("RRR_HOME") or None
+
+
+def releases_dir():
+    """Directory holding extracted releases, or None off-device."""
+    home = home_dir()
+    return os.path.join(home, "releases") if home else None
+
+
+def current_link():
+    """Path of the `current` symlink, or None off-device."""
+    home = home_dir()
+    return os.path.join(home, "current") if home else None
+
+
+def previous_link():
+    """Path of the `previous` symlink (rollback target), or None off-device."""
+    home = home_dir()
+    return os.path.join(home, "previous") if home else None
+
+
+def venv_python():
+    """Path to the shared venv's python3, or None off-device."""
+    home = home_dir()
+    return os.path.join(home, "shared", "venv", "bin", "python3") if home else None
+
+
+def state_dir():
+    """Directory for launcher/update state (created), or None off-device."""
+    home = home_dir()
+    if not home:
+        return None
+    path = os.path.join(home, "state")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def boot_state_path():
+    """Path of the boot sentinel file, or None off-device."""
+    state = state_dir()
+    return os.path.join(state, "boot.json") if state else None
