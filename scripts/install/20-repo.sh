@@ -24,6 +24,16 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 TARGET_BRANCH=${BRANCH:-$CURRENT_BRANCH}
 info "current branch: $CURRENT_BRANCH; target: $TARGET_BRANCH"
 
+# Detached HEAD (e.g. user pinned via RRR_BRANCH=<tag> in bootstrap) without
+# an explicit --branch override: just fetch and stay pinned. `git pull origin
+# HEAD` resolves to the remote's default branch and would silently move the
+# clone off the pinned tag.
+if [[ "$CURRENT_BRANCH" == "HEAD" && -z "${BRANCH:-}" ]]; then
+  step "fetching from origin (pinned commit; not pulling)" -- \
+    with_retry 3 3 -- run git fetch --prune --tags origin
+  return 0
+fi
+
 step "fetching from origin" -- with_retry 3 3 -- run git fetch --prune origin
 
 if [[ "$TARGET_BRANCH" != "$CURRENT_BRANCH" ]]; then
