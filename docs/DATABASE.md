@@ -524,10 +524,15 @@ All methods are synchronous (with one broken exception flagged in §7).
 
 ---
 
-## 6. Settings persistence (Phase 2.5a, v1.5.0+)
+## 6. Settings persistence (Phase 2.5, v1.5.0+)
 
-Every persisted setting lives in `system_settings`. `setting_type` records how
-to decode `setting_value`:
+Every persisted *preference* lives in `system_settings`. **Slack credentials
+do NOT** — since Phase 2.5b (v1.5.1) they live in a dedicated mode-0600
+`secrets.json` next to the database; see
+[`Project/utils/secrets.py`](../Project/utils/secrets.py) and
+[`SystemController._ensure_secrets_migrated()`](../Project/controllers/system_controller.py).
+
+`setting_type` records how to decode `setting_value`:
 
 | `setting_type` | Storage | Decode on read |
 |---|---|---|
@@ -553,9 +558,10 @@ row that prevents re-running. The legacy file is left intact (copy-not-move).
 See [`docs/UPDATE_SYSTEM.md` §13.8 / §14](UPDATE_SYSTEM.md) for the full plan.
 
 Test coverage:
-[`Project/tests/unit/test_settings_persistence.py`](../Project/tests/unit/test_settings_persistence.py)
-— 20 cases covering round-trip, migration, save semantics, and the previously
-silent `theme` drop.
+[`test_settings_persistence.py`](../Project/tests/unit/test_settings_persistence.py)
+— 20 cases for round-trip, migration, save semantics, and the previously silent `theme` drop.
+[`test_secrets.py`](../Project/tests/unit/test_secrets.py) — 12 cases for the secrets store
+plus the v1.5.0 → v1.5.1 and pre-v1.5.0 → v1.5.1 migration paths.
 
 ---
 

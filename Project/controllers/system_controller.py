@@ -15,29 +15,34 @@ class SystemController(QObject):
         self.settings = self.load_settings()
 
     def load_settings(self):
-        """Load settings from the SQLite ``system_settings`` table.
+        """Load settings from the DB and the dedicated secrets file.
 
-        On first run after the v1.5.0 upgrade, any values in the legacy
-        ``settings.json`` are copied into the DB and the file is never touched
-        again. Defaults fill in any keys still missing. See
-        docs/UPDATE_SYSTEM.md §13.8.
+        On the first run after the v1.5.0 upgrade, values in the legacy
+        ``settings.json`` are copied into the DB. On the first run after
+        the v1.5.1 upgrade, Slack credentials are extracted into a
+        mode-0600 ``secrets.json`` (and removed from the DB). Defaults fill
+        any keys still missing. See docs/UPDATE_SYSTEM.md §13.8.
         """
         try:
             self._migrate_legacy_json_if_needed()
+            self._ensure_secrets_migrated()
             settings = self._create_default_settings()
             settings.update(self._load_database_settings())
+            settings.update(self._load_secrets())
             return settings
         except Exception as e:
             self.system_status.emit(f"Error loading settings: {str(e)}")
             return self._create_default_settings()
 
     def save_settings(self, settings_dict):
-        """Persist managed settings to the DB; merge into ``self.settings``.
+        """Persist managed settings: secrets to ``secrets.json``, the rest to
+        the DB; merge everything into ``self.settings``.
 
         Unmanaged keys (runtime objects, ephemeral state) are kept in memory
         but not persisted — see :meth:`_get_persisted_keys`.
         """
         try:
+            self._save_secrets_if_present(settings_dict)
             self._save_database_settings(settings_dict)
             self.settings.update(settings_dict)
             self.settings_updated.emit(self.settings)
@@ -84,7 +89,9 @@ class SystemController(QObject):
         between ``_get_json_settings_keys`` and ``_get_db_settings_keys``.
         """
         return {
-            'num_hats', 'slack_token', 'channel_id', 'hardware_mode',
+            # Note: slack_token + channel_id are NOT here — they live in the
+            # dedicated mode-0600 secrets.json since Phase 2.5b.
+            'num_hats', 'hardware_mode',
             'global_master_relay_id', 'i2c_bus', 'flow_sensor_type', 'uart_port',
             'flow_sampling_hz', 'predictive_close_ms', 'residual_check_ms',
             'residual_flow_threshold_ml_min', 'max_consecutive_sensor_errors',
@@ -480,6 +487,97 @@ class SystemController(QObject):
             )
         except Exception:
             pass
+
+    # ------------------------------------------------------------------
+    # Secrets (Phase 2.5b) — credentials live in a dedicated mode-0600
+    # file, never in the DB and never in git. See docs/UPDATE_SYSTEM.md §13.8.
+    # ------------------------------------------------------------------
+
+    _SECRET_KEYS = ('slack_token', 'channel_id')
+
+    def _load_secrets(self):
+        """Return whatever is in the secrets file (empty dict when absent)."""
+        from utils import secrets
+        try:
+            return secrets.get_credentials()
+        except Exception as exc:
+            self.system_status.emit(f"Could not read secrets file: {exc}")
+            return {}
+
+    def _save_secrets_if_present(self, settings_dict):
+        """Persist Slack credentials to ``secrets.json`` when the caller
+        touched any secret key.
+
+        Merges into existing values so a partial save (e.g. token only) does
+        not clobber an unrelated field.
+        """
+        if not any(key in settings_dict for key in self._SECRET_KEYS):
+            return
+        from utils import secrets
+        merged = self._load_secrets()
+        for key in self._SECRET_KEYS:
+            if key in settings_dict:
+                merged[key] = settings_dict[key]
+        secrets.save_credentials(
+            slack_token=merged.get('slack_token', ''),
+            channel_id=merged.get('channel_id', ''),
+        )
+
+    def _ensure_secrets_migrated(self):
+        """One-time: move legacy Slack credentials into ``secrets.json``.
+
+        Sources, in priority order:
+            (1) the dedicated file — if it already exists, sweep any
+                stale DB rows and return;
+            (2) the v1.5.0 ``system_settings`` rows (Phase 2.5a wrote
+                slack creds there briefly);
+            (3) the pre-v1.5.0 legacy ``settings.json``.
+        After a copy, the DB rows are deleted. The legacy JSON is left
+        intact (copy-not-move).
+        """
+        from utils import secrets
+
+        db_rows = {}
+        try:
+            db_rows = self.database_handler.get_system_settings()
+        except Exception:
+            pass
+        if not isinstance(db_rows, dict):
+            db_rows = {}
+
+        if secrets.exists():
+            # Defensive: even if the secrets file is already present, sweep
+            # leftover DB rows from a partial earlier run.
+            for key in self._SECRET_KEYS:
+                if key in db_rows:
+                    try:
+                        self.database_handler.delete_system_setting(key)
+                    except Exception:
+                        pass
+            return
+
+        token = db_rows.get('slack_token') or ''
+        channel = db_rows.get('channel_id') or ''
+
+        if not token and not channel:
+            legacy_path = paths.settings_path()
+            if os.path.exists(legacy_path):
+                try:
+                    with open(legacy_path, 'r') as handle:
+                        legacy = json.load(handle)
+                    token = legacy.get('slack_token') or ''
+                    channel = legacy.get('channel_id') or ''
+                except Exception:
+                    pass
+
+        secrets.save_credentials(slack_token=token, channel_id=channel)
+
+        for key in self._SECRET_KEYS:
+            if key in db_rows:
+                try:
+                    self.database_handler.delete_system_setting(key)
+                except Exception:
+                    pass
 
     def get_pump_controller(self):
         """Get or create a pump controller instance"""

@@ -52,6 +52,15 @@ def settings_path():
     return os.path.join(_PROJECT_DIR, "settings", "settings.json")
 
 
+def secrets_path():
+    """Absolute path to the secrets file (mode 0600; gitignored).
+
+    Stored alongside the database/settings; the launcher's ``RRR_DATA`` env
+    var decides the location. Phase 2.5b of the update system.
+    """
+    return os.path.join(data_dir(), "secrets.json")
+
+
 def pump_log_path():
     """Absolute path to the offline pump-trigger log (pump_log.json)."""
     root = _data_root()

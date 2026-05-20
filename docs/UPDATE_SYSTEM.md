@@ -456,23 +456,28 @@ installer on it and confirming: data lands in `~/rrr/shared/data`, the app runs 
 | 2b — blue-green + migration | v1.3.0 | medium | one installer re-run per device |
 | 2c — apply engine + rollback + UI | v1.4.0 | medium | first version with one-click in-app updates |
 
-### 13.8 Deferred — Phase 2.5: settings consolidation
+### 13.8 Phase 2.5 — settings consolidation
 
-`settings.json` today conflates three things that want different homes: secrets
+`settings.json` previously conflated three things that wanted different homes: secrets
 (`slack_token`), preferences (`interval`, `num_hats`, …), and domain records (`schedules`,
-`animals` — already duplicated in the SQLite tables). Phase 2a only does the *interim* fix:
+`animals` — already duplicated in the SQLite tables). Phase 2a only did the *interim* fix:
 unify the two write paths into one `settings.json` and stop tracking it in git.
 
-The proper end state — best practice for this project — is **zero general-settings files**:
+Phase 2.5 finished the job — best practice for this project — by giving every category its
+proper home:
 
-- preferences + domain data → the SQLite DB (the `system_settings` table already exists), so
-  the update system has a *single* artifact to back up, migrate, and roll back;
-- the Slack secret → a separate mode-600, gitignored `secrets.json` (or an OS keyring);
-- retire `settings.json` and the dead `migrate_settings.py`.
+- preferences → the SQLite DB (`system_settings` table); shipped in **Phase 2.5a (v1.5.0)**;
+- the Slack secret → a separate mode-0600, gitignored `secrets.json`; shipped in
+  **Phase 2.5b (v1.5.1)**;
+- `migrate_settings.py` deleted as dead code (it was never wired in).
 
-This is a refactor that needs an audit of how `schedules`/`animals` actually flow (JSON blob
-vs DB tables). It is scheduled as **Phase 2.5**, its own change after Phase 2 — deliberately
-not entangled with the layout work.
+Domain records (`schedules`, `animals`) were already in their SQLite tables; the redundant
+`setdefault` lines in the old `load_settings` were removed without touching real data flow.
+
+Both phases are non-destructive on upgrade: 2.5a copies legacy `settings.json` values into
+the DB on first launch (sentinel prevents re-running); 2.5b moves Slack credentials out of
+either the DB (v1.5.0 source) or the legacy JSON (pre-v1.5.0 source) into
+`secrets.json` and deletes the DB rows. The legacy file is left intact in both cases.
 
 ---
 
