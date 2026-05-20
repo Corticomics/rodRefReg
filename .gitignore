@@ -1,6 +1,9 @@
 pump_log.json
 Project/rrr_database.db
 Project/settings/settings.json
+
+# Credentials — never committed (see docs/UPDATE_SYSTEM.md §13.8)
+secrets.json
 *.db
 *.sqlite
 *.sqlite3

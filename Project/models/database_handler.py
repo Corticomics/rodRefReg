@@ -1530,7 +1530,7 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT OR REPLACE INTO system_settings 
+                    INSERT OR REPLACE INTO system_settings
                     (setting_key, setting_value, setting_type, updated_at)
                     VALUES (?, ?, ?, datetime('now'))
                 ''', (key, str(value), setting_type))
@@ -1538,6 +1538,19 @@ class DatabaseHandler:
                 return True
         except sqlite3.Error as e:
             print(f"Error updating system setting: {e}")
+            return False
+
+    def delete_system_setting(self, key):
+        """Delete a single row from system_settings. Returns True on success."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'DELETE FROM system_settings WHERE setting_key = ?', (key,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            print(f"Error deleting system setting {key}: {e}")
             return False
     
     # ==================== VALVE CALIBRATION METHODS ====================
