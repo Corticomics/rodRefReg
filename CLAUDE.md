@@ -28,11 +28,22 @@ exactly:
    `bash scripts/release/build-bundle.sh` and inspect
    `dist/rrr-<version>.rrrupdate` — confirm it contains no virtualenv, build
    artifacts, or device data.
-5. **Tag and push.** The tag MUST be `v<__version__>` exactly (version `1.2.0`
-   → tag `v1.2.0`); a pre-release uses a `-beta` suffix (`v1.2.0-beta`):
+5. **Tag and push — but pull `main` first.** The tag MUST be `v<__version__>`
+   exactly (version `1.2.0` → tag `v1.2.0`); a pre-release uses a `-beta`
+   suffix (`v1.2.0-beta`). **Always fast-forward `main` before tagging** —
+   otherwise `git tag` will silently mark a stale commit (whatever local `main`
+   was pointing at) and CI will reject the tag/version mismatch:
    ```
+   git checkout main
+   git pull --ff-only origin main   # <- the step that bites if skipped
    git tag v1.2.0
    git push origin v1.2.0
+   ```
+   If you do tag the wrong commit, the recovery is:
+   ```
+   git tag -d v1.2.0
+   git push origin :refs/tags/v1.2.0
+   # then pull and re-tag as above
    ```
 6. **CI does the rest.** `.github/workflows/release.yml` fires on the tag,
    verifies the tag matches `Project/version.py` (and fails the build if not),
