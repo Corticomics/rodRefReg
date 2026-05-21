@@ -479,6 +479,70 @@ the DB on first launch (sentinel prevents re-running); 2.5b moves Slack credenti
 either the DB (v1.5.0 source) or the legacy JSON (pre-v1.5.0 source) into
 `secrets.json` and deletes the DB rows. The legacy file is left intact in both cases.
 
+### 13.9 Phase 3 — signed releases + offline install (DEFERRED)
+
+**Status: deferred until an offline / air-gapped workflow is real.** The online-only update
+story is covered by HTTPS to GitHub; minisign's marginal security gain over HTTPS for a
+small lab fleet does not justify the maintenance cost. The design below is kept verbatim so
+future-you (or a future contributor) can resume in one PR if/when a researcher needs to
+update a network-isolated Pi from a USB stick — at that point the offline path makes
+signing essential.
+
+Closes the two remaining gaps from §1: supply-chain integrity and air-gapped operation.
+
+**3a — Signed releases + on-device verification (v1.6.0)**
+
+- **Tool:** minisign (Ed25519; small single-binary; in Debian Bookworm apt as `minisign` 0.11).
+- **CI signs every bundle.** `release.yml` gains a sign step after the build:
+  `minisign -S -s <seckey> -m rrr-X.Y.Z.rrrupdate -x rrr-X.Y.Z.rrrupdate.minisig`. The
+  `.minisig` is published as a release asset alongside the bundle and `.sha256`.
+- **Device verifies on apply.** `updater.apply_update` downloads the `.minisig` next to the
+  bundle, runs `minisign -V -p scripts/release/minisign.pub -m bundle -x sig`, and **rejects
+  on mismatch**. Verification runs *after* the SHA256 check, *before* extraction.
+- **Permissive on missing signature.** Releases predating v1.6.0 have no `.minisig`; in that
+  case apply logs a warning and proceeds — otherwise installing any older release would
+  break. From v1.6.0 onwards every release has one, so in practice every OTA is verified.
+- **Installer adds `minisign`.** `scripts/install/10-apt.sh` adds the package; an apt update
+  reaches it during the v1.6.0 install on existing devices.
+- **Key custody:** the secret key lives only in the GitHub Actions secret
+  `MINISIGN_SECRET_KEY` (+ `MINISIGN_PASSWORD` if password-protected); the public key is
+  checked in at `scripts/release/minisign.pub`. **The maintainer generates the keypair
+  locally and never commits the secret.**
+
+**3b — Offline install from USB (v1.6.1)**
+
+- **"Install from file…"** button in `UpdatesTab`.
+- `QFileDialog` selects a `.rrrupdate` from anywhere (typically `/media/<user>/<stick>/…`).
+- The `.minisig` must be alongside it (same basename + `.minisig`). The same verify path as
+  3a applies.
+- **Strict on missing signature for offline** (no HTTPS fallback on a USB stick — the
+  USB-bundle contract is "must carry both files").
+- Engine refactor: `apply_update(info)` and `apply_bundle_from_path(path)` share a private
+  `_apply_local_bundle(path, sig_path, expected_sha256=None)` core.
+
+### 14.8 Phase 3 — risk log
+
+- **P1 — Lost private key is unrecoverable.** Losing access to `MINISIGN_SECRET_KEY` means
+  burning it from GitHub Actions, generating a new keypair, recommitting the pubkey, and
+  forcing every device through an unsigned-or-pre-rotation transition. *Mitigation:* keep a
+  paper or password-manager backup of the secret key the moment it is generated.
+- **P2 — First signed release (v1.6.0) is not verifiable by older clients.** v1.5.x has no
+  verifier; it accepts v1.6.0 over HTTPS without checking. Once a device is on v1.6.0+,
+  every subsequent OTA is verified. *Mitigation:* documented; HTTPS is the integrity story
+  for that one transition.
+- **P3 — Permissive vs strict on missing `.minisig`.** Online apply is permissive (logs a
+  warning, accepts), so legacy releases still install. Invalid signatures are always
+  rejected. Offline apply is strict (USB has no HTTPS to lean on).
+- **P4 — `minisign` binary missing on device.** *Mitigation:* `10-apt.sh` adds the package
+  so it lands on every installer run; if the binary is absent at apply time the engine
+  errors out clearly rather than silently bypassing verification.
+- **P5 — Accidental commit of the secret key.** *Mitigation:* `.gitignore` patterns
+  (`*.key`, `minisign.key`) plus a "DO NOT COMMIT" header in the doc.
+- **P6 — USB bundle without sig.** Rejected (per P3). Operators are told to copy both files.
+- **P7 — minisign CLI behaviour changes across versions.** *Mitigation:* pin via apt
+  (Bookworm-pinned 0.11); add a CI step that round-trips `minisign -G/-S/-V` so an upstream
+  break shows up before a release.
+
 ---
 
 ## 14. Phase 2 risk register
