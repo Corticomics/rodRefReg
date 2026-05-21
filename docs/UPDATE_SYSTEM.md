@@ -75,6 +75,52 @@ __version__ = "1.0.0"   # SemVer: MAJOR.MINOR.PATCH
 
 First action: set `1.0.0`, cut tag `v1.0.0` from the current `main`.
 
+### 4.1 Cutting a release — operational runbook
+
+1. **Decide the version** per the SemVer rule above (MAJOR = breaking DB
+   migration or hardware-protocol change; MINOR = backward-compatible features;
+   PATCH = fixes).
+2. **Bump `Project/version.py`.** It is the only place the version lives.
+3. **Land it on `main`.** Commit the bump (with release notes) and merge via
+   PR. Releases are cut from `main` only — never a feature branch or arbitrary
+   commit.
+4. **Sanity-check the bundle locally** (recommended):
+   `bash scripts/release/build-bundle.sh` → inspect
+   `dist/rrr-<version>.rrrupdate`. Confirm it contains no virtualenv, build
+   artifacts, or device data.
+5. **Pull `main`, then tag and push.** The tag MUST be `v<__version__>`
+   exactly; pre-release uses a `-beta` suffix (`v1.2.0-beta`). **Always
+   fast-forward `main` first** — otherwise `git tag` silently marks whatever
+   stale commit local `main` points at, and CI rejects the mismatch:
+
+   ```sh
+   git checkout main
+   git pull --ff-only origin main   # the step that bites if skipped
+   git tag v1.2.0
+   git push origin v1.2.0           # point of no return — publishes the release
+   ```
+
+6. **CI does the rest.** `.github/workflows/release.yml` fires on the tag,
+   verifies the tag matches `Project/version.py` (fails the build if not),
+   builds the bundle, and publishes a GitHub Release with the `.rrrupdate`
+   bundle, its `.sha256`, and `latest.json` attached.
+
+#### Recovery — tagged the wrong commit
+
+```sh
+git tag -d v1.2.0
+git push origin :refs/tags/v1.2.0
+# then pull main and re-tag as above
+```
+
+#### Invariants
+
+- The git tag and `Project/version.py` must always agree — CI enforces this.
+- Do not hand-edit `dist/` or upload release assets manually; the workflow
+  owns them.
+- Never ship updates by telling users to `git pull`. Tagged GitHub Releases
+  are the only supported channel.
+
 ---
 
 ## 5. Release artifact & layout
