@@ -582,28 +582,28 @@ class SettingsTab(QWidget):
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(40)
         
-        # Column 0: Cage - fixed width (compact)
-        header.setSectionResizeMode(0, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(0, 100)
-        
-        # Column 1: Status - stretch to fill available space
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        
-        # Column 2: mL/Pulse - compact fixed width
+        # Column 0: Cage - stretch to absorb slack (names vary in length)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+
+        # Column 1: Status - compact fixed width (badge only)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        self.calibration_table.setColumnWidth(1, 120)
+
+        # Column 2: mL/Pulse - fixed width (fits "0.001234")
         header.setSectionResizeMode(2, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(2, 70)
-        
-        # Column 3: CV% - compact fixed width
+        self.calibration_table.setColumnWidth(2, 95)
+
+        # Column 3: CV% - fixed width
         header.setSectionResizeMode(3, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(3, 55)
-        
-        # Column 4: Date - compact fixed width
+        self.calibration_table.setColumnWidth(3, 70)
+
+        # Column 4: Date - fixed width (fits "2026-05-12")
         header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(4, 80)
+        self.calibration_table.setColumnWidth(4, 100)
         
         # Column 5: Action - fixed width for button with padding
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(5, 90)
+        self.calibration_table.setColumnWidth(5, 110)
         
         # Populate table with 15 cages
         self._populate_calibration_table()
@@ -706,8 +706,10 @@ class SettingsTab(QWidget):
             
             if cal:
                 # Calibrated - show data
-                status_item = QTableWidgetItem("[OK] Calibrated")
+                status_item = QTableWidgetItem("[OK]")
                 status_item.setForeground(QColor(0, 150, 0))
+                status_item.setTextAlignment(Qt.AlignCenter)
+                status_item.setToolTip("Calibrated")
                 
                 volume_item = QTableWidgetItem(f"{cal['volume_per_pulse_ml']:.6f}")
                 volume_item.setTextAlignment(Qt.AlignCenter)
@@ -751,8 +753,10 @@ class SettingsTab(QWidget):
                 
             else:
                 # Not calibrated - show warning
-                status_item = QTableWidgetItem("[X] Not Calibrated")
+                status_item = QTableWidgetItem("Not Calibrated")
                 status_item.setForeground(QColor(200, 0, 0))
+                status_item.setTextAlignment(Qt.AlignCenter)
+                status_item.setToolTip("Not calibrated")
                 
                 volume_item = QTableWidgetItem("—")
                 volume_item.setTextAlignment(Qt.AlignCenter)
