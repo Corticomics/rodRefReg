@@ -66,3 +66,22 @@ def write_legacy_settings(isolated_data_dir: Path) -> Callable[[dict], Path]:
         return path
 
     return _write
+
+
+@pytest.fixture
+def offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Simulate a device with no network: DNS resolution fails for every host.
+
+    Patches ``socket.getaddrinfo`` so any library that opens a connection
+    (``requests``, ``urllib``, ``slack_sdk``) fails exactly as it would on a
+    Pi that has lost its network — without the test ever touching a real
+    socket. The patch is rolled back automatically after the test.
+
+    Part of the Phase 1 offline-resilience test harness.
+    """
+    import socket
+
+    def _no_dns(*_args, **_kwargs):
+        raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _no_dns)
