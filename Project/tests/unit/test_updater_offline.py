@@ -89,13 +89,18 @@ def test_is_newer_rejects_unparseable_input(updater):
 # ---------------------------------------------------------------------------
 
 def test_fetch_latest_returns_none_on_connection_error(updater, monkeypatch):
-    """An offline device gets ``None`` — never an exception, never a banner."""
+    """An offline device gets ``None`` — never an exception, never a banner.
+
+    Phase 2 routed the HTTP call through ``utils.net``; the patch target is
+    therefore ``net.requests`` (same module object, more honest naming).
+    """
     import requests
+    from utils import net
 
     def _boom(*_a, **_k):
         raise requests.exceptions.ConnectionError("offline")
 
-    monkeypatch.setattr(updater.requests, "get", _boom)
+    monkeypatch.setattr(net.requests, "get", _boom)
     assert updater.fetch_latest() is None
 
 
@@ -106,18 +111,21 @@ def test_fetch_latest_returns_none_on_dns_failure(updater, offline):
 
 def test_fetch_latest_returns_none_on_timeout(updater, monkeypatch):
     import requests
+    from utils import net
 
     def _timeout(*_a, **_k):
         raise requests.exceptions.Timeout("slow network")
 
-    monkeypatch.setattr(updater.requests, "get", _timeout)
+    monkeypatch.setattr(net.requests, "get", _timeout)
     assert updater.fetch_latest() is None
 
 
 def test_fetch_latest_returns_none_on_malformed_json(updater, monkeypatch):
     """A reachable-but-garbage response must not crash the check."""
+    from utils import net
+
     monkeypatch.setattr(
-        updater.requests, "get",
+        net.requests, "get",
         lambda *_a, **_k: _FakeResponse(raise_json=True),
     )
     assert updater.fetch_latest() is None
@@ -165,21 +173,18 @@ def test_apply_update_rejects_a_corrupt_bundle_when_checksum_is_known(
     assert "verification failed" in message.lower()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Phase 2: apply_update silently SKIPS SHA256 verification when the "
-           ".sha256 asset cannot be fetched ('if expected and ...'). An "
-           "unverifiable bundle is currently installed. Phase 2 makes the "
-           "check fail-closed and removes this marker.",
-)
 def test_apply_update_rejects_bundle_when_checksum_cannot_be_fetched(
     updater, tmp_path, monkeypatch,
 ):
     """An unreachable / 404 / rate-limited .sha256 asset must block the apply.
 
-    Today ``_fetch_sha256`` returns ``None`` on failure and ``apply_update``
-    treats "no checksum" as "skip the check" — a fail-OPEN integrity hole.
+    The Phase 2 fail-closed integrity rule: when :func:`utils.net.require_digest`
+    raises ``NetworkError``, ``apply_update`` refuses to install the bundle
+    and surfaces a clear "could not verify" message. Replaces the
+    pre-Phase-2 silent-skip (``if expected and ...``).
     """
+    from utils import net
+
     home = tmp_path / "rrr"
     (home / "releases").mkdir(parents=True)
     monkeypatch.setenv("RRR_HOME", str(home))
@@ -187,8 +192,11 @@ def test_apply_update_rejects_bundle_when_checksum_cannot_be_fetched(
     monkeypatch.setattr(
         updater, "_download", lambda _url, dest: _make_bundle(dest, "9.9.9"),
     )
-    # Simulate the checksum asset being unreachable.
-    monkeypatch.setattr(updater, "_fetch_sha256", lambda _url: None)
+
+    def _checksum_unreachable(_url):
+        raise net.NetworkError("checksum asset unreachable (404)")
+
+    monkeypatch.setattr(updater, "_fetch_sha256", _checksum_unreachable)
 
     info = updater.UpdateInfo(
         version="9.9.9", url="https://example/r", notes="", available=True,
@@ -196,6 +204,5 @@ def test_apply_update_rejects_bundle_when_checksum_cannot_be_fetched(
         sha256_url="https://example/b.rrrupdate.sha256",
     )
     ok, message = updater.apply_update(info)
-    # DESIRED (Phase 2): no verified checksum -> refuse to install.
     assert ok is False
-    assert "verif" in message.lower()
+    assert "verify" in message.lower()

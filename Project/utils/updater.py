@@ -18,17 +18,15 @@ import subprocess
 import tarfile
 import tempfile
 
-import requests
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
 from version import __version__ as CURRENT_VERSION
-from utils import paths
+from utils import net, paths
 
 # The repository whose Releases are the update channel.
 GITHUB_REPO = "Corticomics/rodRefReg"
 _LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 _RELEASES_PAGE = f"https://github.com/{GITHUB_REPO}/releases"
-_REQUEST_TIMEOUT_S = 10
 
 
 def _version_tuple(text):
@@ -71,16 +69,16 @@ def fetch_latest():
     Returns an :class:`UpdateInfo`, or ``None`` if the check could not be
     completed — offline, rate-limited, or no releases published yet. Never
     raises. Pre-releases (``v*-beta``) are excluded by the GitHub endpoint.
+
+    The network call is delegated to :func:`utils.net.get_json`, which owns
+    the timeout and exception-mapping policy (Phase 2 of the
+    offline-resilience plan).
     """
-    try:
-        response = requests.get(
-            _LATEST_RELEASE_API,
-            timeout=_REQUEST_TIMEOUT_S,
-            headers={"Accept": "application/vnd.github+json"},
-        )
-        response.raise_for_status()
-        data = response.json()
-    except Exception:
+    data = net.get_json(
+        _LATEST_RELEASE_API,
+        headers={"Accept": "application/vnd.github+json"},
+    )
+    if not data:
         return None
 
     tag = data.get("tag_name", "")
@@ -188,23 +186,25 @@ def _sha256_file(path):
 
 
 def _download(url, dest):
-    with requests.get(url, stream=True, timeout=60) as resp:
-        resp.raise_for_status()
-        with open(dest, "wb") as handle:
-            for chunk in resp.iter_content(1 << 16):
-                handle.write(chunk)
+    """Download ``url`` to ``dest``.
+
+    Thin adapter over :func:`utils.net.stream_download` — kept as a stable
+    test seam (the offline-resilience test harness monkeypatches it).
+    Raises :class:`utils.net.NetworkError` on any failure; the partial
+    file is removed.
+    """
+    net.stream_download(url, dest)
 
 
 def _fetch_sha256(url):
-    """Return the expected hex digest from a .sha256 asset, or None."""
-    if not url:
-        return None
-    try:
-        resp = requests.get(url, timeout=_REQUEST_TIMEOUT_S)
-        resp.raise_for_status()
-        return resp.text.strip().split()[0]
-    except Exception:
-        return None
+    """Return the expected hex digest from a ``.sha256`` asset.
+
+    Thin adapter over :func:`utils.net.require_digest` — fail-closed:
+    raises :class:`utils.net.NetworkError` when the asset is unreachable,
+    empty, or malformed. The apply engine refuses to install in that case
+    (replaces the pre-Phase-2 silent-skip).
+    """
+    return net.require_digest(url)
 
 
 def _read_manifest(release_dir):
@@ -322,11 +322,27 @@ def apply_update(info, progress=lambda message: None):
             bundle = os.path.join(tmp, "bundle.rrrupdate")
 
             progress("Downloading update…")
-            _download(info.bundle_url, bundle)
+            try:
+                _download(info.bundle_url, bundle)
+            except net.NetworkError as exc:
+                return False, (
+                    f"Could not download the update ({exc}). Updates require "
+                    "an internet connection — check this device's network "
+                    "and try again."
+                )
 
             progress("Verifying download…")
-            expected = _fetch_sha256(info.sha256_url)
-            if expected and _sha256_file(bundle) != expected:
+            try:
+                expected = _fetch_sha256(info.sha256_url)
+            except net.NetworkError as exc:
+                # Fail-closed: an unverifiable bundle is never installed,
+                # even on flaky networks. Replaces the pre-Phase-2
+                # silent-skip ('if expected and ...').
+                return False, (
+                    "Could not verify the update — the checksum file is "
+                    f"unreachable ({exc}). The update was not installed."
+                )
+            if _sha256_file(bundle) != expected:
                 return False, "Download verification failed (checksum mismatch)."
 
             progress("Extracting…")
