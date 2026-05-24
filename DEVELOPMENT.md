@@ -409,6 +409,11 @@ def test_schedule_validation():
 
 ## Contribution Guidelines
 
+> **Releasing a change?** See [MAINTENANCE.md](MAINTENANCE.md) for the
+> full recipe — when to cut a release, how to pick the SemVer bump,
+> tagging procedure, CI verification, and recovery from a bad release.
+> The section below is the short version for any PR.
+
 ### Submitting Changes:
 
 1. Fork the repository
