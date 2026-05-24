@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QMessageBox, QSpinBox, QDoubleSpinBox, QCheckBox,
     QFileDialog, QGridLayout, QComboBox, QHBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem, QDialog
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from ui.widgets.safe_spinbox import SafeSpinBox, SafeDoubleSpinBox
 import json
 import os
@@ -21,15 +21,16 @@ from PyQt5.QtWidgets import QApplication
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
     
-    def __init__(self, system_controller, suggest_callback=None, 
-                 push_callback=None, save_slack_callback=None, 
+    def __init__(self, system_controller, suggest_callback=None,
+                 push_callback=None, save_slack_callback=None,
                  run_stop_section=None, login_system=None,
-                 print_to_terminal=None, database_handler=None):
+                 print_to_terminal=None, database_handler=None,
+                 notification_handler=None):
         super().__init__()
-        
+
         if not system_controller:
             raise ValueError("system_controller is required")
-        
+
         self.system_controller = system_controller
         self.settings = system_controller.settings
         self.suggest_callback = suggest_callback
@@ -38,6 +39,8 @@ class SettingsTab(QWidget):
         self.run_stop_section = run_stop_section
         self.login_system = login_system
         self.print_to_terminal = print_to_terminal or (lambda x: None)
+        # Drives the Slack Integration indicator (Phase 3 offline-resilience).
+        self.notification_handler = notification_handler
         
         # Get database handler from system controller if not provided
         self.database_handler = database_handler or system_controller.database_handler
@@ -1094,19 +1097,63 @@ class SettingsTab(QWidget):
         slack_layout = QFormLayout()
         slack_layout.setContentsMargins(12, 12, 12, 12)
         slack_layout.setSpacing(8)
-        
+
         self.slack_token = QLineEdit()
         self.slack_token.setText(self._decrypt_sensitive_data(
             self.settings.get('slack_token', '')))
         self.slack_token.setEchoMode(QLineEdit.Password)
         slack_layout.addRow("Slack Bot Token:", self.slack_token)
-        
+
         self.slack_channel = QLineEdit()
         self.slack_channel.setText(self.settings.get('channel_id', ''))
         slack_layout.addRow("Channel ID:", self.slack_channel)
-        
+
+        # Phase 3 offline-resilience: status indicator + troubleshooting.
+        # The label is refreshed every 5 s by self._slack_status_timer
+        # (started below) reading NotificationHandler.last_status.
+        self.slack_status_label = QLabel()
+        self.slack_status_label.setWordWrap(True)
+        self.slack_status_label.setMinimumHeight(48)
+        self.slack_status_label.setTextInteractionFlags(
+            Qt.TextSelectableByMouse
+        )
+        slack_layout.addRow("Status:", self.slack_status_label)
+        self._refresh_slack_status()
+
+        # Re-render once a second so the indicator catches up shortly after
+        # the relay worker calls send_slack_notification(). Cheap — the
+        # formatter is pure-Python and reads one attribute.
+        self._slack_status_timer = QTimer(self)
+        self._slack_status_timer.timeout.connect(self._refresh_slack_status)
+        self._slack_status_timer.start(1000)
+
         slack_group.setLayout(slack_layout)
         return slack_group
+
+    def _refresh_slack_status(self):
+        """Render the Slack indicator from NotificationHandler.last_status."""
+        # Imported lazily so a missing utils.slack_status (e.g. on a partial
+        # checkout) cannot stop the settings tab from opening.
+        try:
+            from utils.slack_status import format_status
+        except Exception:
+            return
+
+        handler = getattr(self, "notification_handler", None)
+        status = getattr(handler, "last_status", None) if handler else None
+        icon, message = format_status(status)
+
+        glyph = {"ok": "✓", "warn": "⚠", "unknown": "•"}.get(
+            icon, "•"
+        )
+        # Conservative palette — readable on both light and dark themes.
+        color = {"ok": "#0a7d28", "warn": "#9c4a00", "unknown": "#666666"}.get(
+            icon, "#666666"
+        )
+        self.slack_status_label.setText(f"{glyph}  {message}")
+        self.slack_status_label.setStyleSheet(
+            f"color: {color}; padding: 6px; border-radius: 4px;"
+        )
 
     def _create_backup_restore(self):
         backup_group = QGroupBox("Backup and Restore")
