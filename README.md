@@ -50,7 +50,8 @@ If you'd rather audit the code before running it, or you already have the repo c
 git clone https://github.com/Corticomics/rodRefReg.git ~/rodRefReg
 cd ~/rodRefReg
 ./install.sh
-``` It will:
+``` 
+It will:
 
 - Install all system and Python dependencies
 - Enable I²C (via `raspi-config`) without requiring a reboot
