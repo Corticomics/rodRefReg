@@ -158,7 +158,28 @@ class UpdatesTab(QWidget):
             self.update_button.setVisible(False)
             self._offer_restart(message)
         else:
-            QMessageBox.warning(self, "Update not installed", message)
+            title, icon = self._title_and_icon_for_failure(message)
+            box = QMessageBox(icon, title, message, parent=self)
+            box.exec_()
+
+    @staticmethod
+    def _title_and_icon_for_failure(message):
+        """Pick a dialog title and icon for an apply-failure message.
+
+        Phase 3 of the offline-resilience plan: a non-technical operator
+        seeing "Update not installed" alongside a download error is
+        confusing — the failure title now states the cause. The
+        classification itself lives in :mod:`utils.update_failure` so it
+        can be unit-tested without bringing up the GUI stack.
+        """
+        from utils.update_failure import classify_failure, INTERNET, VERIFY
+
+        category = classify_failure(message)
+        if category == INTERNET:
+            return "Update needs internet", QMessageBox.Information
+        if category == VERIFY:
+            return "Update could not be verified", QMessageBox.Warning
+        return "Update not installed", QMessageBox.Warning
 
     # --- revert ------------------------------------------------------------
     def _on_revert(self):

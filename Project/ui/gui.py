@@ -147,7 +147,8 @@ class RodentRefreshmentGUI(QWidget):
             run_stop_section=self.run_stop_section,
             login_system=self.login_system,
             print_to_terminal=self.print_to_terminal,
-            database_handler=self.database_handler
+            database_handler=self.database_handler,
+            notification_handler=self.notification_handler,
         )
         
         # Profile Tab

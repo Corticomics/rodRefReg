@@ -199,7 +199,8 @@ def setup():
         run_stop_section=gui.run_stop_section,
         login_system=login_system,
         print_to_terminal=gui.print_to_terminal,
-        database_handler=database_handler
+        database_handler=database_handler,
+        notification_handler=notification_handler,
     )
 
 # =============================================================================
@@ -606,7 +607,8 @@ def _create_gui_from_components(components: dict):
         run_stop_section=gui.run_stop_section,
         login_system=login_system,
         print_to_terminal=gui.print_to_terminal,
-        database_handler=database_handler
+        database_handler=database_handler,
+        notification_handler=notification_handler,
     )
     
     return gui
