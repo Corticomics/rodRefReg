@@ -563,5 +563,5 @@ cat Project/settings.json | grep -A 5 "hardware_mode"
 
 ## License
 
-MIT License - RenAndStimPi Experiment Orchestrator (RSO) Project
+MIT License -
 
