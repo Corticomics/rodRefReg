@@ -3,8 +3,9 @@
 This document provides technical information for developers who want to understand or contribute to the Rodent Refreshment Regulator (RRR) project. It covers the architecture, code organization, data flow, and contribution guidelines.
 
 > **Database schema, ERD, and `DatabaseHandler` method reference:** see
-> [`docs/DATABASE.md`](docs/DATABASE.md). **Update system / release pipeline:** see
-> [`docs/UPDATE_SYSTEM.md`](docs/UPDATE_SYSTEM.md).
+> [`DATABASE.md`](DATABASE.md). **Update system / release pipeline:** see
+> [`UPDATE_SYSTEM.md`](UPDATE_SYSTEM.md). **Hardware bench-build procedure:**
+> see [`HARDWARE_SETUP.md`](HARDWARE_SETUP.md).
 
 ## Table of Contents
 - [Architecture Overview](#architecture-overview)

@@ -12,17 +12,38 @@ The Rodent Refreshment Regulator (RRR) helps you automatically deliver precise a
 
 ## Why Use the RRR System?
 
-- ✅ **Consistent Care**: Delivers precise water amounts every time
-- ✅ **Time-Saving**: Automates routine water delivery tasks
-- ✅ **Animal Welfare**: Ensures animals receive proper hydration
-- ✅ **Research Quality**: Improves consistency in experimental conditions
-- ✅ **Remote Monitoring**: Sends alerts about system status
+- **Consistent Care**: Delivers precise water amounts every time
+- **Time-Saving**: Automates routine water delivery tasks
+- **Animal Welfare**: Ensures animals receive proper hydration
+- **Research Quality**: Improves consistency in experimental conditions
+- **Remote Monitoring**: Sends alerts about system status
+
+## Documentation
+
+This README is the entry point. Topic-specific runbooks live in
+[`Project/docs/`](Project/docs/); each is linked once below so this file stays the single
+table of contents you need to bookmark.
+
+| Document | When to read it |
+|---|---|
+| [HARDWARE_SETUP.md](Project/docs/HARDWARE_SETUP.md) | Building a device from parts: Pi, relay HAT, valves, power, common ground, tubing, wall mount. Read this first for any new install. |
+| [16-RELAYS Vendor Manual (PDF)](Project/docs/16-RELAYS-UsersGuide_d5e24457-bdd9-4e16-a307-7f90bbd668bb.pdf) | Authoritative reference for the Sequent Microsystems relay HAT (jumpers, stack levels, I²C addresses). |
+| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Day-to-day operator cheatsheet (animals, schedules, cages, shortcuts). |
+| [CALIBRATION_QUICK_START.md](Project/docs/CALIBRATION_QUICK_START.md) | Calibrating a valve in 10 minutes via the in-app wizard or the CLI tool. |
+| [VALVE_CALIBRATION_GUIDE.md](Project/docs/VALVE_CALIBRATION_GUIDE.md) | Technical reference behind the calibration wizard (algorithm, schema, API). |
+| [PRIMING_FEATURE_DOCUMENTATION.md](Project/docs/PRIMING_FEATURE_DOCUMENTATION.md) | Priming control architecture and safety interlocks. |
+| [DEVELOPMENT.md](Project/docs/DEVELOPMENT.md) | Software architecture, modules, data flow, and dev-environment setup. |
+| [DATABASE.md](Project/docs/DATABASE.md) / [DATABASE_ARCHITECTURE.md](Project/docs/DATABASE_ARCHITECTURE.md) | SQLite schema, ERD, and `DatabaseHandler` reference. |
+| [MAINTENANCE.md](Project/docs/MAINTENANCE.md) | Release, versioning (SemVer for RRR), tagging, and recovery procedures. |
+| [UPDATE_SYSTEM.md](Project/docs/UPDATE_SYSTEM.md) | Full design of the in-app update pipeline (bundle format, blue-green layout, boot sentinel). |
+| [CLAUDE.md](CLAUDE.md) | One-page hard-rules summary for maintainers and AI assistants. |
+| [STL Files](Project/docs/STL%20Files/) | 3D-printable reservoir mounts, intra-cage water collectors, pump holders. |
 
 ## Getting Started: Step-by-Step Guide
 
 ### 1. Setting Up Your System
 
-If the system is already installed in your lab, skip to [Using the Application](#2-using-the-application). If you need to set up a new system, contact your IT support team for assistance with hardware installation.
+If the system is already installed in your lab, skip to [Using the Application](#2-using-the-application). If you are building a new device from parts, follow the full bench-build runbook in [HARDWARE_SETUP.md](Project/docs/HARDWARE_SETUP.md) before running the software installer below.
 
 **Requirements**: Raspberry Pi running **Raspberry Pi OS Bookworm (64-bit)** with internet access.
 

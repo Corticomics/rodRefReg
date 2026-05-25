@@ -1,9 +1,9 @@
 # MAINTENANCE.md
 
 Release, versioning, and maintenance reference for RRR maintainers.
-Companion to [DEVELOPMENT.md](DEVELOPMENT.md) (architecture & how to
-develop) and [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md) (design of
-the update pipeline). Hard rules live in [CLAUDE.md](CLAUDE.md); this
+Companion to [DEVELOPMENT.md](DEVELOPMENT.md) (architecture and how to
+develop) and [UPDATE_SYSTEM.md](UPDATE_SYSTEM.md) (design of
+the update pipeline). Hard rules live in [CLAUDE.md](../../CLAUDE.md); this
 file is the operator-friendly recipe book.
 
 ---
@@ -27,7 +27,7 @@ install via the in-app **Updates** tab. Cutting one means **every device
 on the network can pull this code**, so the decision is operational, not
 cosmetic.
 
-### ✅ Cut a release when…
+### Cut a release when…
 
 | Change | Why |
 |---|---|
@@ -38,7 +38,7 @@ cosmetic.
 | Hardware driver fix or new supported board | Production reliability |
 | Dependency bump that fixes a real issue | Once vetted |
 
-### ❌ Do **not** cut a release when…
+### Do **not** cut a release when…
 
 | Change | Why not |
 |---|---|
@@ -74,13 +74,13 @@ features, no breaking changes.
 
 | Example | PATCH |
 |---|---|
-| Off-by-one in cycle timing | ✅ |
-| CSV export drops the last row | ✅ |
-| Slack indicator shows wrong glyph on a specific error code | ✅ |
-| Crash on launch when `settings.json` is missing a key | ✅ |
-| Dependency security pin (e.g. `requests` ⇒ patched) | ✅ |
-| New UI feature | ❌ — that's MINOR |
-| New DB column | ❌ — that's MINOR or MAJOR depending on migration |
+| Off-by-one in cycle timing | yes |
+| CSV export drops the last row | yes |
+| Slack indicator shows wrong glyph on a specific error code | yes |
+| Crash on launch when `settings.json` is missing a key | yes |
+| Dependency security pin (e.g. `requests` to a patched version) | yes |
+| New UI feature | no — that is MINOR |
+| New DB column | no — that is MINOR or MAJOR depending on migration |
 
 ### MINOR bump — `1.6.1 → 1.7.0`
 
@@ -89,13 +89,13 @@ on the previous version can install this without operator intervention.
 
 | Example | MINOR |
 |---|---|
-| New scheduling mode (e.g. "burst") | ✅ |
-| New Settings sub-tab | ✅ |
-| New sensor driver, opt-in via config | ✅ |
-| `apply_update` switched to fail-closed digest verification | ✅ (Phase 2 / v1.6.0) |
-| Slack notifier broadens what it catches; new `last_status` attribute | ✅ (Phase 2 / v1.6.0) |
-| Pure bug fix | ❌ — that's PATCH |
-| DB schema change requiring a one-way migration | ❌ — that's MAJOR |
+| New scheduling mode (e.g. "burst") | yes |
+| New Settings sub-tab | yes |
+| New sensor driver, opt-in via config | yes |
+| `apply_update` switched to fail-closed digest verification | yes (Phase 2 / v1.6.0) |
+| Slack notifier broadens what it catches; new `last_status` attribute | yes (Phase 2 / v1.6.0) |
+| Pure bug fix | no — that is PATCH |
+| DB schema change requiring a one-way migration | no — that is MAJOR |
 
 ### MAJOR bump — `1.6.1 → 2.0.0`
 
@@ -106,11 +106,11 @@ MAJOR release.
 
 | Example | MAJOR |
 |---|---|
-| DB schema change that cannot be auto-migrated | ✅ |
-| Change of GPIO pin mapping or hardware protocol | ✅ |
-| Drop support for an old Pi model or board revision | ✅ |
-| Settings file format change that operators must hand-edit | ✅ (avoid this — provide a migration) |
-| Renaming `Project/version.py` or any path the installer hard-codes | ✅ |
+| DB schema change that cannot be auto-migrated | yes |
+| Change of GPIO pin mapping or hardware protocol | yes |
+| Drop support for an old Pi model or board revision | yes |
+| Settings file format change that operators must hand-edit | yes (avoid this — provide a migration) |
+| Renaming `Project/version.py` or any path the installer hard-codes | yes |
 
 Practical signal: **if you're about to add a release-note line that
 starts with "Operators must…", it's a MAJOR**.
@@ -130,7 +130,7 @@ For risky changes you want to validate on a test Pi before fleet
 rollout. Tag as `v1.7.0-beta` (or `-beta.2`, etc). CI publishes it as a
 GitHub **pre-release**; the in-app check ignores pre-releases unless the
 device is explicitly opted into the beta channel (see
-[docs/UPDATE_SYSTEM.md §5.4](docs/UPDATE_SYSTEM.md)).
+[UPDATE_SYSTEM.md §5.4](UPDATE_SYSTEM.md)).
 
 ### Tag history as a sanity check
 
@@ -386,14 +386,14 @@ feat(offline): Slack failure indicator + clearer updater dialogs (Phase 3, v1.6.
 
 ## Cross-references
 
-- [CLAUDE.md](CLAUDE.md) — the hard-rule one-pager (read before tagging)
+- [CLAUDE.md](../../CLAUDE.md) — the hard-rule one-pager (read before tagging)
 - [DEVELOPMENT.md](DEVELOPMENT.md) — architecture, modules, hardware,
   dev environment setup
-- [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md) — full design of the
+- [UPDATE_SYSTEM.md](UPDATE_SYSTEM.md) — full design of the
   update pipeline (bundle format, blue-green layout, apply engine,
   boot sentinel)
-- [README.md](README.md) — user/operator-facing install + quickstart
-- [.github/workflows/release.yml](.github/workflows/release.yml) — the
+- [README.md](../../README.md) — user/operator-facing install and quickstart
+- [.github/workflows/release.yml](../../.github/workflows/release.yml) — the
   CI workflow that runs on every `v*` tag push
-- [scripts/release/build-bundle.sh](scripts/release/build-bundle.sh) —
+- [scripts/release/build-bundle.sh](../../scripts/release/build-bundle.sh) —
   what `git archive`s into the bundle (worth reading once)

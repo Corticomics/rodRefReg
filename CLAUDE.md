@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-Guidance for Claude Code in this repo. Full runbooks live in `docs/`.
+Guidance for Claude Code in this repo. Full runbooks live in
+[`Project/docs/`](Project/docs/); the central index is
+[README.md](README.md).
 
 ## Project
 
@@ -32,4 +34,6 @@ and `bootstrap.sh`.
   excluded from git and from release bundles; keep it that way.
 
 Full release procedure (version bump → tag → CI workflow) and recovery for a
-mis-tagged commit: see [docs/UPDATE_SYSTEM.md](docs/UPDATE_SYSTEM.md).
+mis-tagged commit: see [Project/docs/UPDATE_SYSTEM.md](Project/docs/UPDATE_SYSTEM.md)
+and the operator-facing recipe in [Project/docs/MAINTENANCE.md](Project/docs/MAINTENANCE.md).
+Hardware bring-up procedure for a new device: [Project/docs/HARDWARE_SETUP.md](Project/docs/HARDWARE_SETUP.md).

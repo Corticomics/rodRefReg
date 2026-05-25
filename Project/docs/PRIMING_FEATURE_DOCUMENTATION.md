@@ -6,7 +6,7 @@ This document describes the **Priming Control Feature** - a modular, OOP-based s
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Architecture](#architecture)
 2. [Design Patterns & Best Practices](#design-patterns--best-practices)
@@ -243,7 +243,7 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 
 **Step 1: Open Master Solenoid**
 1. Click **"Open Master"** button
-2. Verify status shows: **"Status: OPEN ✓"** (green)
+2. Verify status shows: **"Status: OPEN"** (green)
 3. Master close button becomes enabled
 
 **Step 2: Open Target Cage Relay**
@@ -262,7 +262,7 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 3. All cages automatically closed for safety
 
 #### 3. **Emergency Stop**
-- Click **"⛔ CLOSE ALL RELAYS"** at any time
+- Click **"CLOSE ALL RELAYS"** at any time
 - Immediately closes master + all cages
 - Use if unexpected behavior occurs
 
@@ -451,7 +451,7 @@ def test_hardware_priming_sequence():
 
 ## Progress Toward Final Goal
 
-### ✅ Completed (MS4 - Hardware Integration)
+### Completed (MS4 — Hardware Integration)
 
 1. **Modular priming control system**
    - OOP-based architecture
@@ -474,7 +474,7 @@ def test_hardware_priming_sequence():
    - Lazy initialization
    - Observer pattern
 
-### 🎯 Next Steps (MS5 - Testing & Deployment)
+### Next Steps (MS5 — Testing and Deployment)
 
 1. **Testing**
    - [ ] Unit tests for `RelayControlModel`
@@ -552,10 +552,10 @@ def test_hardware_priming_sequence():
 
 The Priming Control Feature demonstrates **production-quality, OOP-based design** following industry best practices:
 
-✅ **SOLID Principles**: Single Responsibility, Dependency Injection, Interface Segregation  
-✅ **Design Patterns**: MVC, Observer, Lazy Initialization, Composition  
-✅ **Clean Code**: Clear naming, documentation, error handling  
-✅ **Safety First**: Hardware interlocks, emergency controls, fail-safe design  
+- **SOLID Principles**: Single Responsibility, Dependency Injection, Interface Segregation
+- **Design Patterns**: MVC, Observer, Lazy Initialization, Composition
+- **Clean Code**: Clear naming, documentation, error handling
+- **Safety First**: Hardware interlocks, emergency controls, fail-safe design
 
 This implementation provides a **robust, maintainable foundation** for manual hardware control and tube priming, advancing the project toward successful hardware integration and deployment (MS4 → MS5).
 

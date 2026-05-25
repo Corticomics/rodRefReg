@@ -21,7 +21,7 @@
 **Symptoms:**
 - Target: 1.0 mL delivery
 - Actual: 2.863 mL measured (186% over-delivery)
-- System reported: 1.000 mL delivered ✓
+- System reported: 1.000 mL delivered
 - Sensor readings: ~0.004-0.005 mL per pulse (shown in logs)
 - Calibration expected: 0.026 mL per pulse
 - **Calculated actual:** ~0.075 mL per pulse (2.863 mL ÷ 38 pulses)
@@ -57,7 +57,7 @@ The sensor measurement window **completely missed the bulk flow**:
 ```
 Time:     [----valve opens----|----valve closes----|----settling----|----measurement window----]
 Flow:     [████████ BULK ████]  [██ tail ██]        [░ settling ░]   [measure: 0.005 mL]
-Missed:   [~~~NOT MEASURED~~~]  [NOT MEASURED]      [NOT MEASURED]   [✓ measured]
+Missed:   [~~~NOT MEASURED~~~]  [NOT MEASURED]      [NOT MEASURED]   [measured]
 ```
 
 **The system was:**
@@ -72,7 +72,7 @@ Missed:   [~~~NOT MEASURED~~~]  [NOT MEASURED]      [NOT MEASURED]   [✓ measur
 ```
 Time:     [----valve opens----|----valve closes----|----settling----]
 Flow:     [████████ BULK ████]  [██ tail ██]        [░ settling ░]
-Measure:  [✓✓✓✓✓ CONTINUOUS MEASUREMENT ✓✓✓✓✓✓✓✓✓✓✓✓✓✓]
+Measure:  [<<<<< CONTINUOUS MEASUREMENT >>>>>>>>>>>>>>>]
 ```
 
 Now captures:
@@ -126,7 +126,7 @@ Now captures:
 
 #### 2. Run Calibration Tool
 ```bash
-cd /Users/zes/.cursor/worktrees/rodRefReg/P9fOC/Project
+cd ~/rodRefReg/Project
 python tools/valve_calibration_tool.py --cage 15 --interactive
 ```
 
@@ -152,7 +152,7 @@ Executing 250 pulses...
   Progress: 150/250 (60.0%) - Elapsed: 285.8s
   Progress: 200/250 (80.0%) - Elapsed: 380.2s
   Progress: 250/250 (100.0%) - Elapsed: 475.6s
-✓ Completed 250 pulses in 476.2s
+Completed 250 pulses in 476.2s
 
 MEASUREMENT:
   1. Remove beaker from under cage output
@@ -172,8 +172,8 @@ Estimated CV:           0.27%
 Quality: EXCELLENT
 
 Save this calibration to database? (yes/no): yes
-✓ Calibration saved to database (ID: 1)
-✓ Calibration complete and saved!
+Calibration saved to database (ID: 1)
+Calibration complete and saved.
   Cage 15: 0.075000 mL/pulse
 ```
 
@@ -193,7 +193,7 @@ calibration_id|cage_id|relay_id|pulse_width_ms|volume_per_pulse_ml|stddev_ml|coe
 Run a small test schedule (e.g., 0.5 mL) and verify with scale:
 - Target: 0.5 mL
 - Expected pulses: ~7 (0.5 / 0.075)
-- Measured: 0.500 ± 0.010 mL ✓
+- Measured: 0.500 ± 0.010 mL (within tolerance)
 
 ---
 
@@ -311,30 +311,30 @@ else:
 
 ### When to Calibrate
 
-**Must Calibrate:**
-- ✅ New valve installation
-- ✅ Valve replacement
-- ✅ Pressure change in system
-- ✅ Fluid type change (water → saline)
-- ✅ After maintenance on manifold
+**Must calibrate:**
+- New valve installation
+- Valve replacement
+- Pressure change in system
+- Fluid type change (e.g. water to saline)
+- After maintenance on manifold
 
-**Should Calibrate:**
-- ⚠️ Every 3 months (routine)
-- ⚠️ If delivery accuracy >10% error for 3+ consecutive schedules
-- ⚠️ After 10,000+ valve cycles (wear)
+**Should calibrate:**
+- Every 3 months (routine)
+- If delivery accuracy exceeds 10 % error for 3 or more consecutive schedules
+- After 10,000+ valve cycles (wear)
 
-**Optional Calibrate:**
-- 🔄 Seasonal (temperature affects valve timing)
-- 🔄 After firmware updates
+**Optional:**
+- Seasonally (temperature affects valve timing)
+- After firmware updates
 
 ### Calibration Quality Metrics
 
 | Coefficient of Variation (CV%) | Quality | Action |
 |-------------------------------|---------|--------|
-| < 1% | EXCELLENT | ✅ Production ready |
-| 1-3% | GOOD | ✅ Production ready |
-| 3-5% | ACCEPTABLE | ⚠️ Monitor closely |
-| > 5% | POOR | ❌ Re-calibrate with more pulses or check hardware |
+| < 1 % | EXCELLENT | Production ready |
+| 1–3 % | GOOD | Production ready |
+| 3–5 % | ACCEPTABLE | Monitor closely |
+| > 5 % | POOR | Re-calibrate with more pulses or check hardware |
 
 ### Sample Size Guidelines
 
@@ -532,12 +532,12 @@ python tools/valve_calibration_tool.py --cage 15 --num-pulses 100 --interactive
 ## Summary
 
 **What Changed:**
-1. ✅ **Database schema** for per-valve calibration storage
-2. ✅ **Calibration tool** following colleague's proven 200-300 pulse method
-3. ✅ **Fixed sensor integration** to capture full flow curve (not just tail)
-4. ✅ **Adaptive correction** blending sensor + calibration intelligently
-5. ✅ **Per-valve lookup** in delivery strategy
-6. ✅ **Drift detection** via calibration history
+1. Database schema for per-valve calibration storage
+2. Calibration tool using a 200–300 pulse gravimetric method
+3. Sensor integration fixed to capture the full flow curve (not just the tail)
+4. Adaptive correction that blends sensor and calibration values
+5. Per-valve lookup in the delivery strategy
+6. Drift detection via calibration history
 
 **What to Do Next:**
 1. **Calibrate your valve (cage 15):**

@@ -6,7 +6,7 @@ The **recommended path is the in-app Calibration Wizard**. A CLI tool is availab
 
 ---
 
-## ⚡ Option A — In-App Wizard (Recommended, ~10 min per valve)
+## Option A — In-App Wizard (recommended, ~10 min per valve)
 
 ### Step 1: Prepare (2 min)
 1. Place an empty pre-tared beaker under the target cage outlet.
@@ -28,7 +28,7 @@ Run a small test schedule (e.g. 0.5 mL) and confirm the delivered volume is with
 
 ---
 
-## ⚡ Option B — CLI Tool (Headless / advanced)
+## Option B — CLI Tool (headless or advanced)
 
 ### Step 1: Prepare (same as Option A)
 
@@ -51,16 +51,16 @@ Run a small test schedule (0.5 mL) and confirm output is within ±5 %.
 
 ---
 
-## 📊 Expected Results
+## Expected Results
 
 | Stage | Target (mL) | Actual Before (mL) | Actual After (mL) | Error |
 |-------|-------------|-------------------|-------------------|-------|
-| **Before Calibration** | 1.000 | 2.863 | - | **186% ❌** |
-| **After Calibration** | 1.000 | - | 1.000 ± 0.050 | **5% ✅** |
+| **Before Calibration** | 1.000 | 2.863 | - | **186 % (fail)** |
+| **After Calibration** | 1.000 | - | 1.000 ± 0.050 | **5 % (pass)** |
 
 ---
 
-## 🔧 Calibrate All Valves
+## Calibrate All Valves
 
 **In-app**: The Calibration Wizard supports multi-cage selection — pick all cages at once and the wizard sequences them with confirmation prompts.
 
@@ -73,20 +73,20 @@ done
 
 ---
 
-## 🎯 Quality Check
+## Quality Check
 
 **Good Calibration:**
 ```
 Volume per pulse:       0.075000 mL/pulse
 Estimated CV:           0.27%
-Quality: EXCELLENT ✅
+Quality: EXCELLENT
 ```
 
 **Bad Calibration (needs redo):**
 ```
 Volume per pulse:       0.082000 mL/pulse
 Estimated CV:           8.5%
-Quality: POOR ❌
+Quality: POOR
 ```
 
 **Fix:** Increase pulses to 300:
@@ -96,7 +96,7 @@ python tools/valve_calibration_tool.py --cage 15 --num-pulses 300 --interactive
 
 ---
 
-## 💡 Pro Tips
+## Pro Tips
 
 1. **Use Lab Scale:** ±0.001g precision minimum
 2. **Warm Up System:** 30 minutes before calibration
@@ -106,7 +106,7 @@ python tools/valve_calibration_tool.py --cage 15 --num-pulses 300 --interactive
 
 ---
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 ### "Tool says cage not found"
 ```bash
@@ -132,9 +132,9 @@ sqlite3 rrr_database.db "SELECT * FROM valve_calibration WHERE cage_id=15;"
 
 ---
 
-## 📚 Full Documentation
+## Full Documentation
 
-See `VALVE_CALIBRATION_GUIDE.md` for:
+See [VALVE_CALIBRATION_GUIDE.md](VALVE_CALIBRATION_GUIDE.md) for:
 - Complete technical explanation
 - Root cause analysis
 - Best practices
@@ -144,12 +144,12 @@ See `VALVE_CALIBRATION_GUIDE.md` for:
 ---
 
 **Next Steps:**
-1. ✅ Calibrate cage 15 NOW (your active test cage)
-2. ✅ Run test schedule to verify accuracy
-3. ✅ Calibrate all cages used in experiments
-4. ⏰ Schedule quarterly recalibration (add to calendar)
 
-**Time Investment:** ~10 min per valve × 15 valves = **2.5 hours for complete system**
+1. Calibrate every cage used in active experiments.
+2. Run a small test schedule (e.g. 0.5 mL) and weigh the output to verify accuracy is within ±5 %.
+3. Schedule quarterly recalibration on the lab calendar.
 
-**Benefit:** **99% accuracy** vs. current 186% error = **Worth it!**
+**Time investment:** approximately 10 min per valve × 15 valves = 2.5 hours for a full HAT.
+
+**Benefit:** Sub-5 % delivery error vs. the uncalibrated baseline of ~186 % over-delivery.
 

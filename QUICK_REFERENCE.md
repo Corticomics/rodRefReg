@@ -4,7 +4,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 ## Common Tasks
 
-### 🐭 Animal Management
+### Animal Management
 
 | Task | How To Do It |
 |------|--------------|
@@ -13,7 +13,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Update weight | Animals tab → Select animal → Edit → Enter new weight → Save |
 | Remove animal | Animals tab → Select animal → Delete → Confirm |
 
-### 📆 Schedule Management
+### Schedule Management
 
 | Task | How To Do It |
 |------|--------------|
@@ -23,14 +23,14 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Assign animals to cages | Inside the Wizard, Step 2 — multi-select from the available list |
 | View schedule details | Schedules tab → card **Info** button |
 
-### 🔢 Cage Management
+### Cage Management
 
 | Task | How To Do It |
 |------|--------------|
 | Rename a cage | Cages tab → click cage tile → enter custom name → Save |
 | View relay layout | Cages tab — shows the full HAT board with master vs. animal relays |
 
-### ⚙️ System Operations
+### System Operations
 
 | Task | How To Do It |
 |------|--------------|
@@ -97,7 +97,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 ## Contact Information
 
 For technical support, contact:
-- Lab Manager: [lab.manager@example.com](mailto:lab.manager@example.com)
+- Lab Tech: [Jose Paulo](mailto:josepaulo.pereirajun@ucalgary.ca)
 
 For application issues, report through the Help tab in the application.
 
