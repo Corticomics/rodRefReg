@@ -14,10 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system PyQt5 (mirrors --system-site-packages on the Pi)
+      - name: Install apt-provided Python deps (mirrors --system-site-packages on the Pi)
         run: |
+          # Same packages the Pi installer pulls via apt and exposes through
+          # --system-site-packages. Keeping CI on apt (not pip) matches the
+          # device install path, so "works in CI, broken on Pi" can't happen
+          # via a pandas/numpy/PyQt5 ABI skew. python3-numpy is a transitive
+          # dep of python3-pandas, so apt resolves it automatically.
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends python3-pyqt5
+          sudo apt-get install -y --no-install-recommends python3-pyqt5 python3-pandas
 
       - name: Install pinned Python deps + dev deps
         run: |
