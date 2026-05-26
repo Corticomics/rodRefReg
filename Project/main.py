@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys, os, time, traceback
-from PyQt5.QtWidgets import (QApplication, QInputDialog, QListWidget, QVBoxLayout, QLabel, QHBoxLayout)
+from PyQt5.QtWidgets import (QApplication, QInputDialog)
 from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
@@ -506,11 +506,20 @@ def stop_program():
 # This method is only called once (either by stop_program() or when the job completes naturally).
 
 # =============================================================================
-# change_relay_hats() and helper functions (unchanged)
+# change_relay_hats() and helpers
 # =============================================================================
 def change_relay_hats():
+    """Persist a new hat count and re-sync the hardware layer.
+
+    Wired to the "Change Relay Hats" button in RunStopSection. The previous
+    `_update_gui_relay_units` helper rebuilt a relay grid on the legacy
+    SchedulesTab; that grid no longer exists on SchedulesHub (card-based)
+    so the call was a latent crash. Operators may need to restart the app
+    to see hat-count changes reflected in the Cages tab — a deliberate
+    deferral; see chore/phase-1-tier-0-deletions.
+    """
     global relay_handler, app_settings
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats", 
+    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",
                                         "Enter the number of relay hats:", min=1, max=8)
     if not ok:
         return
@@ -518,7 +527,6 @@ def change_relay_hats():
     app_settings['relay_pairs'] = create_relay_pairs(num_hats)
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
-    _update_gui_relay_units(relay_unit_manager.get_all_relay_units())
     system_controller.save_settings(app_settings)
     cleanup()
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
@@ -531,25 +539,6 @@ def create_relay_pairs(num_hats):
             relay_pair = (start_relay + i, start_relay + i + 1)
             relay_units.append(relay_pair)
     return relay_units
-
-def _update_gui_relay_units(relay_units):
-    gui.projects_section.relay_units = relay_units
-    gui.projects_section.schedules_tab.relay_units = relay_units
-    gui.projects_section.schedules_tab.relay_containers = {}
-    gui.projects_section.schedules_tab.layout.removeItem(gui.projects_section.schedules_tab.relay_layout)
-    gui.projects_section.schedules_tab.relay_layout = QHBoxLayout()
-    for relay_unit in relay_units:
-        container = QListWidget()
-        container.setAcceptDrops(True)
-        container.setDragDropMode(QListWidget.InternalMove)
-        container.setDefaultDropAction(Qt.MoveAction)
-        container.objectName = f"Relay Unit {relay_unit.unit_id}"
-        gui.projects_section.schedules_tab.relay_containers[relay_unit.unit_id] = container
-        relay_layout = QVBoxLayout()
-        relay_layout.addWidget(QLabel(str(relay_unit)))
-        relay_layout.addWidget(container)
-        gui.projects_section.schedules_tab.relay_layout.addLayout(relay_layout)
-    gui.projects_section.schedules_tab.layout.addLayout(gui.projects_section.schedules_tab.relay_layout)
 
 # =============================================================================
 # Main entry point with splash screen optimization

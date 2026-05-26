@@ -79,8 +79,7 @@ rodent-refreshment-regulator/
 │   │   ├── schedule_wizard.py           # 4-step schedule creation wizard
 │   │   ├── wizard_tab.py                # Wizard tab host
 │   │   ├── animals_tab.py
-│   │   ├── cages_visualization_tab.py   # Visual relay-board layout
-│   │   ├── cage_manager_widget.py
+│   │   ├── cages_visualization_tab.py   # Visual relay-board layout + inline cage naming
 │   │   ├── SettingsTab.py               # Delivery / Calibration / Priming / General
 │   │   ├── CalibrationWizard.py         # Per-cage calibration flow
 │   │   ├── PrimingControlWidget.py
@@ -109,7 +108,7 @@ rodent-refreshment-regulator/
 │   │   └── uart_flow_sensor.py          # Teensy 4.1 UART bridge
 │   ├── teensy_flow_reader/  # Teensy sketch + helper
 │   ├── ir_module/           # Optional IR drinking-detection extension
-│   ├── utils/, notifications/, settings/, saved_settings/, migrations/
+│   ├── utils/, notifications/, settings/, migrations/
 │   ├── tests/
 │   └── docs/                # Project-level developer docs
 ├── docs/                    # Repo-level docs (SOP, FAQ)
@@ -204,7 +203,7 @@ The UI is built with PyQt5 and uses a tab-based organization with a login gate.
 - `projects_section.py` — container for the **Schedules**, **Animals**, **Wizard**, **Cages** tabs
 - `schedules_hub.py` — Schedules tab; grid of schedule cards with search, multi-select, edit, drag-to-run
 - `schedule_wizard.py` + `wizard_tab.py` — 4-step schedule creation wizard (Type → Animals → Parameters → Review)
-- `cages_visualization_tab.py` + `cage_manager_widget.py` — visual relay-board layout, cage naming
+- `cages_visualization_tab.py` — visual relay-board layout, inline cage naming
 - `SettingsTab.py` — sub-tabs: **Delivery**, **Calibration**, **Priming**, **General**
 - `CalibrationWizard.py` — per-cage calibration flow, launched from Settings → Calibration
 - `PrimingControlWidget.py` — prime tubing / valves
