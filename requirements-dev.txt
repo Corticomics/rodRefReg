@@ -5,3 +5,5 @@
 #   ~/rrr/shared/venv/bin/python3 -m pytest
 
 pytest>=7.0
+# Phase-0 dead-code audit baseline; not used at runtime.
+vulture>=2.11
