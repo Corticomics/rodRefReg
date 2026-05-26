@@ -15,7 +15,6 @@ import pandas as pd
 from models.animal import Animal
 from ui.PrimingControlWidget import PrimingControlWidget
 from ui.UpdatesTab import UpdatesTab
-# CageManagerWidget removed - cage management moved to Projects Section (CagesVisualizationTab)
 from PyQt5.QtWidgets import QApplication
 
 class SettingsTab(QWidget):
