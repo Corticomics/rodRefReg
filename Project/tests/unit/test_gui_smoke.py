@@ -86,9 +86,9 @@ def test_projects_section_constructs(qapp, database_handler):
     """``ProjectsSection`` builds and exposes the four live tabs.
 
     Pins the contract main.py and SettingsTab rely on: ``schedules_tab``
-    must be a ``SchedulesHub`` (not the legacy ``SchedulesTab``),
-    ``animals_tab`` an ``AnimalsTab``, ``wizard_tab`` a ``WizardTab``,
-    ``cages_tab`` a ``CagesVisualizationTab``.
+    is a ``SchedulesHub``, ``animals_tab`` an ``AnimalsTab``,
+    ``wizard_tab`` a ``WizardTab``, ``cages_tab`` a
+    ``CagesVisualizationTab``.
     """
     from models.login_system import LoginSystem  # noqa: PLC0415
     from ui.animals_tab import AnimalsTab  # noqa: PLC0415
