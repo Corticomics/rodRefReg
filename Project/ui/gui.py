@@ -360,6 +360,46 @@ class RodentRefreshmentGUI(QWidget):
         """Print message to terminal output"""
         if hasattr(self, 'terminal_output'):
             self.terminal_output.appendPlainText(str(message))
+
+    def closeEvent(self, event):
+        """Confirm before quitting, and quit explicitly so the event loop ends.
+
+        Two reasons this matters:
+
+        1. **Safety.** Accidentally quitting during a running schedule would
+           stop water delivery to the animals mid-cycle. The confirmation
+           dialog is mandatory in that case.
+        2. **Update flow.** Without an explicit ``QApplication.quit()``,
+           closing the window on Wayland (Pi 5 default) can leave the Qt
+           event loop alive — which then traps the next launch on the old
+           release via the single-instance lock. Forcing quit here makes
+           "close and reopen" actually mean what it says.
+        """
+        from PyQt5.QtWidgets import QMessageBox, QApplication  # noqa: PLC0415
+
+        schedule_running = bool(getattr(self, '_schedule_running', False))
+
+        if schedule_running:
+            text = ("A delivery schedule is currently running.\n\n"
+                    "Quitting will interrupt water delivery to the animals.\n\n"
+                    "Are you sure you want to quit RRR?")
+            default = QMessageBox.No
+        else:
+            text = "Are you sure you want to quit RRR?"
+            default = QMessageBox.Yes
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Question)
+        box.setWindowTitle("Quit RRR?")
+        box.setText(text)
+        box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        box.setDefaultButton(default)
+
+        if box.exec_() == QMessageBox.Yes:
+            event.accept()
+            QApplication.quit()
+        else:
+            event.ignore()
     
     def show_execution_monitor_loading(self, schedule_name: str):
         """

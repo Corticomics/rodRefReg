@@ -429,22 +429,61 @@ def has_previous_release():
 def restart_app():
     """Restart the application. Returns ``(restarted, message)``.
 
-    Restarts the systemd user service when one is active; otherwise the
-    operator must relaunch manually (there is no service to bounce).
+    Path A (preferred): a systemd ``--user`` service named ``rrr`` is
+    active — bounce it.
+
+    Path B (default on most Pis): no systemd service. Launch the stable
+    shim (``~/.local/bin/rrr``) as a detached child process and tell the
+    running Qt app to quit. Because the single-instance lock is
+    version-keyed (``rrr_single_instance_<version>`` — see main.py), the
+    new launcher takes its own slot without colliding with us, even if
+    our process takes a moment to shut down.
     """
+    # Path A: systemd user service.
     try:
         active = subprocess.run(
             ["systemctl", "--user", "is-active", "--quiet", "rrr"], timeout=10
         ).returncode == 0
     except Exception:
         active = False
-    if not active:
-        return False, "Please close and reopen RRR to finish the update."
+    if active:
+        try:
+            subprocess.Popen(["systemctl", "--user", "restart", "rrr"])
+            return True, "Restarting…"
+        except Exception as exc:
+            return False, "Could not restart automatically: %s" % exc
+
+    # Path B: spawn the shim detached, then schedule our own quit.
+    shim = os.path.expanduser("~/.local/bin/rrr")
+    if not os.path.isfile(shim):
+        return False, ("Could not find the launcher at ~/.local/bin/rrr. "
+                       "Please close and reopen RRR to finish the update.")
     try:
-        subprocess.Popen(["systemctl", "--user", "restart", "rrr"])
-        return True, "Restarting…"
+        # Defer the actual exec by ~1 s via a shell wrapper so this
+        # process has time to close hardware handles. The new instance's
+        # version-keyed lock guarantees no collision even if we overlap.
+        subprocess.Popen(
+            ["sh", "-c", f'sleep 1 && exec "{shim}" </dev/null '
+             '>/dev/null 2>&1'],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
     except Exception as exc:
-        return False, "Could not restart automatically: %s" % exc
+        return False, "Could not relaunch automatically: %s" % exc
+
+    # Schedule our own clean exit. QTimer.singleShot fires on the GUI
+    # thread; the import is local so this function stays importable in
+    # headless test code.
+    try:
+        from PyQt5.QtCore import QTimer  # noqa: PLC0415
+        from PyQt5.QtWidgets import QApplication  # noqa: PLC0415
+        QTimer.singleShot(300, QApplication.quit)
+    except Exception:
+        pass
+    return True, "Relaunching RRR…"
 
 
 class ApplyWorker(QObject):
