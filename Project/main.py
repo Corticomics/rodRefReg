@@ -614,9 +614,13 @@ def main():
     Set USE_SPLASH_SCREEN = False to debug without splash.
     """
     global gui, system_controller
-    
-    # Single-instance guard using QLocalServer
-    instance_key = 'rrr_single_instance_v1'
+
+    # Single-instance guard using QLocalServer, version-scoped so a NEW
+    # release after an update doesn't get blocked by a still-running OLD
+    # release (which would have a different key and a different socket).
+    # See chore/phase-2c-fix-update-restart for the v1.7.0 trap that
+    # motivated this.
+    instance_key = f"rrr_single_instance_{__version__}"
     socket = QLocalSocket()
     socket.connectToServer(instance_key)
     if socket.waitForConnected(100):
@@ -628,6 +632,8 @@ def main():
             pass
         return
     socket.abort()
+
+    _dbg(f"RRR v{__version__} startup — instance key={instance_key}")
 
     # Create application
     app = SafeQApplication(sys.argv)
@@ -726,22 +732,33 @@ def _main_with_splash(app, instance_key):
         except Exception:
             pass
         _state['server'].listen(instance_key)
-        
+
         def _handle_new_connection():
             conn = _state['server'].nextPendingConnection()
-            if conn:
-                try:
-                    conn.readAll()
-                    conn.disconnectFromServer()
-                except Exception:
-                    pass
+            if not conn:
+                return
+            cmd = b''
+            try:
+                if conn.waitForReadyRead(100):
+                    cmd = bytes(conn.readAll()).strip()
+                conn.disconnectFromServer()
+            except Exception:
+                pass
+            if cmd == b'quit':
+                # Used by updater.restart_app on systems without a systemd
+                # user service: the new launcher tells us to die so it can
+                # take over cleanly.
+                _dbg("received 'quit' from peer; exiting")
+                SafeQApplication.instance().quit()
+                return
+            # Default + 'raise': bring our window forward.
             try:
                 gui.show()
                 gui.raise_()
                 gui.activateWindow()
             except Exception:
                 pass
-        
+
         _state['server'].newConnection.connect(_handle_new_connection)
     
     # Connect splash completion to GUI creation
@@ -808,22 +825,29 @@ def _main_without_splash(app, instance_key):
     except Exception:
         pass
     server.listen(instance_key)
-    
+
     def _handle_new_connection():
         conn = server.nextPendingConnection()
-        if conn:
-            try:
-                conn.readAll()
-                conn.disconnectFromServer()
-            except Exception:
-                pass
+        if not conn:
+            return
+        cmd = b''
+        try:
+            if conn.waitForReadyRead(100):
+                cmd = bytes(conn.readAll()).strip()
+            conn.disconnectFromServer()
+        except Exception:
+            pass
+        if cmd == b'quit':
+            _dbg("received 'quit' from peer; exiting")
+            SafeQApplication.instance().quit()
+            return
         try:
             gui.show()
             gui.raise_()
             gui.activateWindow()
         except Exception:
             pass
-    
+
     server.newConnection.connect(_handle_new_connection)
 
 if __name__ == "__main__":

@@ -201,7 +201,10 @@ class UpdatesTab(QWidget):
         box = QMessageBox(self)
         box.setWindowTitle("Restart required")
         box.setText(message)
-        box.setInformativeText("Restart RRR now?")
+        box.setInformativeText(
+            "RRR will close and reopen itself to load the new version. "
+            "Restart now?"
+        )
         box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         if box.exec_() == QMessageBox.Yes:
             restarted, detail = updater.restart_app()
