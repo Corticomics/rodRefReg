@@ -177,6 +177,22 @@ def set_busy_check(fn):
     _busy_check = fn
 
 
+def is_busy():
+    """Public, defensive wrapper around the registered busy-check.
+
+    Returns True iff the registered check says a delivery worker is active.
+    Used by the GUI's ``closeEvent`` to hard-block quit while a schedule is
+    running. Defensive about both shapes of failure: the check not being
+    registered yet (returns False — never falsely block) and the check
+    itself raising (returns False — same reasoning, safer to let the user
+    quit than to permanently trap them).
+    """
+    try:
+        return bool(_busy_check())
+    except Exception:
+        return False
+
+
 def _sha256_file(path):
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
