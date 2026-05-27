@@ -82,8 +82,8 @@ in [`Project/ui/UpdatesTab.py`](Project/ui/UpdatesTab.py).
 requirements.txt` and packs it as `rrr-<version>.rrrupdate` (tar.gz).
 That means:
 
-- Top-level `README.md`, `CLAUDE.md`, `install.sh`, `bootstrap.sh`, and
-  `legacy_installer/` are **not shipped** to devices via the update path.
+- Top-level `README.md`, `CLAUDE.md`, `install.sh`, and `bootstrap.sh`
+  are **not shipped** to devices via the update path.
 - `Project/settings/settings.json`, `*.db`, and `.DS_Store` are stripped
   even if you accidentally tracked them.
 - The bundle reflects committed state, not your working tree. **Always
