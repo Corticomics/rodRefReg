@@ -87,7 +87,6 @@ rodent-refreshment-regulator/
 │   │   ├── run_stop_section.py
 │   │   ├── UserTab.py
 │   │   ├── HelpTab.py
-│   │   ├── terminal_output.py
 │   │   ├── components/, widgets/, style/, src/
 │   │   └── [additional UI components]
 │   ├── controllers/         # Business logic
@@ -209,7 +208,7 @@ The UI is built with PyQt5 and uses a tab-based organization with a login gate.
 - `PrimingControlWidget.py` — prime tubing / valves
 - `ScheduleProgressTracker.py` — Execution Monitor with live per-cage cards (appears as a second tab next to the Terminal during a run)
 - `run_stop_section.py` — Run/Stop controls (gated by `login_system`)
-- `terminal_output.py`, `HelpTab.py`, `UserTab.py`
+- `HelpTab.py`, `UserTab.py`
 
 ### Cross-tab Synchronization:
 

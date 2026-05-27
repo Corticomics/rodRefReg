@@ -511,12 +511,10 @@ def stop_program():
 def change_relay_hats():
     """Persist a new hat count and re-sync the hardware layer.
 
-    Wired to the "Change Relay Hats" button in RunStopSection. The previous
-    `_update_gui_relay_units` helper rebuilt a relay grid on the legacy
-    SchedulesTab; that grid no longer exists on SchedulesHub (card-based)
-    so the call was a latent crash. Operators may need to restart the app
-    to see hat-count changes reflected in the Cages tab — a deliberate
-    deferral; see chore/phase-1-tier-0-deletions.
+    Wired to the "Change Relay Hats" button in RunStopSection. Updates
+    settings + hardware layer; the UI does not currently auto-refresh on
+    hat-count change, so operators may need to restart the app to see
+    the new count reflected in the Cages tab — a deliberate deferral.
     """
     global relay_handler, app_settings
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",

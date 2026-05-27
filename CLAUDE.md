@@ -49,9 +49,13 @@ Run this checklist mentally on every change. If any answer is "no", stop.
 - **Conventional Commits.** `<type>(<scope>): <one-line subject>`; body
   explains *why*, not *what*. For release-bound work, mention the target
   version in the subject (`feat(offline): … (Phase 3, v1.6.1)`).
-- **No AI attribution in git.** Never add `Co-Authored-By: Claude` /
-  `Co-Authored-By: Anthropic` trailers; never add "🤖 Generated with
-  Claude Code" lines to commit messages or PR bodies.
+- **No AI attribution in git.** No `Co-Authored-By` / `Co-authored-by`
+  trailers for any AI tool — Claude, Cursor (`cursoragent@cursor.com`),
+  GitHub Copilot, Anthropic, or any other agent identifier. No "🤖 Generated
+  with …" lines in commit messages or PR bodies. If a tool injects such a
+  trailer automatically (Cursor's "agent co-author" setting, Claude Code's
+  default trailer, etc.), disable it in the tool's settings — do not strip
+  it manually per commit.
 - **Never amend a pushed commit and never force-push to `main`.** If a
   pre-commit hook rejects a commit, **fix the issue and create a NEW
   commit** — do not `--amend` (the original commit didn't happen, so

@@ -49,9 +49,9 @@ def get_animals_by_trainer(self, trainer_id):
 |--------|---------|---------|-------|
 | `get_all_animals()` | `List[Animal]` | AnimalsTab, Wizard | Full objects |
 | `get_animals_by_trainer()` | `List[Animal]` | AnimalsTab, Wizard | Full objects |
-| `get_all_schedules()` | `List[tuple]` | SchedulesTab | Raw tuples! |
+| `get_all_schedules()` | `List[tuple]` | SchedulesHub | Raw tuples! |
 | `get_schedule_details()` | `List[dict]` | RunStopSection | Dict format |
-| `add_schedule()` | `int` (schedule_id) | Wizard, SchedulesTab | Insert returns ID |
+| `add_schedule()` | `int` (schedule_id) | Wizard, SchedulesHub | Insert returns ID |
 | `add_schedule_animal()` | `bool` | Wizard | Insert returns success |
 
 ---
@@ -206,7 +206,7 @@ def get_all_animals(self):
 |------|----------------|------------|----------|
 | `ui/schedule_wizard.py` | `get_animals_by_trainer()` | `get_animal_summaries()` | High |
 | `ui/animals_tab.py` | `get_all_animals()` | `get_animal_summaries()` | Medium |
-| `ui/schedules_tab.py` | `get_all_schedules()` | `get_schedule_summaries()` | Medium |
+| `ui/schedules_hub.py` | `get_all_schedules()` | `get_schedule_summaries()` | Medium |
 | `ui/run_stop_section.py` | `get_schedule_details()` | Keep (already returns dict) | Low |
 
 ---
@@ -400,7 +400,7 @@ def _log_query(self, query: str, params: tuple, duration: float):
 | `models/database_handler.py` | MODIFY | Add new methods, deprecate old |
 | `ui/schedule_wizard.py` | MODIFY | Use DTOs, per-animal params |
 | `ui/animals_tab.py` | MODIFY (Phase 2) | Use `get_animal_summaries()` |
-| `ui/schedules_tab.py` | MODIFY (Phase 2) | Use `get_schedule_summaries()` |
+| `ui/schedules_hub.py` | MODIFY (Phase 2) | Use `get_schedule_summaries()` |
 
 ---
 
