@@ -362,38 +362,57 @@ class RodentRefreshmentGUI(QWidget):
             self.terminal_output.appendPlainText(str(message))
 
     def closeEvent(self, event):
-        """Confirm before quitting, and quit explicitly so the event loop ends.
+        """Confirm before quitting; HARD-BLOCK while a delivery is running.
 
-        Two reasons this matters:
+        Three behaviors:
 
-        1. **Safety.** Accidentally quitting during a running schedule would
-           stop water delivery to the animals mid-cycle. The confirmation
-           dialog is mandatory in that case.
-        2. **Update flow.** Without an explicit ``QApplication.quit()``,
-           closing the window on Wayland (Pi 5 default) can leave the Qt
-           event loop alive — which then traps the next launch on the old
-           release via the single-instance lock. Forcing quit here makes
-           "close and reopen" actually mean what it says.
+        1. **Delivery running** — refuse to quit. Show an OK-only dialog
+           directing the operator to the Stop button. Animals depend on
+           the worker thread completing its cycle; an accidental close
+           would interrupt water delivery mid-pour. Operator must
+           explicitly Stop before quitting.
+        2. **Idle** — confirm with a simple Yes/No (default Yes).
+        3. On any confirmed quit, call ``QApplication.quit()`` explicitly
+           so the Qt event loop ends even on Wayland (Pi 5 default). This
+           also keeps the in-app update restart path working — see
+           ``utils.updater.restart_app``.
+
+        The busy check uses :func:`utils.updater.is_busy`, which is wired
+        at startup to the actual ``RelayWorker`` thread state, not the
+        UI's lagging ``_schedule_running`` flag. The UI flag is consulted
+        only as a fallback if the updater module isn't importable.
         """
         from PyQt5.QtWidgets import QMessageBox, QApplication  # noqa: PLC0415
 
-        schedule_running = bool(getattr(self, '_schedule_running', False))
+        try:
+            from utils import updater  # noqa: PLC0415
+            delivery_running = updater.is_busy()
+        except Exception:
+            delivery_running = bool(getattr(self, '_schedule_running', False))
 
-        if schedule_running:
-            text = ("A delivery schedule is currently running.\n\n"
-                    "Quitting will interrupt water delivery to the animals.\n\n"
-                    "Are you sure you want to quit RRR?")
-            default = QMessageBox.No
-        else:
-            text = "Are you sure you want to quit RRR?"
-            default = QMessageBox.Yes
+        if delivery_running:
+            # HARD BLOCK — no Yes/No, no escape. Operator must Stop first.
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Warning)
+            box.setWindowTitle("Cannot quit — delivery in progress")
+            box.setText("A delivery schedule is currently running.")
+            box.setInformativeText(
+                "Click the <b>Stop</b> button to end the schedule before "
+                "quitting RRR.<br><br>"
+                "Quitting now would interrupt water delivery to the animals."
+            )
+            box.setStandardButtons(QMessageBox.Ok)
+            box.exec_()
+            event.ignore()
+            return
 
+        # Idle — simple confirm.
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Question)
         box.setWindowTitle("Quit RRR?")
-        box.setText(text)
+        box.setText("Are you sure you want to quit RRR?")
         box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        box.setDefaultButton(default)
+        box.setDefaultButton(QMessageBox.Yes)
 
         if box.exec_() == QMessageBox.Yes:
             event.accept()
