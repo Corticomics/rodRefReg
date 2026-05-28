@@ -106,12 +106,17 @@ class RodentRefreshmentGUI(QWidget):
         # This is adjusted dynamically when switching to Execution Monitor
         left_layout.setStretch(0, 1)  # Terminal area (compact by default)
         
-        # Projects section with login gate
+        # Projects section with login gate.
+        # system_controller is required for hat-count-aware refresh
+        # paths inside CagesVisualizationTab and ScheduleCreationWizard.
+        # Forgetting to pass it caused the Phase 3.4 "Change Relay Hats"
+        # refresh to silently no-op (the tab fell back to num_hats=1).
         self.projects_section = ProjectsSection(
             self.settings,
             self.print_to_terminal,
             self.database_handler,
-            self.login_system
+            self.login_system,
+            system_controller=self.system_controller,
         )
         self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
         left_layout.addWidget(self.login_gate)

@@ -82,13 +82,19 @@ def test_ui_module_imports(qapp, modname):
     importlib.import_module(modname)
 
 
-def test_projects_section_constructs(qapp, database_handler):
+def test_projects_section_constructs(qapp, database_handler, system_controller):
     """``ProjectsSection`` builds and exposes the four live tabs.
 
     Pins the contract main.py and SettingsTab rely on: ``schedules_tab``
     is a ``SchedulesHub``, ``animals_tab`` an ``AnimalsTab``,
     ``wizard_tab`` a ``WizardTab``, ``cages_tab`` a
     ``CagesVisualizationTab``.
+
+    Also asserts ``cages_tab._system_controller`` is the same instance
+    that was passed in — guards against the Phase 3.4 regression where
+    ``gui.py`` forgot to forward ``system_controller`` to
+    ``ProjectsSection``, leaving ``CagesVisualizationTab.refresh()`` a
+    silent no-op that fell back to ``num_hats=1``.
     """
     from models.login_system import LoginSystem  # noqa: PLC0415
     from ui.animals_tab import AnimalsTab  # noqa: PLC0415
@@ -103,9 +109,14 @@ def test_projects_section_constructs(qapp, database_handler):
         print_to_terminal=lambda _msg: None,
         database_handler=database_handler,
         login_system=login_system,
+        system_controller=system_controller,
     )
 
     assert isinstance(section.schedules_tab, SchedulesHub)
     assert isinstance(section.animals_tab, AnimalsTab)
     assert isinstance(section.wizard_tab, WizardTab)
     assert isinstance(section.cages_tab, CagesVisualizationTab)
+
+    # Phase 3.4a contract: system_controller propagates to cages_tab.
+    # Without this, refresh() falls back silently to num_hats=1.
+    assert section.cages_tab._system_controller is system_controller
