@@ -509,12 +509,12 @@ def stop_program():
 # change_relay_hats() and helpers
 # =============================================================================
 def change_relay_hats():
-    """Persist a new hat count and re-sync the hardware layer.
+    """Persist a new hat count, re-sync the hardware layer, refresh UI.
 
-    Wired to the "Change Relay Hats" button in RunStopSection. Updates
-    settings + hardware layer; the UI does not currently auto-refresh on
-    hat-count change, so operators may need to restart the app to see
-    the new count reflected in the Cages tab — a deliberate deferral.
+    Wired to the "Change Relay Hats" button in RunStopSection. Order
+    matters: hardware first (so the new layout is live before any UI
+    queries it), persist, release stale handles, refresh the Cages tab
+    so the operator sees the new count immediately without a restart.
     """
     global relay_handler, app_settings
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",
@@ -527,6 +527,12 @@ def change_relay_hats():
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
     system_controller.save_settings(app_settings)
     cleanup()
+    # Refresh hat-count-aware UI. Defensive about attribute access in
+    # case the projects section hasn't built its cages tab yet.
+    try:
+        gui.projects_section.cages_tab.refresh()
+    except Exception as exc:
+        gui.print_to_terminal(f"Cages tab refresh failed: {exc}")
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 def create_relay_pairs(num_hats):

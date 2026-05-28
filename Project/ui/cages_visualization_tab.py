@@ -489,5 +489,16 @@ class CagesVisualizationTab(QWidget):
             self._print_to_terminal(f"[CagesTab] Save error: {e}")
     
     def refresh(self) -> None:
-        """Reload cage data."""
+        """Re-read settings, then reload cage data.
+
+        Pulls ``num_hats`` and ``global_master_relay_id`` fresh from
+        ``system_controller.settings`` so that "Change Relay Hats"
+        actually reflects in the status label and the cages query.
+        Without this re-read the cached values from ``__init__`` would
+        keep the old count visible until the next app launch.
+        """
+        if self._system_controller and hasattr(self._system_controller, 'settings'):
+            settings = self._system_controller.settings
+            self._num_hats = int(settings.get('num_hats', self._num_hats))
+            self._master_relay = int(settings.get('global_master_relay_id', self._master_relay))
         self._load_cage_data()
