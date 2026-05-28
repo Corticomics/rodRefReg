@@ -20,6 +20,7 @@ from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
 from version import __version__
 from utils import updater
+from utils import stop_sequence
 
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
@@ -445,42 +446,50 @@ def cleanup():
 # =============================================================================
 # stop_program() – called when the user clicks "Stop."
 # =============================================================================
+def _show_stopping_dialog():
+    """Modal indeterminate progress dialog while the worker tears down.
+
+    Shown then ``processEvents()`` is pumped so it actually paints before
+    the (briefly) blocking wait. No cancel button — Stop must complete.
+    The safety-critical *ordering* lives in utils.stop_sequence; this is
+    only the Qt presentation piece, injected as a dialog factory.
+    Returns None if Qt isn't available.
+    """
+    try:
+        from PyQt5.QtWidgets import QProgressDialog  # noqa: PLC0415
+        from PyQt5.QtCore import Qt  # noqa: PLC0415
+        dialog = QProgressDialog(
+            "Stopping schedule…\nHardware is safe; closing the worker.",
+            None, 0, 0,
+        )
+        dialog.setWindowTitle("Stopping")
+        dialog.setWindowModality(Qt.ApplicationModal)
+        dialog.setCancelButton(None)
+        dialog.setMinimumDuration(0)
+        dialog.show()
+        QApplication.processEvents()
+        return dialog
+    except Exception:
+        return None
+
+
 def stop_program():
+    """Stop the active delivery. Wired to RunStopSection's Stop button.
+
+    Thin wrapper around :func:`utils.stop_sequence.execute_stop_sequence`
+    that supplies the module-level worker / thread / handler globals and
+    the Qt dialog factory. The safety-critical ordering and bounded-wait
+    policy live in that module so they can be unit-tested without Qt or
+    hardware. See the v1.8.0 incident write-up there.
+    """
     global thread, worker, relay_handler
     try:
-        print("[DEBUG] Starting stop sequence")
-        
-        # Safely request worker stop
-        if worker:
-            try:
-                control_signals.stop_requested.emit()
-                print("[DEBUG] Worker stop() called")
-            except RuntimeError:
-                print("[DEBUG] Worker already deleted")
-        
-        # Safely handle thread stop
-        if thread is not None:
-            try:
-                if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
-                    if thread.isRunning():
-                        if not thread.wait(2000):
-                            print("[DEBUG] Thread timeout - forcing termination")
-                            thread.terminate()
-                        thread.wait()
-                        print("[DEBUG] Thread stopped")
-            except RuntimeError:
-                print("[DEBUG] Thread already deleted")
-        
-        if relay_handler:
-            relay_handler.set_all_relays(0)
-            print("[DEBUG] All relays deactivated")
-        
-        # We do not explicitly call cleanup() here; it will be called by worker.finished.
-        print("[DEBUG] Stop sequence completed successfully")
-        return True
-    except Exception as e:
-        print(f"[ERROR] Stop sequence failed: {e}")
-        import traceback
+        return stop_sequence.execute_stop_sequence(
+            relay_handler, worker, thread, control_signals,
+            dialog_factory=_show_stopping_dialog,
+        )
+    except Exception as exc:
+        print(f"[ERROR] Stop sequence failed: {exc}")
         traceback.print_exc()
         return False
 
