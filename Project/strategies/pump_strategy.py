@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Optional
 
 
@@ -18,6 +19,16 @@ class PumpStrategy:
             raise ValueError("volume_calculator cannot be None")
         self._pump_controller = pump_controller
         self._volume_calculator = volume_calculator
+        # Symmetry with SolenoidFlowStrategy so the worker can call
+        # request_cancel() uniformly. A pump dispense is effectively
+        # atomic (a single PumpController call), so cancellation can only
+        # prevent a not-yet-started dispatch — there is no mid-flight
+        # loop to poll. Honest about that limitation.
+        self._cancel_event = threading.Event()
+
+    def request_cancel(self) -> None:
+        """Request cancellation. Prevents a not-yet-dispatched deliver()."""
+        self._cancel_event.set()
 
     async def deliver(
         self,
@@ -29,6 +40,13 @@ class PumpStrategy:
             raise ValueError("relay_unit_id is required")
         if target_volume_ml is None or target_volume_ml <= 0:
             raise ValueError("target_volume_ml must be positive")
+
+        # Fresh delivery: clear any stale cancellation from a prior run.
+        if self._cancel_event.is_set():
+            # Cancel arrived before we dispatched — honor it.
+            self._cancel_event.clear()
+            return False
+        self._cancel_event.clear()
 
         # Prefer caller-provided hint to preserve legacy scheduling semantics.
         triggers = (

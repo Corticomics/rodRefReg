@@ -71,6 +71,19 @@ def bounded_worker_teardown(worker_obj, thread_obj, signals) -> None:
     was an unbounded ``wait()`` after a ``terminate()`` that never took.
     """
     if worker_obj is not None:
+        # FIRST: poke the cooperative-cancel token directly from this
+        # (GUI) thread. The worker thread is typically blocked inside
+        # run_until_complete and cannot process the queued stop() slot,
+        # so this direct call is what actually breaks the delivery loop.
+        # Thread-safe (the strategy uses a threading.Event).
+        if hasattr(worker_obj, "request_cancel"):
+            try:
+                worker_obj.request_cancel()
+            except Exception as exc:
+                print(f"[STOP] worker.request_cancel() failed: {exc}")
+
+        # THEN: emit the queued stop() for full timer/sensor teardown,
+        # which runs once the worker returns to its Qt event loop.
         try:
             signals.stop_requested.emit()
             print("[DEBUG] Worker stop() requested")

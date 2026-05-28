@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 
@@ -67,6 +68,15 @@ class SolenoidFlowStrategy:
         self._prime_ms = int(prime_ms)
         self._db = database_handler  # For per-valve calibration lookup
         self._logger = logging.getLogger(self.__class__.__name__)
+        # Cooperative-cancellation token. Set from the GUI thread by
+        # request_cancel() when the operator presses Stop; polled by the
+        # delivery loops after every await so they exit fast (and their
+        # finally-blocks close the master valve) instead of relying on
+        # the worker thread's Qt event loop — which is blocked inside
+        # run_until_complete and cannot process a queued stop slot. A
+        # threading.Event is used because the write crosses threads.
+        # See the v1.8.0 incident write-up in utils/stop_sequence.py.
+        self._cancel_event = threading.Event()
         # Per-run calibration snapshot (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml}})
         self._cal_snapshot: Dict[int, Dict[int, Dict[str, float]]] = {}
         
@@ -216,6 +226,18 @@ class SolenoidFlowStrategy:
         except Exception as e:
             self._logger.warning(f"Failed to build calibration snapshot: {e}")
 
+    def request_cancel(self) -> None:
+        """Request cooperative cancellation of an in-flight delivery.
+
+        Thread-safe; intended to be called from the GUI thread when the
+        operator presses Stop. The active delivery loop polls the token
+        after each await and bails into its valve-closing finally block.
+        """
+        self._cancel_event.set()
+
+    def _check_cancelled(self) -> bool:
+        return self._cancel_event.is_set()
+
     async def deliver(
         self,
         relay_unit_id: int,
@@ -224,11 +246,17 @@ class SolenoidFlowStrategy:
     ) -> bool:
         """
         Execute delivery using mode-specific logic.
-        
+
         Best Practice: Strategy Pattern - delegate to mode-specific methods
         """
         cage_id = int(relay_unit_id)
-        
+
+        # Fresh delivery: clear any stale cancellation from a prior run.
+        # Safe because a new deliver() only starts when the worker is
+        # still running; once Stop fires, the worker stops issuing new
+        # deliver() calls, so this never races a live cancel.
+        self._cancel_event.clear()
+
         # Route to mode-specific delivery method
         if self._use_pulse_mode:
             return await self._deliver_pulse_mode(cage_id, target_volume_ml)
@@ -427,6 +455,12 @@ class SolenoidFlowStrategy:
         last_log = start
         try:
             while True:
+                # Cooperative cancellation: operator pressed Stop. Bail into
+                # the finally block, which closes cage + master valves.
+                if self._check_cancelled():
+                    self._logger.info(f"Delivery cancelled for cage {cage_id}; closing valves")
+                    return False
+
                 # Read measurement with robust error handling (Sensirion best practices)
                 meas = await self._read_sensor_robust(cage_id, max_sensor_errors)
                 
@@ -515,6 +549,8 @@ class SolenoidFlowStrategy:
             residual_end = asyncio.get_event_loop().time() + (residual_check_ms / 1000.0)
             residual_flag = False
             while asyncio.get_event_loop().time() < residual_end:
+                if self._check_cancelled():
+                    return False
                 try:
                     if hasattr(self._sensor, 'read_one'):
                         meas = self._sensor.read_one()
@@ -645,6 +681,12 @@ class SolenoidFlowStrategy:
             await asyncio.sleep(0.3)  # Let manifold stabilize
             
             while delivered_ml < target_volume_ml:
+                # Cooperative cancellation: operator pressed Stop. Bail into
+                # the finally block, which closes cage + master valves.
+                if self._check_cancelled():
+                    self._logger.info(f"Pulse delivery cancelled for cage {cage_id}; closing valves")
+                    return False
+
                 # Check safety limits
                 if pulse_count >= max_pulses:
                     self._logger.error(f"Max pulses ({max_pulses}) reached, aborting")
