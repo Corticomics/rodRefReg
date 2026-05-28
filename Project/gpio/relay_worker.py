@@ -877,10 +877,29 @@ class RelayWorker(QObject):
         """
         self.check_final_completion()
 
+    def request_cancel(self):
+        """Signal the active delivery strategy to cancel cooperatively.
+
+        Safe to call from the GUI thread (the strategy uses a
+        threading.Event). This is the path that actually breaks a
+        mid-delivery loop: the worker thread is blocked inside
+        run_until_complete and cannot process the queued stop() slot, so
+        the GUI thread must poke the strategy's cancel token directly.
+        Idempotent and defensive — a missing or method-less strategy is
+        a no-op.
+        """
+        strategy = getattr(self, 'strategy', None)
+        if strategy is not None and hasattr(strategy, 'request_cancel'):
+            try:
+                strategy.request_cancel()
+                print("[STOP] Cooperative cancel requested on strategy")
+            except Exception as exc:
+                print(f"[STOP] strategy.request_cancel() failed: {exc}")
+
     def stop(self):
         """
         Gracefully stop the schedule and clean up all resources.
-        
+
         Best Practices:
         - Idempotent: Safe to call multiple times
         - Comprehensive: Stop all timers, sensors, and valdves
@@ -888,6 +907,9 @@ class RelayWorker(QObject):
         - Fail-safe: Continue cleanup even if individual steps fail
         """
         print("\n[STOP] ========== SCHEDULE STOP SEQUENCE INITIATED ==========")
+        # Also fire cooperative cancel here for the case where stop() is
+        # reached via the normal queued path (worker not blocked).
+        self.request_cancel()
         
         with QMutexLocker(self.mutex):
             if not self._is_running:

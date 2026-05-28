@@ -42,6 +42,7 @@ def test_hardware_safe_runs_before_any_thread_interaction():
     thread.wait.side_effect = lambda *_a: order.append("thread_wait") or True
 
     worker = MagicMock()
+    worker.request_cancel.side_effect = lambda: order.append("cancel")
     signals = _make_signals()
     signals.stop_requested.emit.side_effect = lambda: order.append("stop_emit")
 
@@ -50,6 +51,36 @@ def test_hardware_safe_runs_before_any_thread_interaction():
     assert order, "nothing happened"
     assert order[0] == "relays_off", f"hardware not first: {order}"
     assert order.index("relays_off") < order.index("thread_wait")
+
+
+def test_cooperative_cancel_fires_before_queued_stop_and_thread_wait():
+    """Direct request_cancel() must precede the queued emit + thread wait.
+
+    The worker thread is blocked in run_until_complete and cannot service
+    the queued stop() slot, so the direct cancel from the GUI thread is
+    what actually breaks the delivery loop. It must happen first.
+    """
+    order = []
+    handler = MagicMock()
+    worker = MagicMock()
+    worker.request_cancel.side_effect = lambda: order.append("cancel")
+    thread = MagicMock()
+    thread.isRunning.return_value = True
+    thread.wait.side_effect = lambda *_a: order.append("thread_wait") or True
+    signals = _make_signals()
+    signals.stop_requested.emit.side_effect = lambda: order.append("stop_emit")
+
+    stop_sequence.execute_stop_sequence(handler, worker, thread, signals)
+
+    assert order.index("cancel") < order.index("stop_emit")
+    assert order.index("cancel") < order.index("thread_wait")
+
+
+def test_worker_without_request_cancel_does_not_raise():
+    """Older worker objects without request_cancel are tolerated."""
+    handler = MagicMock()
+    worker = MagicMock(spec=["isRunning"])  # no request_cancel attr
+    stop_sequence.execute_stop_sequence(handler, worker, None, _make_signals())
 
 
 def test_thread_wait_is_always_bounded():
