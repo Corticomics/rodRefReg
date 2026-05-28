@@ -515,6 +515,12 @@ def change_relay_hats():
     matters: hardware first (so the new layout is live before any UI
     queries it), persist, release stale handles, refresh the Cages tab
     so the operator sees the new count immediately without a restart.
+
+    Drops any cached ``cage_relays`` before rebuilding ``RelayUnitManager``.
+    Without that drop, the manager's solenoid initializer sees the old
+    1-HAT map of 15 entries and skips the auto-generate branch entirely,
+    so the new hats's relays would never get cage assignments. See
+    Project/models/relay_unit_manager.py:_initialize_solenoid_mode.
     """
     global relay_handler, app_settings
     num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",
@@ -523,6 +529,9 @@ def change_relay_hats():
         return
     app_settings['num_hats'] = num_hats
     app_settings['relay_pairs'] = create_relay_pairs(num_hats)
+    # Clear stale solenoid-mode cage assignments so the manager
+    # auto-generates a fresh map for the new hat count.
+    app_settings['cage_relays'] = {}
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler.update_relay_units(relay_unit_manager.get_all_relay_units(), num_hats)
     system_controller.save_settings(app_settings)
