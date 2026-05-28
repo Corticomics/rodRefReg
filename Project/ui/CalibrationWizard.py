@@ -45,12 +45,12 @@ class CalibrationWizard(QDialog):
         """
         super().__init__(parent)
         
-        # CRITICAL: Use default QDialog behavior - don't modify window flags!
-        # The working test_dialog_crash.py proves this is all we need:
-        # - Default QDialog is already a proper child dialog
-        # - Has close button by default
-        # - Won't trigger app quit when closed
-        # - Doesn't need WA_DeleteOnClose flag
+        # CRITICAL: Use default QDialog behavior — don't modify window flags.
+        # Default QDialog is already a proper child dialog with a close
+        # button, won't trigger app quit when closed, and doesn't need
+        # WA_DeleteOnClose. Setting custom flags here previously caused
+        # the wizard to crash the parent app on close; the simpler default
+        # is correct.
         
         # Set modal to block interaction with parent while wizard is open
         self.setModal(True)

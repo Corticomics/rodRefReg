@@ -4,7 +4,7 @@ Teensy Serial Protocol for SLF3S-0600F Flow Sensor
 ==================================================
 
 Canonical implementation of serial communication with Teensy 4.1 flow sensor bridge.
-Based on validated test_sensor_wiring.py implementation (99% frame delivery).
+Validated against hardware-bench tests at 99% frame-delivery rate.
 
 Hardware References:
 - Teensy 4.1: https://www.pjrc.com/store/teensy41.html
@@ -21,7 +21,7 @@ Serial Protocol:
 - Commands: {"cmd": "start|stop|status|ping|reset", "rate": float}
 - Responses: {"type": "measurement|error|status|pong", ...}
 
-Best Practices (from test_sensor_wiring.py):
+Best Practices (validated against hardware):
 1. Wait 3.5s after serial.Serial() for Teensy USB CDC enumeration (Pi-specific)
 2. Flush input buffer before sending commands to avoid stale data
 3. Allow 100ms+ after "start" command before expecting first measurement
@@ -56,7 +56,7 @@ class TeensySerialProtocol:
     """
     Serial communication protocol for Teensy 4.1 + SLF3S-0600F flow sensor.
     
-    Implements best practices validated in test_sensor_wiring.py (99% frame delivery).
+    Implements best practices validated against hardware (99% frame delivery).
     Thread-safe for background reading. Handles USB CDC enumeration delays.
     
     Usage:
@@ -103,7 +103,7 @@ class TeensySerialProtocol:
         """
         Establish serial connection to Teensy.
         
-        Implements best practices from test_sensor_wiring.py:
+        Implements best practices validated against hardware:
         - Extended wait for Teensy USB CDC enumeration
         - Ping test to verify connection before proceeding
         
@@ -286,7 +286,7 @@ class TeensySerialProtocol:
         """
         Read one JSON message from Teensy.
         
-        Implements best practices from test_sensor_wiring.py:
+        Implements best practices validated against hardware:
         - Handles newline-delimited JSON
         - Validates JSON before returning
         - Returns None on timeout (not an error)
