@@ -16,7 +16,7 @@ Architecture:
 - PulseCalibrator: Runs characterization tests
 - UI Integration: Button in Priming tab
 
-Reference: test_valve_characterization.py
+Originally derived from the valve-characterization bench tests.
 """
 
 from __future__ import annotations
@@ -240,7 +240,7 @@ class PulseCalibrator:
     Runs pulse characterization tests to measure valve behavior.
     
     Best Practices:
-    - Reuse existing code: Leverage test_valve_characterization.py logic
+    - Reuse existing code: built on the valve-characterization bench-test logic
     - Progress reporting: Emit signals for UI updates
     - Fail-safe: Continue if individual tests fail
     - Idempotent: Can run multiple times safely
@@ -341,7 +341,7 @@ class PulseCalibrator:
         """
         Calibrate a single pulse width.
         
-        Logic from test_valve_characterization.py Test 4.
+        Logic adapted from the valve-characterization bench tests (Test 4).
         """
         volumes = []
         
