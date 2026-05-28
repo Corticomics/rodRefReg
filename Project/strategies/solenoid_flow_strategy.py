@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from typing import Optional, Dict, Tuple
 
@@ -477,6 +478,7 @@ class SolenoidFlowStrategy:
                 # Cooperative cancellation: operator pressed Stop. Bail into
                 # the finally block, which closes cage + master valves.
                 if self._check_cancelled():
+                    print(f"[TIMING] continuous loop SAW CANCEL at {time.monotonic():.3f}")
                     self._logger.info(f"Delivery cancelled for cage {cage_id}; closing valves")
                     return False
 
@@ -700,9 +702,11 @@ class SolenoidFlowStrategy:
             await asyncio.sleep(0.3)  # Let manifold stabilize
             
             while delivered_ml < target_volume_ml:
+                print(f"[TIMING] pulse loop top (pulse {pulse_count}) at {time.monotonic():.3f}")
                 # Cooperative cancellation: operator pressed Stop. Bail into
                 # the finally block, which closes cage + master valves.
                 if self._check_cancelled():
+                    print(f"[TIMING] pulse loop SAW CANCEL at {time.monotonic():.3f}")
                     self._logger.info(f"Pulse delivery cancelled for cage {cage_id}; closing valves")
                     return False
 
