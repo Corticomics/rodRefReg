@@ -29,6 +29,7 @@ See docs/MAINTENANCE.md §1 (delivery/relay bug → always release).
 
 from __future__ import annotations
 
+import time
 import traceback
 
 # How long to wait for a clean worker exit before escalating to
@@ -96,14 +97,20 @@ def bounded_worker_teardown(worker_obj, thread_obj, signals) -> None:
         is_running = getattr(thread_obj, "isRunning", None)
         if not (callable(is_running) and is_running()):
             return
+        # Instrumentation: measure how long the worker takes to exit so a
+        # Pi-side log shows whether cooperative cancellation worked
+        # (clean exit, small N) or fell through to terminate(). Lets us
+        # verify the v1.8.3 fix from real timing instead of guessing.
+        t0 = time.monotonic()
         if thread_obj.wait(CLEAN_EXIT_TIMEOUT_MS):
-            print("[DEBUG] Thread exited cleanly")
+            dt_ms = int((time.monotonic() - t0) * 1000)
+            print(f"[STOP] Worker exited cleanly in {dt_ms}ms (cooperative cancel)")
             return
         print(f"[STOP] Worker did not exit in {CLEAN_EXIT_TIMEOUT_MS}ms;"
               " calling terminate()")
         thread_obj.terminate()
         if thread_obj.wait(TERMINATE_TIMEOUT_MS):
-            print("[DEBUG] Thread terminated cleanly")
+            print("[STOP] Thread terminated (cooperative cancel did NOT exit in time)")
         else:
             # NEVER wait() with no arg here — that's the v1.8.0 deadlock.
             print("[STOP] terminate() did not take; abandoning thread"

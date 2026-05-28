@@ -232,8 +232,25 @@ class SolenoidFlowStrategy:
         Thread-safe; intended to be called from the GUI thread when the
         operator presses Stop. The active delivery loop polls the token
         after each await and bails into its valve-closing finally block.
+        Once set, the token STAYS set for the life of this strategy
+        instance — see :meth:`reset_cancel` for why we never clear it
+        mid-run.
         """
         self._cancel_event.set()
+
+    def reset_cancel(self) -> None:
+        """Clear the cancellation token. Call ONCE at schedule start.
+
+        v1.8.2 cleared the token at the top of every ``deliver()`` call
+        (once per delivery chunk). That wiped a cancel the operator set
+        between chunks, so the next chunk ran to completion and Stop
+        still needed thread.terminate(). The token must only be cleared
+        when a fresh schedule run begins — which the worker does once,
+        not per chunk. A strategy instance is created per run, so in
+        practice the event already starts clear; this is the explicit,
+        documented reset for that contract.
+        """
+        self._cancel_event.clear()
 
     def _check_cancelled(self) -> bool:
         return self._cancel_event.is_set()
@@ -248,14 +265,16 @@ class SolenoidFlowStrategy:
         Execute delivery using mode-specific logic.
 
         Best Practice: Strategy Pattern - delegate to mode-specific methods
+
+        Note: deliver() does NOT clear the cancellation token. Clearing
+        is the worker's responsibility, once per schedule run (see
+        reset_cancel). Clearing here would wipe a mid-schedule cancel.
         """
         cage_id = int(relay_unit_id)
 
-        # Fresh delivery: clear any stale cancellation from a prior run.
-        # Safe because a new deliver() only starts when the worker is
-        # still running; once Stop fires, the worker stops issuing new
-        # deliver() calls, so this never races a live cancel.
-        self._cancel_event.clear()
+        # Honor a cancel that landed before this chunk even started.
+        if self._check_cancelled():
+            return False
 
         # Route to mode-specific delivery method
         if self._use_pulse_mode:

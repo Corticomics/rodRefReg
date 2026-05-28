@@ -33,23 +33,53 @@ def _make_solenoid(use_pulse=False):
     return strat, valves
 
 
-def test_request_cancel_sets_token():
+def test_request_cancel_sets_token_and_reset_clears_it():
     strat, _ = _make_solenoid()
     assert strat._check_cancelled() is False
     strat.request_cancel()
     assert strat._check_cancelled() is True
+    # v1.8.3: reset_cancel is the ONLY thing that clears the token, and
+    # the worker calls it once per run — never per delivery chunk.
+    strat.reset_cancel()
+    assert strat._check_cancelled() is False
 
 
-def test_deliver_clears_stale_cancel_then_routes(monkeypatch):
-    """A fresh deliver() clears a stale cancel from a prior run."""
+def test_deliver_does_not_clear_cancel(monkeypatch):
+    """deliver() must NOT clear a cancel set mid-schedule (v1.8.2 bug).
+
+    A cancel set between chunks must survive into the next deliver() so
+    that chunk bails too. deliver() returns False immediately when the
+    token is already set, without ever clearing it.
+    """
     strat, _ = _make_solenoid(use_pulse=False)
-    strat.request_cancel()  # stale flag from a previous run
+    strat.request_cancel()
 
-    captured = {}
+    routed = {"continuous": False}
 
     async def fake_continuous(cage_id, vol):
-        # By the time the mode method runs, the stale flag must be cleared.
-        captured['cancelled_at_entry'] = strat._check_cancelled()
+        routed["continuous"] = True
+        return True
+
+    monkeypatch.setattr(strat, "_deliver_continuous_mode", fake_continuous)
+    result = asyncio.get_event_loop().run_until_complete(
+        strat.deliver(relay_unit_id=1, target_volume_ml=0.5)
+    )
+    # Returned False without routing into the delivery, and token still set.
+    assert result is False
+    assert routed["continuous"] is False
+    assert strat._check_cancelled() is True
+
+
+def test_deliver_proceeds_after_reset(monkeypatch):
+    """After reset_cancel, a fresh deliver() routes normally."""
+    strat, _ = _make_solenoid(use_pulse=False)
+    strat.request_cancel()
+    strat.reset_cancel()  # worker does this once at schedule start
+
+    routed = {"continuous": False}
+
+    async def fake_continuous(cage_id, vol):
+        routed["continuous"] = True
         return True
 
     monkeypatch.setattr(strat, "_deliver_continuous_mode", fake_continuous)
@@ -57,34 +87,22 @@ def test_deliver_clears_stale_cancel_then_routes(monkeypatch):
         strat.deliver(relay_unit_id=1, target_volume_ml=0.5)
     )
     assert result is True
-    assert captured['cancelled_at_entry'] is False
+    assert routed["continuous"] is True
 
 
-def test_cancelled_continuous_delivery_never_reports_success():
-    """A cancelled continuous delivery must return False, never True.
+def test_cancelled_deliver_never_reports_success():
+    """A cancelled delivery must return False, never True.
 
-    Core safety invariant: once the operator presses Stop, the strategy
-    must not report a delivery as completed. The valve-closing itself is
-    the pre-existing finally block (hardware-verified in v1.8.1); this
-    test locks the new behavior — the cancel token short-circuits the
-    delivery loop to a False result. We keep the token set through the
-    run (deliver() would otherwise clear it at entry) to simulate a
-    cancel that lands the instant delivery begins.
+    Core safety invariant: once Stop is pressed the strategy must not
+    report a completed delivery. With the token set, deliver() short-
+    circuits to False before touching any valve.
     """
-    strat, valves = _make_solenoid(use_pulse=False)
-    strat._cancel_event.set()
-    orig_clear = strat._cancel_event.clear
-    strat._cancel_event.clear = lambda: None  # keep cancelled through deliver()
-    try:
-        result = asyncio.get_event_loop().run_until_complete(
-            strat.deliver(relay_unit_id=3, target_volume_ml=0.5)
-        )
-    finally:
-        strat._cancel_event.clear = orig_clear
-
+    strat, _ = _make_solenoid(use_pulse=False)
+    strat.request_cancel()
+    result = asyncio.get_event_loop().run_until_complete(
+        strat.deliver(relay_unit_id=3, target_volume_ml=0.5)
+    )
     assert result is False
-    # The master valve must be closed on the way out (finally block).
-    valves.close_master.assert_called()
 
 
 # ---------------------------------------------------------------------------
