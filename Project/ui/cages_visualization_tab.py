@@ -9,8 +9,8 @@ Features:
 """
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
-    QSizePolicy, QLineEdit, QApplication
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QSizePolicy, QLineEdit, QApplication, QTabWidget,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
@@ -33,13 +33,22 @@ class RelayTerminalWidget(QFrame):
     """
     
     clicked = pyqtSignal(int)
-    name_changed = pyqtSignal(int, str)  # relay_id, new_name
-    
-    def __init__(self, relay_id: int, cage_data: Optional[Dict[str, Any]] = None, 
+    # Emits (cage_id, new_name). cage_id is the stable DB identifier (1..N
+    # across all HATs); relay_id alone is ambiguous because under multi-HAT
+    # one-global-master semantics cage_id != relay_id for HATs > 0.
+    name_changed = pyqtSignal(int, str)
+
+    def __init__(self, relay_id: int, cage_data: Optional[Dict[str, Any]] = None,
                  is_master: bool = False, parent=None):
         super().__init__(parent)
         self._relay_id = relay_id
         self._cage_data = cage_data
+        # cage_id: stable DB identifier. Falls back to relay_id only when
+        # cage_data is missing (orphan terminal); master terminals have no
+        # cage_id and never emit name_changed anyway.
+        self._cage_id = (
+            cage_data.get('cage_id', relay_id) if cage_data else relay_id
+        )
         self._is_master = is_master
         self._selected = False
         self._editing = False
@@ -155,7 +164,7 @@ class RelayTerminalWidget(QFrame):
         self._name_label.setVisible(True)
         
         # Emit signal to save
-        self.name_changed.emit(self._relay_id, new_name)
+        self.name_changed.emit(self._cage_id, new_name)
     
     def _update_selection_style(self) -> None:
         """Update visual state for selection."""
@@ -241,7 +250,7 @@ class CagesVisualizationTab(QWidget):
         main_layout.addLayout(header_layout)
         
         # ═══════════════════════════════════════════════════════════════
-        # BOARD VISUALIZATION
+        # BOARD VISUALIZATION — one tab per HAT
         # ═══════════════════════════════════════════════════════════════
         board_frame = QFrame()
         board_frame.setObjectName("Card")
@@ -253,99 +262,31 @@ class CagesVisualizationTab(QWidget):
                 border-radius: 12px;
             }
         """)
-        
+
         board_layout = QVBoxLayout(board_frame)
         board_layout.setContentsMargins(16, 12, 16, 16)
         board_layout.setSpacing(8)
-        
-        # Subtitle - fix gray box by using proper styling
+
         subtitle = QLabel("Double-click a cage to rename it")
-        subtitle.setStyleSheet("""
-            color: #6B7280;
-            font-size: 13px;
-            font-style: italic;
-            padding: 4px 8px;
-            background: transparent;
-        """)
+        subtitle.setStyleSheet(
+            "color: #6B7280; font-size: 13px; font-style: italic;"
+            " padding: 4px 8px; background: transparent;"
+        )
         subtitle.setAlignment(Qt.AlignCenter)
         board_layout.addWidget(subtitle)
-        
-        # Three-column layout
-        columns_layout = QHBoxLayout()
-        columns_layout.setSpacing(12)
-        
-        # LEFT COLUMN: R1-R8
-        left_column = QVBoxLayout()
-        left_column.setSpacing(4)
-        left_column.setAlignment(Qt.AlignTop)
-        
-        left_header = QLabel("LEFT SIDE")
-        left_header.setObjectName("ColumnHeader")
-        left_header.setAlignment(Qt.AlignCenter)
-        left_column.addWidget(left_header)
-        
-        self._left_container = QVBoxLayout()
-        self._left_container.setSpacing(3)
-        left_column.addLayout(self._left_container)
-        left_column.addStretch()
-        
-        columns_layout.addLayout(left_column, 1)
-        
-        # CENTER: Labeled board image
-        center_column = QVBoxLayout()
-        center_column.setAlignment(Qt.AlignCenter)
-        
-        # Use labeled version for better understanding
-        image_path = os.path.join(
-            os.path.dirname(__file__), 
-            'src', 
-            'relay architecture with lab els.png'
-        )
-        
-        if os.path.exists(image_path):
-            board_image = QLabel()
-            pixmap = QPixmap(image_path)
-            # Scale image LARGER for better visibility
-            # Increased from 380x500 to 500x650 for better readability
-            scaled = pixmap.scaled(
-                500, 650,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation
+
+        # Per-HAT containers populated by _build_hat_tab. Keyed by hat_index
+        # so _load_cage_data can place widgets without walking the tab widget.
+        self._hat_containers: Dict[int, Dict[str, QVBoxLayout]] = {}
+
+        self._hat_tab_widget = QTabWidget()
+        self._hat_tab_widget.setObjectName("HatTabs")
+        for hat_index in range(self._num_hats):
+            self._hat_tab_widget.addTab(
+                self._build_hat_tab(hat_index), f"HAT {hat_index}"
             )
-            board_image.setPixmap(scaled)
-            board_image.setAlignment(Qt.AlignCenter)
-            board_image.setToolTip(
-                "Physical relay HAT board layout\n"
-                "Match cage wires to the corresponding terminal labels (R1-R16)"
-            )
-            center_column.addWidget(board_image)
-        else:
-            placeholder = QLabel("[Board Diagram Not Found]")
-            placeholder.setStyleSheet("color: #9CA3AF; font-size: 14px;")
-            placeholder.setAlignment(Qt.AlignCenter)
-            placeholder.setMinimumSize(400, 500)
-            center_column.addWidget(placeholder)
-        
-        columns_layout.addLayout(center_column, 2)  # More space for image
-        
-        # RIGHT COLUMN: R16-R9
-        right_column = QVBoxLayout()
-        right_column.setSpacing(4)
-        right_column.setAlignment(Qt.AlignTop)
-        
-        right_header = QLabel("RIGHT SIDE")
-        right_header.setObjectName("ColumnHeader")
-        right_header.setAlignment(Qt.AlignCenter)
-        right_column.addWidget(right_header)
-        
-        self._right_container = QVBoxLayout()
-        self._right_container.setSpacing(3)
-        right_column.addLayout(self._right_container)
-        right_column.addStretch()
-        
-        columns_layout.addLayout(right_column, 1)
-        
-        board_layout.addLayout(columns_layout, 1)
+        board_layout.addWidget(self._hat_tab_widget, 1)
+
         main_layout.addWidget(board_frame, 1)
         
         # ═══════════════════════════════════════════════════════════════
@@ -380,7 +321,81 @@ class CagesVisualizationTab(QWidget):
         
         # Click anywhere to deselect
         self.setFocusPolicy(Qt.ClickFocus)
-    
+
+    def _build_hat_tab(self, hat_index: int) -> QWidget:
+        """Build one HAT's 3-column board (LEFT terminals, image, RIGHT).
+
+        Stores the LEFT/RIGHT layouts in ``self._hat_containers[hat_index]``
+        so ``_load_cage_data`` can populate them without traversing the tab
+        widget. The center column reuses the existing physical-board image
+        per HAT — every HAT has the same physical layout.
+        """
+        page = QWidget()
+        columns = QHBoxLayout(page)
+        columns.setSpacing(12)
+
+        # LEFT column: relays (hat_index*16)+1 .. +8
+        left_column = QVBoxLayout()
+        left_column.setSpacing(4)
+        left_column.setAlignment(Qt.AlignTop)
+        left_header = QLabel("LEFT SIDE")
+        left_header.setObjectName("ColumnHeader")
+        left_header.setAlignment(Qt.AlignCenter)
+        left_column.addWidget(left_header)
+        left_container = QVBoxLayout()
+        left_container.setSpacing(3)
+        left_column.addLayout(left_container)
+        left_column.addStretch()
+        columns.addLayout(left_column, 1)
+
+        # CENTER: physical board image (reused per HAT — they're identical)
+        center_column = QVBoxLayout()
+        center_column.setAlignment(Qt.AlignCenter)
+        image_path = os.path.join(
+            os.path.dirname(__file__), 'src',
+            'relay architecture with lab els.png',
+        )
+        if os.path.exists(image_path):
+            board_image = QLabel()
+            pixmap = QPixmap(image_path)
+            scaled = pixmap.scaled(
+                500, 650, Qt.KeepAspectRatio, Qt.SmoothTransformation,
+            )
+            board_image.setPixmap(scaled)
+            board_image.setAlignment(Qt.AlignCenter)
+            board_image.setToolTip(
+                f"Physical relay HAT board layout — HAT {hat_index}\n"
+                "Match cage wires to the corresponding terminal labels"
+            )
+            center_column.addWidget(board_image)
+        else:
+            placeholder = QLabel("[Board Diagram Not Found]")
+            placeholder.setStyleSheet("color: #9CA3AF; font-size: 14px;")
+            placeholder.setAlignment(Qt.AlignCenter)
+            placeholder.setMinimumSize(400, 500)
+            center_column.addWidget(placeholder)
+        columns.addLayout(center_column, 2)
+
+        # RIGHT column: relays (hat_index+1)*16 down to (hat_index*16)+9
+        right_column = QVBoxLayout()
+        right_column.setSpacing(4)
+        right_column.setAlignment(Qt.AlignTop)
+        right_header = QLabel("RIGHT SIDE")
+        right_header.setObjectName("ColumnHeader")
+        right_header.setAlignment(Qt.AlignCenter)
+        right_column.addWidget(right_header)
+        right_container = QVBoxLayout()
+        right_container.setSpacing(3)
+        right_column.addLayout(right_container)
+        right_column.addStretch()
+        columns.addLayout(right_column, 1)
+
+        self._hat_containers[hat_index] = {
+            'left': left_container,
+            'right': right_container,
+        }
+        return page
+
     def mousePressEvent(self, event):
         """Click on empty area deselects and finishes any editing."""
         self._deselect_all()
@@ -398,58 +413,79 @@ class CagesVisualizationTab(QWidget):
         QMessageBox.information(
             self,
             "Relay-to-Cage Relationship",
-            "Each relay (R1-R15) controls one cage's water valve.\n\n"
-            "• R1-R8: Left side terminals on the HAT\n"
-            "• R9-R15: Right side terminals\n"
-            "• R16: Master solenoid (controls water supply)\n\n"
-            "Wire each cage's valve to its corresponding relay terminal.\n"
-            "Double-click on cage names to rename them for easy identification."
+            "Each tab represents one physical relay HAT.\n\n"
+            "On every HAT:\n"
+            "• Left side terminals: HAT-local relays 1-8\n"
+            "• Right side terminals: HAT-local relays 9-16\n\n"
+            "The master solenoid is global (default: relay 16 on HAT 0).\n"
+            "All other relays across all HATs are cage valves.\n\n"
+            "Wire each cage's valve to its corresponding terminal.\n"
+            "Double-click a cage name to rename it."
         )
     
     def _load_cage_data(self) -> None:
-        """Load cage data and populate terminals."""
-        self._clear_layout(self._left_container)
-        self._clear_layout(self._right_container)
+        """Load cage data and populate per-HAT terminals.
+
+        Iterates every HAT tab and fills its LEFT (relays 1-8 of the HAT)
+        and RIGHT (relays 16-9 of the HAT) columns. The global master
+        relay (default 16) is shown only on the HAT it belongs to;
+        cages on every other HAT are rendered as regular terminals.
+        """
+        # Clear all per-HAT containers + the central widget map.
+        for containers in self._hat_containers.values():
+            self._clear_layout(containers['left'])
+            self._clear_layout(containers['right'])
         self._relay_widgets.clear()
-        
+
         try:
             cages = self._database_handler.get_cages_for_dropdown(
                 num_hats=self._num_hats,
-                master_relay=self._master_relay
+                master_relay=self._master_relay,
             )
-            
+
             cage_by_relay: Dict[int, Dict] = {}
             for cage in cages:
                 relay_id = cage.get('relay_id', cage.get('cage_id'))
                 cage_by_relay[relay_id] = cage
-            
-            # LEFT: Relays 1-8
-            for relay_id in range(1, 9):
-                widget = RelayTerminalWidget(
-                    relay_id=relay_id,
-                    cage_data=cage_by_relay.get(relay_id),
-                    is_master=False
-                )
-                widget.clicked.connect(self._on_relay_clicked)
-                widget.name_changed.connect(self._on_name_changed)
-                self._left_container.addWidget(widget)
-                self._relay_widgets[relay_id] = widget
-            
-            # RIGHT: Relays 16 down to 9
-            for relay_id in range(16, 8, -1):
-                is_master = (relay_id == self._master_relay)
-                widget = RelayTerminalWidget(
-                    relay_id=relay_id,
-                    cage_data=cage_by_relay.get(relay_id) if not is_master else None,
-                    is_master=is_master
-                )
-                widget.clicked.connect(self._on_relay_clicked)
-                widget.name_changed.connect(self._on_name_changed)
-                self._right_container.addWidget(widget)
-                self._relay_widgets[relay_id] = widget
-            
-            self._status_label.setText(f"{len(cages)} cages · {self._num_hats} HAT")
-            
+
+            for hat_index in range(self._num_hats):
+                containers = self._hat_containers.get(hat_index)
+                if not containers:
+                    continue
+                base = hat_index * 16
+
+                # LEFT: HAT-local relays 1..8 -> absolute (base+1)..(base+8)
+                for offset in range(1, 9):
+                    relay_id = base + offset
+                    is_master = (relay_id == self._master_relay)
+                    widget = RelayTerminalWidget(
+                        relay_id=relay_id,
+                        cage_data=cage_by_relay.get(relay_id) if not is_master else None,
+                        is_master=is_master,
+                    )
+                    widget.clicked.connect(self._on_relay_clicked)
+                    widget.name_changed.connect(self._on_name_changed)
+                    containers['left'].addWidget(widget)
+                    self._relay_widgets[relay_id] = widget
+
+                # RIGHT: HAT-local relays 16..9 -> absolute (base+16)..(base+9)
+                for offset in range(16, 8, -1):
+                    relay_id = base + offset
+                    is_master = (relay_id == self._master_relay)
+                    widget = RelayTerminalWidget(
+                        relay_id=relay_id,
+                        cage_data=cage_by_relay.get(relay_id) if not is_master else None,
+                        is_master=is_master,
+                    )
+                    widget.clicked.connect(self._on_relay_clicked)
+                    widget.name_changed.connect(self._on_name_changed)
+                    containers['right'].addWidget(widget)
+                    self._relay_widgets[relay_id] = widget
+
+            self._status_label.setText(
+                f"{len(cages)} cages · {self._num_hats} HAT"
+            )
+
         except Exception as e:
             self._status_label.setText(f"Error: {str(e)}")
             self._print_to_terminal(f"[CagesTab] Error: {e}")
@@ -471,19 +507,30 @@ class CagesVisualizationTab(QWidget):
         self._selected_relay = relay_id
         self.cage_selected.emit(relay_id)
     
-    def _on_name_changed(self, relay_id: int, new_name: str) -> None:
-        """Save cage name to database and notify other components."""
+    def _on_name_changed(self, cage_id: int, new_name: str) -> None:
+        """Save cage name to database and notify other components.
+
+        Uses the cage_id supplied by the widget (not the relay_id). Under
+        the one-global-master multi-HAT semantics, cage_id != relay_id for
+        cages on HATs > 0 — a 1:1 fallback would silently corrupt those
+        rename writes.
+        """
         try:
-            # relay_id == cage_id in solenoid mode (1:1 mapping)
-            cage_id = relay_id
+            # Resolve the relay_id from the relay_widgets map so set_cage_name
+            # still receives both ids (the DB schema indexes by both).
+            relay_id = next(
+                (rid for rid, w in self._relay_widgets.items()
+                 if w._cage_id == cage_id),
+                cage_id,
+            )
             self._database_handler.set_cage_name(
                 cage_id=cage_id,
                 relay_id=relay_id,
-                name=new_name
+                name=new_name,
             )
-            self._print_to_terminal(f"[CagesTab] Saved: Cage {cage_id} → '{new_name}'")
-            
-            # Emit signal to notify other tabs (e.g., Calibration) to refresh
+            self._print_to_terminal(
+                f"[CagesTab] Saved: Cage {cage_id} (relay {relay_id}) → '{new_name}'"
+            )
             self.cage_names_updated.emit()
         except Exception as e:
             self._print_to_terminal(f"[CagesTab] Save error: {e}")
@@ -501,4 +548,38 @@ class CagesVisualizationTab(QWidget):
             settings = self._system_controller.settings
             self._num_hats = int(settings.get('num_hats', self._num_hats))
             self._master_relay = int(settings.get('global_master_relay_id', self._master_relay))
+        self._rebuild_hat_tabs_if_count_changed()
         self._load_cage_data()
+
+    def _rebuild_hat_tabs_if_count_changed(self) -> None:
+        """Add or remove HAT tabs so the count matches ``self._num_hats``.
+
+        Preserves the operator's currently-selected tab when possible.
+        If the active tab no longer exists (e.g. went 2 -> 1 while on
+        HAT 1), falls back to HAT 0.
+        """
+        current = self._hat_tab_widget.count()
+        target = self._num_hats
+        if current == target:
+            return
+
+        previously_selected = self._hat_tab_widget.currentIndex()
+
+        if target > current:
+            for hat_index in range(current, target):
+                self._hat_tab_widget.addTab(
+                    self._build_hat_tab(hat_index), f"HAT {hat_index}"
+                )
+        else:
+            for _ in range(current - target):
+                removed_index = self._hat_tab_widget.count() - 1
+                widget = self._hat_tab_widget.widget(removed_index)
+                self._hat_tab_widget.removeTab(removed_index)
+                if widget is not None:
+                    widget.deleteLater()
+                self._hat_containers.pop(removed_index, None)
+
+        if previously_selected >= target:
+            self._hat_tab_widget.setCurrentIndex(0)
+        else:
+            self._hat_tab_widget.setCurrentIndex(previously_selected)

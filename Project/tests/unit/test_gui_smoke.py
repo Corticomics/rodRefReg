@@ -120,3 +120,29 @@ def test_projects_section_constructs(qapp, database_handler, system_controller):
     # Phase 3.4a contract: system_controller propagates to cages_tab.
     # Without this, refresh() falls back silently to num_hats=1.
     assert section.cages_tab._system_controller is system_controller
+
+
+def test_cages_tab_renders_one_tab_per_hat(qapp, database_handler, system_controller):
+    """Phase 3.4c: ``CagesVisualizationTab`` paginates by HAT.
+
+    1 hat -> 1 HAT-tab. 2 hats -> 2 HAT-tabs. ``refresh()`` after a
+    ``num_hats`` change rebuilds the tabs. The tab strip is the
+    operator's entry point into multi-HAT setups; if the count drifts,
+    HAT 1+ cages are silently inaccessible.
+    """
+    from ui.cages_visualization_tab import CagesVisualizationTab  # noqa: PLC0415
+
+    system_controller.settings['num_hats'] = 1
+    tab = CagesVisualizationTab(
+        database_handler=database_handler,
+        system_controller=system_controller,
+    )
+    assert tab._hat_tab_widget.count() == 1
+
+    system_controller.settings['num_hats'] = 2
+    tab.refresh()
+    assert tab._hat_tab_widget.count() == 2
+
+    system_controller.settings['num_hats'] = 1
+    tab.refresh()
+    assert tab._hat_tab_widget.count() == 1
