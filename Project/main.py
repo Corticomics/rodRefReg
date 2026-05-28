@@ -812,10 +812,10 @@ def _main_without_splash(app, instance_key):
     # Check for updates
     try:
         from ui.update_notifier import UpdateNotifier
-        UpdateNotifier.check_for_updates()
+        UpdateNotifier.check_for_updates(gui)
     except Exception:
         pass
-    
+
     gui.show()
     
     # Local server
