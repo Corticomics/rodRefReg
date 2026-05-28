@@ -30,6 +30,15 @@ class PumpStrategy:
         """Request cancellation. Prevents a not-yet-dispatched deliver()."""
         self._cancel_event.set()
 
+    def reset_cancel(self) -> None:
+        """Clear the cancellation token. Call once at schedule start.
+
+        Symmetric with SolenoidFlowStrategy.reset_cancel — the worker
+        clears once per run, never per chunk, so a mid-schedule cancel
+        is never wiped.
+        """
+        self._cancel_event.clear()
+
     async def deliver(
         self,
         relay_unit_id: int,
@@ -41,12 +50,10 @@ class PumpStrategy:
         if target_volume_ml is None or target_volume_ml <= 0:
             raise ValueError("target_volume_ml must be positive")
 
-        # Fresh delivery: clear any stale cancellation from a prior run.
+        # Honor a cancel that landed before dispatch. Does NOT clear —
+        # clearing is the worker's once-per-run responsibility.
         if self._cancel_event.is_set():
-            # Cancel arrived before we dispatched — honor it.
-            self._cancel_event.clear()
             return False
-        self._cancel_event.clear()
 
         # Prefer caller-provided hint to preserve legacy scheduling semantics.
         triggers = (

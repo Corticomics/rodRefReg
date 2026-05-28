@@ -1,5 +1,6 @@
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QMutex, QMutexLocker, QTimer
 from datetime import datetime, timedelta
+import threading
 import time
 from utils.volume_calculator import VolumeCalculator
 import asyncio
@@ -67,6 +68,15 @@ class RelayWorker(QObject):
         self.timing_calculator = settings.get('timing_calculator')
         self.mutex = QMutex()
         self._is_running = False
+        # Worker-level cooperative-cancel flag. Set directly by the GUI
+        # thread via request_cancel() when Stop is pressed (the worker
+        # thread is blocked in run_until_complete and can't service the
+        # queued stop() slot). Checked at the top of the cycle loops and
+        # before each delivery so the worker stops scheduling new work and
+        # returns from run_until_complete promptly — so Stop no longer has
+        # to fall through to thread.terminate(). See the v1.8.2 -> v1.8.3
+        # write-up. threading.Event because the write crosses threads.
+        self._cancel_requested = threading.Event()
         self.timers = []
         # Track per-animal retry timers to avoid duplicate scheduling
         self.retry_timers = {}
@@ -163,6 +173,10 @@ class RelayWorker(QObject):
     def run_cycle(self):
         """Main entry point for starting the worker"""
         self._is_running = True  # Set to True when we actually start
+        # Fresh run: clear the worker-level cancel flag ONCE here (not per
+        # delivery). Clearing per-chunk was the v1.8.2 bug that let a
+        # mid-schedule cancel get wiped by the next chunk.
+        self._cancel_requested.clear()
         self.progress.emit(f"Starting {self.mode} cycle")
         
         # OPTIMIZATION: Perform deferred hardware init on worker thread
@@ -354,6 +368,10 @@ class RelayWorker(QObject):
 
     def run_instant_cycle(self):
         """Handle precise time-based deliveries"""
+        # Cooperative cancel: stop scheduling further deliveries after Stop.
+        if self._cancel_requested.is_set():
+            self.progress.emit("Instant cycle cancelled")
+            return
         with QMutexLocker(self.mutex):
             if not self.delivery_instants:
                 self.progress.emit("No delivery instants configured")
@@ -415,6 +433,10 @@ class RelayWorker(QObject):
 
     def run_staggered_cycle(self):
         """Handle staggered deliveries with individual time windows"""
+        # Cooperative cancel: stop scheduling further cycles after Stop.
+        if self._cancel_requested.is_set():
+            self.progress.emit("Staggered cycle cancelled")
+            return
         try:
             current_time = datetime.now()
             
@@ -555,6 +577,11 @@ class RelayWorker(QObject):
     async def execute_delivery(self, delivery_data):
         """Execute delivery with volume tracking and compensation"""
         try:
+            # Cooperative cancel: a delivery QTimer may fire after Stop was
+            # pressed. Don't start a new delivery; return fast so
+            # run_until_complete unwinds and the thread can exit.
+            if self._cancel_requested.is_set():
+                return False
             animal_id = delivery_data['animal_id']
             current_delivered = self.delivered_volumes.get(animal_id, 0)
             target_volume = self.animal_windows[animal_id]['target_volume']
@@ -617,6 +644,11 @@ class RelayWorker(QObject):
 
     def schedule_retry(self, delivery_data):
         """Schedule a retry for failed delivery"""
+        # Cooperative cancel: a delivery that "failed" because the operator
+        # pressed Stop must not schedule a retry — that would resurrect the
+        # schedule after Stop.
+        if self._cancel_requested.is_set():
+            return
         retry_delay = 30  # seconds
         retry_time = datetime.now() + timedelta(seconds=retry_delay)
         window_end = datetime.fromtimestamp(self.settings['window_end'])
@@ -878,16 +910,23 @@ class RelayWorker(QObject):
         self.check_final_completion()
 
     def request_cancel(self):
-        """Signal the active delivery strategy to cancel cooperatively.
+        """Signal the worker AND the active strategy to cancel cooperatively.
 
-        Safe to call from the GUI thread (the strategy uses a
-        threading.Event). This is the path that actually breaks a
-        mid-delivery loop: the worker thread is blocked inside
-        run_until_complete and cannot process the queued stop() slot, so
-        the GUI thread must poke the strategy's cancel token directly.
-        Idempotent and defensive — a missing or method-less strategy is
-        a no-op.
+        Safe to call from the GUI thread (both flags are threading.Events).
+        This is the path that actually breaks a mid-delivery loop: the
+        worker thread is blocked inside run_until_complete and cannot
+        process the queued stop() slot, so the GUI thread pokes these
+        flags directly.
+
+        Two levels, both required:
+          - worker flag (_cancel_requested): the cycle loops and
+            execute_delivery check it and stop scheduling/starting NEW
+            deliveries, so run_until_complete returns and the thread
+            can exit.
+          - strategy flag: the in-flight delivery loop bails fast into
+            its valve-closing finally block.
         """
+        self._cancel_requested.set()
         strategy = getattr(self, 'strategy', None)
         if strategy is not None and hasattr(strategy, 'request_cancel'):
             try:
@@ -1144,6 +1183,11 @@ class RelayWorker(QObject):
     def _handle_delivery(self, delivery_data):
         """Synchronously handle a delivery"""
         try:
+            # Cooperative cancel: a delivery QTimer may fire after Stop.
+            # Don't start a new run_until_complete(deliver()) — that's the
+            # blocking call that made Stop fall through to terminate().
+            if self._cancel_requested.is_set():
+                return False
             if 'schedule_id' not in delivery_data:
                 delivery_data['schedule_id'] = self.schedule_id
             animal_id = delivery_data['animal_id']
