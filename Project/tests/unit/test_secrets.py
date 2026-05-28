@@ -22,6 +22,16 @@ from __future__ import annotations
 import os
 import stat
 
+import pytest
+
+# The fixtures used here (``system_controller``, ``database_handler``) reach
+# ``SystemController``, which imports ``PyQt5.QtCore`` at module level. Match
+# ``test_gui_smoke.py``'s pattern: skip the module when PyQt5 is unavailable
+# (e.g. a contributor on macOS who hasn't installed it yet) instead of
+# 16 cryptic ImportError lines. CI apt-installs python3-pyqt5 so the suite
+# still runs end-to-end before any code merges. See CONTRIBUTING.md.
+pytest.importorskip("PyQt5")
+
 
 # ---------------------------------------------------------------------------
 # secrets.py primitives

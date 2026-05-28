@@ -23,3 +23,6 @@ dist/
 
 # macOS
 .DS_Store
+
+# IDE / agent state
+.cursor/worktrees.json
