@@ -1161,9 +1161,16 @@ class DatabaseHandler:
                         VALUES (?, ?, ?)
                     ''', (schedule_id, animal_id, desired_output))
                     
-                    # Parse datetime strings using strptime
-                    start_time = datetime.strptime(schedule.start_time, "%Y-%m-%dT%H:%M:%S.%f")
-                    end_time = datetime.strptime(schedule.end_time, "%Y-%m-%dT%H:%M:%S.%f")
+                    # Parse ISO datetime strings. Use fromisoformat (the exact
+                    # inverse of the .isoformat() that produced these strings)
+                    # instead of strptime with a fixed "...%S.%f" format. The
+                    # %f token REQUIRES fractional seconds, but isoformat()
+                    # OMITS them when microseconds == 0 (e.g. a start time on a
+                    # whole second like '2026-05-28T18:00:14'), which made
+                    # schedule creation fail intermittently depending on the
+                    # exact second the operator picked.
+                    start_time = datetime.fromisoformat(schedule.start_time)
+                    end_time = datetime.fromisoformat(schedule.end_time)
                     
                     cursor.execute('''
                         INSERT INTO schedule_staggered_windows
