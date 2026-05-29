@@ -467,19 +467,17 @@ class CalibrationWizard(QDialog):
         results_group.setLayout(results_layout)
         self.content_layout.addWidget(results_group)
 
-        # Quality assessment
+        # Quality assessment. NOTE: a per-quality color was previously
+        # computed here but never applied to any widget — removed as dead
+        # code. If quality coloring is wanted, wire it into quality_label.
         if cv_pct < 1.0:
             quality = "EXCELLENT"
-            color = "#4CAF50"
         elif cv_pct < 3.0:
             quality = "GOOD"
-            color = "#8BC34A"
         elif cv_pct < 5.0:
             quality = "ACCEPTABLE"
-            color = "#FFC107"
         else:
             quality = "POOR"
-            color = "#F44336"
 
         quality_label = QLabel(f"Quality: {quality}")
         quality_label.setAlignment(Qt.AlignCenter)

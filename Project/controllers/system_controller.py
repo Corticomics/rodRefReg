@@ -155,8 +155,10 @@ class SystemController(QObject):
 
             temp_settings = self.settings.copy()
             # Probe hats by optimistic init. RelayHandler internally logs errors.
+            # The construction IS the probe (side effect); the instance is
+            # intentionally unused, so we don't bind it.
             manager = RelayUnitManager(temp_settings)
-            handler = RelayHandler(manager, temp_settings.get('num_hats', 1))
+            RelayHandler(manager, temp_settings.get('num_hats', 1))
             hats = max(1, temp_settings.get('num_hats', 1))
             return hats
         except Exception:

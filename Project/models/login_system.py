@@ -39,10 +39,6 @@ class LoginSystem(QObject):
         self.login_status_changed.emit()  # Emit signal
         print("Trainer logged out. Switched to Guest mode.")
 
-    def get_current_trainer(self):
-        """Return the current trainer or None if not logged in."""
-        return self.current_trainer
-
     def is_logged_in(self):
         """Check if a trainer is currently logged in."""
         return self.current_trainer is not None

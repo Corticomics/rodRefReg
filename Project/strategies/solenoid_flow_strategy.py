@@ -216,7 +216,6 @@ class SolenoidFlowStrategy:
             for cage_id, cal in all_cals.items():
                 pw = int(cal.get('pulse_width_ms') or 0)
                 vol = float(cal.get('volume_per_pulse_ml') or 0.0)
-                cid = float(cal.get('cage_id') or cage_id)
                 if not self._cal_snapshot.get(cage_id):
                     self._cal_snapshot[cage_id] = {}
                 self._cal_snapshot[cage_id][pw] = {
@@ -954,7 +953,6 @@ class SolenoidFlowStrategy:
                 await close_task
             except Exception:
                 pass
-            valve_close_time = asyncio.get_event_loop().time()
 
             # Step 6: Continue collecting during settling
             while (asyncio.get_event_loop().time() - start_time) < total_measurement_s:

@@ -706,7 +706,6 @@ class Step3ConfigureParameters(QWidget):
         animals_layout = QVBoxLayout(animals_group)
 
         for animal in self._selected_animals:
-            animal_id = animal["id"]
             animal_widget = self._create_staggered_animal_row(animal)
             animals_layout.addWidget(animal_widget)
 
@@ -1485,8 +1484,6 @@ class ScheduleCreationWizard(QWidget):
         Reference: Material Design Steppers - "Users can return to a previous step
         to edit their response."
         """
-        # Determine navigation direction
-        is_going_forward = step_index > self._last_step_index
         first_visit = step_index not in self._visited_steps
 
         # Mark step as visited

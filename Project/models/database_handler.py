@@ -1,6 +1,5 @@
 # models/database_handler.py
 
-import datetime
 import hashlib
 import json
 import os

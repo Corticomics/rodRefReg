@@ -1574,8 +1574,11 @@ class SettingsTab(QWidget):
                             else None
                         )
 
-                        # Convert birthdate to our datetime format
-                        birthdate = datetime.strptime(str(row['Birthdate']), '%y%m%d')
+                        # Validate the birthdate format (raises on bad data,
+                        # skipping the row). NOTE: the parsed value is not
+                        # stored — Animal has no birthdate field yet; this is
+                        # known debt, kept as a validation gate only.
+                        datetime.strptime(str(row['Birthdate']), '%y%m%d')
 
                         animal = Animal(
                             animal_id=None,
