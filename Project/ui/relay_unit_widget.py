@@ -2,18 +2,14 @@
 
 from datetime import datetime
 
-from models.animal import Animal
 from PyQt5.QtCore import QDataStream, QDateTime, QIODevice, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QComboBox,
     QDateTimeEdit,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,

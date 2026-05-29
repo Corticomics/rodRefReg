@@ -35,10 +35,10 @@ jobs:
           # Enforce only the rules cleaned so far. ruff.toml's `select`
           # lists the full target set (F401/F811/F841/I); CI gates it
           # incrementally as each family is fixed in its own PR:
-          #   now: formatting + import-sort (I)
-          #   next: F401 unused-imports, then F841 unused-vars, then F811.
+          #   now: formatting + import-sort (I) + unused-imports (F401)
+          #   next: F841 unused-vars, then F811 redefinitions.
           ruff format --check .
-          ruff check --select I .
+          ruff check --select I,F401 .
 
       - name: Run pytest
         run: python3 -m pytest

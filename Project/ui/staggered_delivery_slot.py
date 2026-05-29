@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from PyQt5.QtCore import QDateTime, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QDateTime, pyqtSignal
 from PyQt5.QtWidgets import (
     QDateTimeEdit,
     QHBoxLayout,

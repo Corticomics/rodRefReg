@@ -2,9 +2,7 @@
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
 # =============================================================================
-import os
 import sys
-import time
 import traceback
 from datetime import datetime
 
@@ -17,7 +15,7 @@ from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem
 from models.relay_unit_manager import RelayUnitManager
 from notifications.notifications import NotificationHandler
-from PyQt5.QtCore import QMutex, QMutexLocker, QObject, Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QInputDialog
@@ -25,7 +23,6 @@ from ui.gui import RodentRefreshmentGUI
 from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
 from utils import paths, stop_sequence, updater
-from utils.volume_calculator import VolumeCalculator
 from version import __version__
 
 _DEBUG_LOG_PATH = paths.debug_log_path()

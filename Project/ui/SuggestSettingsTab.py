@@ -1,12 +1,10 @@
-from PyQt5.QtCore import QDateTime, Qt
+from PyQt5.QtCore import QDateTime
 from PyQt5.QtWidgets import (
-    QComboBox,
     QDateTimeEdit,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,

@@ -14,15 +14,13 @@ Best Practices:
 
 from datetime import datetime
 
-from PyQt5.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QFont, QPalette
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QProgressBar,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,

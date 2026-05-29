@@ -1,8 +1,7 @@
 import asyncio
 from datetime import datetime
 
-from gpio.relay_worker import RelayWorker
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 from utils.timing_calculator import TimingCalculator
 from utils.volume_calculator import VolumeCalculator
 

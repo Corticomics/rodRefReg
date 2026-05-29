@@ -5,7 +5,6 @@ This is a wrapper around the original SM16relind module that adds the ability
 to specify a custom I2C bus.
 """
 
-import importlib.util
 import logging
 import os
 import time

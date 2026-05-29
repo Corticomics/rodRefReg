@@ -12,7 +12,6 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -22,11 +21,8 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSpinBox,
-    QTableWidget,
     QTableWidgetItem,
     QTabWidget,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -583,18 +579,13 @@ class SettingsTab(QWidget):
         - Visual indicators for calibration quality
         """
         from PyQt5.QtCore import Qt
-        from PyQt5.QtGui import QColor
         from PyQt5.QtWidgets import (
             QAbstractItemView,
-            QDialog,
-            QDialogButtonBox,
             QFrame,
             QHeaderView,
-            QProgressBar,
             QPushButton,
             QScrollArea,
             QTableWidget,
-            QTableWidgetItem,
         )
 
         widget = QWidget()

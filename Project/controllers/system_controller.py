@@ -1,6 +1,5 @@
 import json
 import os
-from datetime import datetime
 
 from PyQt5.QtCore import QObject, pyqtSignal
 from utils import paths

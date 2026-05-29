@@ -19,7 +19,7 @@ import logging
 import threading
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 
 class I2CCoordinator:

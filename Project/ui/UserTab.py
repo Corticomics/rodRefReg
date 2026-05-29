@@ -3,20 +3,16 @@
 import traceback
 
 from PyQt5.QtCore import QDateTime, Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
-    QFrame,
     QGridLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )

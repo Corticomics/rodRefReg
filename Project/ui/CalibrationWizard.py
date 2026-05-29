@@ -10,11 +10,9 @@ Best Practices:
 - Persistent storage of results
 """
 
-import asyncio
 from datetime import datetime
 
-from PyQt5.QtCore import QEvent, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
@@ -28,8 +26,6 @@ from PyQt5.QtWidgets import (
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
-    QWizard,
-    QWizardPage,
 )
 
 

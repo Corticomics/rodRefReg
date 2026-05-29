@@ -1,6 +1,5 @@
 from models.animal import Animal
 from models.database_handler import DatabaseHandler
-from models.Schedule import Schedule
 
 
 class ProjectsController:

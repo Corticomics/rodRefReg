@@ -3,7 +3,7 @@
 import traceback
 
 from notifications.notifications import NotificationHandler
-from PyQt5.QtCore import Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QTimer, QUrl, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QFrame,
@@ -12,13 +12,11 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
-from utils.volume_calculator import VolumeCalculator
 from version import __version__
 
 from .HelpTab import HelpTab

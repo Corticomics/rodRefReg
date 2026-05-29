@@ -14,7 +14,7 @@ Architecture:
 - Wizard tab creates schedules, Schedules tab displays/manages them
 """
 
-from PyQt5.QtWidgets import QMessageBox, QPushButton, QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
 from .animals_tab import AnimalsTab
 from .cages_visualization_tab import CagesVisualizationTab

@@ -1,12 +1,10 @@
 import json
-import os
 
 from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )

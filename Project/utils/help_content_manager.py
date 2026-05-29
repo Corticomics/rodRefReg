@@ -2,7 +2,7 @@
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
 # ---------------------------------------------------------------------------
 # Palette — used by _format_content and get_landing_page / get_topic_not_found
