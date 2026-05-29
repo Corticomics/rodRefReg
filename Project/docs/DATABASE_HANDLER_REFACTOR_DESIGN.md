@@ -362,6 +362,6 @@ almost pure upside: it finishes a pattern the codebase already committed
 to, rather than imposing a new one.
 
 **Recommendation: do R3 as a single standalone PR; skip R1 and R2 until a
-concrete driver appears.**
+concrete driver appears.**.
 
 ---
