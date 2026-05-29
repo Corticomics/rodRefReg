@@ -234,3 +234,134 @@ reviewable, revertible, and (where it touches shipped code) tagged + Pi-
 verified per MAINTENANCE.md.
 
 ---
+
+## 8. Decision record (answers to §-open-questions, 2026-05-29)
+
+The three blocking questions were answered:
+
+1. **Schema change planned?** No. The schema is satisfactory; a change
+   would only be considered if it were clearly better/more efficient
+   *without* adding much debt.
+2. **Device DB snapshot?** There is **no production fleet at all** — full
+   freedom. A fresh Pi can be flashed and run sample operations to
+   generate fake data if ever needed.
+3. **R3 (DI):** analyze effort/files/bugs/debt and give a reasoned
+   recommendation (done in §10).
+
+### What these answers change
+
+- **Axis C (migration safety) collapses from HIGH to ~zero, today.** Its
+  whole severity rested on "an in-place fleet update could corrupt a real
+  device DB." With **no fleet and no planned schema change**, there is
+  nothing to migrate and nothing to corrupt. A migration runner built now
+  would be **unexercised infrastructure** — code that never runs in anger
+  is itself a form of tech debt, and the user explicitly wants to avoid
+  that. → **R1 is no longer "do first"; it is deferred until a schema
+  change is actually wanted.**
+- **Axis A (navigability) is now the only *present* concern**, and even it
+  is a maintainability investment, not an active bug — the file works, is
+  tested, and has clean single-point access.
+- **Axis B (testability)** is the one with a cheap, concrete win: DI is
+  already ~90% wired (see §10), so finishing it is small and real.
+
+---
+
+## 9. Revised recommendation (given §8)
+
+Priorities flipped from §4. Honest, given a static schema and no fleet:
+
+1. **R1 (migration runner): DROP for now.** No fleet + static schema = no
+   value; shipping an unused `user_version` framework is speculative
+   infra/debt. Re-open *only* if a concrete schema change is greenlit
+   (at which point R1 becomes its prerequisite and is worth doing
+   properly, tested against fake data from a flashed Pi per §8.2).
+2. **R3 (finish dependency injection): RECOMMENDED — best value/effort.**
+   It's small (≈4 files, the backbone already exists), removes a real
+   smell (4 redundant `DatabaseHandler()` instances, each re-running
+   `create_tables()`), and improves testability. Full analysis in §10.
+3. **R2 (domain split behind facade): DEFER (do not do now).** It is the
+   largest diff (~6–8 PRs moving 2245 LOC) for the weakest *present*
+   justification — navigability — with no fleet pressure forcing it. The
+   risk/churn-to-benefit ratio only turns favorable when someone is about
+   to do heavy work inside one domain. Recommendation: split **lazily** —
+   when a domain next needs substantial change, extract *that* domain
+   then, behind the facade. Avoid a big-bang reorganization of working,
+   tested code purely for tidiness.
+
+**Net recommendation:** do **R3 only**, as a small standalone improvement;
+keep `database_handler.py` otherwise as-is; revisit R1/R2 when a real
+driver (a schema change, or heavy work in one domain) appears. This
+maximizes value while honoring "don't add much tech debt" and the
+project's own rule against landing code paths that aren't yet exercised.
+
+---
+
+## 10. R3 — Dependency-injection feasibility (the §-Q3 deep-dive)
+
+### How hard: LOW. The backbone already exists.
+
+`main.py:162` already creates the canonical `database_handler` and
+injects it into `SystemController`, `LoginSystem`, the GUI, and the whole
+UI tree (`SettingsTab`, `animals_tab`, `projects_section`,
+`cages_visualization_tab`, `run_stop_section`, `UserTab`,
+`schedule_wizard`, …). The UI is ~90% DI'd already. Only a few sites
+self-construct.
+
+### Construction sites (the complete inventory)
+
+| Site | Self-constructs? | Verdict |
+|---|---|---|
+| `main.py:162` `database_handler = DatabaseHandler()` | — | **The canonical instance.** Keep. |
+| `controllers/projects_controller.py:7` | Yes | **Fix** → accept `database_handler` param; caller `main.py:187` already has it. |
+| `ui/schedule_drop_area.py:30` | Yes | **Fix** → accept param; caller `run_stop_section.py:121` already holds `self.database_handler` (run_stop_section.py:51). |
+| `ui/splash_screen.py:54` | Yes | **Defer** — splash worker is disabled (`USE_SPLASH_SCREEN=False`); handle under Phase 5.2. |
+| `main.py:140` `DatabaseHandler().connect().close()` | Yes (throwaway) | **Keep** — `--selftest` health probe; a standalone instance is correct here. |
+| `tools/valve_calibration_tool.py:344` | Yes (`args.db_path`) | **Keep** — standalone CLI, intentionally independent of the app. |
+
+So the *live-app* DI work is exactly **two** objects:
+`ProjectsController` and `ScheduleDropArea`.
+
+### Files that would change (R3, minimal scope)
+
+1. `controllers/projects_controller.py` — `__init__(self, database_handler)`; store it instead of constructing.
+2. `Project/main.py` — `ProjectsController(database_handler)` at line 187.
+3. `ui/schedule_drop_area.py` — `__init__(self, database_handler, …)`; drop the self-construct.
+4. `ui/run_stop_section.py` — pass `self.database_handler` when creating `ScheduleDropArea` (line 121).
+
+Four files. Optionally a 5th cleanup: tighten the `database_handler=None`
+default params (`SettingsTab`, `run_stop_section`, `UserTab`) to required,
+to stop masking missing wiring — but that touches more call sites and is
+a separate, optional tidy.
+
+### Possible bugs & mitigations
+
+| Risk | Mitigation |
+|---|---|
+| Construction-order: an injected site runs before `main.py:162` creates the handle | Both targets are created *after* line 162 (controller at 187; ScheduleDropArea inside the GUI build, later still). Verified by reading the call order. |
+| `ScheduleDropArea` created somewhere without a handle in scope | Its only construction is `run_stop_section.py:121`, which already holds `self.database_handler`. `git grep "ScheduleDropArea("` to re-confirm at fix time. |
+| `ProjectsController()` called elsewhere without args after signature change | Only one caller (`main.py:187`). `git grep "ProjectsController("` to confirm; the smoke/suite catch a missed one as a `TypeError` at construction. |
+| Behavior drift (the injected handle differs from a self-made one) | They point at the same DB file; functionally identical. Full Pi suite (148 items, constructs the GUI tree) + on-Pi launch confirm. |
+
+### Technical debt this removes / leaves
+
+- **Removes:** 2 redundant `DatabaseHandler()` instances (each currently
+  re-runs `create_tables()` on startup — wasteful, and a latent footgun
+  if `create_tables` ever stops being perfectly idempotent).
+- **Removes:** a hidden coupling where `ProjectsController`/`ScheduleDropArea`
+  silently opened their own DB rather than sharing the app's.
+- **Leaves (optional follow-up):** the `database_handler=None` default
+  params — a smell that allows un-injected construction. Tightening them
+  is a clean but separable second step.
+
+### Effort & risk verdict
+
+≈**1 small PR**, 4 files, no schema/behavior change, no version bump
+(internal refactor). Risk **low** — single caller each, backbone exists,
+covered by the smoke + full Pi suite. This is the rare refactor that is
+almost pure upside: it finishes a pattern the codebase already committed
+to, rather than imposing a new one.
+
+**Recommendation: do R3 as a single standalone PR; skip R1 and R2 until a
+concrete driver appears.**.
+
+---
