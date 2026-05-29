@@ -305,7 +305,7 @@ class IntegrationTester:
         print("Testing SolenoidFlowStrategy initialization")
         
         try:
-            from drivers.flow_sensor import SLF3S0600FDriver
+            from drivers.flow_sensor_factory import create_flow_sensor
             from drivers.solenoid_controller import SolenoidController
             from strategies.solenoid_flow_strategy import SolenoidFlowStrategy
             from utils.calibration import CalibrationStore
@@ -317,7 +317,9 @@ class IntegrationTester:
             manager = RelayUnitManager(settings)
             relay_handler = RelayHandler(manager, 1)
             
-            flow_sensor = SLF3S0600FDriver(i2c_bus=self.bus_id)
+            flow_sensor = create_flow_sensor(
+                {'flow_sensor_type': 'uart', 'uart_port': '/dev/ttyACM0', 'flow_sampling_hz': 10.0}
+            )
             cage_map = {1: 1}  # cage 1 -> relay 1
             solenoid = SolenoidController(relay_handler, 16, cage_map)
             cal_store = CalibrationStore()
