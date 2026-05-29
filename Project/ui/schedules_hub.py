@@ -15,7 +15,7 @@ Features:
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from models.Schedule import Schedule
 from PyQt5.QtCore import QDateTime, QMimeData, QPoint, Qt, QTimer, pyqtSignal
@@ -26,12 +26,9 @@ from PyQt5.QtWidgets import (
     QCompleter,
     QDateTimeEdit,
     QDialog,
-    QDialogButtonBox,
     QDoubleSpinBox,
-    QFormLayout,
     QFrame,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -40,7 +37,6 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )

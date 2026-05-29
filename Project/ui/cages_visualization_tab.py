@@ -14,7 +14,6 @@ from typing import Any, Dict, Optional
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,

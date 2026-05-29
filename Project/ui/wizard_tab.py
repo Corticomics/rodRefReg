@@ -6,7 +6,7 @@ This tab provides the new step-by-step wizard interface for creating schedules,
 allowing side-by-side comparison with the traditional Schedules tab method.
 """
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from .schedule_wizard import ScheduleCreationWizard

@@ -83,14 +83,16 @@ def get_available_sensor_types() -> list:
     available = []
 
     try:
-        from .flow_sensor import SLF3S0600FDriver
+        from .flow_sensor import SLF3S0600FDriver  # noqa: F401  (import IS the availability probe)
 
         available.append('i2c')
     except ImportError:
         pass
 
     try:
-        from .uart_flow_sensor import UARTFlowSensor
+        from .uart_flow_sensor import (
+            UARTFlowSensor,  # noqa: F401  (import IS the availability probe)
+        )
 
         available.append('uart')
     except ImportError:

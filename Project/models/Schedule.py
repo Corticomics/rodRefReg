@@ -1,6 +1,6 @@
 # models/schedule.py
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 class Schedule:

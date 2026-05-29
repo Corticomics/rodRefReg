@@ -5,7 +5,6 @@ import time
 from datetime import datetime, timedelta
 from functools import partial
 
-from drivers.flow_sensor import SLF3S0600FDriver
 from drivers.solenoid_controller import SolenoidController
 from PyQt5.QtCore import QMutex, QMutexLocker, QObject, QTimer, pyqtSignal, pyqtSlot
 from strategies.factory import StrategyFactory

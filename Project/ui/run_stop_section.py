@@ -1,23 +1,12 @@
 from datetime import datetime
 
-from gpio.relay_worker import RelayWorker
-from PyQt5.QtCore import QDateTime, Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import (
-    QApplication,
-    QComboBox,
-    QDateTimeEdit,
-    QDialog,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
     QMessageBox,
     QPushButton,
     QSizePolicy,
-    QStackedWidget,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )

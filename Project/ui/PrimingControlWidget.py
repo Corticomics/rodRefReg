@@ -18,7 +18,7 @@ Date: 2025-10-16
 from datetime import datetime
 from typing import Dict, Optional, Set
 
-from PyQt5.QtCore import QObject, Qt, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 from PyQt5.QtWidgets import (
     QComboBox,
     QGroupBox,

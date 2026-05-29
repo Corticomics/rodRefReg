@@ -3,12 +3,9 @@ import traceback
 
 from models.database_handler import DatabaseHandler
 from models.Schedule import Schedule
-from PyQt5.QtCore import QDateTime, Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QComboBox,
-    QHBoxLayout,
     QLabel,
-    QPushButton,
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,

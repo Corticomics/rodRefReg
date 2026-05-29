@@ -1,7 +1,3 @@
-import asyncio
-import datetime
-
-
 class PumpController:
     def __init__(self, relay_handler, database_handler):
         if not relay_handler:

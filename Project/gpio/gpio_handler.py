@@ -1,6 +1,5 @@
 # gpio_handler.py
 
-import datetime
 import logging
 import os
 import time

@@ -26,11 +26,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from PyQt5.QtCore import QDateTime, Qt, QTime, pyqtSignal
+from PyQt5.QtCore import QDateTime, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QCheckBox,
     QComboBox,
-    QCompleter,
     QDateTimeEdit,
     QDoubleSpinBox,
     QFormLayout,
@@ -44,9 +42,6 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QScrollArea,
-    QSizePolicy,
-    QSpinBox,
-    QTimeEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -740,7 +735,6 @@ class Step3ConfigureParameters(QWidget):
 
         Reference: Qt Documentation - QComboBox with QCompleter
         """
-        from PyQt5.QtCore import QStringListModel
         from PyQt5.QtWidgets import QCompleter
 
         animal_id = animal["id"]
@@ -962,7 +956,6 @@ class Step3ConfigureParameters(QWidget):
 
         Reference: Qt Documentation - QComboBox with QCompleter
         """
-        from PyQt5.QtCore import QStringListModel
         from PyQt5.QtWidgets import QCompleter
 
         animal_id = animal["id"]

@@ -1,8 +1,8 @@
 # ui/available_animals_list.py
 
-from PyQt5.QtCore import QByteArray, QDataStream, QIODevice, QMimeData, QPoint, QRect, QSize, Qt
+from PyQt5.QtCore import QByteArray, QDataStream, QIODevice, QMimeData, QPoint, QRect, Qt
 from PyQt5.QtGui import QColor, QDrag, QFont, QLinearGradient, QPainter, QPen, QPixmap
-from PyQt5.QtWidgets import QLabel, QListWidget, QListWidgetItem
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem
 
 
 class AvailableAnimalsList(QListWidget):

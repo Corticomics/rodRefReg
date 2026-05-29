@@ -1,6 +1,5 @@
 # ui/animal_entry_widget.py
 
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QWidget
 
 
