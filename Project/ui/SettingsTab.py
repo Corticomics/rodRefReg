@@ -254,12 +254,8 @@ class SettingsTab(QWidget):
         self.hardware_mode_combo.setCurrentIndex(mode_idx if mode_idx >= 0 else 0)
         self.hardware_mode_combo.currentTextChanged.connect(self._on_hardware_mode_changed)
 
-        mode_layout.addWidget(
-            QLabel("Hardware Mode:"), 0, 0, Qt.AlignLeft | Qt.AlignVCenter
-        )
-        mode_layout.addWidget(
-            self.hardware_mode_combo, 0, 1, Qt.AlignLeft | Qt.AlignVCenter
-        )
+        mode_layout.addWidget(QLabel("Hardware Mode:"), 0, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        mode_layout.addWidget(self.hardware_mode_combo, 0, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
         mode_help = QLabel(
             "• <b>Solenoid</b> (default): flow-sensor volumetric control with "
