@@ -310,7 +310,18 @@ def run_program(schedule, mode, window_start, window_end):
         #   • thread.quit() – so the thread stops,
         #   • worker.deleteLater() – so the worker cleans itself up,
         #   • cleanup() – our centralized cleanup function (only once).
-        worker.finished.connect(thread.quit)
+        #
+        # thread.quit() MUST use DirectConnection. finished is emitted from
+        # the worker thread, but the QThread object's affinity is THIS (GUI)
+        # thread, so an AutoConnection would queue thread.quit() into the GUI
+        # event loop. stop_program() blocks the GUI thread in
+        # thread.wait(3000), so that queued quit() could never run — the
+        # worker's event loop was never told to exit and the wait always
+        # timed out into thread.terminate(). DirectConnection runs quit() in
+        # the worker thread (QThread.quit is thread-safe), exiting the
+        # worker's own event loop right after stop() returns — so Stop now
+        # exits cleanly instead of being force-terminated.
+        worker.finished.connect(thread.quit, Qt.DirectConnection)
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(cleanup)
         thread.finished.connect(thread.deleteLater)
