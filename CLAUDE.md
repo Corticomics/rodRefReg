@@ -169,6 +169,30 @@ verify on Pi, stop. Re-check the watch list before extracting the next.
 
 **If none of the above is true, leave `database_handler.py` alone.**
 
+### Flow sensor — extension point (a future sensor plugs in here)
+
+A new flow sensor is a *possible future* feature using **different hardware,
+components, and code** than anything shipped today. The room for it already
+exists — do not build speculative abstraction ahead of it, and do not
+resurrect the retired driver.
+
+- **The seam is the factory.** [Project/drivers/flow_sensor_factory.py](Project/drivers/flow_sensor_factory.py)
+  `create_flow_sensor(settings)` dispatches on `settings['flow_sensor_type']`.
+  Today only `'uart'` ships (Teensy bridge,
+  [Project/drivers/uart_flow_sensor.py](Project/drivers/uart_flow_sensor.py)).
+- **To add one:** write a new `drivers/<name>_flow_sensor.py`, add a new
+  `flow_sensor_type` branch in `create_flow_sensor`, and add it to
+  `get_available_sensor_types()`. No call site changes — the strategy
+  consumes whatever the factory returns.
+- **The contract is duck-typed**, defined by what
+  [Project/strategies/solenoid_flow_strategy.py](Project/strategies/solenoid_flow_strategy.py)
+  calls on the sensor (e.g. `start`/`stop`/`read_one`/`wait_for_frames`). A
+  new driver must satisfy that. Only formalize it into a `Protocol` once the
+  real sensor exists and the true contract is known — not before.
+- **The legacy direct-I²C Sensirion driver (`flow_sensor.py`,
+  `SLF3S0600FDriver`) was deleted in v1.9.0** — it was dead and has no reuse
+  value for a different sensor. Do not bring it back.
+
 ---
 
 Full release procedure (version bump → tag → CI workflow), recovery for
