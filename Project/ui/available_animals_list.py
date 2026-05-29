@@ -1,14 +1,15 @@
 # ui/available_animals_list.py
 
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QLabel
-from PyQt5.QtGui import QDrag, QPixmap, QPainter, QColor, QFont, QLinearGradient, QPen
-from PyQt5.QtCore import Qt, QMimeData, QByteArray, QDataStream, QIODevice, QRect, QSize, QPoint
+from PyQt5.QtCore import QByteArray, QDataStream, QIODevice, QMimeData, QPoint, QRect, QSize, Qt
+from PyQt5.QtGui import QColor, QDrag, QFont, QLinearGradient, QPainter, QPen, QPixmap
+from PyQt5.QtWidgets import QLabel, QListWidget, QListWidgetItem
+
 
 class AvailableAnimalsList(QListWidget):
     def __init__(self, database_handler, parent=None):
         """
         Initialize the AvailableAnimalsList widget.
-        
+
         Args:
             database_handler (DatabaseHandler): Reference to the database handler
             parent (QWidget, optional): Parent widget
@@ -38,44 +39,54 @@ class AvailableAnimalsList(QListWidget):
         # Create a visual representation for the drag operation
         # Create a pixmap for the drag image
         text = f"{animal.lab_animal_id} - {animal.name}"
-        
+
         # Create a nicer looking drag pixmap
         pixmap = QPixmap(300, 60)  # Fixed size for the drag image
         pixmap.fill(Qt.transparent)  # Start with transparent background
-        
+
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
-        
+
         # Draw rounded rectangle background with gradient
         gradient = QLinearGradient(0, 0, 0, 60)
         gradient.setColorAt(0, QColor("#e8f0fe"))
         gradient.setColorAt(1, QColor("#c2d9fc"))
-        
+
         painter.setBrush(gradient)
         painter.setPen(QPen(QColor("#1a73e8"), 2))  # Blue border
         painter.drawRoundedRect(0, 0, pixmap.width(), pixmap.height(), 10, 10)
-        
+
         # Draw the animal information
         painter.setFont(QFont("Arial", 12, QFont.Bold))
         painter.setPen(QColor("#1a73e8"))  # Blue text
-        painter.drawText(QRect(10, 5, pixmap.width() - 20, 25), Qt.AlignLeft | Qt.AlignVCenter, text)
-        
+        painter.drawText(
+            QRect(10, 5, pixmap.width() - 20, 25), Qt.AlignLeft | Qt.AlignVCenter, text
+        )
+
         # Draw a "dragging" indicator
         painter.setFont(QFont("Arial", 9))
         painter.setPen(QColor("#5f6368"))  # Gray text
-        painter.drawText(QRect(10, 30, pixmap.width() - 20, 25), Qt.AlignLeft | Qt.AlignVCenter, "Dragging to assign...")
-        
+        painter.drawText(
+            QRect(10, 30, pixmap.width() - 20, 25),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            "Dragging to assign...",
+        )
+
         painter.end()
 
         # Initiate the drag with the visual representation
         drag = QDrag(self)
         drag.setMimeData(mime_data)
         drag.setPixmap(pixmap)
-        drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))  # Center the pixmap on the cursor
+        drag.setHotSpot(
+            QPoint(pixmap.width() // 2, pixmap.height() // 2)
+        )  # Center the pixmap on the cursor
         drag.exec_(Qt.MoveAction)
 
     def create_available_animal_item(self, animal):
         """Create a QListWidgetItem for the given animal."""
-        item = QListWidgetItem(f"{animal.lab_animal_id} - {animal.name} - Last Watering: {animal.last_watering or 'N/A'}")
+        item = QListWidgetItem(
+            f"{animal.lab_animal_id} - {animal.name} - Last Watering: {animal.last_watering or 'N/A'}"
+        )
         item.setData(Qt.UserRole, animal)
         return item

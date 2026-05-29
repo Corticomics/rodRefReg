@@ -9,36 +9,37 @@ from urllib.parse import quote, unquote
 # ---------------------------------------------------------------------------
 _PALETTE = {
     'light': {
-        'page_bg':      '#FFFFFF',
-        'text':         '#1A1D1F',
-        'h1':           '#0D9488',
-        'h2':           '#1A1D1F',
-        'muted':        '#4E5D6C',
-        'link':         '#0D9488',
-        'note_bg':      '#E6FFFA',
-        'note_border':  '#0D9488',
-        'warn_bg':      '#FEE2E2',
-        'warn_border':  '#EF4444',
-        'tip_bg':       '#D1FAE5',
-        'tip_border':   '#10B981',
-        'hl_bg':        '#FDE68A',
+        'page_bg': '#FFFFFF',
+        'text': '#1A1D1F',
+        'h1': '#0D9488',
+        'h2': '#1A1D1F',
+        'muted': '#4E5D6C',
+        'link': '#0D9488',
+        'note_bg': '#E6FFFA',
+        'note_border': '#0D9488',
+        'warn_bg': '#FEE2E2',
+        'warn_border': '#EF4444',
+        'tip_bg': '#D1FAE5',
+        'tip_border': '#10B981',
+        'hl_bg': '#FDE68A',
     },
     'dark': {
-        'page_bg':      '#1A2028',
-        'text':         '#F0F4F8',
-        'h1':           '#2DD4BF',
-        'h2':           '#F0F4F8',
-        'muted':        '#A0AEC0',
-        'link':         '#5EEAD4',
-        'note_bg':      '#134E4A',
-        'note_border':  '#2DD4BF',
-        'warn_bg':      '#7F1D1D',
-        'warn_border':  '#EF4444',
-        'tip_bg':       '#064E3B',
-        'tip_border':   '#10B981',
-        'hl_bg':        '#92400E',
+        'page_bg': '#1A2028',
+        'text': '#F0F4F8',
+        'h1': '#2DD4BF',
+        'h2': '#F0F4F8',
+        'muted': '#A0AEC0',
+        'link': '#5EEAD4',
+        'note_bg': '#134E4A',
+        'note_border': '#2DD4BF',
+        'warn_bg': '#7F1D1D',
+        'warn_border': '#EF4444',
+        'tip_bg': '#064E3B',
+        'tip_border': '#10B981',
+        'hl_bg': '#92400E',
     },
 }
+
 
 def _css(theme: str) -> str:
     p = _PALETTE.get(theme, _PALETTE['light'])
@@ -140,7 +141,7 @@ mark, .search-hl {{
 class HelpContent:
     title: str
     summary: str
-    content: str            # HTML body fragment — no <style>
+    content: str  # HTML body fragment — no <style>
     keywords: List[str]
     related_topics: List[str] = field(default_factory=list)
 
@@ -176,6 +177,7 @@ _IA: Dict[str, List[str]] = {
         "Troubleshooting",
     ],
 }
+
 
 # ---------------------------------------------------------------------------
 # Content definitions  (single source of truth — IA and content together)
@@ -242,11 +244,21 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["overview", "ui layout", "interface", "panes", "tabs", "guest mode",
-                      "login", "workflow", "getting started", "introduction", "map"],
+            keywords=[
+                "overview",
+                "ui layout",
+                "interface",
+                "panes",
+                "tabs",
+                "guest mode",
+                "login",
+                "workflow",
+                "getting started",
+                "introduction",
+                "map",
+            ],
             related_topics=["First Time Setup", "Basic Operations", "Execution Monitor"],
         ),
-
         "First Time Setup": HelpContent(
             title="First Time Setup",
             summary="Log in, choose hardware mode, configure the flow sensor, calibrate, and test.",
@@ -303,12 +315,29 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["first time", "initial setup", "login", "hardware mode", "solenoid", "pump",
-                      "flow sensor", "teensy", "calibration", "priming", "setup", "configure"],
-            related_topics=["System Overview", "Hardware Modes", "Valve Calibration",
-                            "Priming", "Flow Sensor", "Basic Operations"],
+            keywords=[
+                "first time",
+                "initial setup",
+                "login",
+                "hardware mode",
+                "solenoid",
+                "pump",
+                "flow sensor",
+                "teensy",
+                "calibration",
+                "priming",
+                "setup",
+                "configure",
+            ],
+            related_topics=[
+                "System Overview",
+                "Hardware Modes",
+                "Valve Calibration",
+                "Priming",
+                "Flow Sensor",
+                "Basic Operations",
+            ],
         ),
-
         "Basic Operations": HelpContent(
             title="Basic Daily Operations",
             summary="Daily workflow: log in, check messages, update animals, build and run a schedule.",
@@ -361,12 +390,26 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["daily operations", "workflow", "run", "stop", "login", "animals",
-                      "schedule", "execution monitor", "system messages", "super mode", "normal mode"],
-            related_topics=["First Time Setup", "Creating Schedules", "Execution Monitor",
-                            "Safety Features"],
+            keywords=[
+                "daily operations",
+                "workflow",
+                "run",
+                "stop",
+                "login",
+                "animals",
+                "schedule",
+                "execution monitor",
+                "system messages",
+                "super mode",
+                "normal mode",
+            ],
+            related_topics=[
+                "First Time Setup",
+                "Creating Schedules",
+                "Execution Monitor",
+                "Safety Features",
+            ],
         ),
-
         # ----------------------------------------------------------------
         # ANIMALS & CAGES
         # ----------------------------------------------------------------
@@ -428,11 +471,21 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["add animal", "edit animal", "remove animal", "weight", "lab animal id",
-                      "sex", "filter", "search", "guest mode", "super mode", "animals tab"],
+            keywords=[
+                "add animal",
+                "edit animal",
+                "remove animal",
+                "weight",
+                "lab animal id",
+                "sex",
+                "filter",
+                "search",
+                "guest mode",
+                "super mode",
+                "animals tab",
+            ],
             related_topics=["Basic Operations", "Creating Schedules", "Cages"],
         ),
-
         "Cages": HelpContent(
             title="Cages",
             summary="The Cages tab shows the relay board layout and lets you name each cage.",
@@ -472,12 +525,25 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["cages", "relay board", "cage name", "rename cage", "relay terminal",
-                      "master solenoid", "r16", "hat", "layout", "visualization"],
-            related_topics=["Adding & Managing Animals", "Valve Calibration", "Priming",
-                            "Hardware Setup & Maintenance"],
+            keywords=[
+                "cages",
+                "relay board",
+                "cage name",
+                "rename cage",
+                "relay terminal",
+                "master solenoid",
+                "r16",
+                "hat",
+                "layout",
+                "visualization",
+            ],
+            related_topics=[
+                "Adding & Managing Animals",
+                "Valve Calibration",
+                "Priming",
+                "Hardware Setup & Maintenance",
+            ],
         ),
-
         # ----------------------------------------------------------------
         # WATER DELIVERY
         # ----------------------------------------------------------------
@@ -525,13 +591,27 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["schedules", "staggered", "instant", "delivery mode", "relay unit",
-                      "assign animals", "save schedule", "load schedule", "water delivery",
-                      "drag drop", "time window", "volume"],
-            related_topics=["Schedule Wizard", "Safety Features", "Execution Monitor",
-                            "Adding & Managing Animals"],
+            keywords=[
+                "schedules",
+                "staggered",
+                "instant",
+                "delivery mode",
+                "relay unit",
+                "assign animals",
+                "save schedule",
+                "load schedule",
+                "water delivery",
+                "drag drop",
+                "time window",
+                "volume",
+            ],
+            related_topics=[
+                "Schedule Wizard",
+                "Safety Features",
+                "Execution Monitor",
+                "Adding & Managing Animals",
+            ],
         ),
-
         "Schedule Wizard": HelpContent(
             title="Schedule Wizard",
             summary="A 4-step guided flow for creating schedules: Type, Animals, Parameters, Review.",
@@ -577,12 +657,25 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["wizard", "schedule wizard", "guided", "4 step", "staggered", "instant",
-                      "cage assignment", "parameters", "review", "save schedule"],
-            related_topics=["Creating Schedules", "Adding & Managing Animals", "Cages",
-                            "Execution Monitor"],
+            keywords=[
+                "wizard",
+                "schedule wizard",
+                "guided",
+                "4 step",
+                "staggered",
+                "instant",
+                "cage assignment",
+                "parameters",
+                "review",
+                "save schedule",
+            ],
+            related_topics=[
+                "Creating Schedules",
+                "Adding & Managing Animals",
+                "Cages",
+                "Execution Monitor",
+            ],
         ),
-
         "Execution Monitor": HelpContent(
             title="Execution Monitor",
             summary="Real-time per-animal progress cards that appear automatically when a schedule runs.",
@@ -625,13 +718,28 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["execution monitor", "progress", "cards", "run", "real time", "status",
-                      "delivering", "complete", "failed", "animal progress", "elapsed time",
-                      "auto hide", "monitoring"],
-            related_topics=["Creating Schedules", "Schedule Wizard", "Safety Features",
-                            "Basic Operations"],
+            keywords=[
+                "execution monitor",
+                "progress",
+                "cards",
+                "run",
+                "real time",
+                "status",
+                "delivering",
+                "complete",
+                "failed",
+                "animal progress",
+                "elapsed time",
+                "auto hide",
+                "monitoring",
+            ],
+            related_topics=[
+                "Creating Schedules",
+                "Schedule Wizard",
+                "Safety Features",
+                "Basic Operations",
+            ],
         ),
-
         "Safety Features": HelpContent(
             title="Safety Features",
             summary="Volume limits, valve timeouts, the Stop button, alerts, and Slack notifications.",
@@ -681,13 +789,27 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["safety", "stop", "emergency", "volume limits", "no-flow timeout",
-                      "max valve open", "slack", "notifications", "alerts", "system messages",
-                      "interlock", "cutoff"],
-            related_topics=["Creating Schedules", "Execution Monitor", "Hardware Setup & Maintenance",
-                            "Troubleshooting"],
+            keywords=[
+                "safety",
+                "stop",
+                "emergency",
+                "volume limits",
+                "no-flow timeout",
+                "max valve open",
+                "slack",
+                "notifications",
+                "alerts",
+                "system messages",
+                "interlock",
+                "cutoff",
+            ],
+            related_topics=[
+                "Creating Schedules",
+                "Execution Monitor",
+                "Hardware Setup & Maintenance",
+                "Troubleshooting",
+            ],
         ),
-
         # ----------------------------------------------------------------
         # HARDWARE
         # ----------------------------------------------------------------
@@ -741,13 +863,29 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["hardware setup", "maintenance", "relay hat", "wiring", "solenoid",
-                      "pump", "daily check", "weekly maintenance", "connections", "priming",
-                      "calibration", "hat", "relay terminals"],
-            related_topics=["Hardware Modes", "Valve Calibration", "Priming", "Flow Sensor",
-                            "Safety Features"],
+            keywords=[
+                "hardware setup",
+                "maintenance",
+                "relay hat",
+                "wiring",
+                "solenoid",
+                "pump",
+                "daily check",
+                "weekly maintenance",
+                "connections",
+                "priming",
+                "calibration",
+                "hat",
+                "relay terminals",
+            ],
+            related_topics=[
+                "Hardware Modes",
+                "Valve Calibration",
+                "Priming",
+                "Flow Sensor",
+                "Safety Features",
+            ],
         ),
-
         "Hardware Modes": HelpContent(
             title="Hardware Modes",
             summary="Choose solenoid mode (default) or pump mode to match your physical hardware.",
@@ -799,13 +937,27 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["hardware mode", "solenoid", "pump", "mode selector", "delivery mode",
-                      "relay unit", "pump mode", "solenoid mode", "peristaltic", "valve",
-                      "flow sensor", "legacy"],
-            related_topics=["Hardware Setup & Maintenance", "Flow Sensor", "Valve Calibration",
-                            "First Time Setup"],
+            keywords=[
+                "hardware mode",
+                "solenoid",
+                "pump",
+                "mode selector",
+                "delivery mode",
+                "relay unit",
+                "pump mode",
+                "solenoid mode",
+                "peristaltic",
+                "valve",
+                "flow sensor",
+                "legacy",
+            ],
+            related_topics=[
+                "Hardware Setup & Maintenance",
+                "Flow Sensor",
+                "Valve Calibration",
+                "First Time Setup",
+            ],
         ),
-
         "Valve Calibration": HelpContent(
             title="Valve Calibration",
             summary="Per-cage empirical calibration using the Calibration tab and wizard.",
@@ -858,13 +1010,28 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["calibration", "valve calibration", "ml per pulse", "cv%",
-                      "coefficient of variation", "calibrate", "recalibrate", "250 pulses",
-                      "lab scale", "export", "accuracy", "solenoid"],
-            related_topics=["Hardware Modes", "Hardware Setup & Maintenance", "Priming",
-                            "Flow Sensor", "Troubleshooting"],
+            keywords=[
+                "calibration",
+                "valve calibration",
+                "ml per pulse",
+                "cv%",
+                "coefficient of variation",
+                "calibrate",
+                "recalibrate",
+                "250 pulses",
+                "lab scale",
+                "export",
+                "accuracy",
+                "solenoid",
+            ],
+            related_topics=[
+                "Hardware Modes",
+                "Hardware Setup & Maintenance",
+                "Priming",
+                "Flow Sensor",
+                "Troubleshooting",
+            ],
         ),
-
         "Priming": HelpContent(
             title="Priming",
             summary="Use the Priming tab to flush air from water lines before running experiments.",
@@ -914,13 +1081,27 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["priming", "prime", "flush", "air bubbles", "master solenoid",
-                      "cage relay", "open relay", "close relay", "emergency stop",
-                      "close all relays", "interlock", "lines"],
-            related_topics=["Hardware Setup & Maintenance", "Valve Calibration",
-                            "Safety Features", "Hardware Modes"],
+            keywords=[
+                "priming",
+                "prime",
+                "flush",
+                "air bubbles",
+                "master solenoid",
+                "cage relay",
+                "open relay",
+                "close relay",
+                "emergency stop",
+                "close all relays",
+                "interlock",
+                "lines",
+            ],
+            related_topics=[
+                "Hardware Setup & Maintenance",
+                "Valve Calibration",
+                "Safety Features",
+                "Hardware Modes",
+            ],
         ),
-
         "Flow Sensor": HelpContent(
             title="Flow Sensor",
             summary="The Teensy flow-sensor bridge provides real-time volumetric feedback in solenoid mode.",
@@ -966,13 +1147,28 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["flow sensor", "teensy", "serial port", "uart", "solenoid mode",
-                      "volumetric", "real time", "feedback", "auto detect", "ttyacm0",
-                      "/dev/teensy_flow", "sampling rate", "ml/min"],
-            related_topics=["Hardware Modes", "Valve Calibration", "Hardware Setup & Maintenance",
-                            "Troubleshooting"],
+            keywords=[
+                "flow sensor",
+                "teensy",
+                "serial port",
+                "uart",
+                "solenoid mode",
+                "volumetric",
+                "real time",
+                "feedback",
+                "auto detect",
+                "ttyacm0",
+                "/dev/teensy_flow",
+                "sampling rate",
+                "ml/min",
+            ],
+            related_topics=[
+                "Hardware Modes",
+                "Valve Calibration",
+                "Hardware Setup & Maintenance",
+                "Troubleshooting",
+            ],
         ),
-
         # ----------------------------------------------------------------
         # SUPPORT
         # ----------------------------------------------------------------
@@ -1048,12 +1244,32 @@ def _build_content() -> Dict[str, HelpContent]:
   </div>
 </div>
 """,
-            keywords=["troubleshooting", "errors", "issues", "flow sensor", "teensy",
-                      "serial port", "hardware mode", "calibration", "schedule error",
-                      "slack", "notifications", "stop", "emergency", "guest mode",
-                      "volume wrong", "delivery", "dialout"],
-            related_topics=["Safety Features", "Hardware Modes", "Valve Calibration",
-                            "Flow Sensor", "Priming"],
+            keywords=[
+                "troubleshooting",
+                "errors",
+                "issues",
+                "flow sensor",
+                "teensy",
+                "serial port",
+                "hardware mode",
+                "calibration",
+                "schedule error",
+                "slack",
+                "notifications",
+                "stop",
+                "emergency",
+                "guest mode",
+                "volume wrong",
+                "delivery",
+                "dialout",
+            ],
+            related_topics=[
+                "Safety Features",
+                "Hardware Modes",
+                "Valve Calibration",
+                "Flow Sensor",
+                "Priming",
+            ],
         ),
     }
 
@@ -1068,9 +1284,9 @@ class HelpContentManager:
         # Validate — every IA key must have content
         for cat, topics in self._ia.items():
             for key in topics:
-                assert key in self._content, (
-                    f"IA topic '{key}' under '{cat}' has no HelpContent entry."
-                )
+                assert (
+                    key in self._content
+                ), f"IA topic '{key}' under '{cat}' has no HelpContent entry."
 
     # ------------------------------------------------------------------
     # Public API
@@ -1098,15 +1314,9 @@ class HelpContentManager:
         p = _PALETTE.get(theme, _PALETTE['light'])
         rows = []
         for cat, topics in self._ia.items():
-            topic_links = "".join(
-                f"<li><a href='topic:{quote(k)}'>{k}</a></li>"
-                for k in topics
-            )
+            topic_links = "".join(f"<li><a href='topic:{quote(k)}'>{k}</a></li>" for k in topics)
             rows.append(
-                f"<div class='lp-cat'>"
-                f"<h2>{cat}</h2>"
-                f"<ul>{topic_links}</ul>"
-                f"</div>"
+                f"<div class='lp-cat'>" f"<h2>{cat}</h2>" f"<ul>{topic_links}</ul>" f"</div>"
             )
         categories_html = "\n".join(rows)
         body = f"""
@@ -1152,8 +1362,8 @@ class HelpContentManager:
         ql = q.lower()
 
         title_hits: List[Tuple[str, str]] = []
-        kw_hits:    List[Tuple[str, str]] = []
-        body_hits:  List[Tuple[str, str]] = []
+        kw_hits: List[Tuple[str, str]] = []
+        body_hits: List[Tuple[str, str]] = []
 
         for key, hc in self._content.items():
             if ql in hc.title.lower():
@@ -1166,7 +1376,7 @@ class HelpContentManager:
             idx = plain.lower().find(ql)
             if idx >= 0:
                 start = max(0, idx - 60)
-                end   = min(len(plain), idx + 80)
+                end = min(len(plain), idx + 80)
                 snippet = ("…" if start > 0 else "") + plain[start:end].strip() + "…"
                 body_hits.append((key, snippet))
 
@@ -1189,14 +1399,10 @@ class HelpContentManager:
         if not related:
             return ""
         p = _PALETTE.get(theme, _PALETTE['light'])
-        links = "".join(
-            f"<a href='topic:{quote(k)}'>{k}</a>"
-            for k in related
-        )
+        links = "".join(f"<a href='topic:{quote(k)}'>{k}</a>" for k in related)
         return f"<div class='related-topics'><strong>Related topics:</strong> {links}</div>"
 
-    def _format_content(self, html_body: str, theme: str,
-                        extra_css: str = "") -> str:
+    def _format_content(self, html_body: str, theme: str, extra_css: str = "") -> str:
         """Wrap html_body in a full HTML document with appropriate <style>."""
         css = _css(theme) + extra_css
         p = _PALETTE.get(theme, _PALETTE['light'])
@@ -1211,6 +1417,7 @@ class HelpContentManager:
 # Utility
 # ---------------------------------------------------------------------------
 _TAG_RE = re.compile(r'<[^>]+>')
+
 
 def _strip_html(html: str) -> str:
     """Remove HTML tags and collapse whitespace for snippet/search use."""

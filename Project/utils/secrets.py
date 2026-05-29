@@ -61,8 +61,8 @@ def save_credentials(slack_token: str = "", channel_id: str = "") -> bool:
         try:
             with os.fdopen(fd, "w") as handle:
                 json.dump(payload, handle, indent=2)
-            os.chmod(tmp, 0o600)          # belt-and-braces — mkstemp already 0600
-            os.replace(tmp, dest)          # atomic on POSIX
+            os.chmod(tmp, 0o600)  # belt-and-braces — mkstemp already 0600
+            os.replace(tmp, dest)  # atomic on POSIX
             return True
         except Exception:
             try:

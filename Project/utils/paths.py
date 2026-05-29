@@ -88,6 +88,7 @@ def debug_log_path():
 # clone they return None and in-app updates are simply unavailable.
 # ---------------------------------------------------------------------------
 
+
 def home_dir():
     """The blue-green home (~/rrr) when running under it, else None."""
     return os.environ.get("RRR_HOME") or None

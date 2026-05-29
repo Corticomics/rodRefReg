@@ -1,40 +1,62 @@
 # ui/gui.py
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QPushButton, QPlainTextEdit, QLabel, QMessageBox, QSizePolicy, QTabWidget, QFrame
-)
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QUrl, QTimer
-from PyQt5.QtGui import QDesktopServices
 import traceback
-from .run_stop_section import RunStopSection
-from .projects_section import ProjectsSection
-from .UserTab import UserTab
-from .ScheduleProgressTracker import ScheduleProgressTracker
+
 from notifications.notifications import NotificationHandler
+from PyQt5.QtCore import Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 from utils.volume_calculator import VolumeCalculator
-from .login_gate_widget import LoginGateWidget
-from .SettingsTab import SettingsTab
-from .HelpTab import HelpTab
 from version import __version__
+
+from .HelpTab import HelpTab
+from .login_gate_widget import LoginGateWidget
+from .projects_section import ProjectsSection
+from .run_stop_section import RunStopSection
+from .ScheduleProgressTracker import ScheduleProgressTracker
+from .SettingsTab import SettingsTab
+from .UserTab import UserTab
+
 
 class RodentRefreshmentGUI(QWidget):
     system_message_signal = pyqtSignal(str)
 
-    def __init__(self, run_callback, stop_callback, change_relay_callback, 
-                 system_controller, database_handler, login_system, 
-                 relay_handler, notification_handler):
+    def __init__(
+        self,
+        run_callback,
+        stop_callback,
+        change_relay_callback,
+        system_controller,
+        database_handler,
+        login_system,
+        relay_handler,
+        notification_handler,
+    ):
         super().__init__()
         self.system_controller = system_controller
-        
+
         # Connect to system settings updates
         self.system_controller.settings_updated.connect(self._handle_settings_update)
-        
+
         # Initialize with current settings
         self.settings = system_controller.settings
-        
+
         # Store callbacks with correct signatures
-        self.run_program = lambda schedule, mode, window_start, window_end: run_callback(schedule, mode, window_start, window_end)
+        self.run_program = lambda schedule, mode, window_start, window_end: run_callback(
+            schedule, mode, window_start, window_end
+        )
         self.stop_program = stop_callback
         self.change_relay_hats = change_relay_callback
         self.database_handler = database_handler
@@ -44,7 +66,7 @@ class RodentRefreshmentGUI(QWidget):
 
         # Default to guest mode
         self.current_user = None
-        
+
         # Execution monitor state
         self._schedule_running = False
         self._hide_timer = None
@@ -68,16 +90,16 @@ class RodentRefreshmentGUI(QWidget):
 
         # Content area
         content_layout = QHBoxLayout()
-        
+
         # Left side
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
-        
+
         # === TERMINAL / EXECUTION MONITOR TABBED INTERFACE ===
         # When schedule runs, Execution Monitor tab appears
         self.terminal_tab_widget = QTabWidget()
         self.terminal_tab_widget.setMinimumHeight(180)
-        
+
         # Terminal tab (always visible)
         terminal_container = QWidget()
         terminal_layout = QVBoxLayout(terminal_container)
@@ -87,7 +109,7 @@ class RodentRefreshmentGUI(QWidget):
         self.terminal_output.setPlainText("System Messages")
         terminal_layout.addWidget(self.terminal_output)
         self.terminal_tab_widget.addTab(terminal_container, "Terminal")
-        
+
         # Execution Monitor tab (hidden until schedule runs)
         monitor_container = QWidget()
         monitor_layout = QVBoxLayout(monitor_container)
@@ -95,17 +117,19 @@ class RodentRefreshmentGUI(QWidget):
         self.progress_tracker = ScheduleProgressTracker()
         self.progress_tracker.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         monitor_layout.addWidget(self.progress_tracker)
-        self.execution_monitor_index = self.terminal_tab_widget.addTab(monitor_container, "Execution Monitor")
-        
+        self.execution_monitor_index = self.terminal_tab_widget.addTab(
+            monitor_container, "Execution Monitor"
+        )
+
         # Hide Execution Monitor tab initially
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
-        
+
         left_layout.addWidget(self.terminal_tab_widget)
-        
+
         # Initial stretch: Projects section gets more space, Terminal is compact
         # This is adjusted dynamically when switching to Execution Monitor
         left_layout.setStretch(0, 1)  # Terminal area (compact by default)
-        
+
         # Projects section with login gate.
         # system_controller is required for hat-count-aware refresh
         # paths inside CagesVisualizationTab and ScheduleCreationWizard.
@@ -121,12 +145,12 @@ class RodentRefreshmentGUI(QWidget):
         self.login_gate = LoginGateWidget(self.projects_section, self.login_system)
         left_layout.addWidget(self.login_gate)
         left_layout.setStretch(1, 3)  # Projects section (expanded by default)
-        
+
         # Right side
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         self.right_layout = right_layout
-        
+
         # Create Run/Stop section with login system for access control
         # Security: RunStopSection gates controls behind login status
         self.run_stop_section = RunStopSection(
@@ -137,12 +161,12 @@ class RodentRefreshmentGUI(QWidget):
             database_handler=self.database_handler,
             relay_handler=self.relay_handler,
             notification_handler=self.notification_handler,
-            login_system=self.login_system
+            login_system=self.login_system,
         )
-        
+
         # Tab widget
         self.main_tab_widget = QTabWidget()
-        
+
         # Create tabs
         self.settings_tab = SettingsTab(
             system_controller=self.system_controller,
@@ -155,26 +179,26 @@ class RodentRefreshmentGUI(QWidget):
             database_handler=self.database_handler,
             notification_handler=self.notification_handler,
         )
-        
+
         # Profile Tab
         self.user_tab = UserTab(self.login_system)
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
-        
+
         # Help Tab
         self.help_tab = HelpTab()
-        
+
         # Add tabs in desired order
         self.main_tab_widget.addTab(self.user_tab, "Profile")  # Profile tab first
         self.settings_tab_index = self.main_tab_widget.addTab(self.settings_tab, "Settings")
         self.help_tab_index = self.main_tab_widget.addTab(self.help_tab, "Help")
-        
+
         # Initially disable restricted tabs
         self._update_tab_access()
-        
+
         # Set the initial tab to Profile
         self.main_tab_widget.setCurrentWidget(self.user_tab)
-        
+
         # Make run/stop section expand when needed
         self.run_stop_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         right_layout.addWidget(self.main_tab_widget)
@@ -182,40 +206,40 @@ class RodentRefreshmentGUI(QWidget):
         # Default stretch favors tab content; adjusted dynamically below
         right_layout.setStretch(0, 3)
         right_layout.setStretch(1, 1)
-        
+
         # Add to content layout
         content_layout.addWidget(left_widget, 3)
         content_layout.addWidget(right_widget, 2)
-        
+
         # Add content layout to main layout
         main_layout.addLayout(content_layout)
-        
+
         # Connect tab changes to dynamic layout adjustment
         self.terminal_tab_widget.currentChanged.connect(self._on_terminal_tab_changed)
-        
+
         # Store left layout reference for dynamic resizing
         self.left_layout = left_layout
         self.left_widget = left_widget
         self.content_layout = content_layout
-        
+
         # Connect signals
         self.projects_section.schedules_tab.mode_changed.connect(
             self.run_stop_section._on_mode_changed
         )
-        
+
         # Connect cage name updates to refresh calibration table
         # Observer pattern: CagesTab -> SettingsTab (keeps data in sync)
         self.projects_section.cages_tab.cage_names_updated.connect(
             self.settings_tab.refresh_calibration_table
         )
-        
+
         # Reactive layout: adjust stretches when main tab or settings subtabs change
         self.main_tab_widget.currentChanged.connect(self._on_main_tab_changed)
         try:
             self.settings_tab.tab_widget.currentChanged.connect(self._on_settings_subtab_changed)
         except Exception:
             pass
-        
+
         # Initialize
         self.load_animals_tab()
         self.showMaximized()
@@ -223,7 +247,7 @@ class RodentRefreshmentGUI(QWidget):
         # Boot sentinel: once the GUI is up and stable, clear the launcher's
         # boot-failure counter (see docs/UPDATE_SYSTEM.md §14.7).
         QTimer.singleShot(8000, self._mark_boot_healthy)
-    
+
     def show_update_banner(self, version, url):
         """Show a dismissable banner announcing an available software update.
 
@@ -249,9 +273,7 @@ class RodentRefreshmentGUI(QWidget):
             label.setFont(font)
 
             view_button = QPushButton("View release")
-            view_button.clicked.connect(
-                lambda: QDesktopServices.openUrl(QUrl(url))
-            )
+            view_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
             dismiss_button = QPushButton("Dismiss")
             dismiss_button.clicked.connect(self._dismiss_update_banner)
 
@@ -288,6 +310,7 @@ class RodentRefreshmentGUI(QWidget):
         """Tell the update system this release started cleanly (boot sentinel)."""
         try:
             from utils.updater import mark_boot_healthy
+
             mark_boot_healthy()
         except Exception:
             pass
@@ -323,7 +346,7 @@ class RodentRefreshmentGUI(QWidget):
 
     def _on_settings_subtab_changed(self, _index: int):
         self._apply_right_stretch()
-    
+
     def toggle_mode(self):
         """Toggle between Normal and Super mode."""
         try:
@@ -337,13 +360,15 @@ class RodentRefreshmentGUI(QWidget):
             return new_role
         except Exception as e:
             self.print_to_terminal(f"Error toggling mode: {e}")
-            QMessageBox.critical(self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}")
+            QMessageBox.critical(
+                self, "Mode Toggle Error", f"An error occurred while toggling mode: {e}"
+            )
             return None
-    
+
     def _on_terminal_tab_changed(self, index: int):
         """
         Dynamically adjust left pane layout when switching between Terminal and Execution Monitor.
-        
+
         When Execution Monitor is active, we expand the terminal section to show cards properly.
         Also sets minimum height to ensure visibility during schedule execution.
         """
@@ -387,10 +412,11 @@ class RodentRefreshmentGUI(QWidget):
         UI's lagging ``_schedule_running`` flag. The UI flag is consulted
         only as a fallback if the updater module isn't importable.
         """
-        from PyQt5.QtWidgets import QMessageBox, QApplication  # noqa: PLC0415
+        from PyQt5.QtWidgets import QApplication, QMessageBox  # noqa: PLC0415
 
         try:
             from utils import updater  # noqa: PLC0415
+
             delivery_running = updater.is_busy()
         except Exception:
             delivery_running = bool(getattr(self, '_schedule_running', False))
@@ -424,114 +450,115 @@ class RodentRefreshmentGUI(QWidget):
             QApplication.quit()
         else:
             event.ignore()
-    
+
     def show_execution_monitor_loading(self, schedule_name: str):
         """
         PHASE 1: Show execution monitor immediately with loading state.
-        
+
         Optimization: This runs BEFORE database queries, giving instant feedback.
         Card population happens later in show_execution_monitor().
-        
+
         Performance target: < 16ms (single frame at 60fps)
-        
+
         Args:
             schedule_name: Name of the schedule being started
         """
         print(f"[GUI] show_execution_monitor_loading called for: {schedule_name}")
-        
+
         # Cancel any pending hide timer
         if hasattr(self, '_hide_timer') and self._hide_timer is not None:
             self._hide_timer.stop()
             self._hide_timer = None
-        
+
         # Mark that a schedule is running
         self._schedule_running = True
-        
+
         # Make tab visible and switch to it
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
         self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
-        
+
         # Trigger layout adjustment
         self._on_terminal_tab_changed(self.execution_monitor_index)
-        
+
         # Show loading state in progress tracker
         self.progress_tracker.show()
         self.progress_tracker.show_loading(schedule_name)
-    
+
     def show_execution_monitor(self, schedule_name: str, animals_data: dict):
         """
         PHASE 2: Populate execution monitor with animal cards.
-        
+
         Called after database queries complete. Cards are created progressively
         to avoid blocking the UI thread.
-        
+
         Args:
             schedule_name: Name of the running schedule
             animals_data: Dict of {animal_id: {'cage_id': int, 'target_volume': float}}
         """
         print(f"[GUI] show_execution_monitor called for: {schedule_name}")
         print(f"[GUI] animals_data: {animals_data}")
-        
+
         # Cancel any pending hide timer (prevents race condition)
         if hasattr(self, '_hide_timer') and self._hide_timer is not None:
             self._hide_timer.stop()
             self._hide_timer = None
-        
+
         # Mark that a schedule is running
         self._schedule_running = True
-        
+
         # Ensure tab is visible (in case show_loading wasn't called)
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, True)
         self.terminal_tab_widget.setCurrentIndex(self.execution_monitor_index)
         self._on_terminal_tab_changed(self.execution_monitor_index)
-        
+
         # Ensure widget is visible
         self.progress_tracker.show()
-        
+
         # Start the progress tracker (with progressive card loading)
         self.progress_tracker.start_schedule(schedule_name, animals_data)
-        
+
         print(f"[GUI] Execution Monitor populated for: {schedule_name}")
-    
+
     def hide_execution_monitor(self):
         """
         Hide the Execution Monitor tab when schedule stops/completes.
-        
+
         Called by run_stop_section when schedule execution ends.
         """
         # Mark that no schedule is running
         self._schedule_running = False
-        
+
         # Switch back to Terminal tab
         self.terminal_tab_widget.setCurrentIndex(0)
-        
+
         # Explicitly restore normal layout proportions
         self._on_terminal_tab_changed(0)
-        
+
         # Hide the Execution Monitor tab (with 10-second delay to show final state)
         from PyQt5.QtCore import QTimer
+
         self._hide_timer = QTimer()
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self._hide_execution_monitor_tab)
         self._hide_timer.start(10000)
-        
+
         print("[GUI] Execution Monitor will hide in 10 seconds")
-    
+
     def _hide_execution_monitor_tab(self):
         """Actually hide the tab after delay."""
         # Only hide if no schedule is currently running
         if hasattr(self, '_schedule_running') and self._schedule_running:
             print("[GUI] Hide cancelled - new schedule is running")
             return
-        
+
         self.terminal_tab_widget.setTabVisible(self.execution_monitor_index, False)
         self.progress_tracker.clear_cards()
         self._hide_timer = None
-    
+
     def get_progress_tracker(self):
         """
         Provide access to progress tracker for signal connections.
-        
+
         Used by main.py to connect worker signals to progress tracker.
         """
         return self.progress_tracker
@@ -539,9 +566,10 @@ class RodentRefreshmentGUI(QWidget):
     def toggle_welcome_message(self):
         visible = self.welcome_scroll_area.isVisible()
         self.welcome_scroll_area.setVisible(not visible)
-        self.toggle_welcome_button.setText("Show Welcome Message" if visible else "Hide Welcome Message")
+        self.toggle_welcome_button.setText(
+            "Show Welcome Message" if visible else "Hide Welcome Message"
+        )
 
-    
     def adjust_window_size(self):
         """Adjust the main window size to fit its content."""
         try:
@@ -549,8 +577,12 @@ class RodentRefreshmentGUI(QWidget):
             self.adjustSize()
         except Exception as e:
             self.print_to_terminal(f"Error adjusting window size: {e}")
-            QMessageBox.critical(self, "Window Size Error",
-                                 f"An unexpected error occurred while adjusting window size: {e}")
+            QMessageBox.critical(
+                self,
+                "Window Size Error",
+                f"An unexpected error occurred while adjusting window size: {e}",
+            )
+
     @pyqtSlot(dict)
     def on_login(self, user):
         try:
@@ -563,26 +595,31 @@ class RodentRefreshmentGUI(QWidget):
             trainer_id = int(user['trainer_id'])
             self.projects_section.animals_tab.trainer_id = trainer_id
             self.load_animals_tab(trainer_id=trainer_id)
-            
+
             # Update tab access
             self._update_tab_access()
-            
+
             # Update mode toggle button in settings
             if hasattr(self.settings_tab, '_update_mode_button_state'):
                 self.settings_tab._update_mode_button_state()
-            
+
         except ValueError as ve:
             self.print_to_terminal(f"Data error during login: {ve}")
             QMessageBox.critical(self, "Login Data Error", f"Error accessing user data:\n{ve}")
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during login: {e}")
             traceback.print_exc()
-            QMessageBox.critical(self, "Login Error", f"An unexpected error occurred during login:\n{e}")
+            QMessageBox.critical(
+                self, "Login Error", f"An unexpected error occurred during login:\n{e}"
+            )
 
     def load_animals_tab(self, trainer_id=None):
         """Load the AnimalsTab for the specific trainer. Display all animals in guest mode."""
         try:
-            if not hasattr(self.projects_section, 'animals_tab') or self.projects_section.animals_tab is None:
+            if (
+                not hasattr(self.projects_section, 'animals_tab')
+                or self.projects_section.animals_tab is None
+            ):
                 raise AttributeError("animals_tab is not initialized in projects_section.")
 
             if trainer_id:
@@ -599,7 +636,9 @@ class RodentRefreshmentGUI(QWidget):
 
         except Exception as e:
             self.print_to_terminal(f"Error loading animals tab: {e}")
-            QMessageBox.critical(self, "Load Animals Error", f"An error occurred while loading animals:\n{e}")
+            QMessageBox.critical(
+                self, "Load Animals Error", f"An error occurred while loading animals:\n{e}"
+            )
             print(f"Exception in load_animals_tab: {e}")
 
     def on_logout(self):
@@ -609,17 +648,19 @@ class RodentRefreshmentGUI(QWidget):
             self.projects_section.login_system.logout()
             self.print_to_terminal("Logged out. Displaying all animals (guest mode).")
             self.load_animals_tab()
-            
+
             # Update tab access
             self._update_tab_access()
-            
+
             # Update mode toggle button in settings
             if hasattr(self.settings_tab, '_update_mode_button_state'):
                 self.settings_tab._update_mode_button_state()
-            
+
         except Exception as e:
             self.print_to_terminal(f"Unexpected error during logout: {e}")
-            QMessageBox.critical(self, "Logout Error", f"An unexpected error occurred during logout: {e}")
+            QMessageBox.critical(
+                self, "Logout Error", f"An unexpected error occurred during logout: {e}"
+            )
 
     def suggest_settings_callback(self):
         """Callback for suggesting settings based on user input."""
@@ -627,7 +668,9 @@ class RodentRefreshmentGUI(QWidget):
         try:
             # Parse relay pairs and volumes, frequency, duration
             relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8)]
-            relay_volumes = {pair: float(values[f"relay_{pair[0]}_{pair[1]}"].text()) for pair in relay_pairs}
+            relay_volumes = {
+                pair: float(values[f"relay_{pair[0]}_{pair[1]}"].text()) for pair in relay_pairs
+            }
             frequency = int(values["frequency"].text())
             duration = int(values["duration"].text())
             start_datetime = values["start_datetime"].dateTime()
@@ -637,7 +680,7 @@ class RodentRefreshmentGUI(QWidget):
                 "start_datetime": start_datetime,
                 "duration": duration,
                 "relay_volumes": relay_volumes,
-                "frequency": frequency
+                "frequency": frequency,
             }
 
             # Print suggestions to terminal
@@ -673,16 +716,18 @@ class RodentRefreshmentGUI(QWidget):
 
         # Update NotificationHandler
         global notification_handler
-        notification_handler = NotificationHandler(self.settings['slack_token'], self.settings['channel_id'])
+        notification_handler = NotificationHandler(
+            self.settings['slack_token'], self.settings['channel_id']
+        )
         self.print_to_terminal("Slack credentials saved and NotificationHandler updated.")
 
     def change_relay_hats(self):
         # Execute the callback to change the relay hats
         self.change_relay_hats_callback()
-        
+
         # Reset the UI to ensure no lingering data or state
         self.reset_ui()
-        
+
         # Update the button states to reflect the new configuration
         self.update_button_states()
 
@@ -691,20 +736,20 @@ class RodentRefreshmentGUI(QWidget):
         """Handle settings updates from SettingsTab"""
         try:
             # Update notification handler if Slack credentials changed
-            if ('slack_token' in updated_settings or 'channel_id' in updated_settings):
+            if 'slack_token' in updated_settings or 'channel_id' in updated_settings:
                 self.notification_handler = NotificationHandler(
-                    updated_settings['slack_token'],
-                    updated_settings['channel_id']
+                    updated_settings['slack_token'], updated_settings['channel_id']
                 )
-            
+
             # Update any components that depend on settings
             self.run_stop_section.update_settings(updated_settings)
             self.print_to_terminal("Settings updated successfully")
-            
+
         except Exception as e:
             self.print_to_terminal(f"Error applying settings updates: {e}")
-            QMessageBox.critical(self, "Settings Update Error", 
-                               f"Failed to apply settings updates: {str(e)}")
+            QMessageBox.critical(
+                self, "Settings Update Error", f"Failed to apply settings updates: {str(e)}"
+            )
 
     def _handle_settings_update(self, settings):
         """Handle system settings updates"""
@@ -718,11 +763,14 @@ class RodentRefreshmentGUI(QWidget):
     def _update_tab_access(self):
         """Update tab accessibility based on login status"""
         is_logged_in = self.login_system.is_logged_in()
-        
+
         # Disable/enable tabs
         self.main_tab_widget.setTabEnabled(self.settings_tab_index, is_logged_in)
         self.main_tab_widget.setTabEnabled(self.help_tab_index, is_logged_in)
-        
+
         # If on a restricted tab while logging out, switch to profile tab
-        if not is_logged_in and self.main_tab_widget.currentIndex() in [self.settings_tab_index, self.help_tab_index]:
+        if not is_logged_in and self.main_tab_widget.currentIndex() in [
+            self.settings_tab_index,
+            self.help_tab_index,
+        ]:
             self.main_tab_widget.setCurrentWidget(self.user_tab)

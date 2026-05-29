@@ -1,12 +1,19 @@
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
-    QTreeWidget, QTreeWidgetItem, QTextBrowser,
-    QSplitter, QLabel, QApplication,
-)
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QPalette, QTextCharFormat, QColor, QTextCursor
 from urllib.parse import unquote
 
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QColor, QFont, QPalette, QTextCharFormat, QTextCursor
+from PyQt5.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QSplitter,
+    QTextBrowser,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from utils.help_content_manager import HelpContentManager
 
 
@@ -84,11 +91,9 @@ class HelpTab(QWidget):
         self.content_browser = QTextBrowser()
         self.content_browser.setObjectName("HelpContent")
         self.content_browser.setOpenExternalLinks(True)
-        self.content_browser.setOpenLinks(False)   # handle topic:// ourselves
+        self.content_browser.setOpenLinks(False)  # handle topic:// ourselves
         self.content_browser.setAccessibleName("Help content")
-        self.content_browser.setAccessibleDescription(
-            "Displays the selected help topic"
-        )
+        self.content_browser.setAccessibleDescription("Displays the selected help topic")
         self.content_browser.anchorClicked.connect(self._on_anchor_clicked)
 
         right_layout.addWidget(self.breadcrumb)
@@ -112,7 +117,7 @@ class HelpTab(QWidget):
             cat_item.setFont(0, bold)
             # Mark as category — not selectable for content
             cat_item.setFlags(cat_item.flags() & ~Qt.ItemIsSelectable)
-            cat_item.setData(0, Qt.UserRole, None)   # None = category
+            cat_item.setData(0, Qt.UserRole, None)  # None = category
             self.topic_tree.addTopLevelItem(cat_item)
 
             for key in topics:
@@ -141,9 +146,7 @@ class HelpTab(QWidget):
                 self.help_manager.get_content(self.current_topic_key, theme)
             )
         else:
-            self.content_browser.setHtml(
-                self.help_manager.get_landing_page(theme)
-            )
+            self.content_browser.setHtml(self.help_manager.get_landing_page(theme))
 
     # ------------------------------------------------------------------
     # Content loading
@@ -211,7 +214,7 @@ class HelpTab(QWidget):
     def _on_anchor_clicked(self, url):
         if url.scheme() == "topic":
             # topic:<url-encoded key>  — path keeps original case & special chars
-            raw = url.path() or url.toString()[len("topic:"):]
+            raw = url.path() or url.toString()[len("topic:") :]
             key = self._resolve_topic_key(unquote(raw))
             if key:
                 self._select_tree_item_by_key(key)
@@ -219,6 +222,7 @@ class HelpTab(QWidget):
         else:
             # External URL — open in default browser
             import webbrowser
+
             webbrowser.open(url.toString())
 
     def _resolve_topic_key(self, key: str):
@@ -305,9 +309,9 @@ class HelpTab(QWidget):
         fmt.setBackground(QColor(hl))
 
         selections = []
-        cursor = QTextCursor(doc)          # starts at position 0
+        cursor = QTextCursor(doc)  # starts at position 0
         while True:
-            cursor = doc.find(term, cursor)   # case-insensitive; resumes past last match
+            cursor = doc.find(term, cursor)  # case-insensitive; resumes past last match
             if cursor.isNull():
                 break
             sel = QTextBrowser.ExtraSelection()
@@ -364,7 +368,5 @@ class HelpTab(QWidget):
         if not self.current_topic_key:
             # Show landing page
             theme = self._current_theme()
-            self.content_browser.setHtml(
-                self.help_manager.get_landing_page(theme)
-            )
+            self.content_browser.setHtml(self.help_manager.get_landing_page(theme))
             self.breadcrumb.setText("Help")

@@ -5,15 +5,20 @@ Shows the installed version, checks for newer releases, and — on an installed
 clone the install/rollback controls stay hidden. See docs/UPDATE_SYSTEM.md §13.
 """
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QPushButton,
-    QTextEdit, QMessageBox
-)
 from PyQt5.QtCore import QUrl, pyqtSlot
 from PyQt5.QtGui import QDesktopServices
-
-from version import __version__
+from PyQt5.QtWidgets import (
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 from utils import paths, updater
+from version import __version__
 
 
 class UpdatesTab(QWidget):
@@ -34,8 +39,7 @@ class UpdatesTab(QWidget):
 
         self.current_label = QLabel(f"Installed version:  {__version__}")
         self.status_label = QLabel(
-            "Press “Check for updates” to see whether a newer version "
-            "is available."
+            "Press “Check for updates” to see whether a newer version " "is available."
         )
         self.status_label.setWordWrap(True)
 
@@ -51,8 +55,12 @@ class UpdatesTab(QWidget):
         self.revert_button = QPushButton("Revert to previous version")
         self.revert_button.setVisible(False)
         self.revert_button.clicked.connect(self._on_revert)
-        for widget in (self.check_button, self.update_button,
-                       self.view_button, self.revert_button):
+        for widget in (
+            self.check_button,
+            self.update_button,
+            self.view_button,
+            self.revert_button,
+        ):
             button_row.addWidget(widget)
         button_row.addStretch()
 
@@ -104,8 +112,7 @@ class UpdatesTab(QWidget):
             self.update_button.setVisible(can_apply)
             if can_apply:
                 self.status_label.setText(
-                    f"Version {info.version} is available "
-                    f"(you have {__version__})."
+                    f"Version {info.version} is available " f"(you have {__version__})."
                 )
             else:
                 self.status_label.setText(
@@ -125,12 +132,16 @@ class UpdatesTab(QWidget):
     def _on_update_now(self):
         if self._applying or not self._latest:
             return
-        if QMessageBox.question(
-            self, "Install update",
-            f"Install version {self._latest.version} now?\n\n"
-            "The update is downloaded and verified, then takes effect when "
-            "RRR restarts. A running delivery schedule will block it.",
-        ) != QMessageBox.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "Install update",
+                f"Install version {self._latest.version} now?\n\n"
+                "The update is downloaded and verified, then takes effect when "
+                "RRR restarts. A running delivery schedule will block it.",
+            )
+            != QMessageBox.Yes
+        ):
             return
 
         self._applying = True
@@ -138,8 +149,7 @@ class UpdatesTab(QWidget):
         self.check_button.setEnabled(False)
         self.status_label.setText("Starting update…")
         try:
-            updater.run_apply(self, self._latest,
-                              self._on_apply_progress, self._on_apply_done)
+            updater.run_apply(self, self._latest, self._on_apply_progress, self._on_apply_done)
         except Exception as exc:
             self._on_apply_done(False, f"Update failed: {exc}")
 
@@ -172,7 +182,7 @@ class UpdatesTab(QWidget):
         classification itself lives in :mod:`utils.update_failure` so it
         can be unit-tested without bringing up the GUI stack.
         """
-        from utils.update_failure import classify_failure, INTERNET, VERIFY
+        from utils.update_failure import INTERNET, VERIFY, classify_failure
 
         category = classify_failure(message)
         if category == INTERNET:
@@ -183,11 +193,15 @@ class UpdatesTab(QWidget):
 
     # --- revert ------------------------------------------------------------
     def _on_revert(self):
-        if QMessageBox.question(
-            self, "Revert to previous version",
-            "Roll back to the previously installed version?\n\n"
-            "It takes effect when RRR restarts.",
-        ) != QMessageBox.Yes:
+        if (
+            QMessageBox.question(
+                self,
+                "Revert to previous version",
+                "Roll back to the previously installed version?\n\n"
+                "It takes effect when RRR restarts.",
+            )
+            != QMessageBox.Yes
+        ):
             return
         ok, message = updater.revert()
         if ok:
@@ -202,8 +216,7 @@ class UpdatesTab(QWidget):
         box.setWindowTitle("Restart required")
         box.setText(message)
         box.setInformativeText(
-            "RRR will close and reopen itself to load the new version. "
-            "Restart now?"
+            "RRR will close and reopen itself to load the new version. " "Restart now?"
         )
         box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         if box.exec_() == QMessageBox.Yes:

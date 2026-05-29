@@ -47,8 +47,9 @@ class NetworkError(Exception):
     """
 
 
-def get_json(url: str, *, timeout: tuple[float, float] = _DEFAULT_TIMEOUT,
-             headers: dict | None = None) -> dict | None:
+def get_json(
+    url: str, *, timeout: tuple[float, float] = _DEFAULT_TIMEOUT, headers: dict | None = None
+) -> dict | None:
     """GET a JSON document. ``None`` on any failure — never raises.
 
     Used by non-security operations that must degrade silently — the
@@ -62,8 +63,7 @@ def get_json(url: str, *, timeout: tuple[float, float] = _DEFAULT_TIMEOUT,
         return None
 
 
-def require_digest(url: str, *,
-                   timeout: tuple[float, float] = _DEFAULT_TIMEOUT) -> str:
+def require_digest(url: str, *, timeout: tuple[float, float] = _DEFAULT_TIMEOUT) -> str:
     """Fetch and validate a SHA256 from a ``.sha256`` asset.
 
     Returns the lowercase 64-char hex digest. Raises :class:`NetworkError`
@@ -87,11 +87,15 @@ def require_digest(url: str, *,
     return digest
 
 
-def stream_download(url: str, dest: str, *,
-                    connect_timeout: float = 10,
-                    read_timeout: float = 60,
-                    total_timeout: float = _DEFAULT_TOTAL_TIMEOUT,
-                    max_bytes: int = _DEFAULT_MAX_BYTES) -> None:
+def stream_download(
+    url: str,
+    dest: str,
+    *,
+    connect_timeout: float = 10,
+    read_timeout: float = 60,
+    total_timeout: float = _DEFAULT_TOTAL_TIMEOUT,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
+) -> None:
     """Stream a URL to ``dest`` with wall-clock and byte caps.
 
     Raises :class:`NetworkError` on any failure (timeout, HTTP error,
@@ -101,8 +105,7 @@ def stream_download(url: str, dest: str, *,
     """
     deadline = time.monotonic() + total_timeout
     try:
-        with requests.get(url, stream=True,
-                          timeout=(connect_timeout, read_timeout)) as resp:
+        with requests.get(url, stream=True, timeout=(connect_timeout, read_timeout)) as resp:
             resp.raise_for_status()
             written = 0
             with open(dest, "wb") as handle:
@@ -110,13 +113,12 @@ def stream_download(url: str, dest: str, *,
                     if chunk:
                         written += len(chunk)
                         if written > max_bytes:
-                            raise NetworkError(
-                                f"download exceeded {max_bytes} bytes")
+                            raise NetworkError(f"download exceeded {max_bytes} bytes")
                         handle.write(chunk)
                     if time.monotonic() > deadline:
                         raise NetworkError(
-                            f"download exceeded {total_timeout:.0f}s "
-                            f"wall-clock budget")
+                            f"download exceeded {total_timeout:.0f}s " f"wall-clock budget"
+                        )
     except NetworkError:
         _safe_unlink(dest)
         raise

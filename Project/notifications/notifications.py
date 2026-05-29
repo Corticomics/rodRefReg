@@ -24,7 +24,6 @@ import os
 
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-
 from utils import paths
 
 # Local fallback log: every relay trigger we couldn't tell Slack about is
@@ -67,10 +66,11 @@ class NotificationHandler:
             # Connection refused, DNS failure, timeout, urllib errors, etc.
             # Whatever the Slack SDK raised on a network failure, we treat
             # it as "Slack unreachable" and fall back to the local log.
-            print(f"{datetime.datetime.now()} - Slack network failure: "
-                  f"{exc.__class__.__name__}: {exc}")
-            self._record_status(False,
-                                f"Network failure ({exc.__class__.__name__})")
+            print(
+                f"{datetime.datetime.now()} - Slack network failure: "
+                f"{exc.__class__.__name__}: {exc}"
+            )
+            self._record_status(False, f"Network failure ({exc.__class__.__name__})")
             self.log_pump_trigger(message)
         else:
             self._record_status(True, "ok")

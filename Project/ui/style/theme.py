@@ -64,5 +64,3 @@ class StyleManager:
                 self._app.setStyleSheet(f.read())
         except Exception:
             self._app.setStyleSheet("")
-
-

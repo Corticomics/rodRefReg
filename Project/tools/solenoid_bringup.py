@@ -47,9 +47,7 @@ def parse_cage_map(expr: str) -> Dict[int, int]:
                 f"Invalid mapping entry '{part}'. Expected 'cage:relay'"
             ) from exc
         if cage_id in mapping:
-            raise argparse.ArgumentTypeError(
-                f"Duplicate cage_id {cage_id} in mapping"
-            )
+            raise argparse.ArgumentTypeError(f"Duplicate cage_id {cage_id} in mapping")
         mapping[cage_id] = relay_id
     return mapping
 
@@ -91,9 +89,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--cage-map",
         type=parse_cage_map,
         default=parse_cage_map("1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8"),
-        help=(
-            "Cage to relay mapping like '1:1,2:2,...'. Only the selected cage is exercised."
-        ),
+        help=("Cage to relay mapping like '1:1,2:2,...'. Only the selected cage is exercised."),
     )
     parser.add_argument(
         "--cage",
@@ -105,9 +101,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--relay",
         type=int,
         default=None,
-        help=(
-            "Direct relay ID to energize (bypasses cage-map) for health/functionality tests."
-        ),
+        help=("Direct relay ID to energize (bypasses cage-map) for health/functionality tests."),
     )
     parser.add_argument(
         "--duration",
@@ -287,9 +281,7 @@ class Bringup:
 
     def run_sequence(self) -> int:
         self._init_controller()
-        self._log(
-            "Starting sequence: master→cage→hold→cage off→master off."
-        )
+        self._log("Starting sequence: master→cage→hold→cage off→master off.")
 
         def _cleanup(_sig=None, _frame=None):
             try:
@@ -342,14 +334,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # Safety gate: require explicit confirmation
     if not args.yes:
-        parser.error(
-            "You must pass --yes to confirm wiring and power were verified."
-        )
+        parser.error("You must pass --yes to confirm wiring and power were verified.")
 
     if args.relay is None and args.cage not in args.cage_map:
-        parser.error(
-            f"--cage {args.cage} not present in --cage-map {args.cage_map}"
-        )
+        parser.error(f"--cage {args.cage} not present in --cage-map {args.cage_map}")
 
     bringup = Bringup(
         num_hats=args.num_hats,
@@ -369,5 +357,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

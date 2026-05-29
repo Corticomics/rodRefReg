@@ -1,16 +1,19 @@
 # gpio_handler.py
 
-import logging
-import time
 import datetime
-from models.relay_unit import RelayUnit
+import logging
 import os
+import time
+
+from models.relay_unit import RelayUnit
+
 # Prefer the vendor's standard module by default. Only use the custom module
 # when explicitly enabled via environment (to avoid multi-bus side effects).
 USE_CUSTOM_SM16 = os.getenv('RRR_USE_CUSTOM_SM16', '0') == '1'
 # Import I2C coordination for hardware-level conflict prevention
 try:
     from drivers.i2c_coordinator import get_i2c_coordinator
+
     I2C_COORDINATION_AVAILABLE = True
 except ImportError:
     I2C_COORDINATION_AVAILABLE = False
@@ -19,6 +22,7 @@ except ImportError:
 if USE_CUSTOM_SM16:
     try:
         from .custom_SM16relind import SM16relind, find_available_i2c_buses
+
         USING_CUSTOM_MODULE = True
         print("Using custom SM16relind module with multi-bus support (RRR_USE_CUSTOM_SM16=1)")
     except ImportError:
@@ -29,46 +33,50 @@ if not USE_CUSTOM_SM16 or not 'USING_CUSTOM_MODULE' in globals() or not USING_CU
     # Fall back to standard module
     try:
         import SM16relind
+
         USING_CUSTOM_MODULE = False
         print("Using standard SM16relind module")
     except ImportError:
         # Try alternate casing
         try:
             import sm_16relind as SM16relind
+
             USING_CUSTOM_MODULE = False
             print("Using standard sm_16relind module")
         except ImportError:
             print("WARNING: SM16relind module not found. Hardware control will not work.")
+
             # Create a mock module for testing
             class MockSM16relind:
                 def __init__(self, stack=0, bus_id=None):
                     self.stack = stack
                     self.bus_id = bus_id
                     print(f"MOCK: Initialized MockSM16relind (stack={stack}, bus_id={bus_id})")
-                
+
                 def set(self, relay, state):
                     print(f"MOCK: Setting relay {relay} to state {state}")
                     return True
-                
+
                 def set_all(self, state):
                     print(f"MOCK: Setting all relays to state {state}")
                     return True
-            
+
             SM16relind = MockSM16relind
             USING_CUSTOM_MODULE = False
+
 
 class RelayHandler:
     def __init__(self, relay_unit_manager, num_hats=1):
         """Initialize RelayHandler with relay unit manager and hats"""
         self.num_hats = num_hats
         self.relay_hats = []
-        
+
         # Initialize I2C coordinator for hardware-level conflict prevention
         if I2C_COORDINATION_AVAILABLE:
             self._coordinator = get_i2c_coordinator()
         else:
             self._coordinator = None
-        
+
         # Initialize relay units dictionary from manager
         self.relay_units = {}
         if hasattr(relay_unit_manager, 'get_all_relay_units'):
@@ -83,7 +91,7 @@ class RelayHandler:
                 elif isinstance(unit, tuple):
                     unit_id = len(self.relay_units) + 1
                     self.relay_units[unit_id] = RelayUnit(unit_id=unit_id, relay_ids=unit)
-        
+
         # Initialize relay hats
         self._initialize_hats()
 
@@ -95,21 +103,22 @@ class RelayHandler:
                 return find_available_i2c_buses()
             except Exception:
                 pass
-        
+
         # Fallback implementation
         available_buses = []
         try:
             import os
+
             # Check the common I2C device paths
             for i in range(0, 20):  # Check a reasonable range of I2C devices
                 if os.path.exists(f"/dev/i2c-{i}"):
                     available_buses.append(i)
-            
+
             if available_buses:
                 print(f"Found I2C buses: {available_buses}")
             else:
                 print("No I2C buses found. Make sure I2C is enabled.")
-                
+
             return available_buses
         except Exception as e:
             print(f"Error finding I2C buses: {e}")
@@ -163,12 +172,15 @@ class RelayHandler:
                 logging.error(f"Hat initialization error: {str(e)}")
 
         if not success:
-            error_msg = "Failed to initialize any relay hats. Check I2C configuration and connections."
+            error_msg = (
+                "Failed to initialize any relay hats. Check I2C configuration and connections."
+            )
             print(error_msg)
             logging.error(error_msg)
 
     def set_all_relays(self, state):
         """Set all relays to given state (0 or 1) with I2C coordination"""
+
         def _hardware_set_all_operation():
             for hat in self.relay_hats:
                 try:
@@ -176,14 +188,11 @@ class RelayHandler:
                 except Exception as e:
                     print(f"Error setting all relays: {e}")
                     logging.error(f"Relay state error: {str(e)}")
-        
+
         # Use I2C coordination if available
         if self._coordinator:
             try:
-                self._coordinator.sync_exclusive_access(
-                    'relay', 
-                    _hardware_set_all_operation
-                )
+                self._coordinator.sync_exclusive_access('relay', _hardware_set_all_operation)
             except Exception as e:
                 logging.error(f"I2C coordination failed for set_all operation: {e}")
                 _hardware_set_all_operation()
@@ -197,12 +206,14 @@ class RelayHandler:
         if not self.relay_hats:
             logging.error("Trigger requested but no relay hats are initialized")
             return []
-        
+
         for unit_id in selected_units:
             # Get relay unit from dictionary
             relay_unit = self.relay_units.get(unit_id)
             if not relay_unit:
-                print(f"Relay unit {unit_id} not found in available units: {list(self.relay_units.keys())}")
+                print(
+                    f"Relay unit {unit_id} not found in available units: {list(self.relay_units.keys())}"
+                )
                 continue
 
             # Get number of triggers for this specific unit
@@ -212,42 +223,46 @@ class RelayHandler:
                 continue
 
             success = self._execute_triggers(relay_unit, unit_triggers, stagger)
-            
+
             if success:
                 relay_info.append(f"Relay Unit {unit_id} triggered {unit_triggers} times")
-        
+
         return relay_info
+
     def _execute_triggers(self, relay_unit, num_triggers, stagger):
         """Execute the specified number of triggers for a relay unit"""
         try:
             for trigger in range(num_triggers):
                 # Log trigger attempt
-                print(f"Executing trigger {trigger + 1}/{num_triggers} "
-                      f"for relay unit {relay_unit.unit_id}")
-                
+                print(
+                    f"Executing trigger {trigger + 1}/{num_triggers} "
+                    f"for relay unit {relay_unit.unit_id}"
+                )
+
                 # Activate relays
                 for relay_id in relay_unit.relay_ids:
                     self._set_relay_states([relay_id], 1)
-                
+
                 # Wait for activation duration
                 time.sleep(stagger)
-                
+
                 # Deactivate relays
                 for relay_id in relay_unit.relay_ids:
                     self._set_relay_states([relay_id], 0)
-                
+
                 # Wait between triggers
                 if trigger < num_triggers - 1:  # Don't wait after last trigger
                     time.sleep(stagger)
-                
+
             return True
-            
+
         except Exception as e:
             logging.error(f"Trigger execution error: {str(e)}")
             return False
 
     def _set_relay_states(self, relay_ids, state):
         """Set the state of specified relay IDs with I2C coordination"""
+
         def _hardware_relay_operation():
             for relay_id in relay_ids:
                 hat_index, relay_num = divmod(relay_id - 1, 16)
@@ -257,14 +272,11 @@ class RelayHandler:
                     except Exception as e:
                         print(f"Error setting relay {relay_id} to state {state}: {e}")
                         logging.error(f"Relay state change error: {str(e)}")
-        
+
         # Use I2C coordination if available, otherwise fall back to direct control
         if self._coordinator:
             try:
-                self._coordinator.sync_exclusive_access(
-                    'relay', 
-                    _hardware_relay_operation
-                )
+                self._coordinator.sync_exclusive_access('relay', _hardware_relay_operation)
             except Exception as e:
                 logging.error(f"I2C coordination failed for relay operation: {e}")
                 # Fall back to direct control

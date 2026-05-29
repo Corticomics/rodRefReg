@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable, Optional
+from typing import Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -36,5 +36,3 @@ class DeliveryStrategy(Protocol):
     async def clean(self, relay_unit_id: int, to_waste: bool = True) -> None:
         """Optional cleaning/flush routine for the specified relay path."""
         ...
-
-

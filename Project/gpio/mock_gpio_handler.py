@@ -11,5 +11,6 @@ class MockSM16relind:
         print(f"MockSM16relind relay {relay} set to state {state}")
         self.relay_states[relay - 1] = state
 
+
 # Ensure the mock module is properly available as sm_16relind
 sys.modules['sm_16relind'] = MockSM16relind

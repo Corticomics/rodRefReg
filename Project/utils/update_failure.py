@@ -10,9 +10,9 @@ from __future__ import annotations
 
 # Category codes — the GUI's single render-side decision is mapping these
 # to a (title, icon) pair. The stable set keeps the contract small.
-INTERNET = "internet"     # bundle could not be downloaded
-VERIFY = "verify"         # checksum unfetchable or mismatched
-GENERIC = "generic"       # everything else (busy schedule, disk full, ...)
+INTERNET = "internet"  # bundle could not be downloaded
+VERIFY = "verify"  # checksum unfetchable or mismatched
+GENERIC = "generic"  # everything else (busy schedule, disk full, ...)
 
 
 def classify_failure(message: str | None) -> str:

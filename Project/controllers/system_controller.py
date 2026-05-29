@@ -1,14 +1,15 @@
-from PyQt5.QtCore import QObject, pyqtSignal
 import json
 import os
 from datetime import datetime
 
+from PyQt5.QtCore import QObject, pyqtSignal
 from utils import paths
+
 
 class SystemController(QObject):
     settings_updated = pyqtSignal(dict)
     system_status = pyqtSignal(str)
-    
+
     def __init__(self, database_handler):
         super().__init__()
         self.database_handler = database_handler
@@ -48,7 +49,7 @@ class SystemController(QObject):
             self.settings_updated.emit(self.settings)
         except Exception as e:
             self.system_status.emit(f"Error saving settings: {str(e)}")
-    
+
     def _create_default_settings(self):
         """Create default settings with proper types"""
         return {
@@ -71,15 +72,9 @@ class SystemController(QObject):
             'cage_relays': {},
             'debug_mode': False,
             'log_level': 2,
-            'log_level_map': {
-                0: 'DEBUG',
-                1: 'INFO',
-                2: 'WARNING',
-                3: 'ERROR',
-                4: 'CRITICAL'
-            }
+            'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
         }
-    
+
     def _get_persisted_keys(self):
         """Every setting persisted to the SQLite system_settings table.
 
@@ -91,17 +86,30 @@ class SystemController(QObject):
         return {
             # Note: slack_token + channel_id are NOT here — they live in the
             # dedicated mode-0600 secrets.json since Phase 2.5b.
-            'num_hats', 'hardware_mode',
-            'global_master_relay_id', 'i2c_bus', 'flow_sensor_type', 'uart_port',
-            'flow_sampling_hz', 'predictive_close_ms', 'residual_check_ms',
-            'residual_flow_threshold_ml_min', 'max_consecutive_sensor_errors',
+            'num_hats',
+            'hardware_mode',
+            'global_master_relay_id',
+            'i2c_bus',
+            'flow_sensor_type',
+            'uart_port',
+            'flow_sampling_hz',
+            'predictive_close_ms',
+            'residual_check_ms',
+            'residual_flow_threshold_ml_min',
+            'max_consecutive_sensor_errors',
             'cage_relays',
             # Pulse-mode persistence (Parker Series 3)
-            'use_pulse_delivery', 'pulse_width_ms', 'pulse_settling_ms',
-            'max_pulses_per_delivery', 'max_pulse_delivery_time_s',
-            'debug_mode', 'log_level',
+            'use_pulse_delivery',
+            'pulse_width_ms',
+            'pulse_settling_ms',
+            'max_pulses_per_delivery',
+            'max_pulse_delivery_time_s',
+            'debug_mode',
+            'log_level',
             # Scheduler tuning
-            'min_trigger_interval_ms', 'cycle_interval', 'stagger_interval',
+            'min_trigger_interval_ms',
+            'cycle_interval',
+            'stagger_interval',
             # UI (silently dropped pre-v1.5.0 because it was missing from the
             # JSON key list; managed properly from this release on)
             'theme',
@@ -145,6 +153,7 @@ class SystemController(QObject):
         try:
             from gpio.gpio_handler import RelayHandler
             from models.relay_unit_manager import RelayUnitManager
+
             temp_settings = self.settings.copy()
             # Probe hats by optimistic init. RelayHandler internally logs errors.
             manager = RelayUnitManager(temp_settings)
@@ -156,20 +165,21 @@ class SystemController(QObject):
 
     def detect_flow_sensor_bus(self):
         """Probe I2C buses for SLF3x address 0x08, avoiding relay HAT conflicts.
-        
+
         NOTE: Only used for legacy I2C mode. UART mode (Teensy) is preferred.
-        
+
         Strategy: Test buses in order of preference to avoid I²C conflicts.
         Priority: 13, 14, 1 (bus 1 shared with relay HATs, use as fallback)
         """
         try:
             import os
+
             from smbus2 import SMBus, i2c_msg
-            
+
             # Priority order: dedicated sensor buses first, shared bus last
             # Bus 3 is dedicated for flow sensor (GPIO 12/13), avoiding relay HAT conflicts
             bus_priority = [3, 13, 14, 1, 0] + list(range(2, 21))
-            
+
             for bus in bus_priority:
                 if not os.path.exists(f"/dev/i2c-{bus}"):
                     continue
@@ -185,7 +195,7 @@ class SystemController(QObject):
                     continue
         except Exception:
             pass
-        
+
         # Fallback to current setting
         current = self.settings.get('i2c_bus', 1)
         self.system_status.emit(f"Flow sensor detection failed, using configured bus {current}")
@@ -193,13 +203,13 @@ class SystemController(QObject):
 
     def _detect_initial_teensy_port(self):
         """Initial Teensy port detection during settings creation.
-        
+
         Lightweight version for default settings - doesn't emit status messages
         or access self.settings since we're creating the settings.
         """
         import glob
         import os
-        
+
         try:
             # Prefer persistent udev symlink if present
             if os.path.exists('/dev/teensy_flow'):
@@ -210,34 +220,34 @@ class SystemController(QObject):
             patterns = ['/dev/ttyACM*', '/dev/ttyUSB*']
             for pattern in patterns:
                 potential_ports.extend(glob.glob(pattern))
-        
+
             # Filter to existing devices and prioritize /dev/ttyACM*
             existing_ports = [p for p in potential_ports if os.path.exists(p)]
             existing_ports.sort()  # Consistent ordering
-            
+
             if existing_ports:
                 # Return first available port (likely the Teensy)
                 return existing_ports[0]
             else:
                 # Fallback if no ports found
                 return '/dev/ttyACM0'
-                
+
         except Exception:
             # Safe fallback on any error
             return '/dev/ttyACM0'
-    
+
     def detect_teensy_port(self):
         """Auto-detect Teensy device port for UART flow sensor.
-        
+
         Scans common USB serial device paths and tests for Teensy communication.
         Returns the first working port or falls back to current setting.
         """
         import glob
         import os
-        
+
         # Get current port as fallback
         current_port = self.settings.get('uart_port', '/dev/ttyACM0')
-        
+
         try:
             # Prefer persistent udev symlink if present
             if os.path.exists('/dev/teensy_flow'):
@@ -246,12 +256,12 @@ class SystemController(QObject):
 
             # Common Teensy device patterns
             potential_ports = []
-            
+
             # Check common serial device patterns
             patterns = ['/dev/ttyACM*', '/dev/ttyUSB*']
             for pattern in patterns:
                 potential_ports.extend(glob.glob(pattern))
-            
+
             # Also check by-id directory for Teensy-specific devices
             try:
                 by_id_devices = glob.glob('/dev/serial/by-id/*')
@@ -261,23 +271,24 @@ class SystemController(QObject):
                         potential_ports.append(actual_device)
             except:
                 pass
-            
+
             # Filter to existing devices
             existing_ports = [p for p in potential_ports if os.path.exists(p)]
-            
+
             # Test each port for Teensy response
             for port in existing_ports:
                 try:
-                    import serial
                     import json
                     import time
-                    
+
+                    import serial
+
                     # Quick communication test
                     with serial.Serial(port, 115200, timeout=1.0) as ser:
                         time.sleep(0.5)  # Brief init time
                         ser.write(b'{"cmd":"ping"}\n')
                         ser.flush()
-                        
+
                         response = ser.readline().decode('utf-8').strip()
                         if response:
                             data = json.loads(response)
@@ -286,13 +297,17 @@ class SystemController(QObject):
                                 return port
                 except Exception:
                     continue
-            
+
             # No working Teensy found, use current setting
-            self.system_status.emit(f"Teensy auto-detection failed, using configured port {current_port}")
+            self.system_status.emit(
+                f"Teensy auto-detection failed, using configured port {current_port}"
+            )
             return current_port
-            
+
         except Exception as e:
-            self.system_status.emit(f"Teensy detection error: {e}, using configured port {current_port}")
+            self.system_status.emit(
+                f"Teensy detection error: {e}, using configured port {current_port}"
+            )
             return current_port
 
     def ensure_solenoid_defaults(self):
@@ -323,7 +338,9 @@ class SystemController(QObject):
             detected_port = self.detect_teensy_port()
             current_port = s.get('uart_port', '/dev/ttyACM0')
             if detected_port != current_port:
-                self.system_status.emit(f"Auto-detected Teensy port: {current_port} → {detected_port}")
+                self.system_status.emit(
+                    f"Auto-detected Teensy port: {current_port} → {detected_port}"
+                )
                 s['uart_port'] = detected_port
                 settings_changed = True
 
@@ -345,7 +362,7 @@ class SystemController(QObject):
                 'max_consecutive_sensor_errors': 10,
                 'num_hats': 1,
             }
-            
+
             # CRITICAL: Pulse mode settings (ALWAYS enforce these)
             # These are deployment-specific and must be present for Parker Series 3 valves
             pulse_mode_settings = {
@@ -355,13 +372,13 @@ class SystemController(QObject):
                 'max_pulses_per_delivery': 100,  # Safety limit
                 'max_pulse_delivery_time_s': 120.0,  # 2 minute timeout
             }
-            
+
             # Add missing solenoid defaults
             for key, default_value in solenoid_defaults.items():
                 if key not in s:
                     s[key] = default_value
                     settings_changed = True
-            
+
             # FORCE-MERGE pulse mode settings (always update, not just when missing)
             # Reason: These are critical for Parker Series 3 valve operation
             for key, required_value in pulse_mode_settings.items():
@@ -377,7 +394,9 @@ class SystemController(QObject):
                     if current_rate > 20.0:
                         s['flow_sampling_hz'] = 20.0
                         settings_changed = True
-                        self.system_status.emit("Adjusted flow_sampling_hz to 20.0 Hz for pulse mode")
+                        self.system_status.emit(
+                            "Adjusted flow_sampling_hz to 20.0 Hz for pulse mode"
+                        )
             except Exception:
                 pass
 
@@ -387,7 +406,7 @@ class SystemController(QObject):
                 num_hats = int(s.get('num_hats', 1))
                 total_relays = 16 * num_hats
                 master_id = s.get('global_master_relay_id', 16)
-                
+
                 cage_id = 1
                 new_map = {}
                 for relay_id in range(1, total_relays + 1):
@@ -395,10 +414,12 @@ class SystemController(QObject):
                         continue
                     new_map[str(cage_id)] = relay_id
                     cage_id += 1
-                
+
                 s['cage_relays'] = new_map
                 settings_changed = True
-                self.system_status.emit(f"Created cage mapping: {len(new_map)} cages, master on relay {master_id}")
+                self.system_status.emit(
+                    f"Created cage mapping: {len(new_map)} cages, master on relay {master_id}"
+                )
 
             # Save settings if any changes were made
             if settings_changed:
@@ -406,10 +427,11 @@ class SystemController(QObject):
                 self.system_status.emit("Solenoid configuration auto-initialized successfully")
             else:
                 self.system_status.emit("Solenoid configuration verified - no changes needed")
-                
+
         except Exception as e:
             self.system_status.emit(f"Solenoid auto-configuration failed: {e}")
             import traceback
+
             traceback.print_exc()
 
     # Sentinel row marking that the v1.5.0 migration from settings.json
@@ -477,14 +499,10 @@ class SystemController(QObject):
                 try:
                     self._write_setting_to_db(key, legacy[key])
                 except Exception as exc:
-                    self.system_status.emit(
-                        f"Could not migrate setting {key}: {exc}"
-                    )
+                    self.system_status.emit(f"Could not migrate setting {key}: {exc}")
 
         try:
-            self.database_handler.update_system_setting(
-                self._MIGRATION_SENTINEL_KEY, '1', 'str'
-            )
+            self.database_handler.update_system_setting(self._MIGRATION_SENTINEL_KEY, '1', 'str')
         except Exception:
             pass
 
@@ -498,6 +516,7 @@ class SystemController(QObject):
     def _load_secrets(self):
         """Return whatever is in the secrets file (empty dict when absent)."""
         from utils import secrets
+
         try:
             return secrets.get_credentials()
         except Exception as exc:
@@ -514,6 +533,7 @@ class SystemController(QObject):
         if not any(key in settings_dict for key in self._SECRET_KEYS):
             return
         from utils import secrets
+
         merged = self._load_secrets()
         for key in self._SECRET_KEYS:
             if key in settings_dict:
@@ -583,5 +603,6 @@ class SystemController(QObject):
         """Get or create a pump controller instance"""
         if not hasattr(self, '_pump_controller'):
             from controllers.pump_controller import PumpController
+
             self._pump_controller = PumpController(self.settings)
-        return self._pump_controller 
+        return self._pump_controller

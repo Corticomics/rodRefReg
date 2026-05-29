@@ -16,37 +16,37 @@ Best Practices:
 
 Usage:
     from ui.widgets.safe_spinbox import SafeSpinBox, SafeDoubleSpinBox
-    
+
     # Replace QSpinBox with SafeSpinBox
     self.min_triggers = SafeSpinBox()
-    
-    # Replace QDoubleSpinBox with SafeDoubleSpinBox  
+
+    # Replace QDoubleSpinBox with SafeDoubleSpinBox
     self.flow_sampling_hz = SafeDoubleSpinBox()
 """
 
-from PyQt5.QtWidgets import QSpinBox, QDoubleSpinBox
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QDoubleSpinBox, QSpinBox
 
 
 class SafeSpinBox(QSpinBox):
     """
     SpinBox with scroll wheel disabled for lab safety.
-    
+
     User must:
     1. Click to focus
     2. Type value OR use up/down arrows
-    
+
     Prevents accidental changes during page scrolling.
     """
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFocusPolicy(Qt.StrongFocus)  # Require explicit focus
-    
+
     def wheelEvent(self, event):
         """
         Ignore wheel events unless widget has focus.
-        
+
         This prevents accidental changes while scrolling the page.
         User must click the spinbox first to enable wheel control.
         """
@@ -61,22 +61,22 @@ class SafeSpinBox(QSpinBox):
 class SafeDoubleSpinBox(QDoubleSpinBox):
     """
     DoubleSpinBox with scroll wheel disabled for lab safety.
-    
+
     User must:
     1. Click to focus
     2. Type value OR use up/down arrows
-    
+
     Prevents accidental changes during page scrolling.
     """
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFocusPolicy(Qt.StrongFocus)  # Require explicit focus
-    
+
     def wheelEvent(self, event):
         """
         Ignore wheel events unless widget has focus.
-        
+
         This prevents accidental changes while scrolling the page.
         User must click the spinbox first to enable wheel control.
         """
@@ -86,4 +86,3 @@ class SafeDoubleSpinBox(QDoubleSpinBox):
         else:
             # Ignore wheel when not focused (accidental scroll)
             event.ignore()
-

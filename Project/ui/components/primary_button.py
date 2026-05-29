@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtCore import QSize
+from PyQt5.QtWidgets import QPushButton
 
 
 class PrimaryButton(QPushButton):
@@ -17,5 +17,3 @@ class PrimaryButton(QPushButton):
     def sizeHint(self) -> QSize:  # pragma: no cover
         base = super().sizeHint()
         return QSize(max(base.width(), 96), max(base.height(), 32))
-
-
