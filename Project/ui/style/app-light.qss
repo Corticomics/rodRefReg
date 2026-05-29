@@ -129,6 +129,17 @@ QComboBox QAbstractItemView {
     selection-background-color: #E6FFFA;
     selection-color: #0D9488;
 }
+QComboBox QAbstractItemView::item {
+    min-height: 28px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: #1A1D1F;
+}
+QComboBox QAbstractItemView::item:selected,
+QComboBox QAbstractItemView::item:hover {
+    background: #E6FFFA;
+    color: #0D9488;
+}
 
 /* SpinBox buttons */
 QSpinBox::up-button, QDoubleSpinBox::up-button,

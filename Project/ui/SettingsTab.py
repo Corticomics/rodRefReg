@@ -175,7 +175,7 @@ class SettingsTab(QWidget):
             # Build updated settings dictionary from UI widgets
             updated_settings = {
                 # Hardware mode
-                'hardware_mode': self.hardware_mode_combo.currentText(),
+                'hardware_mode': self.hardware_mode_combo.currentData() or 'solenoid',
                 # Theme (if exists)
                 'theme': self.theme_combo.currentText()
                 if hasattr(self, 'theme_combo')
@@ -241,19 +241,27 @@ class SettingsTab(QWidget):
         mode_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         self.hardware_mode_combo = QComboBox()
-        self.hardware_mode_combo.addItems(['solenoid', 'pump'])
+        # Display capitalized labels; store the canonical lowercase value as
+        # userData so the saved setting (consumed by the strategy factory /
+        # relay worker) stays 'solenoid' / 'pump'.
+        self.hardware_mode_combo.addItem("Solenoid", "solenoid")
+        self.hardware_mode_combo.addItem("Pump", "pump")
         current_mode = self.settings.get('hardware_mode', 'solenoid')
-        self.hardware_mode_combo.setCurrentText(current_mode)
+        mode_idx = self.hardware_mode_combo.findData(current_mode)
+        self.hardware_mode_combo.setCurrentIndex(mode_idx if mode_idx >= 0 else 0)
         self.hardware_mode_combo.currentTextChanged.connect(self._on_hardware_mode_changed)
         mode_layout.addRow("Hardware Mode:", self.hardware_mode_combo)
 
         mode_help = QLabel(
-            "• <b>Solenoid</b> (default): Flow sensor-based volumetric control with real-time feedback\n"
-            "• <b>Pump</b>: Time-based peristaltic pump control (legacy mode)"
+            "• <b>Solenoid</b> (default): flow-sensor volumetric control with "
+            "real-time feedback<br>"
+            "• <b>Pump</b>: time-based peristaltic pump control (legacy mode)"
         )
         mode_help.setWordWrap(True)
         mode_help.setObjectName("HelpText")
-        mode_layout.addRow("", mode_help)
+        # Span the full row (no indent into the field column) so the two
+        # bullets have room and don't wrap awkwardly.
+        mode_layout.addRow(mode_help)
 
         mode_group.setLayout(mode_layout)
         layout.addWidget(mode_group)
@@ -449,8 +457,9 @@ class SettingsTab(QWidget):
                 )
                 # Revert to previous mode
                 old_mode = self.settings.get('hardware_mode', 'solenoid')
+                old_idx = self.hardware_mode_combo.findData(old_mode)
                 self.hardware_mode_combo.blockSignals(True)
-                self.hardware_mode_combo.setCurrentText(old_mode)
+                self.hardware_mode_combo.setCurrentIndex(old_idx if old_idx >= 0 else 0)
                 self.hardware_mode_combo.blockSignals(False)
                 return
 
@@ -465,7 +474,7 @@ class SettingsTab(QWidget):
 
         Progressive Disclosure: Only show relevant settings
         """
-        is_solenoid = self.hardware_mode_combo.currentText() == 'solenoid'
+        is_solenoid = self.hardware_mode_combo.currentData() == 'solenoid'
         self.solenoid_group.setVisible(is_solenoid)
         self.pump_group.setVisible(not is_solenoid)
 
