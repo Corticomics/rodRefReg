@@ -234,14 +234,3 @@ reviewable, revertible, and (where it touches shipped code) tagged + Pi-
 verified per MAINTENANCE.md.
 
 ---
-
-## 8. Open questions (need a human answer before R1)
-
-1. **Is any schema change actually planned?** If not, R1's value is
-   insurance, not enablement — still worth it, but lower urgency. (The
-   surfaced latent debt — birthdate not stored on `animals`; see
-   `SettingsTab` lab import — would be a natural first *real* migration.)
-2. **Fleet DB snapshot:** can we get a copy of a real device's
-   `rrr_database.db` to test R1's baseline migration against? This is the
-   single most important input for migration safety.
-3. **Appetite for R3 (DI):** worth the broad touch, or stop after R2?
