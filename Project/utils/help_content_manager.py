@@ -1398,7 +1398,6 @@ class HelpContentManager:
         related = self.get_related(topic_key)
         if not related:
             return ""
-        p = _PALETTE.get(theme, _PALETTE['light'])
         links = "".join(f"<a href='topic:{quote(k)}'>{k}</a>" for k in related)
         return f"<div class='related-topics'><strong>Related topics:</strong> {links}</div>"
 

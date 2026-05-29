@@ -30,15 +30,13 @@ jobs:
           python3 -m pip install -r requirements.txt
           python3 -m pip install -r requirements-dev.txt
 
-      - name: Lint (ruff) — format + import-sort
+      - name: Lint (ruff) — format + full configured ruleset
         run: |
-          # Enforce only the rules cleaned so far. ruff.toml's `select`
-          # lists the full target set (F401/F811/F841/I); CI gates it
-          # incrementally as each family is fixed in its own PR:
-          #   now: formatting + import-sort (I) + unused-imports (F401)
-          #   next: F841 unused-vars, then F811 redefinitions.
+          # The incremental adoption is complete: every family in
+          # ruff.toml's `select` (I, F401, F811, F841) is now clean, so CI
+          # enforces the full configured ruleset via a bare `ruff check`.
           ruff format --check .
-          ruff check --select I,F401 .
+          ruff check .
 
       - name: Run pytest
         run: python3 -m pytest

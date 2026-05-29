@@ -258,7 +258,6 @@ class HelpTab(QWidget):
         matching_keys = {key for key, _snippet in results}
 
         # Update tree visibility
-        has_any = False
         for i in range(self.topic_tree.topLevelItemCount()):
             cat_item = self.topic_tree.topLevelItem(i)
             cat_has_match = False
@@ -269,7 +268,6 @@ class HelpTab(QWidget):
                 child.setHidden(not visible)
                 if visible:
                     cat_has_match = True
-                    has_any = True
             cat_item.setHidden(not cat_has_match)
 
         self.topic_tree.expandAll()

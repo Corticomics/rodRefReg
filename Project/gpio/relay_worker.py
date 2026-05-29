@@ -856,7 +856,6 @@ class RelayWorker(QObject):
         - **Circuit Breaker**: Prevent infinite retry loops on sensor failure
         """
         try:
-            current_time = datetime.now()
             target_volumes = self.settings.get(
                 'target_volumes', self.settings.get('desired_water_outputs', {})
             )
