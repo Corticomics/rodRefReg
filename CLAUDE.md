@@ -14,6 +14,9 @@ and `bootstrap.sh`.
 ## Dev commands
 
 - Tests: `pytest` (config in `pytest.ini`; dev deps in `requirements-dev.txt`).
+- Lint + format: `ruff check .` and `ruff format --check .`. **CI gates on
+  both, separately** — passing the linter does not imply formatting is clean.
+  Run `ruff format .` to auto-fix layout before committing.
 - Local release dry-run: `bash scripts/release/build-bundle.sh` → inspect
   `dist/rrr-<version>.rrrupdate`.
 
@@ -23,8 +26,9 @@ Run this checklist mentally on every change. If any answer is "no", stop.
 
 1. Am I on a branch off `main` (not `main` itself)?
 2. Does the branch name follow `<type>/<short-kebab-slug>`?
-3. Did I run `pytest` and confirm green (or that my new test passes / skips
-   as designed) before staging?
+3. Did I run `pytest` (green) **and** both ruff gates — `ruff check .` and
+   `ruff format --check .` — clean before staging? (Or that my new test
+   passes / skips as designed.)
 4. Are the staged files only the files this PR is about — no `.DS_Store`,
    no `secrets.json`, no `*.db`, no `settings/settings.json`?
 5. If this change affects runtime behavior on a device, did I bump
