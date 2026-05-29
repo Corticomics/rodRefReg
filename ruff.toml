@@ -1,0 +1,37 @@
+# Ruff configuration for RRR.
+#
+# Adopted in two steps on purpose (see CONTRIBUTING.md / the cleanup plan):
+#   3.7a (this commit): add the config + dev dependency only. No source
+#                       changes, no CI gate yet — so existing CI stays green
+#                       and developers can run `ruff` locally.
+#   3.7b (next):        apply `ruff check --fix` + `ruff format` as a single
+#                       mechanical reformat, AND add the CI gate in the same
+#                       PR so the gate lands on already-formatted code.
+#
+# Intentionally MINIMAL to start: formatting + import sorting + dead-import
+# removal only. Heavier lint families (pyflakes-undefined, bugbear, naming,
+# complexity) are deferred to later opt-in PRs to avoid a giant risky churn
+# on this large, working codebase.
+
+# py39 is the floor a contributor's machine might run (CI/devs); the device
+# ships 3.11. Keeping the floor low avoids ruff suggesting newer-only syntax.
+target-version = "py39"
+line-length = 99
+
+# The app code lives under Project/; the venv is never linted.
+extend-exclude = [
+    "Project/venv",
+    "Project/tests",   # hardware-diagnostic CLIs + fixtures; lint unit/ only via opt-in later
+    "dist",
+    "build",
+]
+
+[lint]
+# F401 unused imports, F811 redefinition, F841 unused local variable, I import sorting.
+select = ["F401", "F811", "F841", "I"]
+
+[format]
+# Preserve existing quote style on the first adoption pass so the 3.7b
+# reformat diff stays focused on whitespace / line-wrapping / imports
+# rather than flipping every quote in the repo. Can be tightened later.
+quote-style = "preserve"
