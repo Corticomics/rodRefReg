@@ -124,6 +124,53 @@ Run this checklist mentally on every change. If any answer is "no", stop.
 | `.github/workflows/*.yml` | Changes here affect every release downstream |
 | `Project/version.py` | Only edit as part of a deliberate version bump |
 
+## Deferred refactors — watch for triggers
+
+Some refactors are intentionally deferred because the *present* benefit
+doesn't justify the diff. Don't propose, schedule, or quietly start them.
+Instead, watch for the trigger conditions below and surface them when they
+appear — that's when the cost/benefit flips.
+
+### R2 — Database domain split behind a facade
+
+**What it is.** Split [Project/models/database_handler.py](Project/models/database_handler.py)
+(~2245 LOC) into per-domain repository modules (e.g. `animals_repo.py`,
+`schedules_repo.py`, `calibration_repo.py`, `projects_repo.py`,
+`deliveries_repo.py`, `users_repo.py`, `cages_repo.py`) behind a thin
+`DatabaseHandler` facade so call sites don't change. Roughly 6–8 small PRs,
+one domain at a time. Full design in
+[DATABASE_HANDLER_REFACTOR_DESIGN.md §4, §9](Project/docs/DATABASE_HANDLER_REFACTOR_DESIGN.md).
+
+**Why deferred (decided 2026-05).** No production fleet, schema is static,
+the file works and is tested. A big-bang split now is a large diff for a
+navigability gain only — and the correct domain cut lines are best
+*discovered* when a real driver appears, not guessed up front. R3 (finish
+DI) was done instead because it was a small, concrete win.
+
+**Trigger conditions — open R2 (one domain at a time) when ANY are true:**
+
+1. A planned change is about to touch **>~200 LOC inside a single logical
+   domain** of `database_handler.py` (animals, schedules, calibration,
+   projects, sessions, deliveries, users, cages). Extract *that* domain
+   behind the facade first; the substantive change then lands in the new
+   focused repo.
+2. Two unrelated PRs in a row need to edit the same domain block and keep
+   merge-conflicting against each other (signal: the file has become a
+   contention point).
+3. A schema change is greenlit that touches one domain heavily — pair the
+   R2 extraction with R1 (migration runner) for that domain.
+4. Test coverage for one domain is being expanded substantially and the
+   tests would be materially cleaner against a focused repo than against
+   the monolithic handler.
+
+**When a trigger fires.** Do NOT extract every domain at once. One domain,
+one PR: signatures preserved, call sites unchanged via the facade, land it,
+verify on Pi, stop. Re-check the watch list before extracting the next.
+
+**If none of the above is true, leave `database_handler.py` alone.**
+
+---
+
 Full release procedure (version bump → tag → CI workflow), recovery for
 a mis-tagged commit, and the SemVer decision tables: see
 [Project/docs/MAINTENANCE.md](Project/docs/MAINTENANCE.md) (operator-friendly
