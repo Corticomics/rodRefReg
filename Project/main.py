@@ -184,7 +184,7 @@ def setup():
         f"✓ RelayUnitManager initialized in {relay_unit_manager.get_hardware_mode()} mode with {len(relay_unit_manager.get_all_relay_units())} units"
     )
 
-    controller = ProjectsController()
+    controller = ProjectsController(database_handler)
     pump_controller = PumpController(relay_handler, database_handler)
     controller.pump_controller = pump_controller
 
