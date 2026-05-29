@@ -7,3 +7,6 @@
 pytest>=7.0
 # Phase-0 dead-code audit baseline; not used at runtime.
 vulture>=2.11
+# Linter/formatter; config in ruff.toml. Run: ruff check / ruff format
+# Pinned major to keep formatting output stable across contributors.
+ruff>=0.6,<0.7
