@@ -118,7 +118,7 @@ class RunStopSection(QWidget):
         schedule_group = QGroupBox("Schedule Queue")
         schedule_layout = QVBoxLayout()
         schedule_layout.setContentsMargins(12, 12, 12, 12)
-        self.schedule_drop_area = ScheduleDropArea()
+        self.schedule_drop_area = ScheduleDropArea(self.database_handler)
         self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         print("Connected schedule_dropped signal to on_schedule_dropped slot")
         schedule_layout.addWidget(self.schedule_drop_area)

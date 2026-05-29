@@ -1,10 +1,11 @@
 from models.animal import Animal
-from models.database_handler import DatabaseHandler
 
 
 class ProjectsController:
-    def __init__(self):
-        self.db_handler = DatabaseHandler()
+    def __init__(self, database_handler):
+        if database_handler is None:
+            raise ValueError("database_handler is required")
+        self.db_handler = database_handler
 
     # Animal-related methods
     def add_animal(self, name, initial_weight, last_weight, last_weighted):

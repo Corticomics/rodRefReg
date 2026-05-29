@@ -1,7 +1,6 @@
 import datetime
 import traceback
 
-from models.database_handler import DatabaseHandler
 from models.Schedule import Schedule
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -20,14 +19,15 @@ class ScheduleDropArea(QWidget):
     mode_changed = pyqtSignal(str)
     schedule_dropped = pyqtSignal(object)  # Signal for when schedule is dropped
 
-    def __init__(self, parent=None):
+    def __init__(self, database_handler, parent=None):
         super().__init__(parent)
+        if database_handler is None:
+            raise ValueError("database_handler is required")
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)  # Remove margins to maximize space
         self.setLayout(self.layout)
 
-        # Initialize database handler
-        self.database_handler = DatabaseHandler()
+        self.database_handler = database_handler
 
         # Drop area
         self.drop_widget = QWidget()

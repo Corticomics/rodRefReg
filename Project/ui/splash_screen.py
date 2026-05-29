@@ -91,7 +91,7 @@ class InitializationWorker(QThread):
             from controllers.projects_controller import ProjectsController
             from controllers.pump_controller import PumpController
 
-            controller = ProjectsController()
+            controller = ProjectsController(self._components['database_handler'])
             pump_controller = PumpController(
                 self._components['relay_handler'], self._components['database_handler']
             )
