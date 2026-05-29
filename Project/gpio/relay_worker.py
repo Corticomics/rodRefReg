@@ -926,7 +926,6 @@ class RelayWorker(QObject):
           - strategy flag: the in-flight delivery loop bails fast into
             its valve-closing finally block.
         """
-        print(f"[TIMING] worker.request_cancel at {time.monotonic():.3f}")
         self._cancel_requested.set()
         strategy = getattr(self, 'strategy', None)
         if strategy is not None and hasattr(strategy, 'request_cancel'):
@@ -946,7 +945,6 @@ class RelayWorker(QObject):
         - Observable: Log each cleanup step
         - Fail-safe: Continue cleanup even if individual steps fail
         """
-        print(f"[TIMING] worker.stop() slot entry at {time.monotonic():.3f}")
         print("\n[STOP] ========== SCHEDULE STOP SEQUENCE INITIATED ==========")
         # Also fire cooperative cancel here for the case where stop() is
         # reached via the normal queued path (worker not blocked).
@@ -1014,8 +1012,12 @@ class RelayWorker(QObject):
                     self.strategy._sensor.stop()
                     print("[STOP]    Flow sensor stop() completed")
                     
-                    # Wait briefly to ensure sensor stops cleanly
-                    import time
+                    # Wait briefly to ensure sensor stops cleanly.
+                    # (time is imported at module scope; a local re-import
+                    # here shadowed it for the whole method and crashed the
+                    # v1.8.4 timing print at the top of stop() with an
+                    # UnboundLocalError, which prevented finished/quit and
+                    # forced thread.terminate() on every Stop.)
                     time.sleep(0.5)
                     
                     # Verify sensor stopped
@@ -1185,12 +1187,10 @@ class RelayWorker(QObject):
     def _handle_delivery(self, delivery_data):
         """Synchronously handle a delivery"""
         try:
-            print(f"[TIMING] _handle_delivery entry at {time.monotonic():.3f}")
             # Cooperative cancel: a delivery QTimer may fire after Stop.
             # Don't start a new run_until_complete(deliver()) — that's the
             # blocking call that made Stop fall through to terminate().
             if self._cancel_requested.is_set():
-                print(f"[TIMING] _handle_delivery cancel-guard return at {time.monotonic():.3f}")
                 return False
             if 'schedule_id' not in delivery_data:
                 delivery_data['schedule_id'] = self.schedule_id
@@ -1224,7 +1224,6 @@ class RelayWorker(QObject):
                         f"volume={delivery_data['water_volume']:.3f}mL"
                     )
                     
-                    print(f"[TIMING] run_until_complete(deliver) start at {time.monotonic():.3f}")
                     loop = asyncio.new_event_loop()
                     try:
                         asyncio.set_event_loop(loop)
@@ -1235,7 +1234,6 @@ class RelayWorker(QObject):
                                 triggers_hint=delivery_data.get('triggers'),
                             )
                         )
-                        print(f"[TIMING] run_until_complete(deliver) returned at {time.monotonic():.3f} success={success}")
 
                         # CRITICAL DEBUG: Log delivery result
                         self.progress.emit(
