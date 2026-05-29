@@ -8,54 +8,65 @@ Features:
 - Auto-save on focus loss
 """
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QSizePolicy, QLineEdit, QApplication, QTabWidget,
-)
+import os
+from typing import Any, Dict, Optional
+
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
-from typing import Optional, Dict, Any
-import os
+from PyQt5.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QSizePolicy,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class RelayTerminalWidget(QFrame):
     """
     Relay terminal with inline cage name editing.
-    
+
     Interaction:
     - Single click: Select/highlight the terminal
     - Double click: Enter edit mode for cage name
     - Click elsewhere / Enter: Save changes
     - Escape: Cancel editing
-    
+
     Reference: Qt QLineEdit for inline editing
     https://doc.qt.io/qt-5/qlineedit.html
     """
-    
+
     clicked = pyqtSignal(int)
     # Emits (cage_id, new_name). cage_id is the stable DB identifier (1..N
     # across all HATs); relay_id alone is ambiguous because under multi-HAT
     # one-global-master semantics cage_id != relay_id for HATs > 0.
     name_changed = pyqtSignal(int, str)
 
-    def __init__(self, relay_id: int, cage_data: Optional[Dict[str, Any]] = None,
-                 is_master: bool = False, parent=None):
+    def __init__(
+        self,
+        relay_id: int,
+        cage_data: Optional[Dict[str, Any]] = None,
+        is_master: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
         self._relay_id = relay_id
         self._cage_data = cage_data
         # cage_id: stable DB identifier. Falls back to relay_id only when
         # cage_data is missing (orphan terminal); master terminals have no
         # cage_id and never emit name_changed anyway.
-        self._cage_id = (
-            cage_data.get('cage_id', relay_id) if cage_data else relay_id
-        )
+        self._cage_id = cage_data.get('cage_id', relay_id) if cage_data else relay_id
         self._is_master = is_master
         self._selected = False
         self._editing = False
         self._name_label = None
         self._name_edit = None
         self._init_ui()
-    
+
     def _init_ui(self) -> None:
         """Build terminal widget with editable name."""
         self.setObjectName("MasterTerminal" if self._is_master else "RelayTerminal")
@@ -63,18 +74,18 @@ class RelayTerminalWidget(QFrame):
         self.setFixedHeight(44)
         self.setMaximumWidth(220)  # Limit width for better proportions
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 6)
         layout.setSpacing(8)
-        
+
         # Relay number badge
         relay_label = QLabel(f"R{self._relay_id}")
         relay_label.setObjectName("RelayNumber")
         relay_label.setAlignment(Qt.AlignCenter)
         relay_label.setFixedWidth(32)
         layout.addWidget(relay_label)
-        
+
         # Name display/edit area
         if self._is_master:
             name_label = QLabel("MASTER SOLENOID")
@@ -82,8 +93,12 @@ class RelayTerminalWidget(QFrame):
             layout.addWidget(name_label, 1)
         else:
             cage_id = self._cage_data.get('cage_id', 0) if self._cage_data else 0
-            cage_name = self._cage_data.get('name', f'Cage {cage_id}') if self._cage_data else f'Cage {self._relay_id}'
-            
+            cage_name = (
+                self._cage_data.get('name', f'Cage {cage_id}')
+                if self._cage_data
+                else f'Cage {self._relay_id}'
+            )
+
             # Name label (visible by default)
             self._name_label = QLabel(cage_name)
             self._name_label.setObjectName("CageNameLabel")
@@ -91,7 +106,7 @@ class RelayTerminalWidget(QFrame):
                 self._name_label.setText(cage_name[:18] + "…")
                 self._name_label.setToolTip(cage_name)
             layout.addWidget(self._name_label, 1)
-            
+
             # Name edit (hidden by default)
             self._name_edit = QLineEdit(cage_name)
             self._name_edit.setObjectName("CageNameEdit")
@@ -99,12 +114,12 @@ class RelayTerminalWidget(QFrame):
             self._name_edit.returnPressed.connect(self._finish_editing)
             self._name_edit.editingFinished.connect(self._finish_editing)
             layout.addWidget(self._name_edit, 1)
-        
+
         # Status dot
         status_dot = QLabel("●")
         status_dot.setObjectName("MasterStatusDot" if self._is_master else "StatusDot")
         layout.addWidget(status_dot)
-    
+
     def mousePressEvent(self, event):
         """Single click to select."""
         if event.button() == Qt.LeftButton:
@@ -112,46 +127,46 @@ class RelayTerminalWidget(QFrame):
             self._update_selection_style()
             self.clicked.emit(self._relay_id)
         super().mousePressEvent(event)
-    
+
     def mouseDoubleClickEvent(self, event):
         """Double click to edit (non-master only)."""
         if event.button() == Qt.LeftButton and not self._is_master and self._name_edit:
             self._start_editing()
         super().mouseDoubleClickEvent(event)
-    
+
     def _start_editing(self) -> None:
         """Enter edit mode."""
         if self._editing or not self._name_edit:
             return
-        
+
         self._editing = True
-        
+
         # Get current full name from cage_data
         if self._cage_data:
             cage_id = self._cage_data.get('cage_id', 0)
             current_name = self._cage_data.get('name', f'Cage {cage_id}')
         else:
             current_name = f'Cage {self._relay_id}'
-        
+
         self._name_edit.setText(current_name)
         self._name_label.setVisible(False)
         self._name_edit.setVisible(True)
         self._name_edit.setFocus()
         self._name_edit.selectAll()
-    
+
     def _finish_editing(self) -> None:
         """Exit edit mode and save."""
         if not self._editing or not self._name_edit:
             return
-        
+
         self._editing = False
         new_name = self._name_edit.text().strip()
-        
+
         if not new_name:
             # Revert to original if empty
             cage_id = self._cage_data.get('cage_id', 0) if self._cage_data else self._relay_id
             new_name = f'Cage {cage_id}'
-        
+
         # Update display
         display_name = new_name if len(new_name) <= 20 else new_name[:18] + "…"
         self._name_label.setText(display_name)
@@ -159,13 +174,13 @@ class RelayTerminalWidget(QFrame):
             self._name_label.setToolTip(new_name)
         else:
             self._name_label.setToolTip("")
-        
+
         self._name_edit.setVisible(False)
         self._name_label.setVisible(True)
-        
+
         # Emit signal to save
         self.name_changed.emit(self._cage_id, new_name)
-    
+
     def _update_selection_style(self) -> None:
         """Update visual state for selection."""
         if self._selected:
@@ -174,12 +189,12 @@ class RelayTerminalWidget(QFrame):
             self.setProperty("selected", False)
         self.style().unpolish(self)
         self.style().polish(self)
-    
+
     def deselect(self) -> None:
         """Remove selection highlight."""
         self._selected = False
         self._update_selection_style()
-    
+
     def keyPressEvent(self, event):
         """Handle Escape to cancel editing."""
         if event.key() == Qt.Key_Escape and self._editing:
@@ -188,7 +203,7 @@ class RelayTerminalWidget(QFrame):
             self._name_label.setVisible(True)
             return
         super().keyPressEvent(event)
-    
+
     @property
     def relay_id(self) -> int:
         return self._relay_id
@@ -198,57 +213,59 @@ class CagesVisualizationTab(QWidget):
     """
     Tab displaying physical relay HAT board layout with inline editing.
     """
-    
+
     cage_selected = pyqtSignal(int)
     cage_names_updated = pyqtSignal()  # Emitted when any cage name is changed
-    
-    def __init__(self, database_handler, system_controller=None, 
-                 print_to_terminal=None, parent=None):
+
+    def __init__(
+        self, database_handler, system_controller=None, print_to_terminal=None, parent=None
+    ):
         super().__init__(parent)
         self._database_handler = database_handler
         self._system_controller = system_controller
         self._print_to_terminal = print_to_terminal or (lambda x: None)
-        
+
         self._num_hats = 1
         self._master_relay = 16
         if system_controller and hasattr(system_controller, 'settings'):
             self._num_hats = int(system_controller.settings.get('num_hats', 1))
             self._master_relay = int(system_controller.settings.get('global_master_relay_id', 16))
-        
+
         self._relay_widgets: Dict[int, RelayTerminalWidget] = {}
         self._selected_relay: Optional[int] = None
         self._init_ui()
         self._load_cage_data()
-    
+
     def _init_ui(self) -> None:
         """Build the visualization layout."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 16, 20, 16)
         main_layout.setSpacing(12)
-        
+
         # ═══════════════════════════════════════════════════════════════
         # HEADER with title and info button
         # ═══════════════════════════════════════════════════════════════
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
         header_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         title = QLabel("Relay Board Layout")
         title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1F2937;")
         header_layout.addWidget(title, alignment=Qt.AlignVCenter)
-        
+
         # Info button (uses global QSS via InfoButton objectName)
         from PyQt5.QtWidgets import QPushButton
+
         info_btn = QPushButton("?")
         info_btn.setObjectName("InfoButton")
         info_btn.setCursor(Qt.PointingHandCursor)
         info_btn.clicked.connect(self._show_relay_info)
         header_layout.addWidget(info_btn, alignment=Qt.AlignVCenter)
-        
+
         header_layout.addStretch()
-        
+
         main_layout.addLayout(header_layout)
-        
+
         # ═══════════════════════════════════════════════════════════════
         # BOARD VISUALIZATION — one tab per HAT
         # ═══════════════════════════════════════════════════════════════
@@ -282,19 +299,17 @@ class CagesVisualizationTab(QWidget):
         self._hat_tab_widget = QTabWidget()
         self._hat_tab_widget.setObjectName("HatTabs")
         for hat_index in range(self._num_hats):
-            self._hat_tab_widget.addTab(
-                self._build_hat_tab(hat_index), f"HAT {hat_index}"
-            )
+            self._hat_tab_widget.addTab(self._build_hat_tab(hat_index), f"HAT {hat_index}")
         board_layout.addWidget(self._hat_tab_widget, 1)
 
         main_layout.addWidget(board_frame, 1)
-        
+
         # ═══════════════════════════════════════════════════════════════
         # LEGEND BAR
         # ═══════════════════════════════════════════════════════════════
         legend_layout = QHBoxLayout()
         legend_layout.setSpacing(24)
-        
+
         cage_legend = QHBoxLayout()
         cage_legend.setSpacing(6)
         cage_dot = QLabel("●")
@@ -302,7 +317,7 @@ class CagesVisualizationTab(QWidget):
         cage_legend.addWidget(cage_dot)
         cage_legend.addWidget(QLabel("Cage valve"))
         legend_layout.addLayout(cage_legend)
-        
+
         master_legend = QHBoxLayout()
         master_legend.setSpacing(6)
         master_dot = QLabel("●")
@@ -310,15 +325,15 @@ class CagesVisualizationTab(QWidget):
         master_legend.addWidget(master_dot)
         master_legend.addWidget(QLabel("Master solenoid"))
         legend_layout.addLayout(master_legend)
-        
+
         legend_layout.addStretch()
-        
+
         self._status_label = QLabel("")
         self._status_label.setObjectName("Caption")
         legend_layout.addWidget(self._status_label)
-        
+
         main_layout.addLayout(legend_layout)
-        
+
         # Click anywhere to deselect
         self.setFocusPolicy(Qt.ClickFocus)
 
@@ -352,14 +367,18 @@ class CagesVisualizationTab(QWidget):
         center_column = QVBoxLayout()
         center_column.setAlignment(Qt.AlignCenter)
         image_path = os.path.join(
-            os.path.dirname(__file__), 'src',
+            os.path.dirname(__file__),
+            'src',
             'relay architecture with lab els.png',
         )
         if os.path.exists(image_path):
             board_image = QLabel()
             pixmap = QPixmap(image_path)
             scaled = pixmap.scaled(
-                500, 650, Qt.KeepAspectRatio, Qt.SmoothTransformation,
+                500,
+                650,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
             )
             board_image.setPixmap(scaled)
             board_image.setAlignment(Qt.AlignCenter)
@@ -400,16 +419,17 @@ class CagesVisualizationTab(QWidget):
         """Click on empty area deselects and finishes any editing."""
         self._deselect_all()
         super().mousePressEvent(event)
-    
+
     def _deselect_all(self) -> None:
         """Deselect all terminal widgets."""
         for widget in self._relay_widgets.values():
             widget.deselect()
         self._selected_relay = None
-    
+
     def _show_relay_info(self) -> None:
         """Show relay-to-cage relationship info dialog."""
         from PyQt5.QtWidgets import QMessageBox
+
         QMessageBox.information(
             self,
             "Relay-to-Cage Relationship",
@@ -420,9 +440,9 @@ class CagesVisualizationTab(QWidget):
             "The master solenoid is global (default: relay 16 on HAT 0).\n"
             "All other relays across all HATs are cage valves.\n\n"
             "Wire each cage's valve to its corresponding terminal.\n"
-            "Double-click a cage name to rename it."
+            "Double-click a cage name to rename it.",
         )
-    
+
     def _load_cage_data(self) -> None:
         """Load cage data and populate per-HAT terminals.
 
@@ -457,7 +477,7 @@ class CagesVisualizationTab(QWidget):
                 # LEFT: HAT-local relays 1..8 -> absolute (base+1)..(base+8)
                 for offset in range(1, 9):
                     relay_id = base + offset
-                    is_master = (relay_id == self._master_relay)
+                    is_master = relay_id == self._master_relay
                     widget = RelayTerminalWidget(
                         relay_id=relay_id,
                         cage_data=cage_by_relay.get(relay_id) if not is_master else None,
@@ -471,7 +491,7 @@ class CagesVisualizationTab(QWidget):
                 # RIGHT: HAT-local relays 16..9 -> absolute (base+16)..(base+9)
                 for offset in range(16, 8, -1):
                     relay_id = base + offset
-                    is_master = (relay_id == self._master_relay)
+                    is_master = relay_id == self._master_relay
                     widget = RelayTerminalWidget(
                         relay_id=relay_id,
                         cage_data=cage_by_relay.get(relay_id) if not is_master else None,
@@ -482,31 +502,29 @@ class CagesVisualizationTab(QWidget):
                     containers['right'].addWidget(widget)
                     self._relay_widgets[relay_id] = widget
 
-            self._status_label.setText(
-                f"{len(cages)} cages · {self._num_hats} HAT"
-            )
+            self._status_label.setText(f"{len(cages)} cages · {self._num_hats} HAT")
 
         except Exception as e:
             self._status_label.setText(f"Error: {str(e)}")
             self._print_to_terminal(f"[CagesTab] Error: {e}")
-    
+
     def _clear_layout(self, layout: QVBoxLayout) -> None:
         """Remove all widgets from layout."""
         while layout.count():
             item = layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-    
+
     def _on_relay_clicked(self, relay_id: int) -> None:
         """Handle terminal selection."""
         # Deselect others
         for rid, widget in self._relay_widgets.items():
             if rid != relay_id:
                 widget.deselect()
-        
+
         self._selected_relay = relay_id
         self.cage_selected.emit(relay_id)
-    
+
     def _on_name_changed(self, cage_id: int, new_name: str) -> None:
         """Save cage name to database and notify other components.
 
@@ -519,8 +537,7 @@ class CagesVisualizationTab(QWidget):
             # Resolve the relay_id from the relay_widgets map so set_cage_name
             # still receives both ids (the DB schema indexes by both).
             relay_id = next(
-                (rid for rid, w in self._relay_widgets.items()
-                 if w._cage_id == cage_id),
+                (rid for rid, w in self._relay_widgets.items() if w._cage_id == cage_id),
                 cage_id,
             )
             self._database_handler.set_cage_name(
@@ -534,7 +551,7 @@ class CagesVisualizationTab(QWidget):
             self.cage_names_updated.emit()
         except Exception as e:
             self._print_to_terminal(f"[CagesTab] Save error: {e}")
-    
+
     def refresh(self) -> None:
         """Re-read settings, then reload cage data.
 
@@ -567,9 +584,7 @@ class CagesVisualizationTab(QWidget):
 
         if target > current:
             for hat_index in range(current, target):
-                self._hat_tab_widget.addTab(
-                    self._build_hat_tab(hat_index), f"HAT {hat_index}"
-                )
+                self._hat_tab_widget.addTab(self._build_hat_tab(hat_index), f"HAT {hat_index}")
         else:
             for _ in range(current - target):
                 removed_index = self._hat_tab_widget.count() - 1

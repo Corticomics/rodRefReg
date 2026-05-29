@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
-import sys, os, time, traceback
-from PyQt5.QtWidgets import (QApplication, QInputDialog)
-from PyQt5.QtCore import Qt, QThread, QObject, pyqtSignal, QTimer, QMutex, QMutexLocker
-from PyQt5.QtGui import QGuiApplication
-from PyQt5.QtNetwork import QLocalServer, QLocalSocket
-from utils.volume_calculator import VolumeCalculator
-from utils import paths
-from gpio.relay_worker import RelayWorker
-from ui.gui import RodentRefreshmentGUI
-from gpio.gpio_handler import RelayHandler
-from notifications.notifications import NotificationHandler
-from controllers.projects_controller import ProjectsController
-from models.database_handler import DatabaseHandler
-from models.login_system import LoginSystem
-from controllers.system_controller import SystemController
-from controllers.pump_controller import PumpController
-from models.relay_unit_manager import RelayUnitManager
-from ui.SettingsTab import SettingsTab
-from ui.style.theme import StyleManager
-from version import __version__
-from utils import updater
-from utils import stop_sequence
-
 # =============================================================================
 # Global exception hook and stream redirection (unchanged)
 # =============================================================================
 import os
+import sys
+import time
+import traceback
 from datetime import datetime
 
+from controllers.projects_controller import ProjectsController
+from controllers.pump_controller import PumpController
+from controllers.system_controller import SystemController
+from gpio.gpio_handler import RelayHandler
+from gpio.relay_worker import RelayWorker
+from models.database_handler import DatabaseHandler
+from models.login_system import LoginSystem
+from models.relay_unit_manager import RelayUnitManager
+from notifications.notifications import NotificationHandler
+from PyQt5.QtCore import QMutex, QMutexLocker, QObject, Qt, QThread, QTimer, pyqtSignal
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtNetwork import QLocalServer, QLocalSocket
+from PyQt5.QtWidgets import QApplication, QInputDialog
+from ui.gui import RodentRefreshmentGUI
+from ui.SettingsTab import SettingsTab
+from ui.style.theme import StyleManager
+from utils import paths, stop_sequence, updater
+from utils.volume_calculator import VolumeCalculator
+from version import __version__
+
 _DEBUG_LOG_PATH = paths.debug_log_path()
+
 
 def _dbg(message: str):
     try:
@@ -39,6 +40,7 @@ def _dbg(message: str):
         # Never raise from debug logging
         pass
 
+
 def exception_hook(exctype, value, tb):
     """Global exception handler for uncaught exceptions outside Qt event loop."""
     msg = "".join(traceback.format_exception(exctype, value, tb))
@@ -47,56 +49,62 @@ def exception_hook(exctype, value, tb):
     # Don't call sys.exit() here - let the app continue if possible
     # sys.exit(1) was causing issues with Qt's event loop
 
+
 sys.excepthook = exception_hook
 
 
 class SafeQApplication(QApplication):
     """
     Custom QApplication that catches exceptions in Qt event handlers.
-    
+
     Per Qt documentation (https://doc.qt.io/qt-5/qcoreapplication.html#notify):
-    "Future direction: This function will not be called for objects that live 
-    outside the main thread in Qt 6. Applications that need that functionality 
+    "Future direction: This function will not be called for objects that live
+    outside the main thread in Qt 6. Applications that need that functionality
     should find other solutions for their use cases."
-    
+
     Per PyQt5 documentation:
     Exceptions raised in event handlers are caught by Qt's C++ event loop before
     reaching Python's exception handling. Override notify() to catch them.
-    
+
     Reference: https://www.riverbankcomputing.com/static/Docs/PyQt5/incompatibilities.html
     """
-    
+
     def notify(self, receiver, event):
         """
         Override QApplication.notify() to catch exceptions in event handlers.
-        
+
         This is the recommended approach per Qt and PyQt5 documentation for
         handling exceptions that occur during event processing.
         """
         try:
             return super().notify(receiver, event)
-        except Exception as e:
+        except Exception:
             # Log the exception with full traceback
             exc_info = sys.exc_info()
             msg = "".join(traceback.format_exception(*exc_info))
-            
+
             # Log to console and debug file
             print(f"\n[Qt Event Handler Exception]\n{msg}")
             _dbg(f"QT EVENT EXCEPTION: {msg}")
-            
+
             # Don't crash the app - return False to indicate event not handled
             # This allows the app to continue running
             return False
 
+
 class StreamRedirector(QObject):
     message_signal = pyqtSignal(str)
+
     def __init__(self):
         super().__init__()
+
     def write(self, message):
         if message.strip():
             self.message_signal.emit(message)
+
     def flush(self):
         pass
+
 
 # =============================================================================
 # Global thread and worker variables
@@ -104,8 +112,10 @@ class StreamRedirector(QObject):
 thread = None
 worker = None
 
+
 class ControlSignals(QObject):
     stop_requested = pyqtSignal()
+
 
 control_signals = ControlSignals()
 
@@ -126,9 +136,10 @@ def _selftest():
     a release is activated. See docs/UPDATE_SYSTEM.md §14.7.
     """
     try:
-        from models.database_handler import DatabaseHandler
         from controllers.system_controller import SystemController  # noqa: F401
+        from models.database_handler import DatabaseHandler
         from ui.gui import RodentRefreshmentGUI  # noqa: F401
+
         DatabaseHandler().connect().close()
         print("rrr selftest: OK")
         sys.exit(0)
@@ -136,11 +147,20 @@ def _selftest():
         print(f"rrr selftest: FAILED: {exc}")
         sys.exit(1)
 
+
 # =============================================================================
 # setup() – create our global objects and UI
 # =============================================================================
 def setup():
-    global relay_handler, app_settings, gui, notification_handler, controller, database_handler, login_system, system_controller
+    global \
+        relay_handler, \
+        app_settings, \
+        gui, \
+        notification_handler, \
+        controller, \
+        database_handler, \
+        login_system, \
+        system_controller
 
     database_handler = DatabaseHandler()
     system_controller = SystemController(database_handler)
@@ -159,22 +179,23 @@ def setup():
     # Initialize relay unit manager (mode-aware: pump vs solenoid)
     relay_unit_manager = RelayUnitManager(app_settings)
     relay_handler = RelayHandler(relay_unit_manager, app_settings['num_hats'])
-    
+
     # Store relay_unit_manager in app_settings for UI access
     # Best Practice: Single source of truth for relay configuration
     app_settings['relay_unit_manager'] = relay_unit_manager
-    print(f"✓ RelayUnitManager initialized in {relay_unit_manager.get_hardware_mode()} mode with {len(relay_unit_manager.get_all_relay_units())} units")
+    print(
+        f"✓ RelayUnitManager initialized in {relay_unit_manager.get_hardware_mode()} mode with {len(relay_unit_manager.get_all_relay_units())} units"
+    )
 
     controller = ProjectsController()
     pump_controller = PumpController(relay_handler, database_handler)
     controller.pump_controller = pump_controller
-    
+
     # Store pump_controller in app_settings for UI access
     app_settings['pump_controller'] = pump_controller
 
     notification_handler = NotificationHandler(
-        app_settings.get('slack_token'),
-        app_settings.get('channel_id')
+        app_settings.get('slack_token'), app_settings.get('channel_id')
     )
 
     login_system = LoginSystem(database_handler)
@@ -189,7 +210,7 @@ def setup():
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler
+        notification_handler=notification_handler,
     )
 
     gui.settings_tab = SettingsTab(
@@ -203,6 +224,7 @@ def setup():
         database_handler=database_handler,
         notification_handler=notification_handler,
     )
+
 
 # =============================================================================
 # run_program() – create a new worker and thread and start it.
@@ -220,53 +242,71 @@ def run_program(schedule, mode, window_start, window_end):
             worker_settings = system_controller.settings.copy()
 
         # Update with schedule‐specific settings.
-        worker_settings.update({
-            'mode': mode,
-            'window_start': window_start,
-            'window_end': window_end,
-            'min_trigger_interval_ms': worker_settings.get('min_trigger_interval_ms', 500),
-            'database_handler': database_handler,
-            'pump_controller': controller.pump_controller,
-            'schedule_id': schedule.schedule_id
-        })
+        worker_settings.update(
+            {
+                'mode': mode,
+                'window_start': window_start,
+                'window_end': window_end,
+                'min_trigger_interval_ms': worker_settings.get('min_trigger_interval_ms', 500),
+                'database_handler': database_handler,
+                'pump_controller': controller.pump_controller,
+                'schedule_id': schedule.schedule_id,
+            }
+        )
 
         if mode.lower() == "instant":
             worker_settings['delivery_instants'] = []
             for delivery in schedule.instant_deliveries:
-                worker_settings['delivery_instants'].append({
-                    'relay_unit_id': delivery['relay_unit_id'],
-                    'animal_id': delivery['animal_id'],
-                    'delivery_time': delivery['datetime'].isoformat() if hasattr(delivery['datetime'], 'isoformat') else delivery['datetime'],
-                    'water_volume': delivery['volume']
-                })
+                worker_settings['delivery_instants'].append(
+                    {
+                        'relay_unit_id': delivery['relay_unit_id'],
+                        'animal_id': delivery['animal_id'],
+                        'delivery_time': delivery['datetime'].isoformat()
+                        if hasattr(delivery['datetime'], 'isoformat')
+                        else delivery['datetime'],
+                        'water_volume': delivery['volume'],
+                    }
+                )
         else:
             # CRITICAL FIX: Make defensive copies of schedule dicts to prevent
             # reference aliasing issues where modifications to the Schedule object
             # after worker creation would affect the worker's view of the data.
             # Bug: Without copy, if schedule is modified, worker sees wrong data.
-            relay_assignments_copy = dict(schedule.relay_unit_assignments) if schedule.relay_unit_assignments else {}
-            desired_outputs_copy = dict(schedule.desired_water_outputs) if schedule.desired_water_outputs else {}
-            
-            worker_settings.update({
-                'cycle_interval': worker_settings.get('cycle_interval', 3600),
-                'stagger_interval': worker_settings.get('stagger_interval', 0.5),
-                'water_volume': schedule.water_volume,
-                'relay_unit_assignments': relay_assignments_copy,
-                'desired_water_outputs': desired_outputs_copy
-            })
-            
+            relay_assignments_copy = (
+                dict(schedule.relay_unit_assignments) if schedule.relay_unit_assignments else {}
+            )
+            desired_outputs_copy = (
+                dict(schedule.desired_water_outputs) if schedule.desired_water_outputs else {}
+            )
+
+            worker_settings.update(
+                {
+                    'cycle_interval': worker_settings.get('cycle_interval', 3600),
+                    'stagger_interval': worker_settings.get('stagger_interval', 0.5),
+                    'water_volume': schedule.water_volume,
+                    'relay_unit_assignments': relay_assignments_copy,
+                    'desired_water_outputs': desired_outputs_copy,
+                }
+            )
+
             # DEBUG: Verify the copies are correct
             print(f"[main.py] relay_unit_assignments copy: {relay_assignments_copy}")
             print(f"[main.py] relay_unit_assignments copy id: {id(relay_assignments_copy)}")
             print(f"[main.py] desired_water_outputs copy: {desired_outputs_copy}")
             print(f"[main.py] worker_settings id: {id(worker_settings)}")
-            
+
             # Check if system_controller.settings has a relay_unit_assignments key
             if hasattr(system_controller, 'settings'):
-                print(f"[main.py] system_controller.settings has relay_unit_assignments: {'relay_unit_assignments' in system_controller.settings}")
-                print(f"[main.py] system_controller.settings has cage_relays: {'cage_relays' in system_controller.settings}")
+                print(
+                    f"[main.py] system_controller.settings has relay_unit_assignments: {'relay_unit_assignments' in system_controller.settings}"
+                )
+                print(
+                    f"[main.py] system_controller.settings has cage_relays: {'cage_relays' in system_controller.settings}"
+                )
                 if 'cage_relays' in system_controller.settings:
-                    print(f"[main.py] cage_relays id: {id(system_controller.settings['cage_relays'])}")
+                    print(
+                        f"[main.py] cage_relays id: {id(system_controller.settings['cage_relays'])}"
+                    )
 
         print("\nWorker Settings Debug:")
         print(f"Mode: {worker_settings.get('mode')}")
@@ -286,7 +326,7 @@ def run_program(schedule, mode, window_start, window_end):
                 # Thread was already deleted, ignore
                 pass
             thread = None
-        
+
         if worker is not None:
             try:
                 worker = None  # Clear reference, let deleteLater handle cleanup
@@ -299,10 +339,7 @@ def run_program(schedule, mode, window_start, window_end):
 
         # Create a new RelayWorker instance.
         worker = RelayWorker(
-            worker_settings,
-            relay_handler,
-            notification_handler,
-            system_controller
+            worker_settings, relay_handler, notification_handler, system_controller
         )
         worker.moveToThread(thread)
 
@@ -337,16 +374,18 @@ def run_program(schedule, mode, window_start, window_end):
             elif gui and hasattr(gui, 'run_stop_section'):
                 # Fallback: try to get from run_stop_section
                 tracker = gui.run_stop_section.get_progress_tracker()
-            
+
             if tracker:
                 print(f"[main.py] Connecting progress tracker: {tracker}")
                 print(f"[main.py] Tracker id: {id(tracker)}")
-                print(f"[main.py] Tracker cards before connect: {list(tracker.cards.keys()) if hasattr(tracker, 'cards') else 'N/A'}")
-                
+                print(
+                    f"[main.py] Tracker cards before connect: {list(tracker.cards.keys()) if hasattr(tracker, 'cards') else 'N/A'}"
+                )
+
                 # Volume updates: update per-animal progress
                 # IMPORTANT: Capture tracker reference directly (not via closure bug)
                 _tracker_ref = tracker  # Explicit capture
-                
+
                 def _on_volume_updated(animal_id_str: str, total_ml: float):
                     try:
                         animal_id = int(animal_id_str)
@@ -355,28 +394,33 @@ def run_program(schedule, mode, window_start, window_end):
                         return
                     try:
                         # Debug: log what we're trying to update
-                        print(f"[main.py] volume_updated: animal={animal_id}, ml={total_ml:.3f}, tracker_cards={list(_tracker_ref.cards.keys()) if hasattr(_tracker_ref, 'cards') else 'N/A'}")
-                        _tracker_ref.update_animal_progress(animal_id, total_ml, status="Delivering")
+                        print(
+                            f"[main.py] volume_updated: animal={animal_id}, ml={total_ml:.3f}, tracker_cards={list(_tracker_ref.cards.keys()) if hasattr(_tracker_ref, 'cards') else 'N/A'}"
+                        )
+                        _tracker_ref.update_animal_progress(
+                            animal_id, total_ml, status="Delivering"
+                        )
                     except Exception as e:
                         # Log errors instead of silently swallowing them
                         print(f"[main.py] ERROR updating progress: {e}")
                         import traceback
+
                         traceback.print_exc()
-                
+
                 try:
                     worker.volume_updated.disconnect()
                 except Exception:
                     pass
                 # Use QueuedConnection to ensure tracker updates happen in GUI thread
                 worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)
-                
+
                 # Finished: mark schedule complete in tracker + reset UI (also queued to GUI thread)
                 def _on_finished():
                     try:
                         _tracker_ref.schedule_complete()
                     except Exception as e:
                         print(f"[main.py] ERROR on schedule_complete: {e}")
-                    
+
                     # Reset run/stop section UI when schedule completes naturally
                     try:
                         if gui and hasattr(gui, 'run_stop_section'):
@@ -384,12 +428,13 @@ def run_program(schedule, mode, window_start, window_end):
                             print("[main.py] Reset run_stop_section UI after schedule completion")
                     except Exception as e:
                         print(f"[main.py] ERROR resetting UI: {e}")
-                
+
                 worker.finished.connect(_on_finished, Qt.QueuedConnection)
                 print(f"[main.py] Progress tracker connected successfully")
         except Exception as e:
             print(f"[main.py] Failed to setup progress tracker: {e}")
             import traceback
+
             traceback.print_exc()
 
         # Ensure stop requests are delivered to the worker's thread (Qt.QueuedConnection)
@@ -406,7 +451,10 @@ def run_program(schedule, mode, window_start, window_end):
     except Exception as e:
         print(f"Failed to run program: {e}")
         if notification_handler:
-            notification_handler.send_slack_notification(f"[RRR v{__version__}] Program error: {e}")
+            notification_handler.send_slack_notification(
+                f"[RRR v{__version__}] Program error: {e}"
+            )
+
 
 # =============================================================================
 # Centralized cleanup() – called once when the worker finishes.
@@ -414,7 +462,7 @@ def run_program(schedule, mode, window_start, window_end):
 def cleanup():
     global thread, worker
     print("[DEBUG] Starting cleanup process")
-    
+
     try:
         # Only proceed if the worker is not running.
         if worker:
@@ -425,14 +473,14 @@ def cleanup():
             except RuntimeError:
                 # Worker was already deleted
                 pass
-        
+
         if relay_handler:
             relay_handler.set_all_relays(0)
             print("[DEBUG] All relays deactivated")
-        
+
         # Clear worker reference (deleteLater handles actual cleanup)
         worker = None
-        
+
         # Safely handle thread cleanup
         if thread is not None:
             try:
@@ -444,7 +492,7 @@ def cleanup():
                 # Thread was already deleted
                 pass
         thread = None
-        
+
         # Reset the UI (only once)
         if gui and hasattr(gui, 'run_stop_section'):
             gui.run_stop_section.reset_ui()
@@ -452,7 +500,9 @@ def cleanup():
     except Exception as e:
         print(f"[ERROR] Unexpected error during cleanup: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 # =============================================================================
 # stop_program() – called when the user clicks "Stop."
@@ -467,11 +517,14 @@ def _show_stopping_dialog():
     Returns None if Qt isn't available.
     """
     try:
-        from PyQt5.QtWidgets import QProgressDialog  # noqa: PLC0415
         from PyQt5.QtCore import Qt  # noqa: PLC0415
+        from PyQt5.QtWidgets import QProgressDialog  # noqa: PLC0415
+
         dialog = QProgressDialog(
             "Stopping schedule…\nHardware is safe; closing the worker.",
-            None, 0, 0,
+            None,
+            0,
+            0,
         )
         dialog.setWindowTitle("Stopping")
         dialog.setWindowModality(Qt.ApplicationModal)
@@ -496,13 +549,17 @@ def stop_program():
     global thread, worker, relay_handler
     try:
         return stop_sequence.execute_stop_sequence(
-            relay_handler, worker, thread, control_signals,
+            relay_handler,
+            worker,
+            thread,
+            control_signals,
             dialog_factory=_show_stopping_dialog,
         )
     except Exception as exc:
         print(f"[ERROR] Stop sequence failed: {exc}")
         traceback.print_exc()
         return False
+
 
 # =============================================================================
 # RelayWorker.stop() – part of the worker; called only once.
@@ -525,6 +582,7 @@ def stop_program():
 #
 # This method is only called once (either by stop_program() or when the job completes naturally).
 
+
 # =============================================================================
 # change_relay_hats() and helpers
 # =============================================================================
@@ -543,8 +601,9 @@ def change_relay_hats():
     Project/models/relay_unit_manager.py:_initialize_solenoid_mode.
     """
     global relay_handler, app_settings
-    num_hats, ok = QInputDialog.getInt(None, "Number of Relay Hats",
-                                        "Enter the number of relay hats:", min=1, max=8)
+    num_hats, ok = QInputDialog.getInt(
+        None, "Number of Relay Hats", "Enter the number of relay hats:", min=1, max=8
+    )
     if not ok:
         return
     app_settings['num_hats'] = num_hats
@@ -564,6 +623,7 @@ def change_relay_hats():
         gui.print_to_terminal(f"Cages tab refresh failed: {exc}")
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
+
 def create_relay_pairs(num_hats):
     relay_units = []
     for hat in range(num_hats):
@@ -572,6 +632,7 @@ def create_relay_pairs(num_hats):
             relay_pair = (start_relay + i, start_relay + i + 1)
             relay_units.append(relay_pair)
     return relay_units
+
 
 # =============================================================================
 # Main entry point with splash screen optimization
@@ -586,19 +647,19 @@ USE_SPLASH_SCREEN = False
 def _create_gui_from_components(components: dict):
     """
     Create GUI after background initialization completes.
-    
+
     This function runs on the main thread after InitializationWorker finishes.
     Per Qt Documentation: All GUI operations must happen on the main thread.
-    
+
     Reference: https://doc.qt.io/qt-5/thread-basics.html#gui-thread-and-worker-thread
     """
     global relay_handler, app_settings, gui, notification_handler, controller
     global database_handler, login_system, system_controller
-    
+
     # Import GUI components (deferred for faster splash display)
     from ui.gui import RodentRefreshmentGUI
     from ui.SettingsTab import SettingsTab
-    
+
     # Extract components from background initialization
     database_handler = components.get('database_handler')
     system_controller = components.get('system_controller')
@@ -606,9 +667,9 @@ def _create_gui_from_components(components: dict):
     notification_handler = components.get('notification_handler')
     login_system = components.get('login_system')
     controller = components.get('controller')
-    
+
     app_settings = system_controller.settings if system_controller else {}
-    
+
     # Create the main GUI (uses existing login UI in UserTab)
     gui = RodentRefreshmentGUI(
         run_program,
@@ -618,9 +679,9 @@ def _create_gui_from_components(components: dict):
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler
+        notification_handler=notification_handler,
     )
-    
+
     gui.settings_tab = SettingsTab(
         system_controller=system_controller,
         suggest_callback=gui.suggest_settings_callback,
@@ -632,20 +693,20 @@ def _create_gui_from_components(components: dict):
         database_handler=database_handler,
         notification_handler=notification_handler,
     )
-    
+
     return gui
 
 
 def main():
     """
     Application entry point with optional splash screen.
-    
+
     Optimization Strategy:
     1. Show splash screen immediately for visual feedback
     2. Initialize heavy components in background thread
     3. Create GUI after initialization completes
     4. Transition from splash to main window
-    
+
     Set USE_SPLASH_SCREEN = False to debug without splash.
     """
     global gui, system_controller
@@ -675,7 +736,7 @@ def main():
 
     # Gate in-app updates: never apply one while a delivery schedule runs.
     updater.set_busy_check(_schedule_is_running)
-    
+
     # Apply initial theme
     try:
         _style_manager = StyleManager(app)
@@ -683,7 +744,7 @@ def main():
         _style_manager.apply("light")
     except Exception:
         pass
-    
+
     # Prevent implicit quit
     QGuiApplication.setQuitOnLastWindowClosed(False)
     try:
@@ -696,32 +757,33 @@ def main():
         _main_with_splash(app, instance_key)
     else:
         _main_without_splash(app, instance_key)
-    
+
     sys.exit(app.exec_())
 
 
 def _main_with_splash(app, instance_key):
     """
     Startup with splash screen for instant visual feedback.
-    
+
     Shows splash immediately, initializes in background thread,
     then creates GUI after initialization completes.
     """
     global gui, system_controller
-    
+
     # Import and show splash screen immediately
     from ui.splash_screen import SplashScreen
+
     splash = SplashScreen()
     splash.show()
     app.processEvents()  # Force paint before any initialization
-    
+
     # Keep references to prevent garbage collection
     _state = {'server': None, 'redirector': None}
-    
+
     def on_initialization_complete(components: dict):
         """Handle completion of background initialization."""
         global gui, system_controller
-        
+
         if not components:
             # Fallback to synchronous initialization on error
             print("[SPLASH] Background init failed, falling back to synchronous")
@@ -734,7 +796,7 @@ def _main_with_splash(app, instance_key):
                 print(f"[SPLASH] Error creating GUI: {e}")
                 traceback.print_exc()
                 setup()  # Fallback
-        
+
         # Apply persisted theme
         try:
             style_mgr = app.property('style_manager')
@@ -743,23 +805,24 @@ def _main_with_splash(app, instance_key):
                 style_mgr.apply(desired_theme)
         except Exception:
             pass
-        
+
         # Setup stream redirection for System Messages panel
         _state['redirector'] = StreamRedirector()
         _state['redirector'].message_signal.connect(gui.system_message_signal)
         sys.stdout = _state['redirector']
         sys.stderr = _state['redirector']
-        
+
         # Check for updates
         try:
             from ui.update_notifier import UpdateNotifier
+
             UpdateNotifier.check_for_updates(gui)
         except Exception:
             pass
-        
+
         # Show main window
         gui.show()
-        
+
         # Setup single-instance server
         _state['server'] = QLocalServer()
         try:
@@ -795,10 +858,10 @@ def _main_with_splash(app, instance_key):
                 pass
 
         _state['server'].newConnection.connect(_handle_new_connection)
-    
+
     # Connect splash completion to GUI creation
     splash.initialization_complete.connect(on_initialization_complete)
-    
+
     # Start background initialization
     splash.start_initialization()
 
@@ -808,10 +871,11 @@ def _main_without_splash(app, instance_key):
     Original synchronous startup (fallback/debug mode).
     """
     global gui, system_controller
-    
+
     # Lifecycle logging
     try:
-        from PyQt5.QtCore import QObject, QEvent
+        from PyQt5.QtCore import QEvent, QObject
+
         class _CloseLogger(QObject):
             def eventFilter(self, obj, event):
                 try:
@@ -821,14 +885,15 @@ def _main_without_splash(app, instance_key):
                 except Exception:
                     pass
                 return False
+
         _close_logger = _CloseLogger()
         app.installEventFilter(_close_logger)
     except Exception:
         pass
-    
+
     # Synchronous setup
     setup()
-    
+
     # Apply persisted theme
     try:
         style_mgr = app.property('style_manager')
@@ -837,22 +902,23 @@ def _main_without_splash(app, instance_key):
             style_mgr.apply(desired_theme)
     except Exception:
         pass
-    
+
     # Setup stream redirection
     redirector = StreamRedirector()
     redirector.message_signal.connect(gui.system_message_signal)
     sys.stdout = redirector
     sys.stderr = redirector
-    
+
     # Check for updates
     try:
         from ui.update_notifier import UpdateNotifier
+
         UpdateNotifier.check_for_updates(gui)
     except Exception:
         pass
 
     gui.show()
-    
+
     # Local server
     server = QLocalServer()
     try:
@@ -884,6 +950,7 @@ def _main_without_splash(app, instance_key):
             pass
 
     server.newConnection.connect(_handle_new_connection)
+
 
 if __name__ == "__main__":
     if "--selftest" in sys.argv:

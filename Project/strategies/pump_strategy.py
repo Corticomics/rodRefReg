@@ -63,9 +63,7 @@ class PumpStrategy:
         )
 
         # For consistency with legacy path, compute the actual volume we will command.
-        volume_ml_for_command = (
-            (triggers * self._volume_calculator.pump_volume_ul) / 1000.0
-        )
+        volume_ml_for_command = (triggers * self._volume_calculator.pump_volume_ul) / 1000.0
 
         return await self._pump_controller.dispense_water(
             relay_unit_id,
@@ -76,5 +74,3 @@ class PumpStrategy:
     async def clean(self, relay_unit_id: int, to_waste: bool = True) -> None:
         # Pump path currently has no specialized clean routine here.
         return None
-
-

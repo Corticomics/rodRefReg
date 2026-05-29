@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import AsyncIterator, Optional, Tuple
 import asyncio
 import logging
+from dataclasses import dataclass
+from typing import AsyncIterator, Optional, Tuple
+
 from smbus2 import SMBus, i2c_msg
+
 from .i2c_coordinator import get_i2c_coordinator
 
 
@@ -72,7 +74,9 @@ class SLF3S0600FDriver:
                     sample = self._read_raw_frame()
                     if sample is not None:
                         flow_ul_min, temp_c, _ = sample
-                        flow_ml_min = ((flow_ul_min / 1000.0) - self._zero_offset) * self._span_scale
+                        flow_ml_min = (
+                            (flow_ul_min / 1000.0) - self._zero_offset
+                        ) * self._span_scale
                         yield FlowSample(flow_ml_min=flow_ml_min, temperature_c=temp_c)
                 await asyncio.sleep(self._sampling_period_s)
         finally:
@@ -100,26 +104,27 @@ class SLF3S0600FDriver:
 
     def _start_raw(self) -> None:
         """Start continuous measurement mode with I2C coordination.
-        
+
         Command: 0x3608 (Start continuous measurement for liquid flow)
         Based on Sensirion I2C Implementation Guide.
         """
+
         def _hardware_start_operation():
             try:
                 with SMBus(self._bus_id) as bus:
                     write_msg = i2c_msg.write(self._addr, [0x36, 0x08])
                     bus.i2c_rdwr(write_msg)
                     import time
+
                     time.sleep(0.01)  # 10ms sensor initialization time
                     return True
             except Exception as e:
                 logging.warning(f"Flow sensor start I2C operation failed: {e}")
                 return False
-        
+
         try:
             success = self._coordinator.sync_exclusive_access(
-                'flow_sensor',
-                _hardware_start_operation
+                'flow_sensor', _hardware_start_operation
             )
             if not success:
                 logging.warning(f"Flow sensor start command failed on bus {self._bus_id}")
@@ -128,6 +133,7 @@ class SLF3S0600FDriver:
 
     def _stop_raw(self) -> None:
         """Stop continuous measurement mode with I2C coordination."""
+
         def _hardware_stop_operation():
             try:
                 with SMBus(self._bus_id) as bus:
@@ -137,20 +143,18 @@ class SLF3S0600FDriver:
             except Exception as e:
                 logging.warning(f"Flow sensor stop I2C operation failed: {e}")
                 return False
-        
+
         try:
-            self._coordinator.sync_exclusive_access(
-                'flow_sensor',
-                _hardware_stop_operation
-            )
+            self._coordinator.sync_exclusive_access('flow_sensor', _hardware_stop_operation)
         except Exception as e:
             logging.error(f"Flow sensor stop coordination failed: {e}")
 
     def start(self) -> None:
         # Brief delay before flow sensor start to avoid I2C conflicts with relay initialization
         import time
+
         time.sleep(0.05)  # 50ms relay HAT stabilization delay
-        
+
         self._start_raw()
         # Light debug to aid field setup
         try:
@@ -166,7 +170,9 @@ class SLF3S0600FDriver:
             self._null_reads += 1
             if self._null_reads in (1, 5):
                 try:
-                    print(f"[FlowSensor] no frame on bus {self._bus_id} (attempt {self._null_reads})")
+                    print(
+                        f"[FlowSensor] no frame on bus {self._bus_id} (attempt {self._null_reads})"
+                    )
                 except Exception:
                     pass
         else:
@@ -175,26 +181,24 @@ class SLF3S0600FDriver:
 
     def _read_raw_frame(self) -> Optional[Tuple[float, float, int]]:
         """Read 9-byte measurement frame with CRC validation and I2C coordination."""
+
         def _hardware_read_operation():
             try:
                 with SMBus(self._bus_id) as bus:
                     read_msg = i2c_msg.read(self._addr, 9)
                     bus.i2c_rdwr(read_msg)
                     return bytes(read_msg)
-            except Exception as e:
+            except Exception:
                 # Don't log every read failure to avoid spam
                 return None
-        
+
         try:
             # Use coordinated access for flow sensor reads
-            data = self._coordinator.sync_exclusive_access(
-                'flow_sensor', 
-                _hardware_read_operation
-            )
-            
+            data = self._coordinator.sync_exclusive_access('flow_sensor', _hardware_read_operation)
+
             if data is None or len(data) != 9:
                 return None
-            
+
             fmsb, flsb, fcrc = data[0], data[1], data[2]
             tmsb, tlsb, tcrc = data[3], data[4], data[5]
             cmsb, clsb, ccrc = data[6], data[7], data[8]
@@ -223,5 +227,3 @@ class SLF3S0600FDriver:
             self._stop_raw()
         except Exception:
             pass
-
-

@@ -1,9 +1,16 @@
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QLineEdit, QHBoxLayout, 
-    QPushButton, QDateTimeEdit
-)
-from PyQt5.QtCore import Qt, QDateTime, pyqtSignal, QTimer
 from datetime import datetime
+
+from PyQt5.QtCore import QDateTime, Qt, QTimer, pyqtSignal
+from PyQt5.QtWidgets import (
+    QDateTimeEdit,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class StaggeredDeliverySlot(QWidget):
     slot_deleted = pyqtSignal(QWidget)
@@ -12,10 +19,10 @@ class StaggeredDeliverySlot(QWidget):
         super().__init__(parent)
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
-        
+
         # Time window row
         time_window_layout = QHBoxLayout()
-        
+
         # Start time picker
         start_time_layout = QVBoxLayout()
         start_label = QLabel("Start Time:")
@@ -25,21 +32,23 @@ class StaggeredDeliverySlot(QWidget):
         self.start_datetime.setDisplayFormat("yyyy-MM-dd hh:mm AP")
         start_time_layout.addWidget(start_label)
         start_time_layout.addWidget(self.start_datetime)
-        
+
         # End time picker
         end_time_layout = QVBoxLayout()
         end_label = QLabel("End Time:")
         self.end_datetime = QDateTimeEdit()
         self.end_datetime.setCalendarPopup(True)
-        self.end_datetime.setDateTime(QDateTime.currentDateTime().addSecs(3600))  # Default 1 hour window
+        self.end_datetime.setDateTime(
+            QDateTime.currentDateTime().addSecs(3600)
+        )  # Default 1 hour window
         self.end_datetime.setDisplayFormat("yyyy-MM-dd hh:mm AP")
         end_time_layout.addWidget(end_label)
         end_time_layout.addWidget(self.end_datetime)
-        
+
         # Connect datetime changes to validation
         self.start_datetime.dateTimeChanged.connect(self.validate_times)
         self.end_datetime.dateTimeChanged.connect(self.validate_times)
-        
+
         # Volume input
         volume_layout = QVBoxLayout()
         volume_label = QLabel("Volume (mL):")
@@ -48,7 +57,7 @@ class StaggeredDeliverySlot(QWidget):
         self.volume_input.setFixedWidth(100)
         volume_layout.addWidget(volume_label)
         volume_layout.addWidget(self.volume_input)
-        
+
         # Delete button
         self.delete_button = QPushButton("×")
         self.delete_button.setStyleSheet("""
@@ -72,14 +81,14 @@ class StaggeredDeliverySlot(QWidget):
             }
         """)
         self.delete_button.clicked.connect(self.handle_delete)
-        
+
         # Add widgets to layouts
         time_window_layout.addLayout(start_time_layout)
         time_window_layout.addLayout(end_time_layout)
         time_window_layout.addLayout(volume_layout)
         time_window_layout.addWidget(self.delete_button)
         time_window_layout.addStretch()
-        
+
         self.layout.addLayout(time_window_layout)
         self.is_deleted = False
 
@@ -87,13 +96,13 @@ class StaggeredDeliverySlot(QWidget):
         """Ensure end time is after start time with minimum 5-minute window"""
         start_time = self.start_datetime.dateTime()
         end_time = self.end_datetime.dateTime()
-        
+
         if end_time <= start_time:
             # Add 5 minutes to ensure minimum window
             new_end_time = start_time.addSecs(300)  # 5 minutes = 300 seconds
             self.end_datetime.setDateTime(new_end_time)
             return
-            
+
         # Ensure minimum 5-minute window
         if end_time < start_time.addSecs(300):
             self.end_datetime.setDateTime(start_time.addSecs(300))
@@ -110,7 +119,7 @@ class StaggeredDeliverySlot(QWidget):
             return {
                 'start_time': self.start_datetime.dateTime().toPyDateTime(),
                 'end_time': self.end_datetime.dateTime().toPyDateTime(),
-                'volume': float(self.volume_input.text()) if self.volume_input.text() else 0.0
+                'volume': float(self.volume_input.text()) if self.volume_input.text() else 0.0,
             }
         except ValueError:
-            return None 
+            return None

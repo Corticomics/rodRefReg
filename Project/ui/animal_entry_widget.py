@@ -1,7 +1,8 @@
 # ui/animal_entry_widget.py
 
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QLineEdit
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QWidget
+
 
 class AnimalEntryWidget(QWidget):
     def __init__(self, animal):
@@ -12,7 +13,9 @@ class AnimalEntryWidget(QWidget):
 
         self.name_label = QLabel(f"{animal.name} ({animal.lab_animal_id})")
         self.weight_label = QLabel(f"Weight: {animal.last_weight} g")
-        self.recommended_water_label = QLabel(f"Recommended: {self.calculate_recommended_water()} mL")
+        self.recommended_water_label = QLabel(
+            f"Recommended: {self.calculate_recommended_water()} mL"
+        )
 
         self.desired_water_input = QLineEdit()
         self.desired_water_input.setPlaceholderText("Desired Water (mL)")

@@ -13,5 +13,3 @@ class Card(QFrame):
         self.setObjectName("Card")
         self.setProperty("card", True)
         self.setContentsMargins(12, 12, 12, 12)
-
-

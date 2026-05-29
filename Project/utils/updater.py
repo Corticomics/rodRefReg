@@ -19,9 +19,8 @@ import tarfile
 import tempfile
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-
-from version import __version__ as CURRENT_VERSION
 from utils import net, paths
+from version import __version__ as CURRENT_VERSION
 
 # The repository whose Releases are the update channel.
 GITHUB_REPO = "Corticomics/rodRefReg"
@@ -53,11 +52,10 @@ def is_newer(candidate, current=CURRENT_VERSION):
 class UpdateInfo:
     """The outcome of a successful update check."""
 
-    def __init__(self, version, url, notes, available,
-                 bundle_url=None, sha256_url=None):
-        self.version = version      # e.g. "1.1.0" (no leading "v")
-        self.url = url              # GitHub release page URL
-        self.notes = notes          # release notes / changelog text
+    def __init__(self, version, url, notes, available, bundle_url=None, sha256_url=None):
+        self.version = version  # e.g. "1.1.0" (no leading "v")
+        self.url = url  # GitHub release page URL
+        self.notes = notes  # release notes / changelog text
         self.available = available  # True if `version` is newer than CURRENT_VERSION
         self.bundle_url = bundle_url  # download URL of the .rrrupdate bundle
         self.sha256_url = sha256_url  # download URL of the .rrrupdate.sha256 file
@@ -88,7 +86,7 @@ def fetch_latest():
 
     # Resolve the bundle + checksum download URLs from the release assets.
     bundle_url = sha256_url = None
-    for asset in (data.get("assets") or []):
+    for asset in data.get("assets") or []:
         name = asset.get("name", "")
         if name.endswith(".rrrupdate.sha256"):
             sha256_url = asset.get("browser_download_url")
@@ -160,7 +158,7 @@ def run_check(parent, on_done):
 # See docs/UPDATE_SYSTEM.md §13.3 and §14.7.
 # ===========================================================================
 
-_MIN_FREE_BYTES = 200 * 1024 * 1024   # refuse to apply with less free space
+_MIN_FREE_BYTES = 200 * 1024 * 1024  # refuse to apply with less free space
 _RELEASES_TO_KEEP = 3
 
 # A delivery schedule must never be interrupted by an update. main.py registers
@@ -254,9 +252,9 @@ def _sync_venv_if_needed(new_dir, venv_python, progress):
         return
     progress("Updating dependencies…")
     subprocess.run(
-        [venv_python, "-m", "pip", "install", "--disable-pip-version-check",
-         "-q", "-r", req],
-        check=True, timeout=600,
+        [venv_python, "-m", "pip", "install", "--disable-pip-version-check", "-q", "-r", req],
+        check=True,
+        timeout=600,
     )
 
 
@@ -271,7 +269,10 @@ def _selftest_release(release_dir, venv_python):
         proc = subprocess.run(
             [venv_python, main_py, "--selftest"],
             cwd=os.path.join(release_dir, "Project"),
-            env=dict(os.environ), capture_output=True, text=True, timeout=120,
+            env=dict(os.environ),
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
     except Exception as exc:
         return False, str(exc)
@@ -323,8 +324,7 @@ def apply_update(info, progress=lambda message: None):
     if not info or not getattr(info, "bundle_url", None):
         return False, "No update bundle is available for this release."
     if _busy_check():
-        return False, ("A delivery schedule is running. Stop it before "
-                        "installing an update.")
+        return False, ("A delivery schedule is running. Stop it before " "installing an update.")
 
     releases = paths.releases_dir()
     new_dir = os.path.join(releases, info.version)
@@ -385,8 +385,7 @@ def apply_update(info, progress=lambda message: None):
         _reset_boot_state(info.version)
         _prune_releases()
 
-        return True, ("Version %s installed. Restart RRR to use it."
-                       % info.version)
+        return True, ("Version %s installed. Restart RRR to use it." % info.version)
     except Exception as exc:
         return False, "Update failed: %s" % exc
 
@@ -408,7 +407,7 @@ def revert():
         return False, "A delivery schedule is running. Stop it before rolling back."
 
     leaving = os.path.realpath(current)
-    _atomic_symlink(leaving, previous)   # so a re-apply path still exists
+    _atomic_symlink(leaving, previous)  # so a re-apply path still exists
     _atomic_symlink(target, current)
     version = os.path.basename(target)
     _reset_boot_state(version)
@@ -457,9 +456,12 @@ def restart_app():
     """
     # Path A: systemd user service.
     try:
-        active = subprocess.run(
-            ["systemctl", "--user", "is-active", "--quiet", "rrr"], timeout=10
-        ).returncode == 0
+        active = (
+            subprocess.run(
+                ["systemctl", "--user", "is-active", "--quiet", "rrr"], timeout=10
+            ).returncode
+            == 0
+        )
     except Exception:
         active = False
     if active:
@@ -472,15 +474,16 @@ def restart_app():
     # Path B: spawn the shim detached, then schedule our own quit.
     shim = os.path.expanduser("~/.local/bin/rrr")
     if not os.path.isfile(shim):
-        return False, ("Could not find the launcher at ~/.local/bin/rrr. "
-                       "Please close and reopen RRR to finish the update.")
+        return False, (
+            "Could not find the launcher at ~/.local/bin/rrr. "
+            "Please close and reopen RRR to finish the update."
+        )
     try:
         # Defer the actual exec by ~1 s via a shell wrapper so this
         # process has time to close hardware handles. The new instance's
         # version-keyed lock guarantees no collision even if we overlap.
         subprocess.Popen(
-            ["sh", "-c", f'sleep 1 && exec "{shim}" </dev/null '
-             '>/dev/null 2>&1'],
+            ["sh", "-c", f'sleep 1 && exec "{shim}" </dev/null ' '>/dev/null 2>&1'],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -496,6 +499,7 @@ def restart_app():
     try:
         from PyQt5.QtCore import QTimer  # noqa: PLC0415
         from PyQt5.QtWidgets import QApplication  # noqa: PLC0415
+
         QTimer.singleShot(300, QApplication.quit)
     except Exception:
         pass
@@ -506,7 +510,7 @@ class ApplyWorker(QObject):
     """Runs :func:`apply_update` off the GUI thread."""
 
     progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)   # (ok, message)
+    finished = pyqtSignal(bool, str)  # (ok, message)
 
     def __init__(self, info):
         super().__init__()

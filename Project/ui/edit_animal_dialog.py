@@ -1,8 +1,19 @@
 # ui/edit_animal_dialog.py
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDateTimeEdit, QDialogButtonBox, QMessageBox, QComboBox
-from PyQt5.QtCore import QDateTime
 from datetime import datetime
+
+from PyQt5.QtCore import QDateTime
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDateTimeEdit,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QLineEdit,
+    QMessageBox,
+    QVBoxLayout,
+)
+
 
 class EditAnimalDialog(QDialog):
     def __init__(self, animal_id, animal_data, parent=None):
@@ -24,7 +35,9 @@ class EditAnimalDialog(QDialog):
 
         self.name_input = QLineEdit(animal_data['name'])
         self.initial_weight_input = QLineEdit(str(animal_data['initial_weight']))
-        self.last_weight_input = QLineEdit(str(animal_data['last_weight']) if animal_data['last_weight'] is not None else "")
+        self.last_weight_input = QLineEdit(
+            str(animal_data['last_weight']) if animal_data['last_weight'] is not None else ""
+        )
         self.last_weighted_input = QDateTimeEdit()
         self.last_weighted_input.setCalendarPopup(True)
         if animal_data['last_weighted']:
@@ -71,9 +84,15 @@ class EditAnimalDialog(QDialog):
                 'name': self.name_input.text().strip(),
                 'sex': sex,
                 'initial_weight': float(self.initial_weight_input.text().strip()),
-                'last_weight': float(self.last_weight_input.text().strip()) if self.last_weight_input.text().strip() else None,
-                'last_weighted': self.last_weighted_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss.zzz"),
-                'last_watering': self.last_watering_input.dateTime().toString("yyyy-MM-ddTHH:mm:ss.zzz")
+                'last_weight': float(self.last_weight_input.text().strip())
+                if self.last_weight_input.text().strip()
+                else None,
+                'last_weighted': self.last_weighted_input.dateTime().toString(
+                    "yyyy-MM-ddTHH:mm:ss.zzz"
+                ),
+                'last_watering': self.last_watering_input.dateTime().toString(
+                    "yyyy-MM-ddTHH:mm:ss.zzz"
+                ),
             }
             super().accept()
         except ValueError as ve:

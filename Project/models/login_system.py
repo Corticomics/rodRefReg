@@ -1,11 +1,13 @@
 # models/login_system.py
 
 import traceback
+
 from PyQt5.QtCore import QObject, pyqtSignal
+
 
 class LoginSystem(QObject):
     login_status_changed = pyqtSignal()  # Signal for login status changes
-    
+
     def __init__(self, database_handler):
         super().__init__()
         self.database_handler = database_handler
@@ -19,7 +21,7 @@ class LoginSystem(QObject):
                 self.current_trainer = {
                     'username': username,
                     'trainer_id': result['trainer_id'],
-                    'role': result['role']
+                    'role': result['role'],
                 }
                 self.login_status_changed.emit()  # Emit signal
                 return self.current_trainer
@@ -92,7 +94,3 @@ class LoginSystem(QObject):
             print(f"Error during user creation: {e}")
             traceback.print_exc()
             return False
-
-
-
-    

@@ -1,8 +1,17 @@
-from PyQt5.QtWidgets import (
-    QWidget, QFormLayout, QLineEdit, QLabel, QPushButton, QVBoxLayout, 
-    QHBoxLayout, QMessageBox, QComboBox, QDateTimeEdit
-)
 from PyQt5.QtCore import QDateTime, Qt
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDateTimeEdit,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class SuggestSettingsTab(QWidget):
     def __init__(self, suggest_settings_callback, push_settings_callback):
@@ -17,7 +26,9 @@ class SuggestSettingsTab(QWidget):
         # Volume input per relay pair (optional, no validation required for button enable/disable)
         relay_pairs = [(1, 2), (3, 4), (5, 6), (7, 8), (9, 10), (11, 12), (13, 14), (15, 16)]
         for relay_pair in relay_pairs:
-            volume_label = QLabel(f"Water Volume for Cage Pair (Relays {relay_pair[0]} & {relay_pair[1]}) (mL):")
+            volume_label = QLabel(
+                f"Water Volume for Cage Pair (Relays {relay_pair[0]} & {relay_pair[1]}) (mL):"
+            )
             volume_input = QLineEdit()
             volume_input.setPlaceholderText(f"Volume for {relay_pair[0]} & {relay_pair[1]}")
             form_layout.addRow(volume_label, volume_input)
@@ -91,5 +102,3 @@ class SuggestSettingsTab(QWidget):
     def update_button_states(self):
         """Initial setup of the Push button state."""
         self.validate_form()  # Initial validation on creation
-
-

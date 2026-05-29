@@ -1,15 +1,29 @@
 # ui/relay_unit_widget.py
 
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QMessageBox, QLineEdit, QHBoxLayout, QPushButton, QDateTimeEdit,
-    QScrollArea, QComboBox, QHeaderView, QSizePolicy
-)
-from PyQt5.QtCore import Qt, QDataStream, QIODevice, QDateTime, pyqtSignal
-from models.animal import Animal
-from .available_animals_list import AvailableAnimalsList
 from datetime import datetime
+
+from models.animal import Animal
+from PyQt5.QtCore import QDataStream, QDateTime, QIODevice, Qt, pyqtSignal
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDateTimeEdit,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .available_animals_list import AvailableAnimalsList
 from .staggered_delivery_slot import StaggeredDeliverySlot
+
 
 class WaterDeliverySlot(QWidget):
     # Signal emitted when the slot is about to be deleted
@@ -19,7 +33,7 @@ class WaterDeliverySlot(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout()
         layout.setContentsMargins(2, 2, 2, 2)  # Less aggressive margin reduction
-        
+
         # DateTime picker with calendar popup - less aggressive size reduction
         self.datetime_picker = QDateTimeEdit()
         self.datetime_picker.setCalendarPopup(True)
@@ -27,18 +41,18 @@ class WaterDeliverySlot(QWidget):
         self.datetime_picker.setMinimumDateTime(QDateTime.currentDateTime())
         self.datetime_picker.setDisplayFormat("yyyy-MM-dd hh:mm AP")
         # Keep natural size; avoid inline styling for theme consistency
-        
+
         # Volume input
         self.volume_input = QLineEdit()
         self.volume_input.setPlaceholderText("Water volume (mL)")
         self.volume_input.setFixedWidth(120)  # Slightly wider than before
-        
+
         # Delete button with variant styling
         self.delete_button = QPushButton("×")
         self.delete_button.setProperty("variant", "danger")
         self.delete_button.setFixedSize(24, 24)
         self.delete_button.clicked.connect(self.handle_delete)
-        
+
         layout.addWidget(self.datetime_picker)
         layout.addWidget(self.volume_input)
         layout.addWidget(self.delete_button)
@@ -50,6 +64,7 @@ class WaterDeliverySlot(QWidget):
         self.is_deleted = True
         self.slot_deleted.emit(self)
         self.deleteLater()
+
 
 class RelayUnitWidget(QWidget):
     def __init__(self, relay_unit, database_handler, available_animals_list, pump_controller):
@@ -94,36 +109,40 @@ class RelayUnitWidget(QWidget):
         # Animal Information Table - improved sizing and formatting
         self.animal_table = QTableWidget()
         self.animal_table.setColumnCount(4)
-        self.animal_table.setHorizontalHeaderLabels(["Lab ID", "Name", "Last Weight", "Last Watering"])
-        
+        self.animal_table.setHorizontalHeaderLabels(
+            ["Lab ID", "Name", "Last Weight", "Last Watering"]
+        )
+
         # Set fixed row height and improved visual appearance
-        self.animal_table.verticalHeader().setDefaultSectionSize(50)  # Taller rows for better text display
+        self.animal_table.verticalHeader().setDefaultSectionSize(
+            50
+        )  # Taller rows for better text display
         self.animal_table.verticalHeader().setVisible(False)  # Hide row numbers
-        
+
         # Set absolute minimum column widths to ensure data visibility
-        self.animal_table.setColumnWidth(0, 90)   # Lab ID: minimum 90px
+        self.animal_table.setColumnWidth(0, 90)  # Lab ID: minimum 90px
         self.animal_table.setColumnWidth(1, 110)  # Name: minimum 110px
         self.animal_table.setColumnWidth(2, 110)  # Last Weight: minimum 110px
         self.animal_table.setColumnWidth(3, 140)  # Last Watering: minimum 140px
-        
+
         # Set size policy to expand and fill available space
         self.animal_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        
+
         # Fix table size and appearance
         # Make the last column stretch to fill remaining space
         self.animal_table.horizontalHeader().setStretchLastSection(True)
-        
+
         # Allow word wrap for better text display
         self.animal_table.setWordWrap(True)
-        
+
         # Fix specific settings for better appearance
         self.animal_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.animal_table.setSelectionMode(QTableWidget.NoSelection)
-        self.animal_table.setMinimumHeight(100)   # Increase minimum height for better text display
-        self.animal_table.setMaximumHeight(120)   # Increase maximum height
-        self.animal_table.setShowGrid(True)       # Show grid for better visibility
+        self.animal_table.setMinimumHeight(100)  # Increase minimum height for better text display
+        self.animal_table.setMaximumHeight(120)  # Increase maximum height
+        self.animal_table.setShowGrid(True)  # Show grid for better visibility
         self.animal_table.setAlternatingRowColors(True)  # Alternate row colors
-        
+
         # Inherit table styling from app QSS
         self.layout.addWidget(self.animal_table)
 
@@ -149,26 +168,26 @@ class RelayUnitWidget(QWidget):
         self.instant_delivery_layout.setContentsMargins(3, 3, 3, 3)
         self.instant_delivery_layout.setSpacing(5)
         self.layout.addWidget(self.instant_delivery_container)
-        
+
         # Add delivery slot button for instant mode
         self.add_instant_slot_button = QPushButton("+ Add Water Delivery Time")
         self.add_instant_slot_button.setProperty("variant", "primary")
         self.add_instant_slot_button.clicked.connect(self.add_delivery_slot)
         self.layout.addWidget(self.add_instant_slot_button)
-        
+
         # Container for staggered delivery slots
         self.staggered_delivery_container = QWidget()
         self.staggered_delivery_layout = QVBoxLayout(self.staggered_delivery_container)
         self.staggered_delivery_layout.setContentsMargins(3, 3, 3, 3)
         self.staggered_delivery_layout.setSpacing(5)
         self.layout.addWidget(self.staggered_delivery_container)
-        
+
         # Add delivery slot button for staggered mode
         self.add_staggered_slot_button = QPushButton("+ Add Time Window")
         self.add_staggered_slot_button.setProperty("variant", "primary")
         self.add_staggered_slot_button.clicked.connect(self.add_staggered_slot)
         self.layout.addWidget(self.add_staggered_slot_button)
-        
+
         # Hide all delivery components by default
         self.instant_delivery_container.hide()
         self.add_instant_slot_button.hide()
@@ -190,11 +209,11 @@ class RelayUnitWidget(QWidget):
             event.acceptProposedAction()
         else:
             event.ignore()
-            
+
     def dragLeaveEvent(self, event):
         """
         Handle the drag leave event.
-        
+
         Args:
             event (QDragLeaveEvent): The drag leave event.
         """
@@ -214,7 +233,7 @@ class RelayUnitWidget(QWidget):
         self.drag_area_label.setProperty("state", "idle")
         self.drag_area_label.style().unpolish(self.drag_area_label)
         self.drag_area_label.style().polish(self.drag_area_label)
-        
+
         source_widget = event.source()
         if isinstance(source_widget, AvailableAnimalsList):  # Ensure source is the custom list
             mime = event.mimeData()
@@ -229,9 +248,9 @@ class RelayUnitWidget(QWidget):
                     # Check if relay unit already has an animal
                     if self.assigned_animal is not None:
                         QMessageBox.warning(
-                            self, 
-                            "Assignment Error", 
-                            f"Relay Unit {self.relay_unit.unit_id} already has an animal assigned."
+                            self,
+                            "Assignment Error",
+                            f"Relay Unit {self.relay_unit.unit_id} already has an animal assigned.",
                         )
                         event.ignore()
                         return
@@ -246,7 +265,7 @@ class RelayUnitWidget(QWidget):
                             break
                 else:
                     QMessageBox.warning(self, "Drag Error", "Failed to retrieve animal data.")
-        
+
         event.acceptProposedAction()
 
     def add_animal(self, animal):
@@ -260,10 +279,10 @@ class RelayUnitWidget(QWidget):
 
         # Update the animal information table
         self.animal_table.setRowCount(1)
-        
+
         # Format the weight and last watering data properly with clear formatting
         last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
-        
+
         # Format last watering with better readability
         if animal.last_watering:
             try:
@@ -273,16 +292,18 @@ class RelayUnitWidget(QWidget):
                 last_watering_text = watering_date.strftime("%Y-%m-%d")
             except (ValueError, TypeError):
                 # Fallback if parsing fails
-                last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                last_watering_text = (
+                    str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                )
         else:
             last_watering_text = "Never"
-        
+
         # Create table items with formatted data
         lab_id_item = QTableWidgetItem(animal.lab_animal_id)
         name_item = QTableWidgetItem(animal.name)
         weight_item = QTableWidgetItem(last_weight_text)
         watering_item = QTableWidgetItem(last_watering_text)
-        
+
         # Set items in table
         self.animal_table.setItem(0, 0, lab_id_item)
         self.animal_table.setItem(0, 1, name_item)
@@ -303,13 +324,13 @@ class RelayUnitWidget(QWidget):
 
         # Hide the drag area since an animal is now assigned
         self.drag_area_label.hide()
-        
+
         # Force table to resize rows based on content
         self.animal_table.resizeRowsToContents()
-        
+
         # Update minimum width to ensure all content is visible
         self.ensure_table_width()
-        
+
         # Force layout update
         self.update()
 
@@ -336,11 +357,11 @@ class RelayUnitWidget(QWidget):
         # Build desired water output dictionary
         desired_water_output = {}
         relay_unit_assignments = {}
-        
+
         if self.assigned_animal:
             # Add relay unit assignment
             relay_unit_assignments[str(self.assigned_animal.animal_id)] = self.relay_unit.unit_id
-            
+
             # Calculate recommended water volume for the animal
             recommended_volume = self.calculate_recommended_water(self.assigned_animal)
             desired_water_output[str(self.assigned_animal.animal_id)] = recommended_volume
@@ -350,56 +371,62 @@ class RelayUnitWidget(QWidget):
             'animals': [self.assigned_animal] if self.assigned_animal else [],
             'desired_water_output': desired_water_output,
             'relay_unit_assignments': relay_unit_assignments,  # Add relay unit assignments
-            'delivery_mode': self.current_mode.lower()
+            'delivery_mode': self.current_mode.lower(),
         }
-        
+
         # Handle delivery schedule based on mode
         if data['delivery_mode'] == 'instant':
             schedule = []
-            active_slots = [slot for slot in self.delivery_slots 
-                           if slot.isVisible() and not slot.is_deleted]
+            active_slots = [
+                slot for slot in self.delivery_slots if slot.isVisible() and not slot.is_deleted
+            ]
             for slot in active_slots:
                 try:
                     volume = float(slot.volume_input.text())
-                    schedule.append({
-                        'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
-                        'volume': volume,
-                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
-                    })
+                    schedule.append(
+                        {
+                            'datetime': slot.datetime_picker.dateTime().toPyDateTime(),
+                            'volume': volume,
+                            'relay_unit_id': self.relay_unit.unit_id,  # Add relay unit ID
+                        }
+                    )
                 except (ValueError, AttributeError):
                     continue
             data['delivery_schedule'] = schedule
         else:  # staggered mode
             schedule = []
-            active_slots = [slot for slot in self.delivery_slots 
-                           if slot.isVisible() and not slot.is_deleted]
+            active_slots = [
+                slot for slot in self.delivery_slots if slot.isVisible() and not slot.is_deleted
+            ]
             total_volume = 0
             for slot in active_slots:
                 try:
                     volume = float(slot.volume_input.text())
                     total_volume += volume
-                    schedule.append({
-                        'start_time': slot.start_datetime.dateTime().toPyDateTime(),
-                        'end_time': slot.end_datetime.dateTime().toPyDateTime(),
-                        'volume': volume,
-                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
-                    })
+                    schedule.append(
+                        {
+                            'start_time': slot.start_datetime.dateTime().toPyDateTime(),
+                            'end_time': slot.end_datetime.dateTime().toPyDateTime(),
+                            'volume': volume,
+                            'relay_unit_id': self.relay_unit.unit_id,  # Add relay unit ID
+                        }
+                    )
                 except (ValueError, AttributeError):
                     continue
             data['delivery_schedule'] = schedule
-            
+
             # Update staggered-specific data with total volume
             if self.assigned_animal:
                 data['staggered_settings'] = {
                     str(self.assigned_animal.animal_id): {
                         'total_volume': total_volume,
                         'windows': schedule,
-                        'relay_unit_id': self.relay_unit.unit_id  # Add relay unit ID
+                        'relay_unit_id': self.relay_unit.unit_id,  # Add relay unit ID
                     }
                 }
                 # Update the desired water output with the total volume
                 desired_water_output[str(self.assigned_animal.animal_id)] = total_volume
-        
+
         return data
 
     def set_data(self, animals, desired_water_output=None, delivery_schedule=None):
@@ -415,13 +442,13 @@ class RelayUnitWidget(QWidget):
         if animals:
             animal = animals[0]  # Assuming only one animal per relay unit
             self.assigned_animal = animal  # Set the assigned animal
-            
+
             # Update the animal table with proper formatting
             self.animal_table.setRowCount(1)
-            
+
             # Format the weight and last watering data properly with clear formatting
             last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
-            
+
             # Format last watering with better readability
             if animal.last_watering:
                 try:
@@ -431,41 +458,45 @@ class RelayUnitWidget(QWidget):
                     last_watering_text = watering_date.strftime("%Y-%m-%d")
                 except (ValueError, TypeError):
                     # Fallback if parsing fails
-                    last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                    last_watering_text = (
+                        str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                    )
             else:
                 last_watering_text = "Never"
-            
+
             # Create table items with formatted data
             lab_id_item = QTableWidgetItem(animal.lab_animal_id)
             name_item = QTableWidgetItem(animal.name)
             weight_item = QTableWidgetItem(last_weight_text)
             watering_item = QTableWidgetItem(last_watering_text)
-            
+
             # Set items in table with center alignment
             for i, item in enumerate([lab_id_item, name_item, weight_item, watering_item]):
                 item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                 self.animal_table.setItem(0, i, item)
-            
+
             # Calculate and display recommended water volume
             recommended_volume = self.calculate_recommended_water(animal)
-            self.recommended_water_label.setText(f"Recommended water volume: {recommended_volume:.2f} mL")
-            
+            self.recommended_water_label.setText(
+                f"Recommended water volume: {recommended_volume:.2f} mL"
+            )
+
             # Hide the drag area since an animal is now assigned
             self.drag_area_label.hide()
-            
+
             # Force table to resize rows based on content
             self.animal_table.resizeRowsToContents()
-            
+
             # Update minimum width to ensure all content is visible
             self.ensure_table_width()
-            
+
             # If delivery schedule is provided (for instant mode)
             if delivery_schedule and isinstance(delivery_schedule, list):
                 try:
                     self.set_mode("Instant")
                     # Clear any existing slots
                     self.clear_instant_slots()
-                    
+
                     # Add delivery slots
                     for delivery in delivery_schedule:
                         self.add_instant_slot_button.click()  # Create new slot
@@ -485,9 +516,12 @@ class RelayUnitWidget(QWidget):
                                     print(f"Error setting delivery slot data: {e}")
                 except Exception as e:
                     print(f"Error setting delivery schedule: {e}")
-                    QMessageBox.warning(self, "Schedule Error", 
-                                      f"There was an error setting the delivery schedule: {str(e)}")
-            
+                    QMessageBox.warning(
+                        self,
+                        "Schedule Error",
+                        f"There was an error setting the delivery schedule: {str(e)}",
+                    )
+
             # Force update to ensure proper display
             self.update()
 
@@ -517,18 +551,22 @@ class RelayUnitWidget(QWidget):
             "Confirm Removal",
             f"Are you sure you want to remove '{self.assigned_animal.name}' from Relay Unit {self.relay_unit.unit_id}?",
             QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.No,
         )
         if confirm == QMessageBox.Yes:
             try:
                 # Re-add the animal to the Available Animals list
-                new_item = self.available_animals_list.create_available_animal_item(self.assigned_animal)
+                new_item = self.available_animals_list.create_available_animal_item(
+                    self.assigned_animal
+                )
                 self.available_animals_list.addItem(new_item)
 
                 # Clear the assignment
                 self.clear_assignments()
             except AttributeError as e:
-                QMessageBox.critical(self, "Removal Error", f"Failed to re-add animal to available list: {e}")
+                QMessageBox.critical(
+                    self, "Removal Error", f"Failed to re-add animal to available list: {e}"
+                )
             except Exception as e:
                 QMessageBox.critical(self, "Removal Error", f"An unexpected error occurred: {e}")
 
@@ -536,21 +574,19 @@ class RelayUnitWidget(QWidget):
         if self.assigned_animal:
             recommended = self.assigned_animal.calculate_recommended_water()
             self.volume_display.setText(f"Recommended: {recommended}mL")
-            
+
     def validate_and_dispense(self):
         if not self.assigned_animal:
             return
-            
+
         try:
             volume = float(self.volume_input.text())
             if self.assigned_animal.validate_water_volume(volume):
                 self.pump_controller.dispense_water(self.relay_unit, volume)
             else:
-                QMessageBox.warning(self, "Invalid Volume", 
-                    "Volume outside recommended range")
+                QMessageBox.warning(self, "Invalid Volume", "Volume outside recommended range")
         except ValueError:
-            QMessageBox.warning(self, "Invalid Input", 
-                "Please enter a valid number")
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid number")
 
     def add_delivery_slot(self):
         """Add a new water delivery time slot"""
@@ -567,7 +603,7 @@ class RelayUnitWidget(QWidget):
     def set_mode(self, mode):
         """Set the delivery mode and update UI accordingly"""
         self.current_mode = mode
-        
+
         # Show/hide components based on mode
         if mode == "Instant":
             self.instant_delivery_container.show()
@@ -613,10 +649,10 @@ class RelayUnitWidget(QWidget):
     def update_animal_info(self, animal):
         """Update the animal information display"""
         self.animal_table.setRowCount(1)
-        
+
         # Format the data properly with clear formatting
         last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
-        
+
         # Format last watering with better readability
         if animal.last_watering:
             try:
@@ -626,31 +662,33 @@ class RelayUnitWidget(QWidget):
                 last_watering_text = watering_date.strftime("%Y-%m-%d")
             except (ValueError, TypeError):
                 # Fallback if parsing fails
-                last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                last_watering_text = (
+                    str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                )
         else:
             last_watering_text = "Never"
-            
+
         # Create table items with formatted data
         lab_id_item = QTableWidgetItem(animal.lab_animal_id)
         name_item = QTableWidgetItem(animal.name)
         weight_item = QTableWidgetItem(last_weight_text)
         watering_item = QTableWidgetItem(last_watering_text)
-        
+
         # Set items in table with center alignment
         for i, item in enumerate([lab_id_item, name_item, weight_item, watering_item]):
             item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             self.animal_table.setItem(0, i, item)
-        
+
         # Update recommended water label if weight is available
         if animal.last_weight:
             recommended = self.calculate_recommended_water(animal)
             self.recommended_water_label.setText(f"Recommended water volume: {recommended:.2f} mL")
         else:
             self.recommended_water_label.setText("Recommended water volume: N/A")
-            
+
         # Force table to resize rows based on content
         self.animal_table.resizeRowsToContents()
-        
+
         # Update minimum width
         self.ensure_table_width()
 
@@ -659,7 +697,7 @@ class RelayUnitWidget(QWidget):
         self.animal_table.setRowCount(0)
         self.recommended_water_label.setText("Recommended water volume: N/A")
         self.assigned_animal = None
-        
+
         # Clear any instant delivery slots
         for slot in self.delivery_slots:
             slot.deleteLater()
@@ -669,42 +707,45 @@ class RelayUnitWidget(QWidget):
         """Handle resize events to adjust table to fit container"""
         super().resizeEvent(event)
         self.ensure_table_width()
-    
+
     def ensure_table_width(self):
         """Make sure table width is sufficient to display all content"""
         if hasattr(self, 'animal_table') and self.animal_table.isVisible():
             # Get available width (accounting for layout margins)
             available_width = self.width() - 20
-            
+
             # Set minimum table width to available width
             self.animal_table.setMinimumWidth(available_width)
-            
+
             # Set column widths proportionally
             col_widths = [0.20, 0.25, 0.25, 0.30]  # Proportions for each column
-            
+
             for i, proportion in enumerate(col_widths):
                 min_width = [90, 110, 110, 140][i]  # Minimum widths by column
                 width = max(min_width, int(available_width * proportion))
-                
+
                 # Don't set width for the last column if stretch is enabled
-                if i < len(col_widths) - 1 or not self.animal_table.horizontalHeader().stretchLastSection():
+                if (
+                    i < len(col_widths) - 1
+                    or not self.animal_table.horizontalHeader().stretchLastSection()
+                ):
                     self.animal_table.setColumnWidth(i, width)
-            
+
             # Force table to update its layout
             self.animal_table.updateGeometry()
 
     def update_animal_table_display(self, animal):
         """
         Update the animal information table with formatted data.
-        
+
         Args:
             animal (Animal): The animal object containing data to display.
         """
         self.animal_table.setRowCount(1)
-        
+
         # Format the weight and last watering data properly
         last_weight_text = f"{animal.last_weight:.1f} g" if animal.last_weight else "N/A"
-        
+
         # Format last watering with better readability
         if animal.last_watering:
             try:
@@ -714,23 +755,25 @@ class RelayUnitWidget(QWidget):
                 last_watering_text = watering_date.strftime("%Y-%m-%d")
             except (ValueError, TypeError):
                 # Fallback if parsing fails
-                last_watering_text = str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                last_watering_text = (
+                    str(animal.last_watering).split()[0] if animal.last_watering else "Never"
+                )
         else:
             last_watering_text = "Never"
-        
+
         # Create table items with formatted data
         lab_id_item = QTableWidgetItem(animal.lab_animal_id)
         name_item = QTableWidgetItem(animal.name)
         weight_item = QTableWidgetItem(last_weight_text)
         watering_item = QTableWidgetItem(last_watering_text)
-        
+
         # Set items in table with center alignment
         for i, item in enumerate([lab_id_item, name_item, weight_item, watering_item]):
             item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             self.animal_table.setItem(0, i, item)
-        
+
         # Force table to resize rows based on content
         self.animal_table.resizeRowsToContents()
-        
+
         # Update minimum width to ensure all content is visible
         self.ensure_table_width()

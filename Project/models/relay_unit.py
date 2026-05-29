@@ -1,27 +1,28 @@
 # models/relay_unit.py
 
+
 class RelayUnit:
     """
     Represents a relay unit that can contain one or more relays.
-    
+
     Design Pattern: Value Object
     - Immutable after creation
     - Supports both pump mode (paired relays) and solenoid mode (single relay)
-    
+
     Attributes:
         unit_id (int): Unique identifier for this relay unit
         relay_ids (tuple): Tuple of relay IDs (e.g., (1,) for single, (1, 2) for pair)
     """
-    
+
     def __init__(self, unit_id=None, relay_ids=None, relay_unit_id=None):
         """
         Initialize a RelayUnit instance.
-        
+
         Args:
             unit_id (int, optional): The ID of the relay unit. Can be used interchangeably with relay_unit_id.
             relay_ids (tuple or int, optional): Tuple of relay IDs (e.g., (1, 2)) or single int for solenoid mode.
             relay_unit_id (int, optional): Alternative ID parameter name for compatibility.
-        
+
         Best Practices:
         - Validates inputs (fail-fast principle)
         - Normalizes relay_ids to tuple for consistent interface
@@ -32,7 +33,7 @@ class RelayUnit:
             self.unit_id = relay_unit_id
         else:
             self.unit_id = unit_id
-        
+
         # Normalize relay_ids to tuple (support both single int and tuple input)
         if isinstance(relay_ids, int):
             # Single relay (solenoid mode): convert to 1-tuple
@@ -55,11 +56,11 @@ class RelayUnit:
             # Generic case for any other configuration
             relay_str = ", ".join(str(r) for r in self.relay_ids)
             return f"Relay Unit {self.unit_id} (Relays: {relay_str})"
-    
+
     def is_single_relay(self) -> bool:
         """Check if this unit represents a single relay (solenoid mode)."""
         return len(self.relay_ids) == 1
-    
+
     def is_paired_relay(self) -> bool:
         """Check if this unit represents paired relays (pump mode)."""
         return len(self.relay_ids) == 2

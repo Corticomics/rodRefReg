@@ -66,15 +66,15 @@ def _troubleshooting(detail: str) -> str:
     """Map a failure detail to operator-actionable instructions."""
     low = detail.lower()
 
-    if any(code in low for code in ("token_revoked", "invalid_auth",
-                                     "not_authed", "account_inactive")):
+    if any(
+        code in low for code in ("token_revoked", "invalid_auth", "not_authed", "account_inactive")
+    ):
         return (
             "Slack rejected the bot token. Re-create the Slack app/bot, "
             "paste a fresh token above, and click Save."
         )
 
-    if any(code in low for code in ("channel_not_found", "is_archived",
-                                     "not_in_channel")):
+    if any(code in low for code in ("channel_not_found", "is_archived", "not_in_channel")):
         return (
             "The channel ID does not exist, the channel is archived, or "
             "the bot is not a member. Check the Channel ID above and that "
@@ -93,8 +93,7 @@ def _troubleshooting(detail: str) -> str:
             "automatically; the delivery has been logged locally."
         )
 
-    if any(word in low for word in ("network", "connection", "timeout",
-                                     "dns", "unreachable")):
+    if any(word in low for word in ("network", "connection", "timeout", "dns", "unreachable")):
         return (
             "Could not reach Slack — this device has no internet, or the "
             "Slack service is unreachable. Notifications resume "

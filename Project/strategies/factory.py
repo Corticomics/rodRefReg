@@ -17,12 +17,12 @@ class StrategyFactory:
     - flow_sensor: required for solenoid mode
     - calibration_store: optional for solenoid mode
     - settings: required for all modes
-    
+
     Best Practices:
     - Factory Pattern: Centralized strategy creation
     - Fail-fast: Validate required dependencies
     - Backward compatibility: Fallback to pump mode for unknown values
-    
+
     Note: SolenoidFlowStrategy auto-detects pulse mode from settings
     """
 
@@ -60,5 +60,3 @@ class StrategyFactory:
 
         # Fallback to pump mode for unknown values to preserve current behavior.
         return PumpStrategy(pump_controller, volume_calculator)
-
-

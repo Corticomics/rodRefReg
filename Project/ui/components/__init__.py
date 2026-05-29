@@ -11,7 +11,7 @@ Components follow RSO-inspired patterns:
 
 from .card import Card
 from .interactive_card import InteractiveCard, SelectableCardGroup
-from .wizard import WizardContainer, WizardStep, WizardProgress
+from .wizard import WizardContainer, WizardProgress, WizardStep
 
 __all__ = [
     "Card",
@@ -21,4 +21,3 @@ __all__ = [
     "WizardStep",
     "WizardProgress",
 ]
-

@@ -43,5 +43,3 @@ class CalibrationStore:
             "span_scale": float(span_scale),
         }
         self.save()
-
-

@@ -106,21 +106,18 @@ def bounded_worker_teardown(worker_obj, thread_obj, signals) -> None:
             dt_ms = int((time.monotonic() - t0) * 1000)
             print(f"[STOP] Worker exited cleanly in {dt_ms}ms (cooperative cancel)")
             return
-        print(f"[STOP] Worker did not exit in {CLEAN_EXIT_TIMEOUT_MS}ms;"
-              " calling terminate()")
+        print(f"[STOP] Worker did not exit in {CLEAN_EXIT_TIMEOUT_MS}ms;" " calling terminate()")
         thread_obj.terminate()
         if thread_obj.wait(TERMINATE_TIMEOUT_MS):
             print("[STOP] Thread terminated (cooperative cancel did NOT exit in time)")
         else:
             # NEVER wait() with no arg here — that's the v1.8.0 deadlock.
-            print("[STOP] terminate() did not take; abandoning thread"
-                  " (hardware already safe)")
+            print("[STOP] terminate() did not take; abandoning thread" " (hardware already safe)")
     except RuntimeError:
         print("[DEBUG] Thread already deleted")
 
 
-def execute_stop_sequence(handler, worker_obj, thread_obj, signals,
-                          dialog_factory=None) -> bool:
+def execute_stop_sequence(handler, worker_obj, thread_obj, signals, dialog_factory=None) -> bool:
     """Run the stop sequence in the safety-critical order.
 
     Contract (locked by tests/unit/test_stop_sequence.py):
