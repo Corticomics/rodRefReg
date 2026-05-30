@@ -78,13 +78,7 @@ class AnimalsTab(QWidget):
             self.animals_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.Fixed)
 
         # Set specific column widths to ensure all information is visible
-        self.animals_table.setColumnWidth(0, 120)  # Lab Animal ID
-        self.animals_table.setColumnWidth(1, 120)  # Name
-        self.animals_table.setColumnWidth(2, 80)  # Sex
-        self.animals_table.setColumnWidth(3, 130)  # Initial Weight
-        self.animals_table.setColumnWidth(4, 110)  # Last Weight
-        self.animals_table.setColumnWidth(5, 160)  # Last Weighted
-        self.animals_table.setColumnWidth(6, 160)  # Last Watering
+        self._apply_column_widths()
 
         # Make the last column stretch to fill available space
         self.animals_table.horizontalHeader().setStretchLastSection(True)
@@ -142,6 +136,22 @@ class AnimalsTab(QWidget):
 
         # Initial load
         self.load_animals()
+
+    # Fixed per-column widths (px); column 6 then stretches to fill the rest.
+    # Order matches the header labels in __init__.
+    COLUMN_WIDTHS = (120, 120, 80, 130, 110, 160, 160)
+
+    def _apply_column_widths(self):
+        """Re-assert the fixed column widths so the last column stretches to fill.
+
+        Must run after every (re)populate. ``resizeColumnsToContents()`` used to
+        run here instead, but it collapses every column to its content width —
+        including the stretch column — leaving trailing whitespace on the right
+        that only cleared on the next resize event (e.g. an app restart). Setting
+        the fixed widths keeps ``setStretchLastSection(True)`` working on refresh.
+        """
+        for col, width in enumerate(self.COLUMN_WIDTHS):
+            self.animals_table.setColumnWidth(col, width)
 
     def calculate_days_ago(self, timestamp_str):
         """Convert timestamp to 'X days ago' format"""
@@ -214,8 +224,9 @@ class AnimalsTab(QWidget):
             # Set fixed row height for better appearance
             self.animals_table.setRowHeight(row_position, 40)
 
-        # Resize rows and make sure all data is visible after populating
-        self.animals_table.resizeColumnsToContents()  # Ensure columns fit content
+        # Re-assert fixed column widths so the last column stretches to fill the
+        # remaining width on every refresh (not just the initial load).
+        self._apply_column_widths()
 
     def load_animals(self):
         """Load animals from the database, filtered by trainer_id if available."""
