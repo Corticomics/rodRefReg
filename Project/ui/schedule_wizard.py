@@ -481,7 +481,7 @@ class Step3ConfigureParameters(QWidget):
         header = create_step_header(
             icon="⚙",
             title="Configure Parameters",
-            description="Set timing and volume for each animal",
+            description="Set the cage (which relay/solenoid opens), timing, and volume for each animal",
         )
         layout.addWidget(header)
 
@@ -720,6 +720,10 @@ class Step3ConfigureParameters(QWidget):
         cage_combo.setInsertPolicy(QComboBox.NoInsert)  # Don't add typed text as items
         cage_combo.setMinimumWidth(140)
         cage_combo.setPlaceholderText("Select cage...")
+        cage_combo.setToolTip(
+            "Cage N corresponds to relay N — it selects which solenoid valve opens "
+            "for this animal."
+        )
 
         # Populate with cage options
         display_names = []
@@ -940,6 +944,10 @@ class Step3ConfigureParameters(QWidget):
         cage_combo.setInsertPolicy(QComboBox.NoInsert)
         cage_combo.setMinimumWidth(140)
         cage_combo.setPlaceholderText("Select cage...")
+        cage_combo.setToolTip(
+            "Cage N corresponds to relay N — it selects which solenoid valve opens "
+            "for this animal."
+        )
 
         # Populate with cage options
         display_names = []
