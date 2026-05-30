@@ -1398,7 +1398,12 @@ class HelpContentManager:
         related = self.get_related(topic_key)
         if not related:
             return ""
-        links = "".join(f"<a href='topic:{quote(k)}'>{k}</a>" for k in related)
+        # QTextBrowser's rich-text engine ignores `margin` on inline <a>, so the
+        # CSS margin-right alone renders the links concatenated with no gap.
+        # Join with an explicit non-breaking-space separator so they read as a
+        # spaced, bulleted list.
+        sep = "&nbsp;&nbsp;&middot;&nbsp;&nbsp;"
+        links = sep.join(f"<a href='topic:{quote(k)}'>{k}</a>" for k in related)
         return f"<div class='related-topics'><strong>Related topics:</strong> {links}</div>"
 
     def _format_content(self, html_body: str, theme: str, extra_css: str = "") -> str:
