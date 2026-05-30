@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QStackedWidget, QVBoxLayout, QWidget
 
 
 class LoginGateWidget(QStackedWidget):
@@ -29,41 +29,30 @@ class LoginGateWidget(QStackedWidget):
 
     def _create_login_prompt(self):
         """Create the login prompt widget with a clean, minimal design."""
+        # objectName drives the card-coloured background defined in the theme
+        # QSS (white in light, dark-card in dark) so the prompt reads as an
+        # intentional surface rather than the bare grey app background.
         container = QWidget()
+        container.setObjectName("LoginGatePrompt")
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter)
 
-        # Message
+        # Message. The login form itself lives in the always-visible Profile
+        # tab, so this prompt is informational only — no button (the old
+        # "Login" button just re-selected the already-current Profile tab and
+        # appeared to do nothing).
         message = QLabel("Please log in to access projects")
         message.setAlignment(Qt.AlignCenter)
         font = QFont()
         font.setPointSize(14)
         message.setFont(font)
 
-        # Login button
-        login_button = QPushButton("Login")
-        login_button.setFixedWidth(200)
-        login_button.setFixedHeight(40)
-        login_button.clicked.connect(self._show_login_dialog)
-        login_button.setProperty("variant", "primary")
-
-        # Add widgets to layout with spacing
         layout.addStretch()
         layout.addWidget(message)
-        layout.addSpacing(20)
-        layout.addWidget(login_button, alignment=Qt.AlignCenter)
         layout.addStretch()
 
         container.setLayout(layout)
         return container
-
-    def _show_login_dialog(self):
-        """Show the login tab in the settings section."""
-        main_window = self.window()  # Get the top-level window
-        if hasattr(main_window, 'main_tab_widget'):
-            # Get the index of the Profile tab
-            profile_tab_index = main_window.main_tab_widget.indexOf(main_window.user_tab)
-            main_window.main_tab_widget.setCurrentIndex(profile_tab_index)
 
     def _handle_login_status(self):
         """Update the visible widget based on login status."""

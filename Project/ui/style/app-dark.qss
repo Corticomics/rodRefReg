@@ -48,6 +48,11 @@ QFrame#Card:hover, QFrame[card="true"]:hover {
     border-color: #4A5568;
 }
 
+/* Logged-out login prompt: card surface instead of the bare app background */
+QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
+    background-color: #1E2530;
+}
+
 /* ============================================
    TYPOGRAPHY HELPERS
    ============================================ */
