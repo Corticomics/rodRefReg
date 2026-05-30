@@ -49,6 +49,47 @@ from PyQt5.QtWidgets import (
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
 from .components.wizard import WizardContainer, WizardStep
 
+
+# ============================================================================
+# SHARED STEP HEADER
+# ============================================================================
+def create_step_header(icon: str, title: str, description: str) -> QWidget:
+    """Build the standard step header (icon + title + description).
+
+    Shared by every wizard step so the icon size, title font, spacing and
+    alignment are identical across pages. Each step previously had its own
+    ``_create_header`` with diverging icon sizes (36 vs 48 px) and, on the
+    Review step, hard-coded inline fonts — which read as inconsistent headers.
+    Visual styling comes from the ``StepIcon`` / ``StepTitle`` /
+    ``StepDescription`` objectNames in the theme QSS.
+    """
+    container = QWidget()
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 16)
+    layout.setSpacing(16)
+
+    icon_label = QLabel(icon)
+    icon_label.setObjectName("StepIcon")
+    icon_label.setFixedSize(48, 48)
+    icon_label.setAlignment(Qt.AlignCenter)
+    layout.addWidget(icon_label)
+
+    text_layout = QVBoxLayout()
+    text_layout.setSpacing(4)
+
+    title_label = QLabel(title)
+    title_label.setObjectName("StepTitle")
+    text_layout.addWidget(title_label)
+
+    desc_label = QLabel(description)
+    desc_label.setObjectName("StepDescription")
+    desc_label.setWordWrap(True)
+    text_layout.addWidget(desc_label)
+
+    layout.addLayout(text_layout, 1)
+    return container
+
+
 # ============================================================================
 # HARDWARE LIMITS HELPER
 # ============================================================================
@@ -139,7 +180,7 @@ class Step1SelectType(QWidget):
         layout.setSpacing(20)
 
         # Step header
-        header = self._create_header(
+        header = create_step_header(
             icon="",
             title="Select Schedule Type",
             description="Choose how you want to deliver water to your animals",
@@ -166,37 +207,6 @@ class Step1SelectType(QWidget):
 
         layout.addLayout(cards_layout)
         layout.addStretch()
-
-    def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header with icon, title, and description."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
-
-        # Icon
-        icon_label = QLabel(icon)
-        icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
-        icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(icon_label)
-
-        # Text
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
-        text_layout.addWidget(title_label)
-
-        desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
-        desc_label.setWordWrap(True)
-        text_layout.addWidget(desc_label)
-
-        layout.addLayout(text_layout, 1)
-
-        return container
 
     def _on_type_selected(self, type_key: str) -> None:
         """Handle schedule type selection."""
@@ -249,7 +259,7 @@ class Step2SelectAnimals(QWidget):
         layout.setSpacing(8)  # Reduced spacing
 
         # Compact step header
-        header = self._create_header(
+        header = create_step_header(
             icon="🐭",
             title="Select Animals",
             description="Choose which animals will receive water from this schedule",
@@ -320,35 +330,6 @@ class Step2SelectAnimals(QWidget):
         list_layout.addLayout(btn_layout)
 
         layout.addWidget(list_container, 1)
-
-    def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create compact step header with icon, title, and description."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 8)  # Reduced bottom margin
-        layout.setSpacing(10)  # Reduced spacing
-
-        icon_label = QLabel(icon)
-        icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(36, 36)  # Smaller icon
-        icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(icon_label)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
-        text_layout.addWidget(title_label)
-
-        desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
-        desc_label.setWordWrap(True)
-        text_layout.addWidget(desc_label)
-
-        layout.addLayout(text_layout, 1)
-
-        return container
 
     def load_animals(self, trainer_id: Optional[int] = None) -> None:
         """Load available animals from database."""
@@ -497,7 +478,7 @@ class Step3ConfigureParameters(QWidget):
         layout.setSpacing(20)
 
         # Step header
-        header = self._create_header(
+        header = create_step_header(
             icon="⚙",
             title="Configure Parameters",
             description="Set timing and volume for each animal",
@@ -518,35 +499,6 @@ class Step3ConfigureParameters(QWidget):
 
         # Will be populated when animals are set
         self._build_empty_state()
-
-    def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create step header."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 16)
-        layout.setSpacing(16)
-
-        icon_label = QLabel(icon)
-        icon_label.setObjectName("StepIcon")
-        icon_label.setFixedSize(48, 48)
-        icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(icon_label)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("StepTitle")
-        text_layout.addWidget(title_label)
-
-        desc_label = QLabel(description)
-        desc_label.setObjectName("StepDescription")
-        desc_label.setWordWrap(True)
-        text_layout.addWidget(desc_label)
-
-        layout.addLayout(text_layout, 1)
-
-        return container
 
     def set_animals(self, animals: List[Dict[str, Any]]) -> None:
         """
@@ -1198,7 +1150,7 @@ class Step4Review(QWidget):
         layout.setSpacing(12)
 
         # Compact step header
-        header = self._create_header(
+        header = create_step_header(
             icon="✓",
             title="Review & Save",
             description="Confirm your schedule settings before saving",
@@ -1225,40 +1177,6 @@ class Step4Review(QWidget):
 
         scroll_area.setWidget(summary_group)
         layout.addWidget(scroll_area, 1)  # stretch=1 to fill space
-
-    def _create_header(self, icon: str, title: str, description: str) -> QWidget:
-        """Create compact step header."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 8)
-        layout.setSpacing(12)
-
-        icon_label = QLabel(icon)
-        icon_label.setFixedSize(36, 36)
-        icon_label.setAlignment(Qt.AlignCenter)
-        icon_label.setStyleSheet("""
-            font-size: 18px;
-            color: #0D9488;
-            background: #E6FFFA;
-            border-radius: 18px;
-        """)
-        layout.addWidget(icon_label)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(2)
-
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #1F2937;")
-        text_layout.addWidget(title_label)
-
-        desc_label = QLabel(description)
-        desc_label.setStyleSheet("font-size: 11px; color: #6B7280;")
-        desc_label.setWordWrap(True)
-        text_layout.addWidget(desc_label)
-
-        layout.addLayout(text_layout, 1)
-
-        return container
 
     def set_config(self, config: Dict[str, Any]) -> None:
         """Set the configuration to display."""
@@ -1386,6 +1304,7 @@ class ScheduleCreationWizard(QWidget):
 
     schedule_created = pyqtSignal(dict)
     cancelled = pyqtSignal()
+    restart_requested = pyqtSignal()
 
     def __init__(
         self,
@@ -1443,6 +1362,7 @@ class ScheduleCreationWizard(QWidget):
         self._wizard.step_changed.connect(self._on_step_changed)
         self._wizard.completed.connect(self._on_complete)
         self._wizard.cancelled.connect(self.cancelled.emit)
+        self._wizard.restart_requested.connect(self.restart_requested.emit)
 
         # Create step content widgets
         self._step1 = Step1SelectType()

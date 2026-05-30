@@ -175,6 +175,7 @@ class WizardContainer(QWidget):
     step_changed = pyqtSignal(int)
     completed = pyqtSignal()
     cancelled = pyqtSignal()
+    restart_requested = pyqtSignal()
 
     def __init__(self, steps: List[WizardStep], parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -188,9 +189,29 @@ class WizardContainer(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Progress indicator
+        # Progress indicator with a persistent "Start Over" control on the same
+        # band as the step titles (visible on every page).
         self._progress = WizardProgress(self._steps)
-        layout.addWidget(self._progress)
+
+        progress_row = QWidget()
+        progress_row_layout = QHBoxLayout(progress_row)
+        progress_row_layout.setContentsMargins(0, 0, 16, 0)
+        progress_row_layout.setSpacing(0)
+        progress_row_layout.addWidget(self._progress, 1)
+
+        self._start_over_button = QPushButton("Start Over")
+        self._start_over_button.setObjectName("WizardStartOverButton")
+        self._start_over_button.setToolTip("Reset the wizard to create a new schedule")
+        self._start_over_button.setCursor(Qt.PointingHandCursor)
+        self._start_over_button.setStyleSheet(
+            "QPushButton { background-color: #F3F4F6; border: 1px solid #D1D5DB;"
+            " border-radius: 6px; padding: 6px 12px; font-weight: 500; }"
+            " QPushButton:hover { background-color: #E5E7EB; }"
+        )
+        self._start_over_button.clicked.connect(self.restart_requested.emit)
+        progress_row_layout.addWidget(self._start_over_button, 0, Qt.AlignVCenter)
+
+        layout.addWidget(progress_row)
 
         # Separator
         separator = QFrame()

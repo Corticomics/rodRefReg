@@ -7,7 +7,7 @@ allowing side-by-side comparison with the traditional Schedules tab method.
 """
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
 
 from .schedule_wizard import ScheduleCreationWizard
 
@@ -64,48 +64,11 @@ class WizardTab(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header with reset button (fixed at top)
-        header = QWidget()
-        header.setObjectName("WizardTabHeader")
-        header.setStyleSheet("""
-            #WizardTabHeader {
-                background-color: #F8FAFB;
-                border-bottom: 1px solid #E5E7EB;
-                padding: 8px;
-            }
-        """)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(12, 8, 12, 8)
-
-        # Title
-        title = QLabel("New Schedule Wizard")
-        title.setStyleSheet("font-size: 14px; font-weight: 600; color: #0D9488;")
-        header_layout.addWidget(title)
-
-        header_layout.addStretch()
-
-        # Reset button
-        reset_btn = QPushButton("Start Over")
-        reset_btn.setToolTip("Reset wizard to create a new schedule")
-        reset_btn.clicked.connect(self._reset_wizard)
-        reset_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #F3F4F6;
-                border: 1px solid #D1D5DB;
-                border-radius: 6px;
-                padding: 6px 12px;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #E5E7EB;
-            }
-        """)
-        header_layout.addWidget(reset_btn)
-
-        layout.addWidget(header)
-
-        # Wizard container (STATIC - no outer scroll)
-        # Scrolling is handled internally by each step that needs it (Step 3)
+        # Wizard container (STATIC - no outer scroll). The old "New Schedule
+        # Wizard" header band was removed to reclaim vertical space for the
+        # Select Animals step; the persistent "Start Over" control now lives in
+        # the wizard's own progress band. Scrolling is handled internally by
+        # each step that needs it (Step 3).
         self._wizard = ScheduleCreationWizard(
             database_handler=self._database_handler,
             login_system=self._login_system,
@@ -115,8 +78,8 @@ class WizardTab(QWidget):
         # Connect wizard signals
         self._wizard.schedule_created.connect(self._on_schedule_created)
         self._wizard.cancelled.connect(self._on_cancelled)
+        self._wizard.restart_requested.connect(self._reset_wizard)
 
-        # Add wizard directly (no scroll wrapper)
         layout.addWidget(self._wizard, 1)
 
     def _on_schedule_created(self, config: dict):
@@ -165,8 +128,9 @@ class WizardTab(QWidget):
         )
         self._wizard.schedule_created.connect(self._on_schedule_created)
         self._wizard.cancelled.connect(self._on_cancelled)
+        self._wizard.restart_requested.connect(self._reset_wizard)
 
-        # Add to layout (at position 1 after header, with stretch)
+        # Add to layout (fills the tab, with stretch)
         layout.addWidget(self._wizard, 1)
 
         self._print_to_terminal("[Wizard Tab] Wizard reset - ready for new schedule")
