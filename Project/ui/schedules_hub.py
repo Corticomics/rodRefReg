@@ -878,7 +878,8 @@ class SchedulesHub(QWidget):
         self._grid_layout.setContentsMargins(0, 0, 0, 0)
 
         scroll.setWidget(self._grid_container)
-        layout.addWidget(scroll, 1)
+        self._scroll = scroll
+        layout.addWidget(self._scroll, 1)
 
         # Empty state
         self._empty_state = QWidget()
@@ -905,7 +906,10 @@ class SchedulesHub(QWidget):
         empty_layout.addWidget(create_btn, alignment=Qt.AlignCenter)
 
         self._empty_state.hide()
-        layout.addWidget(self._empty_state)
+        # Stretch so the empty state fills the space the scroll area vacates and
+        # its AlignCenter layout centres the message vertically, instead of
+        # pinning it to the bottom under a still-expanded scroll area.
+        layout.addWidget(self._empty_state, 1)
 
     def _toggle_select_mode(self) -> None:
         self._select_mode = not self._select_mode
@@ -1029,11 +1033,11 @@ class SchedulesHub(QWidget):
 
         if not schedules:
             self._empty_state.show()
-            self._grid_container.hide()
+            self._scroll.hide()
             return
 
         self._empty_state.hide()
-        self._grid_container.show()
+        self._scroll.show()
 
         cols = 3
         for idx, schedule in enumerate(schedules):
