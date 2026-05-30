@@ -549,45 +549,59 @@ def _build_content() -> Dict[str, HelpContent]:
         # ----------------------------------------------------------------
         "Creating Schedules": HelpContent(
             title="Creating Schedules",
-            summary="Use the Schedules tab to assign animals to cages and choose Staggered or Instant mode.",
+            summary="Create schedules with the Wizard and manage them from the Schedules tab; cages map directly to relays.",
             content="""
 <div class='help-section'>
   <h1>Creating Schedules</h1>
-  <p>The <strong>Schedules</strong> tab (Projects section) is a three-column view for
-  building and managing water delivery schedules without the step-by-step wizard.</p>
+  <p>A <strong>schedule</strong> assigns animals to cages and defines how much water to
+  deliver and when.  Schedules are created with the step-by-step <strong>Wizard</strong>
+  and managed from the <strong>Schedules</strong> tab (Projects section).</p>
 
   <h2>Delivery Modes</h2>
-  <p>Select a mode with the <strong>Delivery Mode</strong> selector at the top of the
-  Available Animals column:</p>
   <ul>
     <li><strong>Staggered</strong> (default, recommended) — deliveries are spaced evenly
-    across a time window.  Each animal has a start time, end time, and target volume.
-    The system distributes triggers automatically within that window.</li>
+    across a time window.  Each animal has a start time, end time, and target volume; the
+    system distributes the deliveries automatically within that window.</li>
     <li><strong>Instant</strong> — each animal receives water at a specific point in time
     you define.  Use for synchronised hydration events.</li>
   </ul>
+  <p>You choose the mode on the first step of the Wizard.</p>
 
-  <h2>Building a Schedule Manually</h2>
+  <h2>Cages and relays</h2>
+  <div class='help-note'>
+    <strong>Important:</strong> a <strong>cage</strong> maps directly to a
+    <strong>relay</strong> on the hat — cage 1 is relay 1, cage 2 is relay 2, and so on.
+    The cage you assign to an animal is the <strong>relay / solenoid valve that opens</strong>
+    to deliver its water.  You can rename cages on the <strong>Cages</strong> tab, but the
+    number always maps to that physical relay position.
+  </div>
+
+  <h2>Creating a schedule</h2>
   <ol>
-    <li>Select the <strong>Delivery Mode</strong>.</li>
-    <li>Drag an animal from the <strong>Available Animals</strong> list (left column) onto
-    a relay unit slot in the <strong>Relay Units</strong> column (centre).</li>
-    <li>Configure the time window and volume for each relay unit slot.</li>
-    <li>Click <strong>Save Current Assignments</strong> to name and save the schedule.</li>
+    <li>On the <strong>Schedules</strong> tab, click <strong>+ New Schedule</strong>
+    (or <strong>Create Schedule</strong> when the list is empty).  This opens the
+    <strong>Wizard</strong>.</li>
+    <li><strong>Select Type</strong> — choose Staggered or Instant.</li>
+    <li><strong>Select Animals</strong> — pick the animals to water (limited by the number
+    of available relays).</li>
+    <li><strong>Configure</strong> — for each animal set the cage (relay), the time window
+    or delivery time, and the volume.</li>
+    <li><strong>Review &amp; Save</strong> — confirm the summary and save.  The schedule
+    then appears as a card on the Schedules tab.</li>
   </ol>
 
-  <h2>Loading a Saved Schedule</h2>
-  <p>Saved schedules appear in the <strong>Saved Schedules</strong> column (right).
-  Click a schedule to load its assignments back into the relay unit slots.  You can also
-  drag a saved schedule to the Run/Stop section to execute it directly.</p>
+  <h2>Managing saved schedules</h2>
+  <p>Saved schedules appear as cards on the <strong>Schedules</strong> tab.  Use the search
+  box to filter them, click a card to edit it, and use <strong>Select</strong> to choose
+  schedules for bulk deletion.</p>
 
-  <h2>Clearing Assignments</h2>
-  <p>Click <strong>Clear All Assignments</strong> to reset all relay unit slots without
-  deleting saved schedules.</p>
+  <h2>Running a schedule</h2>
+  <p>Drag a schedule card into the <strong>Schedule Queue</strong> in the Run/Stop section
+  (right pane), then press <strong>Run</strong>.</p>
 
   <div class='help-note'>
-    <strong>Note:</strong> For guided schedule creation, use the <strong>Wizard</strong>
-    tab instead.  The Wizard enforces hardware limits and cage assignments at each step.
+    <strong>Note:</strong> The Wizard enforces hardware limits and cage assignments at each
+    step, so it is the recommended way to build a schedule.
   </div>
 </div>
 """,
@@ -596,12 +610,12 @@ def _build_content() -> Dict[str, HelpContent]:
                 "staggered",
                 "instant",
                 "delivery mode",
-                "relay unit",
+                "wizard",
+                "cage relay",
                 "assign animals",
                 "save schedule",
                 "load schedule",
                 "water delivery",
-                "drag drop",
                 "time window",
                 "volume",
             ],
