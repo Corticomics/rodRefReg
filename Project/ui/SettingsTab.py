@@ -816,7 +816,7 @@ class SettingsTab(QWidget):
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, btn)
+                self.calibration_table.setCellWidget(row, 5, self._make_action_cell(btn))
 
             else:
                 # Not calibrated - show warning
@@ -849,7 +849,26 @@ class SettingsTab(QWidget):
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, btn)
+                self.calibration_table.setCellWidget(row, 5, self._make_action_cell(btn))
+
+    @staticmethod
+    def _make_action_cell(button):
+        """Centre an action button within its calibration-table cell.
+
+        ``setCellWidget`` stretches the supplied widget to the full row height,
+        so a bare fixed-height button gets anchored to the top and visually
+        overflows / straddles the boundary between two rows. Wrapping it in a
+        container with a centring layout keeps the button vertically centred
+        with even gaps between rows.
+        """
+        from PyQt5.QtWidgets import QHBoxLayout, QWidget
+
+        cell = QWidget()
+        cell_layout = QHBoxLayout(cell)
+        cell_layout.setContentsMargins(6, 4, 6, 4)
+        cell_layout.setAlignment(Qt.AlignCenter)
+        cell_layout.addWidget(button)
+        return cell
 
     def _launch_calibration_wizard(self, cage_id):
         """
