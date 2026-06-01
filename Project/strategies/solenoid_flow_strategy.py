@@ -35,7 +35,7 @@ class SolenoidFlowStrategy:
     Automatically selected via `settings['use_pulse_delivery']`:
     - True: Pulse mode (Parker valves)
     - False: Continuous mode (Lee valves)
-    - Default: False (backward compatible)
+    - Default: True (pulse — safer/more precise; SystemController enforces this)
 
     **Empirical Pulse Profiles (from valve_characterization tests):**
     - 10ms:  0.0234 mL (CV: 0.0%)
@@ -85,8 +85,12 @@ class SolenoidFlowStrategy:
         if not self._sensor_available:
             self._logger.info("Running in CALIBRATION-ONLY mode (no flow sensor)")
 
-        # Pulse mode detection (from empirical characterization tests)
-        self._use_pulse_mode = bool(settings.get('use_pulse_delivery', False))
+        # Pulse mode detection (from empirical characterization tests).
+        # Defaults to pulse: SystemController force-enforces use_pulse_delivery=True
+        # on every settings load, so pulse is the canonical mode. The fallback here
+        # matches that intent for any path that constructs the strategy directly
+        # (e.g. tests) — continuous only runs when explicitly disabled.
+        self._use_pulse_mode = bool(settings.get('use_pulse_delivery', True))
         self._pulse_settling_ms = int(settings.get('pulse_settling_ms', 100))
 
         # CRITICAL DEBUG: Log pulse mode detection
