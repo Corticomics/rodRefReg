@@ -762,13 +762,14 @@ class RodentRefreshmentGUI(QWidget):
         """Update tab accessibility based on login status"""
         is_logged_in = self.login_system.is_logged_in()
 
-        # Disable/enable tabs
+        # Settings is gated on login (it controls the device): hide it entirely
+        # for guests so only Profile and Help show. Help is static, read-only
+        # documentation and stays available to everyone.
+        self.main_tab_widget.setTabVisible(self.settings_tab_index, is_logged_in)
         self.main_tab_widget.setTabEnabled(self.settings_tab_index, is_logged_in)
-        self.main_tab_widget.setTabEnabled(self.help_tab_index, is_logged_in)
+        self.main_tab_widget.setTabVisible(self.help_tab_index, True)
+        self.main_tab_widget.setTabEnabled(self.help_tab_index, True)
 
-        # If on a restricted tab while logging out, switch to profile tab
-        if not is_logged_in and self.main_tab_widget.currentIndex() in [
-            self.settings_tab_index,
-            self.help_tab_index,
-        ]:
+        # If the Settings tab was current when logging out, fall back to Profile.
+        if not is_logged_in and self.main_tab_widget.currentIndex() == self.settings_tab_index:
             self.main_tab_widget.setCurrentWidget(self.user_tab)
