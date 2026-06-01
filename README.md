@@ -3,7 +3,7 @@
 **A Simple Water Delivery System for Laboratory Animal Care**
 
 <p align="center">
-  <img src="docs/brand/logo-triple-drop-dark.svg" alt="RRR — Rodent Refreshment Regulator" width="440">
+  <img src="docs/brand/logo-triple-drop-dark.svg" alt="RRR — Rodent Refreshment Regulator" width="460">
 </p>
 
 ## What is the Rodent Refreshment Regulator?
