@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="docs/brand/logo-triple-drop-dark.svg" alt="RRR — Rodent Refreshment Regulator" width="440">
+</p>
+
+<p align="center">
+  <img src="docs/brand/hero-manifesto-dark.svg" width="100%"
+       alt="A drop of water, on time, every time. 16-channel scheduled water delivery for laboratory rodents, built on a Raspberry Pi 5.">
+</p>
+
 # Rodent Refreshment Regulator (RRR)
 
 **A Simple Water Delivery System for Laboratory Animal Care**
