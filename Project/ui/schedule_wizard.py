@@ -23,6 +23,7 @@ Reference: RSO NewSessionWizard pattern
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -88,6 +89,39 @@ def create_step_header(icon: str, title: str, description: str) -> QWidget:
 
     layout.addLayout(text_layout, 1)
     return container
+
+
+# ============================================================================
+# DELIVERY-WINDOW SAFETY MATH
+# ============================================================================
+# Conservative pulse-delivery timing model (see solenoid_flow_strategy): roughly
+# 0.026 mL per 20 ms pulse, and each pulse cycle — valve open + settle + sensor
+# window + inter-pulse gap — takes ~0.52 s, plus per-cage prime/stabilise and the
+# inter-cage stagger. Deliveries run one cage at a time (single master solenoid),
+# so the minimum staggered window is the SUM across animals. Constants are
+# deliberately conservative; tune against on-device timing if needed.
+_ML_PER_PULSE = 0.026
+_PULSE_CYCLE_S = 0.52
+_PER_CAGE_OVERHEAD_S = 1.0
+_INTER_CAGE_STAGGER_S = 0.5
+
+
+def estimate_min_window_seconds(animal_configs) -> float:
+    """Lower bound (seconds) on the time needed to deliver every animal's volume.
+
+    Because cages fire sequentially, a staggered window must be at least the sum
+    of each delivery's duration or deliveries would overlap/queue past the
+    window. Pulse model: ``ceil(volume / mL-per-pulse)`` pulses at
+    ``_PULSE_CYCLE_S`` each, plus per-cage overhead and inter-cage stagger.
+    """
+    total = 0.0
+    for cfg in animal_configs.values():
+        volume = float(cfg.get("volume", 0) or 0)
+        if volume <= 0:
+            continue
+        pulses = math.ceil(volume / _ML_PER_PULSE)
+        total += _PER_CAGE_OVERHEAD_S + pulses * _PULSE_CYCLE_S + _INTER_CAGE_STAGGER_S
+    return total
 
 
 # ============================================================================
@@ -529,7 +563,7 @@ class Step3ConfigureParameters(QWidget):
 
             self._animal_configs[animal_id] = {
                 "start_time": datetime.now(),
-                "end_time": datetime.now() + timedelta(hours=12),
+                "end_time": datetime.now() + timedelta(hours=1),
                 "delivery_time": datetime.now() + timedelta(minutes=5),
                 "volume": 1.0,
                 "cage_id": default_cage_id,  # Cage assignment
@@ -635,8 +669,12 @@ class Step3ConfigureParameters(QWidget):
         global_layout.addWidget(self._global_start)
 
         self._global_end = QDateTimeEdit()
-        self._global_end.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
+        self._global_end.setDateTime(QDateTime.currentDateTime().addSecs(3600))
         self._global_end.setCalendarPopup(True)
+        self._global_end.setMinimumDateTime(self._global_start.dateTime().addSecs(60))
+        self._global_start.dateTimeChanged.connect(
+            lambda dt: self._global_end.setMinimumDateTime(dt.addSecs(60))
+        )
         global_layout.addWidget(QLabel("End:"))
         global_layout.addWidget(self._global_end)
 
@@ -768,7 +806,7 @@ class Step3ConfigureParameters(QWidget):
 
         # End time
         end_dt = QDateTimeEdit()
-        end_dt.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
+        end_dt.setDateTime(QDateTime.currentDateTime().addSecs(3600))
         end_dt.setCalendarPopup(True)
         end_dt.setMinimumWidth(140)
         end_dt.dateTimeChanged.connect(
@@ -776,6 +814,9 @@ class Step3ConfigureParameters(QWidget):
                 aid, "end_time", dt.toPyDateTime()
             )
         )
+        # Keep the end strictly after the start so the window can't be inverted.
+        end_dt.setMinimumDateTime(start_dt.dateTime().addSecs(60))
+        start_dt.dateTimeChanged.connect(lambda dt, e=end_dt: e.setMinimumDateTime(dt.addSecs(60)))
         layout.addWidget(QLabel("End:"))
         layout.addWidget(end_dt)
 
@@ -1467,15 +1508,65 @@ class ScheduleCreationWizard(QWidget):
         }
 
     def _on_complete(self) -> None:
-        """Handle wizard completion - create and run schedule."""
+        """Handle wizard completion - validate, then create the schedule."""
         config = self._build_config()
-
-        # Validate
         params = config.get("parameters", {})
+        schedule_type = config.get("schedule_type", "staggered")
+        animal_configs = params.get("animal_configs", {})
+
         if not params.get("name", "").strip():
             QMessageBox.warning(self, "Validation Error", "Please enter a schedule name.")
             self._wizard.set_current_step(2)
             return
+
+        if not animal_configs:
+            QMessageBox.warning(
+                self, "Validation Error", "Add at least one animal to the schedule."
+            )
+            self._wizard.set_current_step(1)
+            return
+
+        for cfg in animal_configs.values():
+            if float(cfg.get("volume", 0) or 0) <= 0:
+                QMessageBox.warning(
+                    self,
+                    "Validation Error",
+                    "Every animal needs a delivery volume greater than 0 mL.",
+                )
+                self._wizard.set_current_step(2)
+                return
+            if schedule_type == "staggered":
+                start, end = cfg.get("start_time"), cfg.get("end_time")
+                if start and end and start >= end:
+                    QMessageBox.warning(
+                        self,
+                        "Validation Error",
+                        "Each delivery window's end time must be after its start time.",
+                    )
+                    self._wizard.set_current_step(2)
+                    return
+
+        # Safety: a staggered window must physically fit the sequential delivery
+        # (valves fire one at a time, so the window must be at least the summed
+        # per-cage delivery time).
+        if schedule_type == "staggered":
+            need = estimate_min_window_seconds(animal_configs)
+            windows = [
+                (cfg["end_time"] - cfg["start_time"]).total_seconds()
+                for cfg in animal_configs.values()
+                if cfg.get("start_time") and cfg.get("end_time")
+            ]
+            if windows and min(windows) < need:
+                minutes = max(1, math.ceil(need / 60))
+                QMessageBox.warning(
+                    self,
+                    "Delivery window too short",
+                    f"{len(animal_configs)} cage(s) need at least about {minutes} "
+                    "minute(s) to deliver safely — valves fire one at a time. "
+                    "Extend the end time.",
+                )
+                self._wizard.set_current_step(2)
+                return
 
         # Create schedule in database
         try:
@@ -1506,7 +1597,7 @@ class ScheduleCreationWizard(QWidget):
         for animal_id, cfg in animal_configs.items():
             if schedule_type == "staggered":
                 start = cfg.get("start_time", datetime.now())
-                end = cfg.get("end_time", datetime.now() + timedelta(hours=12))
+                end = cfg.get("end_time", datetime.now() + timedelta(hours=1))
                 all_starts.append(start)
                 all_ends.append(end)
             else:
@@ -1521,7 +1612,7 @@ class ScheduleCreationWizard(QWidget):
             schedule_end = max(all_ends)
         else:
             schedule_start = datetime.now()
-            schedule_end = datetime.now() + timedelta(hours=12)
+            schedule_end = datetime.now() + timedelta(hours=1)
 
         # Create Schedule object
         schedule = Schedule(
