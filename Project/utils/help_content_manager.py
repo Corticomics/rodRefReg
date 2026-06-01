@@ -219,10 +219,11 @@ def _build_content() -> Dict[str, HelpContent]:
   </ul>
 
   <h2>Access Control</h2>
-  <p>The app starts in <strong>guest mode</strong>.  The <strong>Settings</strong> and
-  <strong>Help</strong> tabs are disabled until you log in on the <strong>Profile</strong>
-  tab.  In guest mode the Animals tab shows all animals; after login it shows only your
-  own animals (or all animals in Super Mode).</p>
+  <p>The app starts in <strong>guest mode</strong>.  The <strong>Settings</strong> tab is
+  disabled until you log in on the <strong>Profile</strong> tab; the <strong>Help</strong>
+  tab (this documentation) stays available to everyone.  In guest mode the Animals tab
+  shows all animals; after login it shows only your own animals (or all animals in Super
+  Mode).</p>
 
   <h2>Quick Start</h2>
   <ol>
@@ -270,7 +271,7 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>1 — Log In</h2>
   <p>Open the <strong>Profile</strong> tab and log in.  This unlocks the
-  <strong>Settings</strong> and <strong>Help</strong> tabs.</p>
+  <strong>Settings</strong> tab.</p>
 
   <h2>2 — Choose Hardware Mode</h2>
   <p>Go to <strong>Settings → Delivery</strong> and set the <strong>Hardware Mode</strong>
