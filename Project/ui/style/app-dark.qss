@@ -92,6 +92,11 @@ QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
 QComboBox { 
     min-height: 36px;
     padding-right: 28px;
+    /* Use the classic popup that sizes to fit all items. With a stylesheet Qt
+       switches to a scrollable popup whose height is computed from the font
+       row height, not the styled (min-height + padding) row height, so the last
+       item gets clipped behind a scroll arrow. */
+    combobox-popup: 0;
 }
 QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover, 
 QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
