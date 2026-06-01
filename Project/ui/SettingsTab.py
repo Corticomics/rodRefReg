@@ -667,7 +667,7 @@ class SettingsTab(QWidget):
 
         # Column 5: Action - fixed width for button with padding
         header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(5, 110)
+        self.calibration_table.setColumnWidth(5, 124)
 
         # Populate table with 15 cages
         self._populate_calibration_table()
@@ -812,11 +812,11 @@ class SettingsTab(QWidget):
 
                 # Action button - Recalibrate (compact for table)
                 btn = QPushButton("Recalibrate")
-                btn.setFixedHeight(28)
+                btn.setStyleSheet(self._ACTION_BUTTON_STYLE)
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, self._make_action_cell(btn))
+                self.calibration_table.setCellWidget(row, 5, btn)
 
             else:
                 # Not calibrated - show warning
@@ -845,30 +845,20 @@ class SettingsTab(QWidget):
                 # Action button - Calibrate (compact for table)
                 btn = QPushButton("Calibrate")
                 btn.setProperty("variant", "primary")
-                btn.setFixedHeight(28)
+                btn.setStyleSheet(self._ACTION_BUTTON_STYLE)
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, self._make_action_cell(btn))
+                self.calibration_table.setCellWidget(row, 5, btn)
 
-    @staticmethod
-    def _make_action_cell(button):
-        """Centre an action button within its calibration-table cell.
-
-        ``setCellWidget`` stretches the supplied widget to the full row height,
-        so a bare fixed-height button gets anchored to the top and visually
-        overflows / straddles the boundary between two rows. Wrapping it in a
-        container with a centring layout keeps the button vertically centred
-        with even gaps between rows.
-        """
-        from PyQt5.QtWidgets import QHBoxLayout, QWidget
-
-        cell = QWidget()
-        cell_layout = QHBoxLayout(cell)
-        cell_layout.setContentsMargins(6, 4, 6, 4)
-        cell_layout.setAlignment(Qt.AlignCenter)
-        cell_layout.addWidget(button)
-        return cell
+    # Size-only stylesheet for the calibration-table action buttons. Cell-widget
+    # buttons do not match the `QTableWidget QPushButton` compact rule in the
+    # theme QSS, so they fall back to the base `QPushButton { min-height: 40px }`
+    # and render ~42px tall — taller than the 40px row, which made them overflow
+    # and straddle the boundary between two rows. An inline stylesheet (highest
+    # priority) caps the height; the variant/theme colours still apply. Verified
+    # on a real Pi display.
+    _ACTION_BUTTON_STYLE = "QPushButton { min-height: 26px; max-height: 26px; padding: 2px 12px; }"
 
     def _launch_calibration_wizard(self, cage_id):
         """
