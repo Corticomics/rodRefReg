@@ -639,6 +639,11 @@ class SettingsTab(QWidget):
         )  # Tab scrolls instead
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        # The global `QTableWidget::item` padding has a 12px top inset, which
+        # pushes setCellWidget action buttons down so they dip into the next
+        # row. Trim the item padding for this table so the Calibrate buttons sit
+        # centred. Padding-only override keeps the theme's row border.
+        self.calibration_table.setStyleSheet("QTableWidget::item { padding: 4px 16px; }")
         # Rely on global QSS styling
 
         # Column resize modes - all fixed widths for consistent layout
