@@ -191,9 +191,9 @@ class ScheduleEditDialog(QDialog):
             if isinstance(self._schedule.end_time, str):
                 end_dt = datetime.fromisoformat(self._schedule.end_time)
             else:
-                end_dt = self._schedule.end_time or (datetime.now() + timedelta(hours=12))
+                end_dt = self._schedule.end_time or (datetime.now() + timedelta(hours=1))
         except:
-            end_dt = datetime.now() + timedelta(hours=12)
+            end_dt = datetime.now() + timedelta(hours=1)
 
         quick_row.addWidget(QLabel("Start:"))
         self._global_start = QDateTimeEdit()
@@ -347,7 +347,7 @@ class ScheduleEditDialog(QDialog):
         end_dt.setDateTime(
             self._global_end.dateTime()
             if hasattr(self, '_global_end')
-            else QDateTime.currentDateTime().addSecs(3600 * 12)
+            else QDateTime.currentDateTime().addSecs(3600)
         )
         end_dt.setCalendarPopup(True)
         end_dt.setMinimumWidth(120)
