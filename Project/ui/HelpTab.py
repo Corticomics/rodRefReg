@@ -362,9 +362,22 @@ class HelpTab(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.refresh_theme()
         if not self.current_topic_key:
-            # Show landing page
-            theme = self._current_theme()
-            self.content_browser.setHtml(self.help_manager.get_landing_page(theme))
-            self.breadcrumb.setText("Help")
+            # Open the first topic on launch instead of a landing page that just
+            # repeats the left-hand topic tree (the centre and left panes were
+            # redundant on first open). Falls back to the landing page only if
+            # the tree somehow has no topics.
+            self._select_first_topic()
+        self.refresh_theme()
+
+    def _select_first_topic(self):
+        """Select and load the first topic in the tree (e.g. System Overview)."""
+        for i in range(self.topic_tree.topLevelItemCount()):
+            category = self.topic_tree.topLevelItem(i)
+            if category.childCount():
+                first = category.child(0)
+                self.topic_tree.setCurrentItem(first)
+                key = first.data(0, Qt.UserRole)
+                if key:
+                    self._load_topic(key)
+                return
