@@ -25,27 +25,6 @@ The Rodent Refreshment Regulator (RRR) helps you automatically deliver precise a
 - **Research Quality**: Improves consistency in experimental conditions
 - **Remote Monitoring**: Sends alerts about system status
 
-## Documentation
-
-This README is the entry point. Topic-specific runbooks live in
-[`Project/docs/`](Project/docs/); each is linked once below so this file stays the single
-table of contents you need to bookmark.
-
-| Document | When to read it |
-|---|---|
-| [HARDWARE_SETUP.md](Project/docs/HARDWARE_SETUP.md) | Building a device from parts: Pi, relay HAT, valves, power, common ground, tubing, wall mount. Read this first for any new install. |
-| [16-RELAYS Vendor Manual (PDF)](Project/docs/16-RELAYS-UsersGuide_d5e24457-bdd9-4e16-a307-7f90bbd668bb.pdf) | Authoritative reference for the Sequent Microsystems relay HAT (jumpers, stack levels, I²C addresses). |
-| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Day-to-day operator cheatsheet (animals, schedules, cages, shortcuts). |
-| [CALIBRATION_QUICK_START.md](Project/docs/CALIBRATION_QUICK_START.md) | Calibrating a valve in 10 minutes via the in-app wizard or the CLI tool. |
-| [VALVE_CALIBRATION_GUIDE.md](Project/docs/VALVE_CALIBRATION_GUIDE.md) | Technical reference behind the calibration wizard (algorithm, schema, API). |
-| [PRIMING_FEATURE_DOCUMENTATION.md](Project/docs/PRIMING_FEATURE_DOCUMENTATION.md) | Priming control architecture and safety interlocks. |
-| [DEVELOPMENT.md](Project/docs/DEVELOPMENT.md) | Software architecture, modules, data flow, and dev-environment setup. |
-| [DATABASE.md](Project/docs/DATABASE.md) / [DATABASE_ARCHITECTURE.md](Project/docs/DATABASE_ARCHITECTURE.md) | SQLite schema, ERD, and `DatabaseHandler` reference. |
-| [MAINTENANCE.md](Project/docs/MAINTENANCE.md) | Release, versioning (SemVer for RRR), tagging, and recovery procedures. |
-| [UPDATE_SYSTEM.md](Project/docs/UPDATE_SYSTEM.md) | Full design of the in-app update pipeline (bundle format, blue-green layout, boot sentinel). |
-| [CLAUDE.md](CLAUDE.md) | One-page hard-rules summary for maintainers and AI assistants. |
-| [STL Files](Project/docs/STL%20Files/) | 3D-printable reservoir mounts, intra-cage water collectors, pump holders. |
-
 ## Getting Started: Step-by-Step Guide
 
 ### 1. Setting Up Your System
@@ -102,6 +81,28 @@ It will:
 **After install**: log out and back in once (so the new `i2c`, `gpio`, `dialout` group memberships apply), then launch via the desktop icon or `~/.local/bin/rrr`. Reboot only if you want the `consoleblank=0` boot setting to take effect.
 
 Logs from every install run live under `~/.local/state/rrr/install-<timestamp>.log`.
+
+## Documentation
+
+This README is the entry point. Topic-specific runbooks live in
+[`Project/docs/`](Project/docs/); each is linked once below so this file stays the single
+table of contents you need to bookmark.
+
+| Document | When to read it |
+|---|---|
+| [HARDWARE_SETUP.md](Project/docs/HARDWARE_SETUP.md) | Building a device from parts: Pi, relay HAT, valves, power, common ground, tubing, wall mount. Read this first for any new install. |
+| [16-RELAYS Vendor Manual (PDF)](Project/docs/16-RELAYS-UsersGuide_d5e24457-bdd9-4e16-a307-7f90bbd668bb.pdf) | Authoritative reference for the Sequent Microsystems relay HAT (jumpers, stack levels, I²C addresses). |
+| [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Day-to-day operator cheatsheet (animals, schedules, cages, shortcuts). |
+| [CALIBRATION_QUICK_START.md](Project/docs/CALIBRATION_QUICK_START.md) | Calibrating a valve in 10 minutes via the in-app wizard or the CLI tool. |
+| [VALVE_CALIBRATION_GUIDE.md](Project/docs/VALVE_CALIBRATION_GUIDE.md) | Technical reference behind the calibration wizard (algorithm, schema, API). |
+| [PRIMING_FEATURE_DOCUMENTATION.md](Project/docs/PRIMING_FEATURE_DOCUMENTATION.md) | Priming control architecture and safety interlocks. |
+| [DEVELOPMENT.md](Project/docs/DEVELOPMENT.md) | Software architecture, modules, data flow, and dev-environment setup. |
+| [DATABASE.md](Project/docs/DATABASE.md) / [DATABASE_ARCHITECTURE.md](Project/docs/DATABASE_ARCHITECTURE.md) | SQLite schema, ERD, and `DatabaseHandler` reference. |
+| [MAINTENANCE.md](Project/docs/MAINTENANCE.md) | Release, versioning (SemVer for RRR), tagging, and recovery procedures. |
+| [UPDATE_SYSTEM.md](Project/docs/UPDATE_SYSTEM.md) | Full design of the in-app update pipeline (bundle format, blue-green layout, boot sentinel). |
+| [CLAUDE.md](CLAUDE.md) | One-page hard-rules summary for maintainers and AI assistants. |
+| [STL Files](Project/docs/STL%20Files/) | 3D-printable reservoir mounts, intra-cage water collectors, pump holders. |
+---
 
 ### 2. Using the Application
 
