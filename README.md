@@ -1,19 +1,17 @@
+# Rodent Refreshment Regulator (RRR)
+
+**A Simple Water Delivery System for Laboratory Animal Care**
+
 <p align="center">
   <img src="docs/brand/logo-triple-drop-dark.svg" alt="RRR — Rodent Refreshment Regulator" width="440">
 </p>
+
+## What is the Rodent Refreshment Regulator?
 
 <p align="center">
   <img src="docs/brand/hero-manifesto-dark.svg" width="100%"
        alt="A drop of water, on time, every time. 16-channel scheduled water delivery for laboratory rodents, built on a Raspberry Pi 5.">
 </p>
-
-# Rodent Refreshment Regulator (RRR)
-
-**A Simple Water Delivery System for Laboratory Animal Care**
-
-![RRR System](https://github.com/user-attachments/assets/d616c02f-4deb-492b-9152-173165b6e278)
-
-## What is the Rodent Refreshment Regulator?
 
 The Rodent Refreshment Regulator (RRR) helps you automatically deliver precise amounts of water to laboratory animals on a schedule. It takes the guesswork out of water delivery and ensures your research animals receive consistent care.
 
