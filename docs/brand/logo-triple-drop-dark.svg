@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RRR brand — Logo 01 "Triple Drop", dark variant, recoloured to the app teal (#14B8A6). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="140" viewBox="0 0 520 140" role="img" aria-label="Rodent Refreshment Regulator">
+  <rect x="0" y="0" width="520" height="140" rx="20" fill="#0F1419"/>
+
+  <!-- droplets + wordmark as one lockup, centred in the box; RRR centre-line
+       aligned with the droplet cluster centre -->
+  <g transform="translate(100,0)">
+    <g transform="translate(38,58)">
+      <path d="M -22 -16 C -10 0 -6 10 -6 16
+         A 16 16 0 1 1 -38 16
+         C -38 10 -34 0 -22 -16 Z" fill="rgba(255,255,255,0.25)"/>
+      <path d="M 0 -22 C 12 -6 16 4 16 10
+         A 16 16 0 1 1 -16 10
+         C -16 4 -12 -6 0 -22 Z" fill="#14B8A6"/>
+      <path d="M 22 -16 C 34 0 38 10 38 16
+         A 16 16 0 1 1 6 16
+         C 6 10 10 0 22 -16 Z" fill="#FFFFFF"/>
+    </g>
+
+    <g font-family="'Segoe UI','Helvetica Neue',Arial,sans-serif">
+      <text x="92" y="84" font-size="56" font-weight="800" letter-spacing="-1.2" fill="#FFFFFF">RRR</text>
+      <text x="94" y="108" font-size="11" font-weight="600" letter-spacing="2.4" fill="#A0AEC0">REFRESHMENT REGULATOR</text>
+    </g>
+  </g>
+</svg>
