@@ -591,13 +591,20 @@ class DatabaseHandler:
                     query = f"UPDATE schedules SET {', '.join(updates)} WHERE schedule_id = ?"
                     cursor.execute(query, params)
 
-                # Update per-animal desired outputs if provided
+                # Update per-animal desired outputs if provided.
+                # NOTE: the column is ``desired_output`` (see the
+                # schedule_desired_outputs schema). A long-standing bug wrote
+                # ``desired_water_output`` here, which does not exist — the
+                # UPDATE raised OperationalError, was swallowed, and per-animal
+                # volumes silently never saved. The full edit path now uses
+                # update_staggered_schedule(); this method is kept for simple
+                # field-only updates and the column name is corrected.
                 if desired_outputs:
                     for animal_id, volume in desired_outputs.items():
                         cursor.execute(
                             '''
-                            UPDATE schedule_desired_outputs 
-                            SET desired_water_output = ?
+                            UPDATE schedule_desired_outputs
+                            SET desired_output = ?
                             WHERE schedule_id = ? AND animal_id = ?
                         ''',
                             (volume, schedule_id, int(animal_id)),
@@ -1336,6 +1343,127 @@ class DatabaseHandler:
             print(f"DateTime parsing error: {e}")
             traceback.print_exc()
             return None
+
+    def update_staggered_schedule(self, schedule):
+        """Persist edits to an existing staggered schedule, transactionally.
+
+        Mirrors :meth:`add_staggered_schedule` but for a schedule that already
+        exists. Rather than diffing individual fields, it updates the parent
+        ``schedules`` row and **replaces** every child row for this
+        ``schedule_id`` (animals/cage assignments, desired outputs, and the
+        ``schedule_staggered_windows`` the delivery engine actually reads).
+
+        This is deliberately a "delete children + re-insert" replace: the prior
+        ``update_schedule`` only touched the parent row and a (misspelled)
+        desired-outputs column, so cage reassignments and the runtime windows
+        never updated and edits did not reach delivery. Replacing the windows
+        means an edit resets per-window delivery progress and clears any
+        ``cycle_tracking`` rows — correct, since the plan itself changed.
+
+        Args:
+            schedule: a :class:`~models.Schedule.Schedule` carrying the new
+                ``name``/``water_volume``/``start_time``/``end_time``,
+                ``animals``, ``relay_unit_assignments`` and
+                ``desired_water_outputs``. ``schedule.schedule_id`` must be set.
+
+        Returns:
+            True on success, False on any database/parse error (the whole
+            update is rolled back as a single transaction on failure).
+        """
+        schedule_id = schedule.schedule_id
+        if schedule_id is None:
+            print("update_staggered_schedule called with no schedule_id")
+            return False
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Update the parent schedule row.
+                cursor.execute(
+                    '''
+                    UPDATE schedules
+                    SET name = ?, water_volume = ?, start_time = ?,
+                        end_time = ?, delivery_mode = 'staggered'
+                    WHERE schedule_id = ?
+                ''',
+                    (
+                        schedule.name,
+                        schedule.water_volume,
+                        schedule.start_time,
+                        schedule.end_time,
+                        schedule_id,
+                    ),
+                )
+
+                # Replace all child rows for this schedule.
+                cursor.execute(
+                    'DELETE FROM schedule_animals WHERE schedule_id = ?', (schedule_id,)
+                )
+                cursor.execute(
+                    'DELETE FROM schedule_desired_outputs WHERE schedule_id = ?',
+                    (schedule_id,),
+                )
+                cursor.execute(
+                    'DELETE FROM schedule_staggered_windows WHERE schedule_id = ?',
+                    (schedule_id,),
+                )
+                # Stale per-cycle progress would otherwise point at deleted
+                # windows; clear it so the edited schedule starts clean.
+                cursor.execute('DELETE FROM cycle_tracking WHERE schedule_id = ?', (schedule_id,))
+
+                start_time = datetime.fromisoformat(schedule.start_time)
+                end_time = datetime.fromisoformat(schedule.end_time)
+
+                for animal_id in schedule.animals:
+                    relay_unit_id = schedule.relay_unit_assignments.get(str(animal_id))
+                    cursor.execute(
+                        '''
+                        INSERT INTO schedule_animals
+                        (schedule_id, animal_id, relay_unit_id)
+                        VALUES (?, ?, ?)
+                    ''',
+                        (schedule_id, animal_id, relay_unit_id),
+                    )
+
+                    desired_output = schedule.desired_water_outputs.get(
+                        str(animal_id), schedule.water_volume
+                    )
+                    cursor.execute(
+                        '''
+                        INSERT INTO schedule_desired_outputs
+                        (schedule_id, animal_id, desired_output)
+                        VALUES (?, ?, ?)
+                    ''',
+                        (schedule_id, animal_id, desired_output),
+                    )
+
+                    cursor.execute(
+                        '''
+                        INSERT INTO schedule_staggered_windows
+                        (schedule_id, animal_id, start_time, end_time, target_volume)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''',
+                        (
+                            schedule_id,
+                            animal_id,
+                            start_time.isoformat(),
+                            end_time.isoformat(),
+                            desired_output,
+                        ),
+                    )
+
+                conn.commit()
+                print(f"Schedule {schedule_id} updated successfully (staggered).")
+                return True
+
+        except sqlite3.Error as e:
+            print(f"Database error when updating staggered schedule: {e}")
+            traceback.print_exc()
+            return False
+        except ValueError as e:
+            print(f"DateTime parsing error: {e}")
+            traceback.print_exc()
+            return False
 
     def get_active_staggered_windows(self):
         """Get all active staggered delivery windows"""
