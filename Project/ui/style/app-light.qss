@@ -53,6 +53,13 @@ QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
     background-color: #FFFFFF;
 }
 
+/* Labels are transparent by default so they blend into whatever surface they
+   sit on (e.g. white Cards) rather than painting the grey app background as a
+   box. objectName-styled labels (banners, etc.) override this. */
+QLabel {
+    background: transparent;
+}
+
 /* ============================================
    TYPOGRAPHY HELPERS
    ============================================ */
