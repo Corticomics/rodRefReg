@@ -747,6 +747,22 @@ class SchedulesHub(QWidget):
         self._select_btn.clicked.connect(self._toggle_select_mode)
         header.addWidget(self._select_btn)
 
+        # Edit selected button (hidden by default; shown in select mode).
+        # Editing is single-schedule, so it stays disabled unless exactly one
+        # schedule is selected.
+        self._edit_selected_btn = QPushButton("Edit Schedule")
+        self._edit_selected_btn.setMinimumHeight(28)
+        self._edit_selected_btn.setVisible(False)
+        self._edit_selected_btn.setCursor(Qt.PointingHandCursor)
+        self._edit_selected_btn.setToolTip("Select exactly one schedule to edit")
+        self._edit_selected_btn.setStyleSheet("""
+            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-weight: 500; font-size: 11px; }
+            QPushButton:hover { background-color: #0F766E; }
+            QPushButton:disabled { background-color: #CBD5E1; color: #F8FAFC; }
+        """)
+        self._edit_selected_btn.clicked.connect(self._edit_selected)
+        header.addWidget(self._edit_selected_btn)
+
         # Delete selected button (hidden by default)
         self._delete_selected_btn = QPushButton("Delete Selected")
         self._delete_selected_btn.setMinimumHeight(28)
@@ -842,6 +858,8 @@ class SchedulesHub(QWidget):
             """)
             self._delete_selected_btn.setVisible(True)
             self._delete_selected_btn.setEnabled(False)
+            self._edit_selected_btn.setVisible(True)
+            self._edit_selected_btn.setEnabled(False)
         else:
             self._select_btn.setText("Select")
             self._select_btn.setStyleSheet("""
@@ -849,6 +867,7 @@ class SchedulesHub(QWidget):
                 QPushButton:hover { background-color: #E5E7EB; }
             """)
             self._delete_selected_btn.setVisible(False)
+            self._edit_selected_btn.setVisible(False)
 
         for card in self._schedule_cards:
             card.set_select_mode(self._select_mode)
@@ -864,6 +883,17 @@ class SchedulesHub(QWidget):
         count = len(self._selected_schedules)
         self._delete_selected_btn.setEnabled(count > 0)
         self._delete_selected_btn.setText(f"Delete ({count})" if count > 0 else "Delete Selected")
+        # Editing acts on a single schedule, so only enable for exactly one.
+        self._edit_selected_btn.setEnabled(count == 1)
+
+    def _edit_selected(self) -> None:
+        if len(self._selected_schedules) != 1:
+            return
+        schedule = self._selected_schedules[0]
+        # Leave select mode before opening the editor so the post-save reload
+        # returns to the normal card view (mirrors the delete flow).
+        self._toggle_select_mode()
+        self._on_edit_schedule(schedule)
 
     def _delete_selected(self) -> None:
         if not self._selected_schedules:
@@ -897,7 +927,8 @@ class SchedulesHub(QWidget):
             "Welcome to the Schedules Hub!\n\n"
             "• Drag a card to the Run/Stop section to execute it\n"
             "• Right-click a card for Edit/Delete options\n"
-            "• Click 'Select' for bulk deletion mode\n"
+            "• Click 'Select', pick one schedule, then 'Edit Schedule'\n"
+            "• Click 'Select' to choose schedules for bulk deletion\n"
             "• Use the search bar to filter by name\n"
             "• Click '+ New Schedule' to create via wizard",
         )
