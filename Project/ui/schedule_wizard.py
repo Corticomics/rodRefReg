@@ -1253,6 +1253,44 @@ class Step3ConfigureParameters(QWidget):
         if hasattr(self, "_name_input") and self._name_input is not None:
             self._name_input.setText(name or "")
         self._restore_widget_values()
+        if schedule_type == "staggered":
+            self._make_quick_apply_authoritative()
+
+    def _make_quick_apply_authoritative(self) -> None:
+        """Edit-mode: pre-fill the "Quick Apply to All" row and make it live.
+
+        In the creation wizard, Quick Apply only takes effect when the operator
+        clicks "Apply to All". When *editing* a schedule that is the wrong
+        default: the prominent top Start/End/Volume showed "now" (not the
+        schedule's real values) and changing them did nothing on Save unless the
+        button was clicked — so time edits silently appeared to do nothing.
+
+        Staggered schedules store a single shared window for every animal
+        (see add_staggered_schedule), so "apply to all" is exactly the right
+        semantic. Here we pre-fill the Quick Apply row from the schedule and
+        wire it so any change flows straight to every animal row (the per-animal
+        rows remain available for fine-tuning afterwards).
+        """
+        if not (hasattr(self, "_global_start") and self._animal_configs):
+            return
+        first = next(iter(self._animal_configs.values()))
+        start = first.get("start_time")
+        end = first.get("end_time")
+        volume = first.get("volume", 1.0)
+
+        # Pre-fill BEFORE connecting auto-apply so seeding the widgets doesn't
+        # clobber the per-animal presets. Setting start first lets the existing
+        # min-constraint handler bump the end's minimum so a real end isn't
+        # clamped.
+        if isinstance(start, datetime):
+            self._global_start.setDateTime(QDateTime(start))
+        if isinstance(end, datetime):
+            self._global_end.setDateTime(QDateTime(end))
+        self._global_volume.setValue(float(volume))
+
+        self._global_start.dateTimeChanged.connect(lambda *_: self._apply_to_all_staggered())
+        self._global_end.dateTimeChanged.connect(lambda *_: self._apply_to_all_staggered())
+        self._global_volume.valueChanged.connect(lambda *_: self._apply_to_all_staggered())
 
     def _restore_widget_values(self) -> None:
         """

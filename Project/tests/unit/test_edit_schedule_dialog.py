@@ -84,6 +84,52 @@ def test_dialog_save_persists_edit(qapp, database_handler):
     assert details["desired_water_outputs"]["2"] == 2.0
 
 
+def test_quick_apply_is_authoritative_in_edit(qapp, database_handler):
+    """Editing the prominent Quick Apply Start/End persists without a button click.
+
+    Regression for the reported "I change the time and save but nothing changes":
+    in edit mode the Quick Apply row is pre-filled and live (applies to all
+    animal rows), so a Save reflects it.
+    """
+    from PyQt5.QtCore import QDateTime  # noqa: PLC0415
+    from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    schedule = _seed_staggered(database_handler)
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    new_start = (datetime.now() + timedelta(days=3)).replace(second=0, microsecond=0)
+    new_end = new_start + timedelta(hours=2)
+    # Only touch the Quick Apply row — do NOT click "Apply to All".
+    dlg._step3._global_start.setDateTime(QDateTime(new_start))
+    dlg._step3._global_end.setDateTime(QDateTime(new_end))
+
+    dlg._save_changes()
+    assert dlg.result() == QDialog.Accepted
+
+    r = next(
+        s for s in database_handler.get_all_schedules() if s.schedule_id == schedule.schedule_id
+    )
+    assert datetime.fromisoformat(r.start_time).replace(microsecond=0) == new_start
+    assert datetime.fromisoformat(r.end_time).replace(microsecond=0) == new_end
+
+
+def test_change_summary_lists_what_changed(qapp, database_handler):
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    schedule = _seed_staggered(database_handler)
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    dlg._step3._animal_widgets[1]["volume"].setValue(4.0)
+    dlg._step3._name_input.setText("Edited ration")
+    dlg._save_changes()
+
+    summary = "\n".join(dlg.change_summary)
+    assert "Name: 'Morning ration' → 'Edited ration'" in summary
+    assert "volume" in summary.lower()
+    assert "4 mL" in summary  # new volume formatted
+
+
 def test_instant_schedule_shows_notice_not_form(qapp, database_handler):
     from models.Schedule import Schedule  # noqa: PLC0415
     from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415

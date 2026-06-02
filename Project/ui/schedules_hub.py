@@ -81,8 +81,14 @@ class ScheduleEditDialog(QDialog):
         self._delivery_mode = getattr(schedule, "delivery_mode", "staggered") or "staggered"
 
         self.setWindowTitle(f"Edit Schedule: {schedule.name}")
-        self.setMinimumSize(820, 600)
+        # Open large enough to show the whole form (header, name, Quick Apply
+        # and the first animal rows) without the operator having to resize.
+        # Keep a smaller minimum so it still fits modest screens; the inner
+        # Step-3 scroll area handles many-animal overflow.
+        self.setMinimumSize(760, 540)
+        self.resize(1080, 780)
         self.setModal(True)
+        self.change_summary: List[str] = []
 
         if self._delivery_mode == "staggered":
             self._load_schedule_details()
@@ -257,6 +263,9 @@ class ScheduleEditDialog(QDialog):
             QMessageBox.warning(self, "Invalid cage assignment", str(e))
             return
 
+        # Diff old vs new BEFORE the write so the hub can log what changed.
+        self.change_summary = self._build_change_summary(schedule)
+
         if self._database_handler.update_staggered_schedule(schedule):
             self.accept()
         else:
@@ -265,6 +274,70 @@ class ScheduleEditDialog(QDialog):
                 "Error",
                 "Failed to save changes to the database. The schedule was not modified.",
             )
+
+    @staticmethod
+    def _fmt_time(value) -> str:
+        dt = ScheduleEditDialog._parse_dt(value, None)
+        return dt.strftime("%m/%d %H:%M") if isinstance(dt, datetime) else str(value)
+
+    @staticmethod
+    def _fmt_vol(value) -> str:
+        try:
+            return f"{float(value):g} mL"
+        except (TypeError, ValueError):
+            return f"{value} mL"
+
+    def _animal_label(self, animal_id) -> str:
+        for a in self._animals:
+            if a["id"] == animal_id:
+                return f"{a['lab_id']} - {a['name']}"
+        return f"Animal {animal_id}"
+
+    def _build_change_summary(self, new_schedule) -> List[str]:
+        """Human-readable list of what this edit changed (old → new)."""
+        changes: List[str] = []
+
+        if (self._schedule.name or "") != (new_schedule.name or ""):
+            changes.append(f"Name: '{self._schedule.name}' → '{new_schedule.name}'")
+
+        old_start = self._parse_dt(self._schedule.start_time, None)
+        new_start = self._parse_dt(new_schedule.start_time, None)
+        if old_start != new_start:
+            changes.append(
+                f"Start time: {self._fmt_time(self._schedule.start_time)} "
+                f"→ {self._fmt_time(new_schedule.start_time)}"
+            )
+        old_end = self._parse_dt(self._schedule.end_time, None)
+        new_end = self._parse_dt(new_schedule.end_time, None)
+        if old_end != new_end:
+            changes.append(
+                f"End time: {self._fmt_time(self._schedule.end_time)} "
+                f"→ {self._fmt_time(new_schedule.end_time)}"
+            )
+
+        old_ids = set(self._preset_configs.keys())
+        new_ids = set(new_schedule.animals)
+        for animal_id in sorted(new_ids - old_ids):
+            changes.append(f"Animal added: {self._animal_label(animal_id)}")
+        for animal_id in sorted(old_ids - new_ids):
+            changes.append(f"Animal removed: {self._animal_label(animal_id)}")
+
+        # Per-animal volume / cage changes for animals present before and after.
+        for animal_id in sorted(old_ids & new_ids):
+            preset = self._preset_configs.get(animal_id, {})
+            old_vol = preset.get("volume")
+            new_vol = new_schedule.desired_water_outputs.get(str(animal_id))
+            if old_vol is not None and new_vol is not None and float(old_vol) != float(new_vol):
+                changes.append(
+                    f"{self._animal_label(animal_id)} volume: "
+                    f"{self._fmt_vol(old_vol)} → {self._fmt_vol(new_vol)}"
+                )
+            old_cage = preset.get("cage_id")
+            new_cage = new_schedule.relay_unit_assignments.get(str(animal_id))
+            if old_cage != new_cage:
+                changes.append(f"{self._animal_label(animal_id)} cage: {old_cage} → {new_cage}")
+
+        return changes
 
 
 # ============================================================================
@@ -925,7 +998,15 @@ class SchedulesHub(QWidget):
         )
 
         if dialog.exec_() == QDialog.Accepted:
-            self.print_to_terminal(f"[SchedulesHub] Schedule '{schedule.name}' updated")
+            changes = getattr(dialog, "change_summary", []) or []
+            if changes:
+                self.print_to_terminal(f"[SchedulesHub] Schedule '{schedule.name}' updated:")
+                for line in changes:
+                    self.print_to_terminal(f"    • {line}")
+            else:
+                self.print_to_terminal(
+                    f"[SchedulesHub] Schedule '{schedule.name}' saved (no changes)"
+                )
             self.load_schedules()
 
     def _on_delete_schedule(self, schedule: Schedule) -> None:
