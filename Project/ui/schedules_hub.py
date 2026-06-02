@@ -14,19 +14,16 @@ Features:
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from models.Schedule import Schedule
-from PyQt5.QtCore import QDateTime, QMimeData, QPoint, Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QMimeData, QPoint, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QDrag, QFont, QLinearGradient, QPainter, QPen, QPixmap
 from PyQt5.QtWidgets import (
     QCheckBox,
-    QComboBox,
-    QCompleter,
-    QDateTimeEdit,
     QDialog,
-    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -41,15 +38,35 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from .components.primary_button import PrimaryButton
+from .schedule_wizard import (
+    Step3ConfigureParameters,
+    build_schedule_from_config,
+    estimate_min_window_seconds,
+)
+
 # ============================================================================
-# SCHEDULE EDIT DIALOG (Wizard-style UI matching schedule_wizard.py Step 3)
+# SCHEDULE EDIT DIALOG (reuses schedule_wizard.Step3ConfigureParameters)
 # ============================================================================
 
 
 class ScheduleEditDialog(QDialog):
-    """
-    Dialog for editing an existing schedule using wizard-style UI.
-    Matches the look and feel of schedule_wizard.py Step 3.
+    """Modal for editing an existing schedule.
+
+    Reuses the schedule wizard's ``Step3ConfigureParameters`` widget (the
+    canonical per-animal config UI: cage dropdown, quick-apply, per-animal
+    start/end/volume, plus its validation) instead of re-implementing it, and
+    persists every change transactionally via
+    ``DatabaseHandler.update_staggered_schedule`` — including cage reassignment
+    and the ``schedule_staggered_windows`` the delivery engine reads.
+
+    Launched as a pop-up from the Schedules Hub (it never routes the user into
+    the Wizard tab). Construct on demand, ``exec_()`` modally, and react to
+    ``QDialog.Accepted``.
+
+    Instant-mode schedules are not yet editable (the instant storage path has a
+    separate, tracked bug — see Project/docs/INSTANT_SCHEDULE_BUG.md); for those
+    the dialog shows a short notice instead of a half-working form.
     """
 
     def __init__(self, schedule: Schedule, database_handler, system_controller=None, parent=None):
@@ -57,368 +74,197 @@ class ScheduleEditDialog(QDialog):
         self._schedule = schedule
         self._database_handler = database_handler
         self._system_controller = system_controller
-        self._schedule_details = None
-        self._animal_widgets = {}
-        self._cage_options = []
+        self._animals: List[Dict[str, Any]] = []
+        self._preset_configs: Dict[int, Dict[str, Any]] = {}
+        self._step3: Step3ConfigureParameters | None = None
+
+        self._delivery_mode = getattr(schedule, "delivery_mode", "staggered") or "staggered"
 
         self.setWindowTitle(f"Edit Schedule: {schedule.name}")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(820, 600)
         self.setModal(True)
 
-        self._load_schedule_details()
-        self._load_cage_options()
-        self._init_ui()
+        if self._delivery_mode == "staggered":
+            self._load_schedule_details()
+            self._init_ui()
+        else:
+            self._init_instant_notice_ui()
+
+    @staticmethod
+    def _parse_dt(value, fallback: datetime) -> datetime:
+        try:
+            if isinstance(value, datetime):
+                return value
+            if isinstance(value, str):
+                return datetime.fromisoformat(value)
+        except (ValueError, TypeError):
+            pass
+        return fallback
 
     def _load_schedule_details(self) -> None:
+        """Pre-fetch animals + per-animal settings into the preset configs.
+
+        Done before ``_init_ui`` so the embedded Step 3 builds already-filled
+        rows. Cage assignment is stored as ``relay_unit_id`` (== the dropdown's
+        ``cage_id``) in ``schedule_animals``; desired volume in
+        ``schedule_desired_outputs``. Times use the schedule bounds.
+        """
         try:
-            details = self._database_handler.get_schedule_details(self._schedule.schedule_id)
-            if details:
-                self._schedule_details = details[0]
-            else:
-                self._schedule_details = {}
-        except Exception as e:
+            details_list = self._database_handler.get_schedule_details(self._schedule.schedule_id)
+        except Exception as e:  # pragma: no cover - defensive
             print(f"[EditDialog] Error loading details: {e}")
-            self._schedule_details = {}
+            details_list = []
+        details = details_list[0] if details_list else {}
 
-    def _load_cage_options(self) -> None:
-        """Load cage options for dropdown."""
-        try:
-            num_hats = 1
-            master_relay = 16
-            if self._system_controller and hasattr(self._system_controller, 'settings'):
-                num_hats = int(self._system_controller.settings.get('num_hats', 1))
-                master_relay = int(
-                    self._system_controller.settings.get('global_master_relay_id', 16)
-                )
+        animal_ids = details.get("animal_ids", [])
+        desired = details.get("desired_water_outputs", {})  # {str(animal_id): volume}
+        cage_by_animal = details.get("relay_unit_assignments", {})  # {str(animal_id): cage_id}
 
-            self._cage_options = self._database_handler.get_cages_for_dropdown(
-                num_hats=num_hats, master_relay=master_relay
+        start_dt = self._parse_dt(self._schedule.start_time, datetime.now())
+        end_dt = self._parse_dt(self._schedule.end_time, start_dt + timedelta(hours=1))
+        default_volume = float(self._schedule.water_volume or 1.0)
+
+        for animal_id in animal_ids:
+            try:
+                animal = self._database_handler.get_animal_by_id(animal_id)
+            except Exception:  # pragma: no cover - defensive
+                animal = None
+            self._animals.append(
+                {
+                    "id": animal_id,
+                    "lab_id": animal.lab_animal_id if animal else animal_id,
+                    "name": animal.name if animal else f"Animal {animal_id}",
+                }
             )
-        except:
-            self._cage_options = [
-                {'cage_id': i, 'display_name': f'Cage {i}'} for i in range(1, 16)
-            ]
+            self._preset_configs[animal_id] = {
+                "start_time": start_dt,
+                "end_time": end_dt,
+                "volume": float(desired.get(str(animal_id), default_volume)),
+                "cage_id": cage_by_animal.get(str(animal_id)),
+            }
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
-        # Wizard-style header (matches Step 3)
-        header = QWidget()
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(0, 0, 0, 8)
-        header_layout.setSpacing(12)
-
-        icon = QLabel("⚙")
-        icon.setStyleSheet("""
-            font-size: 20px;
-            background-color: #F0FDFA;
-            border: 2px solid #0D9488;
-            border-radius: 18px;
-            padding: 6px;
-        """)
-        icon.setFixedSize(40, 40)
-        icon.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(icon)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(2)
-        title = QLabel("Configure Parameters")
-        title.setStyleSheet("font-size: 15px; font-weight: 600; color: #1F2937;")
-        text_layout.addWidget(title)
-        subtitle = QLabel("Set timing and volume for each animal")
-        subtitle.setStyleSheet("font-size: 11px; color: #6B7280;")
-        text_layout.addWidget(subtitle)
-        header_layout.addLayout(text_layout, 1)
-
-        layout.addWidget(header)
-
-        # Scroll area for content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        content = QWidget()
-        content_layout = QVBoxLayout(content)
-        content_layout.setSpacing(10)
-        content_layout.setContentsMargins(0, 4, 0, 0)
-
-        # Schedule Name
-        name_container = QFrame()
-        name_container.setStyleSheet("""
-            QFrame { background: #F8FAFB; border: 1px solid #E5E7EB; border-radius: 6px; }
-        """)
-        name_layout = QHBoxLayout(name_container)
-        name_layout.setContentsMargins(10, 6, 10, 6)
-        name_label = QLabel("Name:")
-        name_label.setStyleSheet("font-weight: 500; color: #374151; font-size: 12px;")
-        name_layout.addWidget(name_label)
-        self._name_input = QLineEdit(self._schedule.name or "")
-        self._name_input.setStyleSheet("""
-            QLineEdit { border: 1px solid #D1D5DB; border-radius: 4px; padding: 5px 8px; font-size: 12px; }
-            QLineEdit:focus { border-color: #0D9488; }
-        """)
-        name_layout.addWidget(self._name_input, 1)
-        content_layout.addWidget(name_container)
-
-        # Quick Apply section (matches Step 3)
-        quick_container = QFrame()
-        quick_container.setStyleSheet("""
-            QFrame { background: #F8FAFB; border: 1px solid #E5E7EB; border-radius: 6px; }
-        """)
-        quick_layout = QVBoxLayout(quick_container)
-        quick_layout.setContentsMargins(10, 6, 10, 6)
-        quick_layout.setSpacing(6)
-
-        quick_title = QLabel("Quick Apply to All Animals")
-        quick_title.setStyleSheet("font-weight: 500; color: #374151; font-size: 11px;")
-        quick_layout.addWidget(quick_title)
-
-        quick_row = QHBoxLayout()
-        quick_row.setSpacing(6)
-
-        # Parse existing times
-        try:
-            if isinstance(self._schedule.start_time, str):
-                start_dt = datetime.fromisoformat(self._schedule.start_time)
-            else:
-                start_dt = self._schedule.start_time or datetime.now()
-        except:
-            start_dt = datetime.now()
-
-        try:
-            if isinstance(self._schedule.end_time, str):
-                end_dt = datetime.fromisoformat(self._schedule.end_time)
-            else:
-                end_dt = self._schedule.end_time or (datetime.now() + timedelta(hours=1))
-        except:
-            end_dt = datetime.now() + timedelta(hours=1)
-
-        quick_row.addWidget(QLabel("Start:"))
-        self._global_start = QDateTimeEdit()
-        self._global_start.setDateTime(QDateTime(start_dt))
-        self._global_start.setCalendarPopup(True)
-        self._global_start.setMinimumHeight(26)
-        self._global_start.setMinimumWidth(130)
-        quick_row.addWidget(self._global_start)
-
-        quick_row.addWidget(QLabel("End:"))
-        self._global_end = QDateTimeEdit()
-        self._global_end.setDateTime(QDateTime(end_dt))
-        self._global_end.setCalendarPopup(True)
-        self._global_end.setMinimumHeight(26)
-        self._global_end.setMinimumWidth(130)
-        quick_row.addWidget(self._global_end)
-
-        quick_row.addWidget(QLabel("Vol:"))
-        self._global_volume = QDoubleSpinBox()
-        self._global_volume.setRange(0.1, 50.0)
-        self._global_volume.setValue(1.0)
-        self._global_volume.setSuffix(" mL")
-        self._global_volume.setMinimumHeight(26)
-        quick_row.addWidget(self._global_volume)
-
-        apply_btn = QPushButton("Apply")
-        apply_btn.setMinimumHeight(26)
-        apply_btn.setStyleSheet("""
-            QPushButton { background-color: #E5E7EB; border: none; border-radius: 4px; padding: 4px 10px; font-weight: 500; font-size: 11px; }
-            QPushButton:hover { background-color: #D1D5DB; }
-        """)
-        apply_btn.clicked.connect(self._apply_to_all)
-        quick_row.addWidget(apply_btn)
-
-        quick_layout.addLayout(quick_row)
-        content_layout.addWidget(quick_container)
-
-        # Animal Settings (wizard-style rows matching Step 3)
-        animals_label = QLabel(
-            f"Animal Settings ({len(self._schedule_details.get('animal_ids', []))} animals)"
+        # Reuse the wizard's per-animal configuration step verbatim.
+        self._step3 = Step3ConfigureParameters(
+            database_handler=self._database_handler,
+            system_controller=self._system_controller,
         )
-        animals_label.setStyleSheet(
-            "font-weight: 500; color: #374151; font-size: 11px; margin-top: 4px;"
+        self._step3.load_for_edit(
+            self._animals, self._preset_configs, self._schedule.name or "", "staggered"
         )
-        content_layout.addWidget(animals_label)
+        layout.addWidget(self._step3, 1)
 
-        desired_outputs = (
-            self._schedule_details.get('desired_water_outputs', {})
-            if self._schedule_details
-            else {}
-        )
-        animal_ids = self._schedule_details.get('animal_ids', []) if self._schedule_details else []
-
-        for idx, animal_id in enumerate(animal_ids):
-            row = self._create_animal_row(animal_id, desired_outputs.get(str(animal_id), 1.0), idx)
-            content_layout.addWidget(row)
-
-        content_layout.addStretch()
-        scroll.setWidget(content)
-        layout.addWidget(scroll, 1)
-
-        # Footer buttons
-        footer = QHBoxLayout()
-        footer.setSpacing(10)
-        footer.addStretch()
+        footer = QWidget()
+        footer.setObjectName("DialogFooter")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(24, 12, 24, 16)
+        footer_layout.setSpacing(12)
+        footer_layout.addStretch()
 
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setMinimumHeight(32)
-        cancel_btn.setMinimumWidth(90)
-        cancel_btn.setStyleSheet("""
-            QPushButton { background-color: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; border-radius: 6px; padding: 6px 16px; font-weight: 500; }
-            QPushButton:hover { background-color: #E5E7EB; }
-        """)
+        cancel_btn.setMinimumHeight(36)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
-        footer.addWidget(cancel_btn)
+        footer_layout.addWidget(cancel_btn)
 
-        save_btn = QPushButton("Save Changes")
-        save_btn.setMinimumHeight(32)
-        save_btn.setMinimumWidth(110)
-        save_btn.setStyleSheet("""
-            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 6px; padding: 6px 16px; font-weight: 600; }
-            QPushButton:hover { background-color: #0F766E; }
-        """)
+        save_btn = PrimaryButton("Save Changes")
+        save_btn.setMinimumHeight(36)
+        save_btn.setCursor(Qt.PointingHandCursor)
         save_btn.clicked.connect(self._save_changes)
-        footer.addWidget(save_btn)
+        footer_layout.addWidget(save_btn)
 
-        layout.addLayout(footer)
+        layout.addWidget(footer)
 
-    def _create_animal_row(self, animal_id, volume, idx) -> QFrame:
-        """Create wizard-style animal config row (matches Step 3)."""
-        try:
-            animal = self._database_handler.get_animal_by_id(animal_id)
-            animal_name = (
-                f"{animal.lab_animal_id} - {animal.name}" if animal else f"Animal {animal_id}"
-            )
-        except:
-            animal_name = f"Animal {animal_id}"
+    def _init_instant_notice_ui(self) -> None:
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
 
-        container = QFrame()
-        container.setStyleSheet("""
-            QFrame { background: #F8FAFB; border: 1px solid #E5E7EB; border-radius: 6px; }
-        """)
+        title = QLabel("Editing instant schedules isn't available yet")
+        title.setObjectName("Title")
+        title.setWordWrap(True)
+        layout.addWidget(title)
 
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(8, 5, 8, 5)
-        layout.setSpacing(8)
-
-        label = QLabel(f"<b>{animal_name}</b>")
-        label.setMinimumWidth(100)
-        label.setStyleSheet("font-size: 11px;")
-        layout.addWidget(label)
-
-        # Cage dropdown (matches Step 3)
-        layout.addWidget(QLabel("Cage:"))
-        cage_combo = QComboBox()
-        cage_combo.setEditable(True)
-        cage_combo.setInsertPolicy(QComboBox.NoInsert)
-        cage_combo.setMinimumWidth(100)
-        cage_combo.setMinimumHeight(24)
-
-        display_names = []
-        for cage_opt in self._cage_options:
-            cage_combo.addItem(cage_opt['display_name'], cage_opt['cage_id'])
-            display_names.append(cage_opt['display_name'])
-
-        completer = QCompleter(display_names)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        cage_combo.setCompleter(completer)
-
-        # Set default cage
-        if idx < len(self._cage_options):
-            cage_combo.setCurrentIndex(idx)
-
-        layout.addWidget(cage_combo)
-
-        layout.addWidget(QLabel("Start:"))
-        start_dt = QDateTimeEdit()
-        start_dt.setDateTime(
-            self._global_start.dateTime()
-            if hasattr(self, '_global_start')
-            else QDateTime.currentDateTime()
+        body = QLabel(
+            "This schedule uses Instant delivery. Editing instant schedules is "
+            "coming in a future release. For now, delete it and recreate it with "
+            "the wizard if you need to change it."
         )
-        start_dt.setCalendarPopup(True)
-        start_dt.setMinimumWidth(120)
-        start_dt.setMinimumHeight(24)
-        layout.addWidget(start_dt)
-
-        layout.addWidget(QLabel("End:"))
-        end_dt = QDateTimeEdit()
-        end_dt.setDateTime(
-            self._global_end.dateTime()
-            if hasattr(self, '_global_end')
-            else QDateTime.currentDateTime().addSecs(3600)
-        )
-        end_dt.setCalendarPopup(True)
-        end_dt.setMinimumWidth(120)
-        end_dt.setMinimumHeight(24)
-        layout.addWidget(end_dt)
-
-        layout.addWidget(QLabel("Vol:"))
-        volume_spin = QDoubleSpinBox()
-        volume_spin.setRange(0.1, 50.0)
-        volume_spin.setValue(float(volume) if volume else 1.0)
-        volume_spin.setSuffix(" mL")
-        volume_spin.setDecimals(2)
-        volume_spin.setMinimumHeight(24)
-        layout.addWidget(volume_spin)
-
+        body.setWordWrap(True)
+        layout.addWidget(body)
         layout.addStretch()
 
-        self._animal_widgets[animal_id] = {
-            "cage": cage_combo,
-            "start": start_dt,
-            "end": end_dt,
-            "volume": volume_spin,
-        }
-
-        return container
-
-    def _apply_to_all(self) -> None:
-        """Apply global settings to all animals."""
-        for animal_id, widgets in self._animal_widgets.items():
-            widgets["start"].setDateTime(self._global_start.dateTime())
-            widgets["end"].setDateTime(self._global_end.dateTime())
-            widgets["volume"].setValue(self._global_volume.value())
+        footer = QHBoxLayout()
+        footer.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.setMinimumHeight(36)
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.clicked.connect(self.reject)
+        footer.addWidget(close_btn)
+        layout.addLayout(footer)
 
     def _save_changes(self) -> None:
-        try:
-            new_name = self._name_input.text().strip()
-            if not new_name:
-                QMessageBox.warning(self, "Validation Error", "Schedule name cannot be empty.")
-                return
-
-            if self._animal_widgets:
-                first_widgets = list(self._animal_widgets.values())[0]
-                new_start = first_widgets["start"].dateTime().toPyDateTime()
-                new_end = first_widgets["end"].dateTime().toPyDateTime()
-            else:
-                new_start = self._global_start.dateTime().toPyDateTime()
-                new_end = self._global_end.dateTime().toPyDateTime()
-
-            if new_start >= new_end:
-                QMessageBox.warning(self, "Validation Error", "End time must be after start time.")
-                return
-
-            new_volumes = {}
-            for animal_id, widgets in self._animal_widgets.items():
-                new_volumes[str(animal_id)] = widgets["volume"].value()
-
-            self._database_handler.update_schedule(
-                schedule_id=self._schedule.schedule_id,
-                name=new_name,
-                start_time=new_start.isoformat(),
-                end_time=new_end.isoformat(),
-                desired_outputs=new_volumes,
+        # Field-level validation (name, volumes > 0, end after start) is shared
+        # with the wizard via Step 3.
+        if not self._step3.is_valid():
+            QMessageBox.warning(
+                self,
+                "Invalid schedule",
+                "Check that the schedule has a name, every animal has a volume "
+                "greater than 0 mL, and each end time is after its start time.",
             )
+            return
 
+        # Animal-safety check shared with the wizard: a staggered window must be
+        # long enough to deliver every cage sequentially (one valve at a time).
+        animal_configs = self._step3.get_animal_configs()
+        need = estimate_min_window_seconds(animal_configs)
+        windows = [
+            (cfg["end_time"] - cfg["start_time"]).total_seconds()
+            for cfg in animal_configs.values()
+            if cfg.get("start_time") and cfg.get("end_time")
+        ]
+        if windows and min(windows) < need:
+            minutes = max(1, math.ceil(need / 60))
+            QMessageBox.warning(
+                self,
+                "Delivery window too short",
+                f"{len(animal_configs)} cage(s) need at least about {minutes} "
+                "minute(s) to deliver safely — valves fire one at a time. "
+                "Extend the end time.",
+            )
+            return
+
+        config = {
+            "schedule_type": "staggered",
+            "animals": [a["id"] for a in self._animals],
+            "parameters": self._step3.get_parameters(),
+        }
+        try:
+            # trainer=None: update_staggered_schedule does not rewrite
+            # created_by / is_super_user, so the original owner is preserved.
+            schedule = build_schedule_from_config(
+                config,
+                trainer=None,
+                system_controller=self._system_controller,
+                schedule_id=self._schedule.schedule_id,
+            )
+        except ValueError as e:
+            QMessageBox.warning(self, "Invalid cage assignment", str(e))
+            return
+
+        if self._database_handler.update_staggered_schedule(schedule):
             self.accept()
-
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save changes: {e}")
-            import traceback
-
-            traceback.print_exc()
+        else:
+            QMessageBox.critical(
+                self,
+                "Error",
+                "Failed to save changes to the database. The schedule was not modified.",
+            )
 
 
 # ============================================================================
