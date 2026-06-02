@@ -86,7 +86,7 @@ class ScheduleEditDialog(QDialog):
         # Keep a smaller minimum so it still fits modest screens; the inner
         # Step-3 scroll area handles many-animal overflow.
         self.setMinimumSize(760, 540)
-        self.resize(960, 820)
+        self.resize(1080, 780)
         self.setModal(True)
         self.change_summary: List[str] = []
 
