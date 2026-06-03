@@ -447,14 +447,24 @@ class RelayWorker(QObject):
                             f"Scheduling delivery in {total_delay/1000:.2f} seconds"
                         )
 
+                        # Route instant deliveries through the same handler as
+                        # staggered so they use the active DeliveryStrategy
+                        # (SolenoidFlowStrategy pulse mode + per-cage
+                        # valve_calibration + flow-sensor metering), not the
+                        # legacy pump-trigger path. _handle_delivery is
+                        # window-optional, so the one-shot instant volume is used
+                        # directly.
+                        delivery_data = {
+                            'schedule_id': self.schedule_id,
+                            'animal_id': instant['animal_id'],
+                            'relay_unit_id': instant['relay_unit_id'],
+                            'water_volume': instant['water_volume'],
+                            'instant_time': delivery_time,
+                            'triggers': None,
+                        }
                         timer = QTimer(self)
                         timer.setSingleShot(True)
-                        timer.timeout.connect(
-                            lambda i=instant: self.trigger_relay(
-                                i['relay_unit_id'],
-                                i['water_volume'],  # Changed from 'volume' to 'water_volume'
-                            )
-                        )
+                        timer.timeout.connect(partial(self._handle_delivery, delivery_data.copy()))
                         timer.start(int(total_delay))
                         self.timers.append(timer)
                         scheduled_count += 1
@@ -646,18 +656,22 @@ class RelayWorker(QObject):
                 return False
             animal_id = delivery_data['animal_id']
             current_delivered = self.delivered_volumes.get(animal_id, 0)
-            target_volume = self.animal_windows[animal_id]['target_volume']
-
-            if current_delivered >= target_volume:
-                return True
-
             failed_count = self.failed_deliveries.get(animal_id, 0)
-            if failed_count > 0:
-                volume_increase = min(failed_count * 0.05, 0.2)
-                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                delivery_data['water_volume'] = min(
-                    adjusted_volume, target_volume - current_delivered
-                )
+            # Window-optional (same as _handle_delivery): staggered has a
+            # cumulative window target + guard + compensation; instant retries
+            # are one-shot and use the delivery's own volume.
+            window = getattr(self, 'animal_windows', None)
+            window = window.get(animal_id) if window else None
+            if window is not None:
+                target_volume = window['target_volume']
+                if current_delivered >= target_volume:
+                    return True
+                if failed_count > 0:
+                    volume_increase = min(failed_count * 0.05, 0.2)
+                    adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
+                    delivery_data['water_volume'] = min(
+                        adjusted_volume, target_volume - current_delivered
+                    )
 
             success = await self.strategy.deliver(
                 relay_unit_id=delivery_data['relay_unit_id'],
@@ -1295,16 +1309,24 @@ class RelayWorker(QObject):
                 delivery_data['schedule_id'] = self.schedule_id
             animal_id = delivery_data['animal_id']
             current_delivered = self.delivered_volumes.get(animal_id, 0)
-            target_volume = self.animal_windows[animal_id]['target_volume']
-            if current_delivered >= target_volume:
-                return True
             failed_count = self.failed_deliveries.get(animal_id, 0)
-            if failed_count > 0:
-                volume_increase = min(failed_count * 0.05, 0.2)
-                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                delivery_data['water_volume'] = min(
-                    adjusted_volume, target_volume - current_delivered
-                )
+            # Staggered deliveries carry a cumulative per-animal window with a
+            # target volume + over-delivery guard + failed-retry compensation.
+            # Instant deliveries (run_instant_cycle reuses this method) are
+            # one-shot events with no window — deliver the delivery's own volume
+            # and skip the cumulative guard/compensation.
+            window = getattr(self, 'animal_windows', None)
+            window = window.get(animal_id) if window else None
+            if window is not None:
+                target_volume = window['target_volume']
+                if current_delivered >= target_volume:
+                    return True
+                if failed_count > 0:
+                    volume_increase = min(failed_count * 0.05, 0.2)
+                    adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
+                    delivery_data['water_volume'] = min(
+                        adjusted_volume, target_volume - current_delivered
+                    )
             # In pump mode, keep legacy synchronous path via trigger_relay to avoid behavior change.
             # For other modes, delivery is handled asynchronously by strategy at schedule time.
             if self.hardware_mode == 'pump':
