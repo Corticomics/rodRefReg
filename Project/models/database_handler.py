@@ -662,6 +662,14 @@ class DatabaseHandler:
                             }
                             for row in cursor.fetchall()
                         ]
+                        # Populate the animal roster (distinct, in order) so UIs
+                        # that read schedule.animals — e.g. the schedule card's
+                        # animal count — are correct for instant schedules too.
+                        for d in schedule.instant_deliveries:
+                            aid = d['animal_id']
+                            if aid not in schedule.animals:
+                                schedule.animals.append(aid)
+                                schedule.relay_unit_assignments[str(aid)] = d['relay_unit_id']
                     else:
                         # Get animals and desired outputs for staggered mode
                         cursor.execute(
@@ -741,6 +749,14 @@ class DatabaseHandler:
                             }
                             for row in cursor.fetchall()
                         ]
+                        # Populate the animal roster (distinct, in order) so UIs
+                        # that read schedule.animals — e.g. the schedule card's
+                        # animal count — are correct for instant schedules too.
+                        for d in schedule.instant_deliveries:
+                            aid = d['animal_id']
+                            if aid not in schedule.animals:
+                                schedule.animals.append(aid)
+                                schedule.relay_unit_assignments[str(aid)] = d['relay_unit_id']
                     else:
                         # Get animals and relay unit assignments for staggered mode
                         cursor.execute(

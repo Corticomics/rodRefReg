@@ -63,6 +63,24 @@ def test_add_schedule_writes_instant_delivery_rows(database_handler):
     ]
 
 
+def test_loaded_instant_schedule_reports_its_animals(database_handler):
+    """Regression: the card showed "0 animals" for instant schedules because
+    get_all_schedules / get_schedules_by_trainer didn't populate .animals for
+    instant mode (only instant_deliveries). The roster must now be filled."""
+    d1 = datetime(2026, 6, 5, 9, 0, 0)
+    d2 = datetime(2026, 6, 5, 10, 0, 0)
+    sid = database_handler.add_schedule(_instant("inst", [(1, 1, 1.0, d1), (2, 2, 2.0, d2)]))
+
+    loaded = next(s for s in database_handler.get_all_schedules() if s.schedule_id == sid)
+    assert sorted(loaded.animals) == [1, 2]
+    assert loaded.relay_unit_assignments == {"1": 1, "2": 2}
+
+    by_trainer = next(
+        s for s in database_handler.get_schedules_by_trainer(1) if s.schedule_id == sid
+    )
+    assert sorted(by_trainer.animals) == [1, 2]
+
+
 def test_update_instant_schedule_replaces_rows(database_handler):
     d1 = datetime(2026, 6, 5, 9, 0, 0)
     sid = database_handler.add_schedule(_instant("inst", [(1, 1, 1.0, d1)]))
