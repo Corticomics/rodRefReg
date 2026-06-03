@@ -292,6 +292,18 @@ def build_schedule_from_config(
         used_cages.add(cage_id)
         schedule.add_animal(animal_id, cage_id, volume)
 
+        # Instant mode: also record the per-animal delivery so add_schedule
+        # writes schedule_instant_deliveries (the table the runtime reads).
+        # Store the time as an ISO string — add_schedule inserts delivery
+        # ['datetime'] verbatim, and a datetime would trip the deprecated
+        # sqlite3 timestamp adapter (a hard error under filterwarnings=error).
+        if schedule_type == "instant":
+            delivery_time = animal_cfg.get("delivery_time") or datetime.now()
+            delivery_iso = (
+                delivery_time.isoformat() if isinstance(delivery_time, datetime) else delivery_time
+            )
+            schedule.add_instant_delivery(animal_id, delivery_iso, volume, cage_id)
+
     return schedule
 
 
@@ -1253,44 +1265,56 @@ class Step3ConfigureParameters(QWidget):
         if hasattr(self, "_name_input") and self._name_input is not None:
             self._name_input.setText(name or "")
         self._restore_widget_values()
-        if schedule_type == "staggered":
-            self._make_quick_apply_authoritative()
+        self._make_quick_apply_authoritative()
 
     def _make_quick_apply_authoritative(self) -> None:
         """Edit-mode: pre-fill the "Quick Apply to All" row and make it live.
 
         In the creation wizard, Quick Apply only takes effect when the operator
         clicks "Apply to All". When *editing* a schedule that is the wrong
-        default: the prominent top Start/End/Volume showed "now" (not the
-        schedule's real values) and changing them did nothing on Save unless the
-        button was clicked — so time edits silently appeared to do nothing.
+        default: the prominent top fields showed "now" (not the schedule's real
+        values) and changing them did nothing on Save unless the button was
+        clicked — so time edits silently appeared to do nothing.
 
-        Staggered schedules store a single shared window for every animal
-        (see add_staggered_schedule), so "apply to all" is exactly the right
-        semantic. Here we pre-fill the Quick Apply row from the schedule and
-        wire it so any change flows straight to every animal row (the per-animal
-        rows remain available for fine-tuning afterwards).
+        Both modes effectively share their timing across animals (staggered
+        stores one window per schedule; instant here is one delivery per
+        animal), so "apply to all" is the right semantic. We pre-fill the Quick
+        Apply row from the schedule and wire it so any change flows straight to
+        every animal row (the per-animal rows remain available for fine-tuning).
         """
-        if not (hasattr(self, "_global_start") and self._animal_configs):
+        if not self._animal_configs:
             return
         first = next(iter(self._animal_configs.values()))
-        start = first.get("start_time")
-        end = first.get("end_time")
         volume = first.get("volume", 1.0)
 
         # Pre-fill BEFORE connecting auto-apply so seeding the widgets doesn't
-        # clobber the per-animal presets. Setting start first lets the existing
-        # min-constraint handler bump the end's minimum so a real end isn't
-        # clamped.
-        if isinstance(start, datetime):
-            self._global_start.setDateTime(QDateTime(start))
-        if isinstance(end, datetime):
-            self._global_end.setDateTime(QDateTime(end))
-        self._global_volume.setValue(float(volume))
+        # clobber the per-animal presets.
+        if self._schedule_type == "staggered":
+            if not hasattr(self, "_global_start"):
+                return
+            start = first.get("start_time")
+            end = first.get("end_time")
+            # Setting start first lets the existing min-constraint handler bump
+            # the end's minimum so a real end isn't clamped.
+            if isinstance(start, datetime):
+                self._global_start.setDateTime(QDateTime(start))
+            if isinstance(end, datetime):
+                self._global_end.setDateTime(QDateTime(end))
+            self._global_volume.setValue(float(volume))
+            apply_all = self._apply_to_all_staggered
+            self._global_start.dateTimeChanged.connect(lambda *_: apply_all())
+            self._global_end.dateTimeChanged.connect(lambda *_: apply_all())
+        else:
+            if not hasattr(self, "_global_delivery_time"):
+                return
+            delivery = first.get("delivery_time")
+            if isinstance(delivery, datetime):
+                self._global_delivery_time.setDateTime(QDateTime(delivery))
+            self._global_volume.setValue(float(volume))
+            apply_all = self._apply_to_all_instant
+            self._global_delivery_time.dateTimeChanged.connect(lambda *_: apply_all())
 
-        self._global_start.dateTimeChanged.connect(lambda *_: self._apply_to_all_staggered())
-        self._global_end.dateTimeChanged.connect(lambda *_: self._apply_to_all_staggered())
-        self._global_volume.valueChanged.connect(lambda *_: self._apply_to_all_staggered())
+        self._global_volume.valueChanged.connect(lambda *_: apply_all())
 
     def _restore_widget_values(self) -> None:
         """
@@ -1793,7 +1817,6 @@ class ScheduleCreationWizard(QWidget):
         """Create schedule in database using existing Schedule model and correct methods."""
         schedule_type = config["schedule_type"]
         animals = config["animals"]
-        animal_configs = config["parameters"].get("animal_configs", {})
 
         # Build + validate the Schedule object (shared with the edit dialog).
         trainer = self._login_system.get_current_trainer()
@@ -1807,25 +1830,12 @@ class ScheduleCreationWizard(QWidget):
             print(f"[Wizard] Created staggered schedule {schedule_id} with {len(animals)} animals")
             print(f"[Wizard] desired_water_outputs: {schedule.desired_water_outputs}")
         else:
-            # For instant mode, use add_schedule and then add instant deliveries
+            # Instant mode: build_schedule_from_config already populated
+            # schedule.instant_deliveries, so add_schedule writes both
+            # schedule_animals and schedule_instant_deliveries in one go.
             self._database_handler.add_schedule(schedule)
             schedule_id = schedule.schedule_id  # add_schedule sets this on the object
-
-            if schedule_id:
-                for animal_id in animals:
-                    animal_cfg = animal_configs.get(animal_id, {})
-                    delivery_time = animal_cfg.get("delivery_time", datetime.now())
-                    volume = animal_cfg.get("volume", 1.0)
-
-                    self._database_handler.add_schedule_instant(
-                        schedule_id=schedule_id,
-                        animal_id=animal_id,
-                        delivery_time=delivery_time,
-                        water_volume=volume,
-                    )
-                print(
-                    f"[Wizard] Created instant schedule {schedule_id} with {len(animals)} animals"
-                )
+            print(f"[Wizard] Created instant schedule {schedule_id} with {len(animals)} animals")
 
         return schedule_id
 

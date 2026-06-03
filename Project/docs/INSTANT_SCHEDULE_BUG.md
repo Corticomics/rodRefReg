@@ -1,8 +1,14 @@
 # Instant-delivery schedules: storage inconsistency (tracked)
 
-**Status:** open. Discovered while refactoring the edit-schedule flow (v1.11.0).
-This is a **separate concern** from edit-schedule and is intentionally *not*
-fixed in that PR (one concern per PR — see [CLAUDE.md](../../CLAUDE.md)).
+**Status:** FIXED in v1.13.0 (create + run + edit). The create path now writes
+`schedule_instant_deliveries` (the table the runtime reads), and instant
+schedules are editable in `ScheduleEditDialog`. **Remaining:** a follow-up
+cleanup PR should delete the dead `schedule_time_instants` cluster
+(`add_schedule_instant`, `get_pending_schedule_instants`,
+`mark_instant_completed`, `add_instant_schedule`) and the never-instantiated
+`ScheduleController` / `DeliveryQueueController` that reference it.
+
+The original diagnosis (from v1.11.0) is kept below for context.
 
 ## Symptom
 
