@@ -130,20 +130,89 @@ def test_change_summary_lists_what_changed(qapp, database_handler):
     assert "4 mL" in summary  # new volume formatted
 
 
-def test_instant_schedule_shows_notice_not_form(qapp, database_handler):
+def _seed_instant(database_handler, deliveries):
+    """Create an instant schedule. ``deliveries`` is ``[(animal_id, cage, vol, datetime)]``."""
     from models.Schedule import Schedule  # noqa: PLC0415
+
+    total = sum(v for _, _, v, _ in deliveries)
+    times = [d for *_, d in deliveries]
+    sched = Schedule(
+        None,
+        "Instant ration",
+        total,
+        min(times).isoformat(),
+        max(times).isoformat(),
+        1,
+        0,
+        "instant",
+    )
+    seen = set()
+    for aid, cage, vol, when in deliveries:
+        if aid not in seen:
+            sched.add_animal(aid, cage, vol)
+            seen.add(aid)
+        sched.add_instant_delivery(aid, when.isoformat(), vol, cage)
+    sid = database_handler.add_schedule(sched)
+    return next(s for s in database_handler.get_all_schedules() if s.schedule_id == sid)
+
+
+def test_build_schedule_from_config_populates_instant_deliveries(qapp):
+    from ui.schedule_wizard import build_schedule_from_config  # noqa: PLC0415
+
+    dt = datetime(2026, 6, 5, 9, 0, 0)
+    config = {
+        "schedule_type": "instant",
+        "animals": [1],
+        "parameters": {
+            "name": "x",
+            "animal_configs": {1: {"delivery_time": dt, "volume": 1.5, "cage_id": 2}},
+        },
+    }
+    sched = build_schedule_from_config(config, trainer=None, system_controller=None)
+    assert len(sched.instant_deliveries) == 1
+    d = sched.instant_deliveries[0]
+    assert (d["animal_id"], d["volume"], d["relay_unit_id"]) == (1, 1.5, 2)
+    assert d["datetime"] == dt.isoformat()  # stored as ISO string for add_schedule
+
+
+def test_instant_dialog_prefills_and_saves(qapp, database_handler):
+    from PyQt5.QtCore import QDateTime  # noqa: PLC0415
+    from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
     from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
 
-    instant = Schedule(
-        schedule_id=999,
-        name="Instant one",
-        water_volume=1.0,
-        start_time=datetime.now().isoformat(),
-        end_time=datetime.now().isoformat(),
-        created_by=1,
-        is_super_user=0,
-        delivery_mode="instant",
-    )
-    dlg = ScheduleEditDialog(instant, database_handler, system_controller=None)
-    # Instant mode renders the notice path, not the Step-3 form.
+    d1 = datetime(2026, 6, 5, 9, 0, 0)
+    schedule = _seed_instant(database_handler, [(1, 1, 1.0, d1)])
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    assert dlg._step3 is not None
+    cfg = dlg._step3.get_animal_configs()[1]
+    assert cfg["volume"] == 1.0
+    assert cfg["cage_id"] == 1
+    assert cfg["delivery_time"].replace(microsecond=0) == d1
+
+    # Change the delivery time via the (authoritative) Quick Apply row, save.
+    nd = (datetime.now() + timedelta(days=2)).replace(second=0, microsecond=0)
+    dlg._step3._global_delivery_time.setDateTime(QDateTime(nd))
+    dlg._save_changes()
+    assert dlg.result() == QDialog.Accepted
+
+    with database_handler.connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT delivery_datetime FROM schedule_instant_deliveries WHERE schedule_id = ?",
+            (schedule.schedule_id,),
+        )
+        got = cur.fetchone()[0]
+    assert datetime.fromisoformat(got).replace(microsecond=0) == nd
+
+
+def test_instant_multi_delivery_shows_guard_notice(qapp, database_handler):
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    d1 = datetime(2026, 6, 5, 9, 0, 0)
+    d2 = datetime(2026, 6, 5, 12, 0, 0)
+    # Two deliveries for the SAME animal — not representable one-row-per-animal.
+    schedule = _seed_instant(database_handler, [(1, 1, 1.0, d1), (1, 1, 1.0, d2)])
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
     assert dlg._step3 is None
+    assert dlg._blocked_reason

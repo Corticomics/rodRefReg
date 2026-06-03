@@ -1465,6 +1465,105 @@ class DatabaseHandler:
             traceback.print_exc()
             return False
 
+    def update_instant_schedule(self, schedule):
+        """Persist edits to an existing instant schedule, transactionally.
+
+        Instant counterpart of :meth:`update_staggered_schedule`. Updates the
+        parent ``schedules`` row and **replaces** every child row for this
+        ``schedule_id``: ``schedule_animals`` (cage assignments) and
+        ``schedule_instant_deliveries`` (the per-animal delivery times the
+        runtime reads via ``get_schedule_instant_deliveries``). Any stale
+        staggered-mode rows for the id are cleared too.
+
+        Args:
+            schedule: a :class:`~models.Schedule.Schedule` with
+                ``delivery_mode == 'instant'``, populated ``animals`` /
+                ``relay_unit_assignments`` and ``instant_deliveries`` (each
+                ``{'animal_id','datetime','volume','relay_unit_id'}`` with
+                ``datetime`` an ISO string). ``schedule_id`` must be set.
+
+        Returns:
+            True on success, False on error (single rolled-back transaction).
+        """
+        schedule_id = schedule.schedule_id
+        if schedule_id is None:
+            print("update_instant_schedule called with no schedule_id")
+            return False
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    '''
+                    UPDATE schedules
+                    SET name = ?, water_volume = ?, start_time = ?,
+                        end_time = ?, delivery_mode = 'instant'
+                    WHERE schedule_id = ?
+                ''',
+                    (
+                        schedule.name,
+                        schedule.water_volume,
+                        schedule.start_time,
+                        schedule.end_time,
+                        schedule_id,
+                    ),
+                )
+
+                # Replace all child rows for this schedule.
+                cursor.execute(
+                    'DELETE FROM schedule_animals WHERE schedule_id = ?', (schedule_id,)
+                )
+                cursor.execute(
+                    'DELETE FROM schedule_instant_deliveries WHERE schedule_id = ?',
+                    (schedule_id,),
+                )
+                # Clear any stale staggered-mode rows for this id (defensive).
+                cursor.execute(
+                    'DELETE FROM schedule_desired_outputs WHERE schedule_id = ?',
+                    (schedule_id,),
+                )
+                cursor.execute(
+                    'DELETE FROM schedule_staggered_windows WHERE schedule_id = ?',
+                    (schedule_id,),
+                )
+                cursor.execute('DELETE FROM cycle_tracking WHERE schedule_id = ?', (schedule_id,))
+
+                for animal_id in schedule.animals:
+                    relay_unit_id = schedule.relay_unit_assignments.get(str(animal_id))
+                    cursor.execute(
+                        '''
+                        INSERT INTO schedule_animals
+                        (schedule_id, animal_id, relay_unit_id)
+                        VALUES (?, ?, ?)
+                    ''',
+                        (schedule_id, animal_id, relay_unit_id),
+                    )
+
+                for delivery in schedule.instant_deliveries:
+                    cursor.execute(
+                        '''
+                        INSERT INTO schedule_instant_deliveries
+                        (schedule_id, animal_id, delivery_datetime, water_volume, relay_unit_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''',
+                        (
+                            schedule_id,
+                            delivery['animal_id'],
+                            delivery['datetime'],
+                            delivery['volume'],
+                            delivery['relay_unit_id'],
+                        ),
+                    )
+
+                conn.commit()
+                print(f"Schedule {schedule_id} updated successfully (instant).")
+                return True
+
+        except sqlite3.Error as e:
+            print(f"Database error when updating instant schedule: {e}")
+            traceback.print_exc()
+            return False
+
     def get_active_staggered_windows(self):
         """Get all active staggered delivery windows"""
         try:

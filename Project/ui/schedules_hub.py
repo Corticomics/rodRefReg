@@ -77,6 +77,9 @@ class ScheduleEditDialog(QDialog):
         self._animals: List[Dict[str, Any]] = []
         self._preset_configs: Dict[int, Dict[str, Any]] = {}
         self._step3: Step3ConfigureParameters | None = None
+        # Set to a message string when the schedule can't be edited with the
+        # one-row-per-animal form (e.g. >1 instant delivery per animal).
+        self._blocked_reason: str | None = None
 
         self._delivery_mode = getattr(schedule, "delivery_mode", "staggered") or "staggered"
 
@@ -90,11 +93,11 @@ class ScheduleEditDialog(QDialog):
         self.setModal(True)
         self.change_summary: List[str] = []
 
-        if self._delivery_mode == "staggered":
-            self._load_schedule_details()
-            self._init_ui()
+        self._load_schedule_details()
+        if self._blocked_reason:
+            self._init_notice_ui(self._blocked_reason)
         else:
-            self._init_instant_notice_ui()
+            self._init_ui()
 
     @staticmethod
     def _parse_dt(value, fallback: datetime) -> datetime:
@@ -112,8 +115,9 @@ class ScheduleEditDialog(QDialog):
 
         Done before ``_init_ui`` so the embedded Step 3 builds already-filled
         rows. Cage assignment is stored as ``relay_unit_id`` (== the dropdown's
-        ``cage_id``) in ``schedule_animals``; desired volume in
-        ``schedule_desired_outputs``. Times use the schedule bounds.
+        ``cage_id``) in ``schedule_animals``. Staggered volume comes from
+        ``schedule_desired_outputs`` and times from the schedule bounds; instant
+        delivery time + volume come from ``schedule_instant_deliveries``.
         """
         try:
             details_list = self._database_handler.get_schedule_details(self._schedule.schedule_id)
@@ -123,9 +127,24 @@ class ScheduleEditDialog(QDialog):
         details = details_list[0] if details_list else {}
 
         animal_ids = details.get("animal_ids", [])
-        desired = details.get("desired_water_outputs", {})  # {str(animal_id): volume}
         cage_by_animal = details.get("relay_unit_assignments", {})  # {str(animal_id): cage_id}
 
+        instant_by_animal: Dict[int, list] = {}
+        if self._delivery_mode == "instant":
+            for d in details.get("delivery_schedule", []):
+                instant_by_animal.setdefault(d["animal_id"], []).append(d)
+            # The form is one delivery per animal (matching what the wizard
+            # creates). If any animal has several deliveries we can't represent
+            # it without silently dropping data — fall back to a read-only note.
+            if any(len(v) > 1 for v in instant_by_animal.values()):
+                self._blocked_reason = (
+                    "This instant schedule has more than one delivery time for an "
+                    "animal, which the editor can't show yet without losing data. "
+                    "Delete and recreate it with the wizard to change it."
+                )
+                return
+
+        desired = details.get("desired_water_outputs", {})  # {str(animal_id): volume}
         start_dt = self._parse_dt(self._schedule.start_time, datetime.now())
         end_dt = self._parse_dt(self._schedule.end_time, start_dt + timedelta(hours=1))
         default_volume = float(self._schedule.water_volume or 1.0)
@@ -142,12 +161,23 @@ class ScheduleEditDialog(QDialog):
                     "name": animal.name if animal else f"Animal {animal_id}",
                 }
             )
-            self._preset_configs[animal_id] = {
-                "start_time": start_dt,
-                "end_time": end_dt,
-                "volume": float(desired.get(str(animal_id), default_volume)),
-                "cage_id": cage_by_animal.get(str(animal_id)),
-            }
+            if self._delivery_mode == "instant":
+                d = (instant_by_animal.get(animal_id) or [None])[0]
+                self._preset_configs[animal_id] = {
+                    "delivery_time": self._parse_dt(
+                        d["datetime"] if d else None, datetime.now() + timedelta(minutes=5)
+                    ),
+                    "volume": float(d["volume"]) if d else default_volume,
+                    "cage_id": cage_by_animal.get(str(animal_id))
+                    or (d["relay_unit_id"] if d else None),
+                }
+            else:
+                self._preset_configs[animal_id] = {
+                    "start_time": start_dt,
+                    "end_time": end_dt,
+                    "volume": float(desired.get(str(animal_id), default_volume)),
+                    "cage_id": cage_by_animal.get(str(animal_id)),
+                }
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -160,7 +190,7 @@ class ScheduleEditDialog(QDialog):
             system_controller=self._system_controller,
         )
         self._step3.load_for_edit(
-            self._animals, self._preset_configs, self._schedule.name or "", "staggered"
+            self._animals, self._preset_configs, self._schedule.name or "", self._delivery_mode
         )
         layout.addWidget(self._step3, 1)
 
@@ -185,21 +215,17 @@ class ScheduleEditDialog(QDialog):
 
         layout.addWidget(footer)
 
-    def _init_instant_notice_ui(self) -> None:
+    def _init_notice_ui(self, message: str) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(12)
 
-        title = QLabel("Editing instant schedules isn't available yet")
+        title = QLabel("This schedule can't be edited here")
         title.setObjectName("Title")
         title.setWordWrap(True)
         layout.addWidget(title)
 
-        body = QLabel(
-            "This schedule uses Instant delivery. Editing instant schedules is "
-            "coming in a future release. For now, delete it and recreate it with "
-            "the wizard if you need to change it."
-        )
+        body = QLabel(message)
         body.setWordWrap(True)
         layout.addWidget(body)
         layout.addStretch()
@@ -214,45 +240,47 @@ class ScheduleEditDialog(QDialog):
         layout.addLayout(footer)
 
     def _save_changes(self) -> None:
-        # Field-level validation (name, volumes > 0, end after start) is shared
-        # with the wizard via Step 3.
+        # Field-level validation (name, volumes > 0, staggered end after start,
+        # instant delivery time present) is shared with the wizard via Step 3.
         if not self._step3.is_valid():
             QMessageBox.warning(
                 self,
                 "Invalid schedule",
                 "Check that the schedule has a name, every animal has a volume "
-                "greater than 0 mL, and each end time is after its start time.",
+                "greater than 0 mL, and the timing for each animal is set.",
             )
             return
 
-        # Animal-safety check shared with the wizard: a staggered window must be
-        # long enough to deliver every cage sequentially (one valve at a time).
-        animal_configs = self._step3.get_animal_configs()
-        need = estimate_min_window_seconds(animal_configs)
-        windows = [
-            (cfg["end_time"] - cfg["start_time"]).total_seconds()
-            for cfg in animal_configs.values()
-            if cfg.get("start_time") and cfg.get("end_time")
-        ]
-        if windows and min(windows) < need:
-            minutes = max(1, math.ceil(need / 60))
-            QMessageBox.warning(
-                self,
-                "Delivery window too short",
-                f"{len(animal_configs)} cage(s) need at least about {minutes} "
-                "minute(s) to deliver safely — valves fire one at a time. "
-                "Extend the end time.",
-            )
-            return
+        # Staggered-only animal-safety check: a window must be long enough to
+        # deliver every cage sequentially (one valve at a time). Instant
+        # deliveries are single moments, so there's no window to validate.
+        if self._delivery_mode == "staggered":
+            animal_configs = self._step3.get_animal_configs()
+            need = estimate_min_window_seconds(animal_configs)
+            windows = [
+                (cfg["end_time"] - cfg["start_time"]).total_seconds()
+                for cfg in animal_configs.values()
+                if cfg.get("start_time") and cfg.get("end_time")
+            ]
+            if windows and min(windows) < need:
+                minutes = max(1, math.ceil(need / 60))
+                QMessageBox.warning(
+                    self,
+                    "Delivery window too short",
+                    f"{len(animal_configs)} cage(s) need at least about {minutes} "
+                    "minute(s) to deliver safely — valves fire one at a time. "
+                    "Extend the end time.",
+                )
+                return
 
         config = {
-            "schedule_type": "staggered",
+            "schedule_type": self._delivery_mode,
             "animals": [a["id"] for a in self._animals],
             "parameters": self._step3.get_parameters(),
         }
         try:
-            # trainer=None: update_staggered_schedule does not rewrite
-            # created_by / is_super_user, so the original owner is preserved.
+            # trainer=None: the update_* methods don't rewrite created_by /
+            # is_super_user, so the original owner is preserved.
             schedule = build_schedule_from_config(
                 config,
                 trainer=None,
@@ -266,7 +294,12 @@ class ScheduleEditDialog(QDialog):
         # Diff old vs new BEFORE the write so the hub can log what changed.
         self.change_summary = self._build_change_summary(schedule)
 
-        if self._database_handler.update_staggered_schedule(schedule):
+        if self._delivery_mode == "instant":
+            saved = self._database_handler.update_instant_schedule(schedule)
+        else:
+            saved = self._database_handler.update_staggered_schedule(schedule)
+
+        if saved:
             self.accept()
         else:
             QMessageBox.critical(
@@ -300,29 +333,43 @@ class ScheduleEditDialog(QDialog):
         if (self._schedule.name or "") != (new_schedule.name or ""):
             changes.append(f"Name: '{self._schedule.name}' → '{new_schedule.name}'")
 
-        old_start = self._parse_dt(self._schedule.start_time, None)
-        new_start = self._parse_dt(new_schedule.start_time, None)
-        if old_start != new_start:
-            changes.append(
-                f"Start time: {self._fmt_time(self._schedule.start_time)} "
-                f"→ {self._fmt_time(new_schedule.start_time)}"
-            )
-        old_end = self._parse_dt(self._schedule.end_time, None)
-        new_end = self._parse_dt(new_schedule.end_time, None)
-        if old_end != new_end:
-            changes.append(
-                f"End time: {self._fmt_time(self._schedule.end_time)} "
-                f"→ {self._fmt_time(new_schedule.end_time)}"
-            )
-
         old_ids = set(self._preset_configs.keys())
         new_ids = set(new_schedule.animals)
+
+        if self._delivery_mode == "instant":
+            # Per-animal delivery time (instant has no schedule-wide window).
+            new_dt = {d["animal_id"]: d["datetime"] for d in new_schedule.instant_deliveries}
+            for animal_id in sorted(old_ids & new_ids):
+                old_d = self._preset_configs.get(animal_id, {}).get("delivery_time")
+                new_d = new_dt.get(animal_id)
+                if self._parse_dt(old_d, None) != self._parse_dt(new_d, None):
+                    changes.append(
+                        f"{self._animal_label(animal_id)} delivery time: "
+                        f"{self._fmt_time(old_d)} → {self._fmt_time(new_d)}"
+                    )
+        else:
+            old_start = self._parse_dt(self._schedule.start_time, None)
+            new_start = self._parse_dt(new_schedule.start_time, None)
+            if old_start != new_start:
+                changes.append(
+                    f"Start time: {self._fmt_time(self._schedule.start_time)} "
+                    f"→ {self._fmt_time(new_schedule.start_time)}"
+                )
+            old_end = self._parse_dt(self._schedule.end_time, None)
+            new_end = self._parse_dt(new_schedule.end_time, None)
+            if old_end != new_end:
+                changes.append(
+                    f"End time: {self._fmt_time(self._schedule.end_time)} "
+                    f"→ {self._fmt_time(new_schedule.end_time)}"
+                )
+
         for animal_id in sorted(new_ids - old_ids):
             changes.append(f"Animal added: {self._animal_label(animal_id)}")
         for animal_id in sorted(old_ids - new_ids):
             changes.append(f"Animal removed: {self._animal_label(animal_id)}")
 
         # Per-animal volume / cage changes for animals present before and after.
+        # desired_water_outputs is populated for both modes by Schedule.add_animal.
         for animal_id in sorted(old_ids & new_ids):
             preset = self._preset_configs.get(animal_id, {})
             old_vol = preset.get("volume")
