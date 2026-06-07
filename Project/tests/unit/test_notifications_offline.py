@@ -6,9 +6,8 @@ the internals (explicit Slack timeout, broader failure handling) without
 regressing the offline fallback that lab deployments rely on.
 
 Why this matters: ``NotificationHandler.send_slack_notification`` runs on the
-relay-worker hot path (``gpio/relay_worker.py``, ``schedule_controller.py``).
-A delivery to live animals must never be disrupted by a Slack/network
-failure.
+relay-worker hot path (``gpio/relay_worker.py``). A delivery to live animals
+must never be disrupted by a Slack/network failure.
 
 Two of these tests are **strict xfail canaries**: they assert the *desired*
 Phase 2 behaviour and currently fail. When Phase 2 lands, they flip to

@@ -2,9 +2,9 @@
 
 These guard the bugs that made the old edit-schedule dialog non-functional:
 
-1. ``update_schedule`` wrote a column named ``desired_water_output``; the real
-   column is ``desired_output`` — so per-animal volume edits raised
-   OperationalError, were swallowed, and never saved.
+1. Per-animal volume edits wrote a column named ``desired_water_output``; the
+   real column is ``desired_output`` — so edits raised OperationalError, were
+   swallowed, and never saved.
 2. The edit path never touched ``schedule_staggered_windows`` (the table the
    delivery engine reads) nor cage reassignment in ``schedule_animals`` — so a
    "saved" edit did not reach the runtime.
@@ -121,19 +121,3 @@ def test_update_can_drop_an_animal(database_handler):
     assert details["animal_ids"] == [1]
     assert details["desired_water_outputs"] == {"1": 1.0}
     assert len(_windows(database_handler, sid)) == 1
-
-
-def test_update_schedule_simple_volume_update_uses_correct_column(database_handler):
-    """The lighter ``update_schedule`` desired-outputs path writes the real column."""
-    start = datetime(2026, 6, 1, 9, 0, 0)
-    end = datetime(2026, 6, 1, 10, 0, 0)
-    sid = database_handler.add_staggered_schedule(
-        _staggered("orig", start.isoformat(), end.isoformat(), [(1, 1, 1.0)])
-    )
-
-    assert (
-        database_handler.update_schedule(schedule_id=sid, desired_outputs={"1": 3.25}) is True
-    )
-
-    details = database_handler.get_schedule_details(sid)[0]
-    assert details["desired_water_outputs"] == {"1": 3.25}

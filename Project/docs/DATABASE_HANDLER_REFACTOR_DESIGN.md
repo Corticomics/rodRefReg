@@ -34,8 +34,8 @@ Measured on `main` at the time of writing:
 | Relay units | `add_relay_unit`, `get_all_relay_units`, `get_relay_units` | 3 |
 | Animals | `add_animal`, `update_animal`, `remove_animal`, `get_all_animals`, `get_animals_by_trainer`, `get_animal_by_id`, `update_animal_watering` | 7 |
 | Trainers / auth | `authenticate_trainer`, `get_trainer_by_id`, `add_trainer` | 3 |
-| Schedules (core) | `add_schedule`, `get_schedule_details`, `update_schedule`, `remove_schedule`, `get_all_schedules`, `get_schedules_by_trainer`, `update_schedule_status`, `get_active_schedules` | 8 |
-| Schedules (instant) | `add_schedule_instant`, `add_instant_schedule`, `get_pending_schedule_instants`, `mark_instant_completed`, `get_schedule_instant_deliveries` | 5 |
+| Schedules (core) | `add_schedule`, `get_schedule_details`, `update_staggered_schedule`, `update_instant_schedule`, `remove_schedule`, `get_all_schedules`, `get_schedules_by_trainer`, `update_schedule_status`, `get_active_schedules` | 9 |
+| Schedules (instant) | `get_schedule_instant_deliveries` | 1 |
 | Schedules (staggered + cycles) | `add_staggered_schedule`, `get_active_staggered_windows`, `create_staggered_delivery_window`, `update_staggered_window_progress`, `get_staggered_window_status`, `log_staggered_delivery`, `get_schedule_progress`, `track_cycle_progress`, `update_cycle_progress`, `get_schedule_staggered_windows`, `log_delivery` | 11 |
 | System settings (type-tagged) | `get_system_settings`, `update_system_setting`, `delete_system_setting` | 3 |
 | Valve calibration | `save_valve_calibration`, `get_valve_calibration`, `get_all_valve_calibrations`, `get_valve_calibration_history` | 4 |

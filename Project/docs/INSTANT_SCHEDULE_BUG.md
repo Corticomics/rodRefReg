@@ -1,14 +1,18 @@
 # Instant-delivery schedules: storage inconsistency (tracked)
 
-**Status:** FIXED in v1.13.0 (create + run + edit). The create path now writes
-`schedule_instant_deliveries` (the table the runtime reads), and instant
-schedules are editable in `ScheduleEditDialog`. **Remaining:** a follow-up
-cleanup PR should delete the dead `schedule_time_instants` cluster
-(`add_schedule_instant`, `get_pending_schedule_instants`,
-`mark_instant_completed`, `add_instant_schedule`) and the never-instantiated
-`ScheduleController` / `DeliveryQueueController` that reference it.
+**Status:** RESOLVED.
+- v1.13.0 — create + run + edit fixed (create writes `schedule_instant_deliveries`,
+  the table the runtime reads; instant schedules editable in `ScheduleEditDialog`).
+- v1.14.0 — instant execution migrated to `SolenoidFlowStrategy` (was the legacy
+  pump-trigger path), so instant delivers with the same pulse/calibration as staggered.
+- v1.14.1 — dead code removed: the `schedule_time_instants` method cluster
+  (`add_schedule_instant`, `get_pending_schedule_instants`, `mark_instant_completed`,
+  `add_instant_schedule`) and the never-instantiated `ScheduleController` /
+  `DeliveryQueueController` / `WateringController`. Instant deliveries now live
+  solely in `schedule_instant_deliveries`.
 
-The original diagnosis (from v1.11.0) is kept below for context.
+The original diagnosis (from v1.11.0) is kept below for historical context; the
+referenced legacy methods/tables no longer exist.
 
 ## Symptom
 
