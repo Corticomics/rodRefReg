@@ -481,8 +481,8 @@ All methods are synchronous (with one broken exception flagged in §7).
 |---|---|
 | `add_schedule(schedule)` | Generic insert; also writes `schedule_animals` and (for instant mode) `schedule_instant_deliveries`. |
 | `add_staggered_schedule(schedule)` | Staggered-mode insert with `schedule_desired_outputs` + `schedule_staggered_windows`. |
-| `add_instant_schedule(name, created_by, is_super, deliveries)` | Instant-mode insert. |
-| `update_schedule(...)` / `update_schedule_status(...)` | Partial / status updates. |
+| `update_staggered_schedule(schedule)` / `update_instant_schedule(schedule)` | Transactional edit: update the `schedules` row + replace all child rows. |
+| `update_schedule_status(...)` | Dispensing-status update. |
 | `remove_schedule(schedule_id)` | Deletes from `schedules` + `schedule_animals` only (no cascade — see §7). |
 | `get_schedule_details(schedule_id)` / `get_all_schedules()` / `get_schedules_by_trainer(trainer_id)` | Hydrated reads. |
 | `get_active_schedules()` | Currently in-window schedules with `dispensing_status='active'`. |
@@ -582,7 +582,6 @@ plus the v1.5.0 → v1.5.1 and pre-v1.5.0 → v1.5.1 migration paths.
 - **No formal schema-version table.** Two inline `ALTER TABLE` migrations live
   in `create_tables()`. Adding a third? Same pattern; do not bolt on a
   framework (see [`docs/UPDATE_SYSTEM.md` §14.5 F4](UPDATE_SYSTEM.md)).
-- **Legacy stubs lurk in the schema.** A few methods reference a
-  `schedule_time_instants` table that does not exist in the DDL — they appear
-  to be legacy code paths superseded by `schedule_instant_deliveries`. Safe to
-  ignore until refactored.
+  (The dead `schedule_time_instants` method cluster that referenced a
+  non-existent table was removed in v1.14.1; instant deliveries live solely in
+  `schedule_instant_deliveries`.)

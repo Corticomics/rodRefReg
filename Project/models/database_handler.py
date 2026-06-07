@@ -540,85 +540,6 @@ class DatabaseHandler:
             print(f"Database error when removing schedule: {e}")
             traceback.print_exc()
 
-    def update_schedule(
-        self,
-        schedule_id,
-        name=None,
-        start_time=None,
-        end_time=None,
-        water_volume=None,
-        desired_outputs=None,
-    ):
-        """
-        Update an existing schedule in the database.
-
-        Args:
-            schedule_id: ID of the schedule to update
-            name: New schedule name (optional)
-            start_time: New start time as ISO string (optional)
-            end_time: New end time as ISO string (optional)
-            water_volume: New total water volume (optional)
-            desired_outputs: Dict of {animal_id: volume} to update per-animal outputs (optional)
-
-        Best Practice:
-            - Only updates provided fields (None values are skipped)
-            - Uses parameterized queries for SQL injection prevention
-            - Transactional: all updates succeed or all fail
-        """
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-
-                # Build dynamic UPDATE query for schedules table
-                updates = []
-                params = []
-
-                if name is not None:
-                    updates.append("name = ?")
-                    params.append(name)
-                if start_time is not None:
-                    updates.append("start_time = ?")
-                    params.append(start_time)
-                if end_time is not None:
-                    updates.append("end_time = ?")
-                    params.append(end_time)
-                if water_volume is not None:
-                    updates.append("water_volume = ?")
-                    params.append(water_volume)
-
-                if updates:
-                    params.append(schedule_id)
-                    query = f"UPDATE schedules SET {', '.join(updates)} WHERE schedule_id = ?"
-                    cursor.execute(query, params)
-
-                # Update per-animal desired outputs if provided.
-                # NOTE: the column is ``desired_output`` (see the
-                # schedule_desired_outputs schema). A long-standing bug wrote
-                # ``desired_water_output`` here, which does not exist — the
-                # UPDATE raised OperationalError, was swallowed, and per-animal
-                # volumes silently never saved. The full edit path now uses
-                # update_staggered_schedule(); this method is kept for simple
-                # field-only updates and the column name is corrected.
-                if desired_outputs:
-                    for animal_id, volume in desired_outputs.items():
-                        cursor.execute(
-                            '''
-                            UPDATE schedule_desired_outputs
-                            SET desired_output = ?
-                            WHERE schedule_id = ? AND animal_id = ?
-                        ''',
-                            (volume, schedule_id, int(animal_id)),
-                        )
-
-                conn.commit()
-                print(f"Schedule {schedule_id} updated successfully.")
-                return True
-
-        except sqlite3.Error as e:
-            print(f"Database error when updating schedule: {e}")
-            traceback.print_exc()
-            return False
-
     def get_all_schedules(self):
         schedules = []
         try:
@@ -1108,164 +1029,6 @@ class DatabaseHandler:
         """
         await self.execute(query, (timestamp, volume, animal_id))
 
-    def add_schedule_instant(self, schedule_id, animal_id, delivery_time, water_volume):
-        """Add a new schedule time instant"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    '''
-                    INSERT INTO schedule_time_instants 
-                    (schedule_id, animal_id, delivery_time, water_volume)
-                    VALUES (?, ?, ?, ?)
-                ''',
-                    (schedule_id, animal_id, delivery_time.isoformat(), water_volume),
-                )
-                conn.commit()
-                return cursor.lastrowid
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            traceback.print_exc()
-            return None
-
-    def get_pending_schedule_instants(self, schedule_id=None):
-        """Get all pending water delivery instants"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                if schedule_id:
-                    query = '''
-                        SELECT sti.*, ru.relay_unit_id 
-                        FROM schedule_time_instants sti
-                        JOIN schedules s ON sti.schedule_id = s.schedule_id
-                        JOIN relay_units ru ON s.relay_unit_id = ru.relay_unit_id
-                        WHERE sti.schedule_id = ? AND sti.completed = 0
-                        ORDER BY sti.delivery_time ASC
-                    '''
-                    cursor.execute(query, (schedule_id,))
-                else:
-                    query = '''
-                        SELECT sti.*, ru.relay_unit_id 
-                        FROM schedule_time_instants sti
-                        JOIN schedules s ON sti.schedule_id = s.schedule_id
-                        JOIN relay_units ru ON s.relay_unit_id = ru.relay_unit_id
-                        WHERE sti.completed = 0
-                        ORDER BY sti.delivery_time ASC
-                    '''
-                    cursor.execute(query)
-                return cursor.fetchall()
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            traceback.print_exc()
-            return []
-
-    def mark_instant_completed(self, instant_id, volume_dispensed):
-        """Mark a schedule instant as completed and log the dispensing"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                # Get instant details
-                cursor.execute(
-                    '''
-                    SELECT sti.schedule_id, sti.animal_id, s.relay_unit_id
-                    FROM schedule_time_instants sti
-                    JOIN schedules s ON sti.schedule_id = s.schedule_id
-                    WHERE sti.instant_id = ?
-                ''',
-                    (instant_id,),
-                )
-                schedule_id, animal_id, relay_unit_id = cursor.fetchone()
-
-                # Mark instant completed
-                cursor.execute(
-                    '''
-                    UPDATE schedule_time_instants
-                    SET completed = 1
-                    WHERE instant_id = ?
-                ''',
-                    (instant_id,),
-                )
-
-                # Log in dispensing_history
-                cursor.execute(
-                    '''
-                    INSERT INTO dispensing_history 
-                    (schedule_id, animal_id, relay_unit_id, timestamp, volume_dispensed, status)
-                    VALUES (?, ?, ?, datetime('now'), ?, 'completed')
-                ''',
-                    (schedule_id, animal_id, relay_unit_id, volume_dispensed),
-                )
-
-                conn.commit()
-                return True
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            traceback.print_exc()
-            return False
-
-    def add_instant_schedule(self, schedule_name, created_by, is_super_user, deliveries):
-        """Add a new instant delivery schedule"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                # Insert main schedule without relay_unit_id
-                cursor.execute(
-                    '''
-                    INSERT INTO schedules 
-                    (name, delivery_mode, created_by, is_super_user)
-                    VALUES (?, 'instant', ?, ?)
-                ''',
-                    (schedule_name, created_by, is_super_user),
-                )
-                schedule_id = cursor.lastrowid
-
-                # Insert delivery times with relay_unit_id
-                for delivery in deliveries:
-                    cursor.execute(
-                        '''
-                        INSERT INTO schedule_instant_deliveries 
-                        (schedule_id, animal_id, delivery_datetime, water_volume, relay_unit_id)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''',
-                        (
-                            schedule_id,
-                            delivery['animal_id'],
-                            delivery['datetime'].isoformat(),
-                            delivery['volume'],
-                            delivery['relay_unit_id'],
-                        ),
-                    )
-
-                conn.commit()
-                return schedule_id
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            traceback.print_exc()
-            return None
-
-    def get_schedule_instant_deliveries(self, schedule_id):
-        """Get all instant deliveries for a schedule with animal details"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    '''
-                    SELECT sid.animal_id, a.lab_animal_id, a.name, 
-                           sid.delivery_datetime, sid.water_volume, sid.completed,
-                           sid.relay_unit_id
-                    FROM schedule_instant_deliveries sid
-                    JOIN animals a ON sid.animal_id = a.animal_id
-                    WHERE sid.schedule_id = ?
-                    ORDER BY sid.delivery_datetime
-                ''',
-                    (schedule_id,),
-                )
-                return cursor.fetchall()
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            traceback.print_exc()
-            return []
-
     def add_staggered_schedule(self, schedule):
         """Add a new staggered delivery schedule"""
         try:
@@ -1369,12 +1132,12 @@ class DatabaseHandler:
         ``schedule_id`` (animals/cage assignments, desired outputs, and the
         ``schedule_staggered_windows`` the delivery engine actually reads).
 
-        This is deliberately a "delete children + re-insert" replace: the prior
-        ``update_schedule`` only touched the parent row and a (misspelled)
-        desired-outputs column, so cage reassignments and the runtime windows
-        never updated and edits did not reach delivery. Replacing the windows
-        means an edit resets per-window delivery progress and clears any
-        ``cycle_tracking`` rows — correct, since the plan itself changed.
+        This is deliberately a "delete children + re-insert" replace: an earlier
+        edit path only touched the parent row and a (misspelled) desired-outputs
+        column, so cage reassignments and the runtime windows never updated and
+        edits did not reach delivery. Replacing the windows means an edit resets
+        per-window delivery progress and clears any ``cycle_tracking`` rows —
+        correct, since the plan itself changed.
 
         Args:
             schedule: a :class:`~models.Schedule.Schedule` carrying the new
