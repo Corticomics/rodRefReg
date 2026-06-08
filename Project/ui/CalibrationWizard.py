@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
 )
+from utils.operation_lock import CALIBRATION, get_operation_lock
 
 
 class CalibrationWizard(QDialog):
@@ -304,6 +305,18 @@ class CalibrationWizard(QDialog):
         - Robust error handling
         - Safe cleanup on failure
         """
+        # Hardware mutual-exclusion: calibration drives the master valve + flow
+        # sensor shared with schedules/priming. Hold the lock for the pulse run
+        # and release in finally (the later measure/results steps use no hardware).
+        lock = get_operation_lock()
+        if not lock.try_acquire(CALIBRATION):
+            QMessageBox.warning(
+                self,
+                "Hardware busy",
+                f"Cannot calibrate while {lock.active_label()} is in progress.",
+            )
+            self._safe_cancel()
+            return
         try:
             # Import required modules
             import time
@@ -379,6 +392,11 @@ class CalibrationWizard(QDialog):
             )
             # Use safe cancel instead of direct reject()
             self._safe_cancel()
+        finally:
+            # Hardware work is done after this method returns (valves closed
+            # above); release so schedule/priming can run during the manual
+            # measure/results steps.
+            lock.release(CALIBRATION)
 
     def _show_measurement(self):
         """Step 4: User measures output"""
@@ -538,6 +556,9 @@ class CalibrationWizard(QDialog):
                 f.write(f"{ts} [RRR] Wizard closeEvent (X button)\n")
         except Exception:
             pass
+        # Defensive: ensure the operation lock isn't left held if the dialog is
+        # closed mid-flow (idempotent — no-op if not held by calibration).
+        get_operation_lock().release(CALIBRATION)
         # Just accept the close - dialog will be marked as rejected automatically
         # by Qt when closed via X button (not accept() or reject())
         event.accept()
@@ -565,6 +586,9 @@ class CalibrationWizard(QDialog):
             self.log("User cancelled - calibration data will NOT be saved")
         else:
             self.log("User cancelled calibration wizard")
+
+        # Defensive: release the operation lock on cancel (idempotent).
+        get_operation_lock().release(CALIBRATION)
 
         # Close dialog immediately - user pressed cancel, they mean it
         # Use simple reject() - Qt will handle cleanup

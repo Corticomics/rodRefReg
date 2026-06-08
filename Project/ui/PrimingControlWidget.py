@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.operation_lock import PRIMING, get_operation_lock
 
 
 class RelayControlModel(QObject):
@@ -331,15 +332,28 @@ class PrimingControlWidget(QWidget):
 
     def _on_open_master_clicked(self):
         """Handle master open button click."""
+        # Hardware mutual-exclusion: priming holds the lock for the whole
+        # session (master open → all closed), since the master valve is shared
+        # with schedules and calibration. Acquire before opening anything.
+        lock = get_operation_lock()
+        if not lock.try_acquire(PRIMING):
+            QMessageBox.warning(
+                self,
+                "Hardware busy",
+                f"Cannot prime while {lock.active_label()} is in progress.",
+            )
+            return
         try:
             controller = self._get_solenoid_controller()
             if not controller:
+                lock.release(PRIMING)
                 return
 
             if controller.open_master():
                 self._model.set_master_open(True)
                 self._log_success("Master solenoid OPENED")
             else:
+                lock.release(PRIMING)
                 QMessageBox.warning(
                     self,
                     "Hardware Error",
@@ -347,6 +361,7 @@ class PrimingControlWidget(QWidget):
                 )
 
         except Exception as e:
+            lock.release(PRIMING)
             self._log_error(f"Error opening master: {e}")
             QMessageBox.critical(self, "Error", f"Failed to open master:\n{str(e)}")
 
@@ -364,6 +379,8 @@ class PrimingControlWidget(QWidget):
 
             if controller.close_master():
                 self._model.set_master_open(False)
+                # All valves closed — end the priming session, release the lock.
+                get_operation_lock().release(PRIMING)
                 self._log_success("Master solenoid CLOSED, all cages closed")
             else:
                 QMessageBox.warning(self, "Hardware Error", "Failed to close master solenoid.")
@@ -440,6 +457,10 @@ class PrimingControlWidget(QWidget):
 
             # Reset model state
             self._model.reset()
+
+            # Emergency stop is the universal hardware failsafe: force-clear the
+            # operation lock so a stuck/stale holder can't lock out the app.
+            get_operation_lock().force_release()
 
             self._log_warning("⛔ EMERGENCY STOP - All relays closed")
             QMessageBox.information(self, "Emergency Stop", "All relays have been closed.")
