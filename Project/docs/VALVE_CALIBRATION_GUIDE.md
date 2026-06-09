@@ -176,6 +176,7 @@ Calibration saved to database (ID: 1)
 Calibration complete and saved.
   Cage 15: 0.075000 mL/pulse
 ```
+*Note: Be sure to keep the reservoir water level constant, as pressure variation can result in a poor calibration. Add water gently and gradually to maintain a constant level. This is especially important for small reservoirs.*
 
 #### 3. Verify Calibration
 ```bash
@@ -195,7 +196,7 @@ Run a small test schedule (e.g., 0.5 mL) and verify with scale:
 - Expected pulses: ~7 (0.5 / 0.075)
 - Measured: 0.500 ± 0.010 mL (within tolerance)
 
----
+*Note: Manually verifying calibration is especially important when flow sensors are not integrated into the system. Always run sample schedules to verify that the system dispenses the correct volume of liquid.*
 
 ## Technical Implementation
 

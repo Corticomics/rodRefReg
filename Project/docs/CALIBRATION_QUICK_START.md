@@ -18,6 +18,7 @@ The **recommended path is the in-app Calibration Wizard**. A CLI tool is availab
 1. Open **Settings → Calibration** and click **Run Calibration Wizard**.
 2. Select the cage(s) to calibrate (cage names from the Cages tab are shown).
 3. Follow the on-screen prompts — the wizard executes the pulse train automatically.
+4. Be sure to keep the reservoir water level constant, as pressure variation can result in a poor calibration. Add water gently and gradually to maintain a constant level. This is especially important with small reservoirs.
 
 ### Step 3: Measure & Save
 1. When prompted, enter the measured volume (in mL) from your lab scale.
