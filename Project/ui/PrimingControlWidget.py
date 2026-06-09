@@ -142,6 +142,11 @@ class PrimingControlWidget(QWidget):
         self._model.master_state_changed.connect(self._on_master_state_changed)
         self._model.cage_state_changed.connect(self._on_cage_state_changed)
 
+        # Grey out the Open controls when another hardware operation (schedule
+        # or calibration) holds the lock; refresh on every lock state change.
+        get_operation_lock().state_changed.connect(self._refresh_lock_state)
+        self._refresh_lock_state()
+
     def _init_ui(self):
         """Initialize user interface following Material Design principles."""
         layout = QVBoxLayout(self)
@@ -497,6 +502,28 @@ class PrimingControlWidget(QWidget):
     def _on_cage_state_changed(self, cage_id: int, is_open: bool):
         """Handle cage state changes from model."""
         self._update_cage_button_states()
+
+    def _refresh_lock_state(self):
+        """Grey out the Open controls while another hardware operation (a
+        schedule run or calibration) holds the operation lock; restore the
+        normal valve/selection-driven state otherwise.
+
+        Close + Emergency are intentionally left to their normal logic so the
+        operator can always shut valves. The Phase-1 guard still refuses on
+        click regardless — this is purely the visual layer.
+        """
+        lock = get_operation_lock()
+        if lock.is_busy() and not lock.held_by(PRIMING):
+            tip = f"Unavailable while {lock.active_label()} is in progress"
+            self.master_open_btn.setEnabled(False)
+            self.master_open_btn.setToolTip(tip)
+            self.cage_open_btn.setEnabled(False)
+            self.cage_open_btn.setToolTip(tip)
+        else:
+            # Restore enable state from the current valve/selection state.
+            self._on_master_state_changed(self._model.is_master_open)
+            self.master_open_btn.setToolTip("")
+            self.cage_open_btn.setToolTip("")
 
     # ==================== UI Helper Methods ====================
 

@@ -71,6 +71,10 @@ class RunStopSection(QWidget):
             # Set initial state
             self._update_controls_access()
 
+        # Refresh Run / Change-Relay-Hats enablement when another hardware
+        # operation (priming/calibration) acquires or releases the lock.
+        get_operation_lock().state_changed.connect(self.update_button_states)
+
         print("RunStopSection initialized")
 
     def init_ui(self):
@@ -159,10 +163,21 @@ class RunStopSection(QWidget):
         """
         is_logged_in = self.login_system.is_logged_in() if self.login_system else False
 
+        # Disable Run/Relay-Hats when another hardware operation holds the lock
+        # (priming/calibration). NOTE: this run/relay gating is intentionally
+        # duplicated in update_button_states; keep the two in sync (a follow-up
+        # could consolidate them, but not in this UX PR — it's the run path).
+        lock = get_operation_lock()
+        lock_elsewhere = lock.is_busy() and not lock.held_by(SCHEDULE)
+
         # Update button states based on login
-        self.run_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.run_button.setEnabled(
+            is_logged_in and not self.job_in_progress and not lock_elsewhere
+        )
         self.stop_button.setEnabled(is_logged_in and self.job_in_progress)
-        self.relay_hats_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.relay_hats_button.setEnabled(
+            is_logged_in and not self.job_in_progress and not lock_elsewhere
+        )
 
         # Update schedule drop area
         self.schedule_drop_area.setEnabled(is_logged_in)
@@ -174,6 +189,11 @@ class RunStopSection(QWidget):
             self.stop_button.setToolTip(disabled_tooltip)
             self.relay_hats_button.setToolTip(disabled_tooltip)
             self.schedule_drop_area.setToolTip("Please log in to drop schedules")
+        elif lock_elsewhere:
+            busy_tip = f"Unavailable while {lock.active_label()} is in progress"
+            self.run_button.setToolTip(busy_tip)
+            self.relay_hats_button.setToolTip(busy_tip)
+            self.schedule_drop_area.setToolTip("Drag and drop a schedule here to load it")
         else:
             # Restore normal tooltips
             self.run_button.setToolTip("Start the loaded schedule")
@@ -195,10 +215,16 @@ class RunStopSection(QWidget):
             f"[SEC] update_button_states: login_system={self.login_system is not None}, is_logged_in={is_logged_in}, job_in_progress={self.job_in_progress}"
         )
 
+        # Also disable Run/Relay-Hats when another hardware operation holds the
+        # lock (priming/calibration). Mirrors the term in _update_controls_access
+        # — keep both in sync (see the note there).
+        lock = get_operation_lock()
+        lock_elsewhere = lock.is_busy() and not lock.held_by(SCHEDULE)
+
         # Buttons require both: logged in AND appropriate job state
-        run_enabled = is_logged_in and not self.job_in_progress
+        run_enabled = is_logged_in and not self.job_in_progress and not lock_elsewhere
         stop_enabled = is_logged_in and self.job_in_progress
-        relay_enabled = is_logged_in and not self.job_in_progress
+        relay_enabled = is_logged_in and not self.job_in_progress and not lock_elsewhere
 
         print(
             f"[SEC] Button states: run={run_enabled}, stop={stop_enabled}, relay={relay_enabled}"
@@ -219,6 +245,10 @@ class RunStopSection(QWidget):
             self.run_button.setToolTip("Job in progress")
             self.relay_hats_button.setToolTip("Cannot change relay hats during a job")
             self.stop_button.setToolTip("Click to stop the current job")
+        elif lock_elsewhere:
+            busy_tip = f"Unavailable while {lock.active_label()} is in progress"
+            self.run_button.setToolTip(busy_tip)
+            self.relay_hats_button.setToolTip(busy_tip)
         else:
             self.run_button.setToolTip("Start the loaded schedule")
             self.relay_hats_button.setToolTip("Configure relay HAT hardware")

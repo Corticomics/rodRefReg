@@ -708,6 +708,10 @@ class SettingsTab(QWidget):
         )
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
+        self._calibrate_all_btn = calibrate_all_btn
+        # Grey out calibration launch buttons while another hardware operation
+        # (schedule run / priming) holds the lock; the launcher also refuses.
+        get_operation_lock().state_changed.connect(self._apply_calibration_lock_state)
 
         export_btn = QPushButton("Export Report")
         export_btn.setObjectName("CompactButton")
@@ -745,6 +749,10 @@ class SettingsTab(QWidget):
         from PyQt5.QtWidgets import QPushButton
 
         self.calibration_table.setRowCount(15)  # 15 cages
+
+        # Per-row launch buttons are recreated here; track them fresh so the
+        # operation-lock gating can grey them out (see _apply_calibration_lock_state).
+        self._calibrate_buttons = []
 
         # Get all calibrations from database
         calibrations = {}
@@ -823,6 +831,7 @@ class SettingsTab(QWidget):
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
+                self._calibrate_buttons.append(btn)
 
             else:
                 # Not calibrated - show warning
@@ -856,6 +865,27 @@ class SettingsTab(QWidget):
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
+                self._calibrate_buttons.append(btn)
+
+        # Reflect the current operation-lock state on the freshly-built buttons.
+        self._apply_calibration_lock_state()
+
+    def _apply_calibration_lock_state(self):
+        """Grey out the calibration launch buttons while another hardware
+        operation (a schedule run / priming) holds the operation lock. Purely
+        visual — _launch_calibration_wizard also refuses. Tolerates being called
+        before the table is first populated."""
+        lock = get_operation_lock()
+        busy = lock.is_busy() and not lock.held_by(CALIBRATION)
+        tip = f"Unavailable while {lock.active_label()} is in progress" if busy else ""
+        buttons = list(getattr(self, "_calibrate_buttons", []))
+        all_btn = getattr(self, "_calibrate_all_btn", None)
+        if all_btn is not None:
+            buttons.append(all_btn)
+        for btn in buttons:
+            btn.setEnabled(not busy)
+            if busy:
+                btn.setToolTip(tip)
 
     # Size-only stylesheet for the calibration-table action buttons. Cell-widget
     # buttons do not match the `QTableWidget QPushButton` compact rule in the

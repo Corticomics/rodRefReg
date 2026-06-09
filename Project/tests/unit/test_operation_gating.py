@@ -91,3 +91,24 @@ def test_priming_releases_when_hardware_unavailable(qapp, monkeypatch):
     w._on_open_master_clicked()
     # Acquired then released on the graceful abort — no stale lock.
     assert get_operation_lock().is_busy() is False
+
+
+def test_priming_open_buttons_grey_out_when_locked_elsewhere(qapp):
+    """Phase 2 UI gating: when a schedule (or calibration) holds the lock, the
+    priming Open buttons are visibly disabled via the state_changed signal;
+    releasing re-enables them per valve state."""
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+    from utils.operation_lock import SCHEDULE, get_operation_lock  # noqa: PLC0415
+
+    w = PrimingControlWidget(_SETTINGS, lambda *_: None)
+    # Idle: master closed -> Open Master enabled.
+    assert w.master_open_btn.isEnabled() is True
+
+    # Another operation acquires -> state_changed fires -> Open buttons disabled.
+    get_operation_lock().try_acquire(SCHEDULE)
+    assert w.master_open_btn.isEnabled() is False
+    assert w.cage_open_btn.isEnabled() is False
+
+    # Release -> Open Master re-enabled (master still closed).
+    get_operation_lock().force_release()
+    assert w.master_open_btn.isEnabled() is True
