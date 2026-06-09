@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.operation_lock import CALIBRATION, get_operation_lock
 
 from ui.PrimingControlWidget import PrimingControlWidget
 from ui.UpdatesTab import UpdatesTab
@@ -881,16 +882,17 @@ class SettingsTab(QWidget):
             )
             return
 
-        # Check if schedule is running
-        if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
-            if self.run_stop_section.worker and self.run_stop_section.worker.isRunning():
-                QMessageBox.warning(
-                    self,
-                    "Schedule Running",
-                    "Cannot calibrate while a schedule is running.\n\n"
-                    "Please stop the schedule first.",
-                )
-                return
+        # Hardware mutual-exclusion: no calibration while another hardware
+        # operation (schedule run / priming) holds the lock. Authoritative check
+        # (the per-cage / Calibrate-All buttons are also greyed out in Phase 2).
+        _lock = get_operation_lock()
+        if _lock.is_busy() and not _lock.held_by(CALIBRATION):
+            QMessageBox.warning(
+                self,
+                "Hardware busy",
+                f"Cannot calibrate while {_lock.active_label()} is in progress.",
+            )
+            return
 
         # Import and create wizard dialog
         from ui.CalibrationWizard import CalibrationWizard

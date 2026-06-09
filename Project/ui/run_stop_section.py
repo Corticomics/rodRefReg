@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.operation_lock import SCHEDULE, get_operation_lock
 
 from .schedule_drop_area import ScheduleDropArea
 
@@ -252,6 +253,19 @@ class RunStopSection(QWidget):
 
         if not self.schedule_drop_area.current_schedule:
             QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
+            return
+
+        # Hardware mutual-exclusion: only one of schedule/priming/calibration may
+        # run at a time (shared master valve + single flow sensor). Acquire here,
+        # before any hardware work; release on every exit path (reset_ui /
+        # _reset_run_button / stop_program force-release).
+        lock = get_operation_lock()
+        if not lock.try_acquire(SCHEDULE):
+            QMessageBox.warning(
+                self,
+                "Hardware busy",
+                f"Cannot run the schedule while {lock.active_label()} is in progress.",
+            )
             return
 
         # ═══════════════════════════════════════════════════════════════════
@@ -498,6 +512,7 @@ class RunStopSection(QWidget):
     def _reset_run_button(self):
         """Reset run button to initial state after error or cancellation."""
         self.job_in_progress = False
+        get_operation_lock().release(SCHEDULE)
         self.run_button.setText("Run")
         self.update_button_states()
 
@@ -525,6 +540,7 @@ class RunStopSection(QWidget):
         except Exception as e:
             # Reset to initial state on error
             self.job_in_progress = False
+            get_operation_lock().release(SCHEDULE)
             self.run_button.setText("Run")
             self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
@@ -546,6 +562,7 @@ class RunStopSection(QWidget):
 
         except Exception as e:
             self.job_in_progress = False
+            get_operation_lock().release(SCHEDULE)
             self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
 
@@ -583,6 +600,7 @@ class RunStopSection(QWidget):
                 self.progress_dialog = None
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
             self.job_in_progress = False
+            get_operation_lock().release(SCHEDULE)
             self.update_button_states()
 
     def reset_ui(self):
@@ -593,6 +611,9 @@ class RunStopSection(QWidget):
         Reference: Qt State Management - https://doc.qt.io/qt-5/qabstractbutton.html
         """
         self.job_in_progress = False
+        # Schedule no longer running (natural completion or stop) — release the
+        # hardware lock so priming/calibration can run again.
+        get_operation_lock().release(SCHEDULE)
         # Reset both button texts to initial state
         self.run_button.setText("Run")
         self.stop_button.setText("Stop")
