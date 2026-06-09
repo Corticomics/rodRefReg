@@ -1029,6 +1029,35 @@ class DatabaseHandler:
         """
         await self.execute(query, (timestamp, volume, animal_id))
 
+    def get_schedule_instant_deliveries(self, schedule_id):
+        """Get all instant deliveries for a schedule with animal details.
+
+        Live runtime read used by run_stop_section + schedule_drop_area to
+        execute/drop instant schedules. (Wrongly removed in v1.14.1 with the
+        dead schedule_time_instants cluster — it reads schedule_instant_deliveries,
+        which IS the canonical instant table — and restored in v1.14.2.)
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''
+                    SELECT sid.animal_id, a.lab_animal_id, a.name,
+                           sid.delivery_datetime, sid.water_volume, sid.completed,
+                           sid.relay_unit_id
+                    FROM schedule_instant_deliveries sid
+                    JOIN animals a ON sid.animal_id = a.animal_id
+                    WHERE sid.schedule_id = ?
+                    ORDER BY sid.delivery_datetime
+                ''',
+                    (schedule_id,),
+                )
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            traceback.print_exc()
+            return []
+
     def add_staggered_schedule(self, schedule):
         """Add a new staggered delivery schedule"""
         try:

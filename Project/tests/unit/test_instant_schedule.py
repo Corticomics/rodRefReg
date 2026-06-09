@@ -63,6 +63,38 @@ def test_add_schedule_writes_instant_delivery_rows(database_handler):
     ]
 
 
+def _seed_animal(database_handler, animal_id, lab_id, name):
+    with database_handler.connect() as conn:
+        conn.execute(
+            "INSERT INTO animals (animal_id, lab_animal_id, name) VALUES (?, ?, ?)",
+            (animal_id, lab_id, name),
+        )
+        conn.commit()
+
+
+def test_get_schedule_instant_deliveries_returns_joined_rows(database_handler):
+    """The runtime read that run_stop_section / schedule_drop_area call to
+    execute or drop an instant schedule.
+
+    Regression for v1.14.1: this LIVE method was wrongly removed with the dead
+    schedule_time_instants cluster, so pressing Run on an instant schedule raised
+    'DatabaseHandler has no attribute get_schedule_instant_deliveries'. Restored
+    in v1.14.2. (It JOINs animals, so animals must exist.)
+    """
+    _seed_animal(database_handler, 1, "A1", "Mouse A")
+    _seed_animal(database_handler, 2, "A2", "Mouse B")
+    d1 = datetime(2026, 6, 9, 9, 0, 0)
+    d2 = datetime(2026, 6, 9, 10, 0, 0)
+    sid = database_handler.add_schedule(_instant("inst", [(1, 1, 1.0, d1), (2, 2, 2.0, d2)]))
+
+    rows = database_handler.get_schedule_instant_deliveries(sid)
+    # (animal_id, lab_animal_id, name, delivery_datetime, water_volume, completed, relay_unit_id)
+    assert len(rows) == 2
+    assert rows[0][0] == 1 and rows[0][1] == "A1" and rows[0][3] == d1.isoformat()
+    assert rows[0][4] == 1.0 and rows[0][6] == 1
+    assert rows[1][0] == 2 and rows[1][1] == "A2" and rows[1][4] == 2.0
+
+
 def test_loaded_instant_schedule_reports_its_animals(database_handler):
     """Regression: the card showed "0 animals" for instant schedules because
     get_all_schedules / get_schedules_by_trainer didn't populate .animals for
