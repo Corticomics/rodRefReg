@@ -10,9 +10,10 @@ Best Practices:
 - Persistent storage of results
 """
 
+import threading
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
@@ -28,6 +29,141 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 from utils.operation_lock import CALIBRATION, get_operation_lock
+
+
+class _CalibrationPulseWorker(QObject):
+    """
+    Executes the calibration pulse sequence on a worker thread.
+
+    Owns ONLY the hardware pulse loop: open master / settle / loop
+    [open cage relay, sleep(pulse width), close cage relay, sleep(rest)] /
+    close master. The timing code is intentionally identical to the old
+    inline GUI-thread loop (same time.sleep calls, same order, same
+    hardware calls) so calibration timing characteristics are unchanged —
+    time.sleep on a dedicated thread is correct here; QTimer scheduling
+    would add event-loop jitter to the pulse width.
+
+    Threading rules (see the project threading checklist / RelayWorker):
+    - No widget access from this class — results reach the dialog only
+      through the queued signals below.
+    - Hardware imports stay inside run() so this module imports cheaply
+      without hardware deps.
+    - Cancellation is cooperative: the dialog sets ``stop_event`` and the
+      loop checks it once per pulse.
+    - Whatever the exit path (completion, cancel, exception), the cage
+      relay and the master valve are closed before ``finished`` is emitted.
+    """
+
+    progress = pyqtSignal(int)  # pulses completed so far
+    log = pyqtSignal(str)  # human-readable status line for the wizard log
+    finished = pyqtSignal(bool, object)  # success, error message (str) or None
+
+    # Rest between pulses, seconds — same constant the inline loop used.
+    PULSE_REST_S = 0.1
+
+    def __init__(self, cage_id, num_pulses, pulse_width_ms, system_settings, stop_event):
+        super().__init__()
+        self._cage_id = cage_id
+        self._num_pulses = num_pulses
+        self._pulse_width_ms = pulse_width_ms
+        self._system_settings = system_settings
+        self._stop_event = stop_event
+
+    def run(self):
+        """Execute the pulse sequence. Runs on the worker thread."""
+        import time
+
+        success = False
+        error = None
+        solenoid = None
+        valves_closed = False
+        try:
+            from drivers.solenoid_controller import SolenoidController
+            from gpio.gpio_handler import RelayHandler
+            from models.relay_unit_manager import RelayUnitManager
+
+            system_settings = self._system_settings
+            cage_map = {str(i): i for i in range(1, 16)}
+            master_id = int(system_settings.get('global_master_relay_id', 16))
+
+            # Create relay unit manager and handler.
+            # NOTE: this is the wizard's OWN RelayHandler instance (not shared
+            # with a RelayWorker); the OperationLock serializes hardware
+            # operations app-wide, so no other operation drives relays now.
+            relay_unit_manager = RelayUnitManager(system_settings)
+            relay_handler = RelayHandler(relay_unit_manager, system_settings['num_hats'])
+
+            # Create solenoid controller
+            solenoid = SolenoidController(relay_handler, master_id, cage_map)
+
+            self.log.emit(" Hardware initialized")
+
+            # Open master valve
+            solenoid.open_master()
+            time.sleep(0.5)
+            self.log.emit(" Master valve opened")
+
+            # Execute pulses
+            pulse_count = 0
+            pulse_duration_s = self._pulse_width_ms / 1000.0
+            stopped = False
+
+            for _ in range(self._num_pulses):
+                # Cooperative cancel: checked once per pulse.
+                if self._stop_event.is_set():
+                    stopped = True
+                    break
+
+                # Open valve
+                solenoid.open_cage(self._cage_id)
+                time.sleep(pulse_duration_s)
+
+                # Close valve
+                solenoid.close_cage(self._cage_id)
+                pulse_count += 1
+
+                # Update progress
+                self.progress.emit(pulse_count)
+
+                # Log every 50 pulses
+                if pulse_count % 50 == 0:
+                    self.log.emit(
+                        f"Progress: {pulse_count}/{self._num_pulses} pulses "
+                        f"({pulse_count / self._num_pulses * 100:.0f}%)"
+                    )
+
+                # Small delay between pulses
+                time.sleep(self.PULSE_REST_S)
+
+            # Close master valve (same order as the old inline loop)
+            solenoid.close_cage(self._cage_id)
+            solenoid.close_master()
+            valves_closed = True
+
+            if stopped:
+                self.log.emit(f"Calibration cancelled after {pulse_count} pulses")
+                self.log.emit(" All valves closed")
+            else:
+                success = True
+                self.log.emit(f" Completed {pulse_count} pulses")
+                self.log.emit(" All valves closed")
+
+        except Exception as e:
+            error = str(e)
+        finally:
+            # Fail-safe: never leave valves open, whatever the exit path.
+            # (The old inline loop did NOT close valves on exception — this
+            # backstop is a deliberate safety improvement.)
+            if solenoid is not None and not valves_closed:
+                try:
+                    solenoid.close_cage(self._cage_id)
+                except Exception as close_error:
+                    self.log.emit(f"WARNING: failed to close cage valve: {close_error}")
+                try:
+                    solenoid.close_master()
+                except Exception as close_error:
+                    self.log.emit(f"WARNING: failed to close master valve: {close_error}")
+            self.finished.emit(success, error)
 
 
 class CalibrationWizard(QDialog):
@@ -74,6 +210,16 @@ class CalibrationWizard(QDialog):
         self.pulse_width_ms = 20  # Default
         self.measured_volume_ml = 0.0
         self.calibration_result = None
+
+        # Pulse-worker state (populated by _execute_calibration).
+        self._worker = None
+        self._worker_thread = None
+        self._worker_stop = None
+        # True whenever no run holds the operation lock; set to False for
+        # exactly the duration of a pulse run so the lock is released once
+        # per run, on whichever termination path fires first.
+        self._run_finalized = True
+        self._user_cancelled = False
 
         # Window properties
         self.setWindowTitle(f"Valve Calibration Wizard - Cage {cage_id}")
@@ -297,17 +443,19 @@ class CalibrationWizard(QDialog):
 
     def _execute_calibration(self):
         """
-        Execute the calibration pulse sequence.
+        Start the calibration pulse sequence on a worker thread.
 
-        Best Practices:
-        - Use system controller's hardware interfaces
-        - Progress feedback every 10 pulses
-        - Robust error handling
-        - Safe cleanup on failure
+        The pulse loop (open/sleep/close/sleep) runs in
+        _CalibrationPulseWorker on a dedicated QThread so the GUI thread
+        stays free — the progress bar and log now update live instead of
+        freezing for the whole run. Results come back through queued
+        signals; the operation lock is released in _finalize_run() on
+        whichever termination path fires first (finish, error, cancel,
+        dialog close).
         """
         # Hardware mutual-exclusion: calibration drives the master valve + flow
-        # sensor shared with schedules/priming. Hold the lock for the pulse run
-        # and release in finally (the later measure/results steps use no hardware).
+        # sensor shared with schedules/priming. Hold the lock for exactly the
+        # pulse run (the later measure/results steps use no hardware).
         lock = get_operation_lock()
         if not lock.try_acquire(CALIBRATION):
             QMessageBox.warning(
@@ -317,74 +465,73 @@ class CalibrationWizard(QDialog):
             )
             self._safe_cancel()
             return
-        try:
-            # Import required modules
-            import time
 
-            from drivers.solenoid_controller import SolenoidController
-            from gpio.gpio_handler import RelayHandler
-            from models.relay_unit_manager import RelayUnitManager
+        # The lock is now held; _finalize_run() must release it exactly once.
+        self._run_finalized = False
+        self._user_cancelled = False
 
-            # Get cage map from settings
-            system_settings = self.system_controller.settings
-            cage_map = {str(i): i for i in range(1, 16)}
-            master_id = int(system_settings.get('global_master_relay_id', 16))
+        self._worker_stop = threading.Event()
+        self._worker = _CalibrationPulseWorker(
+            cage_id=self.cage_id,
+            num_pulses=self.num_pulses,
+            pulse_width_ms=self.pulse_width_ms,
+            system_settings=self.system_controller.settings,
+            stop_event=self._worker_stop,
+        )
+        # NOT parented to the dialog (a QObject moved to a thread must be
+        # parentless); lifetime is managed in _on_worker_finished.
+        self._worker_thread = QThread()
+        self._worker.moveToThread(self._worker_thread)
+        self._worker_thread.started.connect(self._worker.run)
+        # Cross-thread signals back into the dialog MUST be queued so the
+        # slots (widget updates, message boxes) run on the GUI thread.
+        self._worker.progress.connect(self._on_worker_progress, Qt.QueuedConnection)
+        self._worker.log.connect(self.log, Qt.QueuedConnection)
+        self._worker.finished.connect(self._on_worker_finished, Qt.QueuedConnection)
+        self._worker_thread.start()
 
-            # Create relay unit manager and handler
-            relay_unit_manager = RelayUnitManager(system_settings)
-            relay_handler = RelayHandler(relay_unit_manager, system_settings['num_hats'])
+    def _on_worker_progress(self, pulse_count):
+        """Update the progress bar (GUI thread, queued from the worker)."""
+        self.progress_bar.setValue(pulse_count)
 
-            # Create solenoid controller
-            solenoid = SolenoidController(relay_handler, master_id, cage_map)
+    def _on_worker_finished(self, success, error):
+        """
+        Worker run ended (GUI thread, queued from the worker).
 
-            self.log(" Hardware initialized")
+        The worker has already closed the cage + master valves on every
+        exit path, so all that is left here is thread teardown, the lock
+        release, and the step transition / error report.
+        """
+        thread = self._worker_thread
+        worker = self._worker
+        self._worker_thread = None
+        self._worker = None
+        self._worker_stop = None
+        if thread is not None:
+            thread.quit()
+            thread.wait(2000)
+            thread.deleteLater()
+        if worker is not None:
+            worker.deleteLater()
 
-            # Open master valve
-            solenoid.open_master()
-            time.sleep(0.5)
-            self.log(" Master valve opened")
+        # Hardware work is over on every path — release the lock so
+        # schedule/priming can run during the manual measure/results steps.
+        self._finalize_run()
 
-            # Execute pulses
-            pulse_count = 0
-            pulse_duration_s = self.pulse_width_ms / 1000.0
+        if self._user_cancelled:
+            # Cancel/close already handled dialog teardown; nothing to show.
+            return
 
-            for i in range(self.num_pulses):
-                # Open valve
-                solenoid.open_cage(self.cage_id)
-                time.sleep(pulse_duration_s)
-
-                # Close valve
-                solenoid.close_cage(self.cage_id)
-                pulse_count += 1
-
-                # Update progress
-                self.progress_bar.setValue(pulse_count)
-
-                # Log every 50 pulses
-                if pulse_count % 50 == 0:
-                    self.log(
-                        f"Progress: {pulse_count}/{self.num_pulses} pulses ({pulse_count/self.num_pulses*100:.0f}%)"
-                    )
-
-                # Small delay between pulses
-                time.sleep(0.1)
-
-            # Close master valve
-            solenoid.close_cage(self.cage_id)
-            solenoid.close_master()
-
-            self.log(f" Completed {pulse_count} pulses")
-            self.log(" All valves closed")
-
-            # Move to next step
-            QTimer.singleShot(1000, lambda: self.show_step(3))
-
-        except Exception as e:
-            self.log(f"ERROR: {str(e)}")
+        if success:
+            # Move to next step (same 1 s pause as the old inline flow)
+            QTimer.singleShot(1000, self._advance_to_measurement)
+        else:
+            message = error if error else "Calibration stopped before completion"
+            self.log(f"ERROR: {message}")
             QMessageBox.critical(
                 self,
                 "Calibration Failed",
-                f"An error occurred during pulse execution:\n\n{str(e)}\n\n"
+                f"An error occurred during pulse execution:\n\n{message}\n\n"
                 "Please ensure:\n"
                 "• Relay hardware is connected\n"
                 "• No other processes are using the hardware\n"
@@ -392,11 +539,38 @@ class CalibrationWizard(QDialog):
             )
             # Use safe cancel instead of direct reject()
             self._safe_cancel()
-        finally:
-            # Hardware work is done after this method returns (valves closed
-            # above); release so schedule/priming can run during the manual
-            # measure/results steps.
-            lock.release(CALIBRATION)
+
+    def _advance_to_measurement(self):
+        """Deferred transition to the measurement step (skip if closed)."""
+        if self._user_cancelled:
+            return
+        self.show_step(3)
+
+    def _finalize_run(self):
+        """Release the operation lock for this wizard's run (exactly once)."""
+        if self._run_finalized:
+            return
+        self._run_finalized = True
+        get_operation_lock().release(CALIBRATION)
+
+    def _shutdown_worker(self, wait_ms=5000):
+        """
+        Ask a running pulse worker to stop and wait (bounded) for its thread.
+
+        The worker checks the stop event once per pulse and closes the cage
+        relay + master valve before finishing, so when the wait returns the
+        hardware is safe. No-op when no worker is running.
+        """
+        if self._worker_stop is not None:
+            self._worker_stop.set()
+        thread = self._worker_thread
+        if thread is not None and thread.isRunning():
+            thread.quit()
+            if not thread.wait(wait_ms):
+                self.log(
+                    f"WARNING: calibration worker did not stop within {wait_ms} ms — "
+                    "verify that all valves are closed"
+                )
 
     def _show_measurement(self):
         """Step 4: User measures output"""
@@ -556,9 +730,12 @@ class CalibrationWizard(QDialog):
                 f.write(f"{ts} [RRR] Wizard closeEvent (X button)\n")
         except Exception:
             pass
-        # Defensive: ensure the operation lock isn't left held if the dialog is
-        # closed mid-flow (idempotent — no-op if not held by calibration).
-        get_operation_lock().release(CALIBRATION)
+        # Stop a running pulse worker first (bounded wait; the worker closes
+        # the cage + master valves before finishing), then make sure the
+        # operation lock isn't left held if the dialog is closed mid-run.
+        self._user_cancelled = True
+        self._shutdown_worker()
+        self._finalize_run()
         # Just accept the close - dialog will be marked as rejected automatically
         # by Qt when closed via X button (not accept() or reject())
         event.accept()
@@ -587,8 +764,12 @@ class CalibrationWizard(QDialog):
         else:
             self.log("User cancelled calibration wizard")
 
-        # Defensive: release the operation lock on cancel (idempotent).
-        get_operation_lock().release(CALIBRATION)
+        # Stop a running pulse worker first (bounded wait; the worker closes
+        # the cage + master valves before finishing), then release the
+        # operation lock for this run.
+        self._user_cancelled = True
+        self._shutdown_worker()
+        self._finalize_run()
 
         # Close dialog immediately - user pressed cancel, they mean it
         # Use simple reject() - Qt will handle cleanup
