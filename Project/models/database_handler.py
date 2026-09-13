@@ -222,6 +222,7 @@ class DatabaseHandler:
                         calibration_date TEXT NOT NULL,
                         calibrated_by INTEGER,
                         notes TEXT,
+                        inter_pulse_interval_ms INTEGER,
                         FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -240,6 +241,7 @@ class DatabaseHandler:
                         calibration_date TEXT NOT NULL,
                         calibrated_by INTEGER,
                         notes TEXT,
+                        inter_pulse_interval_ms INTEGER,
                         FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -267,6 +269,29 @@ class DatabaseHandler:
                     cursor.execute('''
                         ALTER TABLE animals
                         ADD COLUMN sex TEXT CHECK(sex IN ('male', 'female')) DEFAULT NULL
+                    ''')
+
+                # Add inter_pulse_interval_ms to valve_calibration if it doesn't
+                # exist (CREATE TABLE IF NOT EXISTS does not upgrade an existing
+                # table; the PRAGMA guard keeps this migration idempotent).
+                # NULL means "legacy timing" (no stored inter-pulse rest).
+                cursor.execute("PRAGMA table_info(valve_calibration)")
+                columns = [col[1] for col in cursor.fetchall()]
+
+                if 'inter_pulse_interval_ms' not in columns:
+                    cursor.execute('''
+                        ALTER TABLE valve_calibration
+                        ADD COLUMN inter_pulse_interval_ms INTEGER DEFAULT NULL
+                    ''')
+
+                # Same idempotent migration for valve_calibration_history
+                cursor.execute("PRAGMA table_info(valve_calibration_history)")
+                columns = [col[1] for col in cursor.fetchall()]
+
+                if 'inter_pulse_interval_ms' not in columns:
+                    cursor.execute('''
+                        ALTER TABLE valve_calibration_history
+                        ADD COLUMN inter_pulse_interval_ms INTEGER DEFAULT NULL
                     ''')
 
                 conn.commit()
@@ -1802,6 +1827,7 @@ class DatabaseHandler:
         num_samples,
         calibrated_by=None,
         notes=None,
+        inter_pulse_interval_ms=None,
     ):
         """
         Save valve calibration data (per-valve empirical calibration).
@@ -1816,6 +1842,8 @@ class DatabaseHandler:
             num_samples: Number of pulses measured
             calibrated_by: Trainer ID who performed calibration
             notes: Optional notes
+            inter_pulse_interval_ms: Rest between pulses used for calibration
+                (None = legacy timing)
 
         Returns:
             calibration_id if successful, None otherwise
@@ -1828,11 +1856,11 @@ class DatabaseHandler:
                 # Insert into history first
                 cursor.execute(
                     '''
-                    INSERT INTO valve_calibration_history 
-                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml, 
-                     stddev_ml, coefficient_of_variation_pct, num_samples, 
-                     calibration_date, calibrated_by, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO valve_calibration_history
+                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+                     stddev_ml, coefficient_of_variation_pct, num_samples,
+                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         cage_id,
@@ -1845,17 +1873,18 @@ class DatabaseHandler:
                         calibration_date,
                         calibrated_by,
                         notes,
+                        inter_pulse_interval_ms,
                     ),
                 )
 
                 # Update or insert current calibration
                 cursor.execute(
                     '''
-                    INSERT OR REPLACE INTO valve_calibration 
-                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml, 
-                     stddev_ml, coefficient_of_variation_pct, num_samples, 
-                     calibration_date, calibrated_by, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO valve_calibration
+                    (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+                     stddev_ml, coefficient_of_variation_pct, num_samples,
+                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         cage_id,
@@ -1868,6 +1897,7 @@ class DatabaseHandler:
                         calibration_date,
                         calibrated_by,
                         notes,
+                        inter_pulse_interval_ms,
                     ),
                 )
 
@@ -1899,9 +1929,10 @@ class DatabaseHandler:
                 cursor.execute(
                     '''
                     SELECT calibration_id, cage_id, relay_id, pulse_width_ms,
-                           volume_per_pulse_ml, stddev_ml, 
+                           volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
-                           calibration_date, calibrated_by, notes
+                           calibration_date, calibrated_by, notes,
+                           inter_pulse_interval_ms
                     FROM valve_calibration
                     WHERE cage_id = ?
                 ''',
@@ -1922,6 +1953,7 @@ class DatabaseHandler:
                         'calibration_date': row[8],
                         'calibrated_by': row[9],
                         'notes': row[10],
+                        'inter_pulse_interval_ms': row[11],
                     }
                 return None
 
@@ -1943,7 +1975,8 @@ class DatabaseHandler:
                     SELECT cage_id, relay_id, pulse_width_ms,
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
-                           calibration_date, calibrated_by, notes
+                           calibration_date, calibrated_by, notes,
+                           inter_pulse_interval_ms
                     FROM valve_calibration
                     ORDER BY cage_id
                 ''')
@@ -1961,6 +1994,7 @@ class DatabaseHandler:
                         'calibration_date': row[7],
                         'calibrated_by': row[8],
                         'notes': row[9],
+                        'inter_pulse_interval_ms': row[10],
                     }
 
                 return calibrations
@@ -1979,7 +2013,8 @@ class DatabaseHandler:
                     SELECT history_id, cage_id, relay_id, pulse_width_ms,
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
-                           calibration_date, calibrated_by, notes
+                           calibration_date, calibrated_by, notes,
+                           inter_pulse_interval_ms
                     FROM valve_calibration_history
                     WHERE cage_id = ?
                     ORDER BY calibration_date DESC
@@ -2003,6 +2038,7 @@ class DatabaseHandler:
                             'calibration_date': row[8],
                             'calibrated_by': row[9],
                             'notes': row[10],
+                            'inter_pulse_interval_ms': row[11],
                         }
                     )
 
