@@ -2,6 +2,8 @@
 
 Per-valve calibration corrects for manufacturing variance between solenoid valves. Each valve gets its own `mL/pulse` factor stored in the DB and applied automatically at runtime.
 
+Since v1.16.0 a calibration also stores the **pulse timing profile** it was measured at — the pulse width and the valve-closed rest between pulses — and deliveries replay that same profile. Calibrate at the timing you intend to run; see [Pulse timing profile](#pulse-timing-profile) below.
+
 The **recommended path is the in-app Calibration Wizard**. A CLI tool is available for headless use.
 
 ---
@@ -17,7 +19,8 @@ The **recommended path is the in-app Calibration Wizard**. A CLI tool is availab
 ### Step 2: Run the Wizard
 1. Open **Settings → Calibration** and click **Run Calibration Wizard**.
 2. Select the cage(s) to calibrate (cage names from the Cages tab are shown).
-3. Follow the on-screen prompts — the wizard executes the pulse train automatically.
+3. On the configuration page, set the number of pulses, the **pulse width**, and the **inter-pulse interval**. The page shows the estimated run time and flags a hot duty cycle.
+4. Follow the on-screen prompts — the wizard executes the pulse train automatically. Progress updates live, and the run can be stopped by closing the wizard.
 
 ### Step 3: Measure & Save
 1. When prompted, enter the measured volume (in mL) from your lab scale.
@@ -25,6 +28,29 @@ The **recommended path is the in-app Calibration Wizard**. A CLI tool is availab
 
 ### Step 4: Verify
 Run a small test schedule (e.g. 0.5 mL) and confirm the delivered volume is within ±5 %.
+
+---
+
+## Pulse timing profile
+
+A calibration says "this valve delivers X mL per pulse" — but only at the cadence it was measured at. Firing the same valve harder heats its coil, which weakens the magnetic pull, which slows the valve opening. On short pulses that lost time is a large share of the shot, so the volume per pulse drifts **downward over a long run**. Bench runs at a 15 ms width and a 100 ms rest lost about 40 % of their output across nine consecutive 500-pulse runs.
+
+Two controls set the profile, and both are stored with the calibration:
+
+| Control | What it does | Default |
+|---|---|---|
+| **Pulse Width** | How long the valve is held open per pulse. Wider pulses spend proportionally less time in the slow opening transient, so they are less sensitive to coil heating — but they coarsen the dose granularity. | 20 ms |
+| **Inter-Pulse Interval** | The valve-closed rest between pulses. A longer rest lowers the duty cycle, so the coil runs cooler and the output holds steady. | 500 ms |
+
+**Calibrate at the profile you intend to run.** Deliveries replay the stored profile for that cage, so the duty cycle that produced the `mL/pulse` figure is the duty cycle the animal receives.
+
+**Duty cycle advisory.** Above roughly 15 % duty (`width ÷ (width + interval)`) the wizard shows a warning. It never blocks — it flags that the valve is energised for a large share of the run and the output may drift. Lengthen the interval to bring it down.
+
+**Trade-off: longer intervals make deliveries longer.** A delivery whose estimated duration would exceed `max_pulse_delivery_time_s` (default 120 s) is **refused before any water is dispensed**, with the reason logged. If you hit that, shorten the interval, reduce the per-delivery volume, or raise the limit.
+
+**Existing calibrations are unaffected.** A calibration saved before v1.16.0 has no stored interval and keeps the previous 100 ms cadence exactly. It only changes when you re-calibrate that cage.
+
+**Finding the right profile.** There is no universal answer — it depends on the valve, the head, and the dose. Calibrate the same valve at several intervals (for example 100, 500 and 1000 ms), repeat each several times, and pick the shortest interval whose output stays flat across runs. Record the winner for your lab.
 
 ---
 

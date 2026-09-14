@@ -185,8 +185,8 @@ sqlite3 rrr_database.db "SELECT * FROM valve_calibration WHERE cage_id=15;"
 
 **Expected Output:**
 ```
-calibration_id|cage_id|relay_id|pulse_width_ms|volume_per_pulse_ml|stddev_ml|coefficient_of_variation_pct|num_samples|calibration_date|calibrated_by|notes
-1|15|15|20|0.075|0.000212|0.27|250|2025-11-04T14:30:15.123456|1|Empirical calibration: 250 pulses @ 20ms
+calibration_id|cage_id|relay_id|pulse_width_ms|volume_per_pulse_ml|stddev_ml|coefficient_of_variation_pct|num_samples|calibration_date|calibrated_by|notes|inter_pulse_interval_ms
+1|15|15|20|0.075|0.000212|0.27|250|2025-11-04T14:30:15.123456|1|Wizard calibration: 250 pulses @ 20ms + 500ms rest|500
 ```
 
 #### 4. Test Delivery
@@ -214,9 +214,18 @@ CREATE TABLE valve_calibration (
     num_samples INTEGER NOT NULL,            -- Number of pulses (200-300)
     calibration_date TEXT NOT NULL,
     calibrated_by INTEGER,                   -- Trainer ID
-    notes TEXT
+    notes TEXT,
+    inter_pulse_interval_ms INTEGER          -- Valve-closed rest; NULL = legacy 100ms
 );
 ```
+
+`inter_pulse_interval_ms` (added v1.16.0) completes the timing profile: together
+with `pulse_width_ms` it records the cadence the `volume_per_pulse_ml` figure was
+measured at, and `SolenoidFlowStrategy` replays that cadence when delivering to
+the cage. The column is added in place on existing databases; rows written before
+v1.16.0 hold NULL and keep the previous hardcoded 100 ms rest, so their delivery
+timing is unchanged. See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md#pulse-timing-profile)
+for how to choose a profile.
 
 **`valve_calibration_history` Table:**
 - Same schema as above
