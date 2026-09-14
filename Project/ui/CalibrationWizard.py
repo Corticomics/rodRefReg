@@ -399,10 +399,17 @@ class CalibrationWizard(QDialog):
 
         # Number of pulses
         self.num_pulses_spin = QSpinBox()
-        self.num_pulses_spin.setRange(100, 500)
+        # Low counts are allowed for sampling and diagnostic runs; the
+        # trade-off is precision, since scale resolution is a larger share
+        # of a smaller total volume.
+        self.num_pulses_spin.setRange(10, 1000)
         self.num_pulses_spin.setValue(250)
         self.num_pulses_spin.setSuffix(" pulses")
-        self.num_pulses_spin.setToolTip("More pulses = higher precision (recommended: 250)")
+        self.num_pulses_spin.setToolTip(
+            "More pulses = higher precision (recommended: 250). Short runs "
+            "are useful for sampling a timing profile, but weigh a smaller "
+            "total volume, so scale error counts for more."
+        )
         config_layout.addRow("Number of Pulses:", self.num_pulses_spin)
 
         # Pulse width
