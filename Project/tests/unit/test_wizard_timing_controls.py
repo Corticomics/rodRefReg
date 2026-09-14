@@ -182,6 +182,29 @@ def test_time_estimate_tracks_all_three_spin_boxes(qapp):
     wizard.close()
 
 
+def test_pulse_count_allows_short_sampling_runs(qapp):
+    """Short runs are needed to sample a timing profile before committing."""
+    wizard = _make_wizard()
+    wizard._show_configuration()
+
+    wizard.num_pulses_spin.setValue(75)
+    assert wizard.num_pulses_spin.value() == 75
+
+    # The floor still rejects a nonsensical run, and long runs stay available
+    # for the extra gravimetric precision they buy.
+    wizard.num_pulses_spin.setValue(1)
+    assert wizard.num_pulses_spin.value() == 10
+    wizard.num_pulses_spin.setValue(1000)
+    assert wizard.num_pulses_spin.value() == 1000
+
+    # A short run carries through to the worker rather than being clamped.
+    wizard.num_pulses_spin.setValue(75)
+    wizard._show_execution()
+    assert wizard.num_pulses == 75
+    assert wizard.progress_bar.maximum() == 75
+    wizard.close()
+
+
 def test_duty_cycle_advisory_is_shown_above_threshold_only(qapp):
     wizard = _make_wizard()
     wizard._show_configuration()
