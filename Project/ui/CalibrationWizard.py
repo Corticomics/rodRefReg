@@ -49,7 +49,9 @@ class _CalibrationPulseWorker(QObject):
     - Hardware imports stay inside run() so this module imports cheaply
       without hardware deps.
     - Cancellation is cooperative: the dialog sets ``stop_event`` and the
-      loop checks it once per pulse.
+      loop checks it once per pulse. The inter-pulse rest waits on the
+      same event, so a cancel interrupts a long rest immediately instead
+      of running it out (identical behaviour at the legacy 100 ms rest).
     - Whatever the exit path (completion, cancel, exception), the cage
       relay and the master valve are closed before ``finished`` is emitted.
     """
@@ -58,16 +60,26 @@ class _CalibrationPulseWorker(QObject):
     log = pyqtSignal(str)  # human-readable status line for the wizard log
     finished = pyqtSignal(bool, object)  # success, error message (str) or None
 
-    # Rest between pulses, seconds — same constant the inline loop used.
-    PULSE_REST_S = 0.1
+    # Rest between pulses, milliseconds — the legacy inline-loop value, used
+    # when a caller does not supply a timing profile.
+    DEFAULT_INTER_PULSE_INTERVAL_MS = 100
 
-    def __init__(self, cage_id, num_pulses, pulse_width_ms, system_settings, stop_event):
+    def __init__(
+        self,
+        cage_id,
+        num_pulses,
+        pulse_width_ms,
+        system_settings,
+        stop_event,
+        inter_pulse_interval_ms=DEFAULT_INTER_PULSE_INTERVAL_MS,
+    ):
         super().__init__()
         self._cage_id = cage_id
         self._num_pulses = num_pulses
         self._pulse_width_ms = pulse_width_ms
         self._system_settings = system_settings
         self._stop_event = stop_event
+        self._inter_pulse_interval_ms = inter_pulse_interval_ms
 
     def run(self):
         """Execute the pulse sequence. Runs on the worker thread."""
@@ -106,6 +118,7 @@ class _CalibrationPulseWorker(QObject):
             # Execute pulses
             pulse_count = 0
             pulse_duration_s = self._pulse_width_ms / 1000.0
+            rest_duration_s = self._inter_pulse_interval_ms / 1000.0
             stopped = False
 
             for _ in range(self._num_pulses):
@@ -132,8 +145,12 @@ class _CalibrationPulseWorker(QObject):
                         f"({pulse_count / self._num_pulses * 100:.0f}%)"
                     )
 
-                # Small delay between pulses
-                time.sleep(self.PULSE_REST_S)
+                # Valve-closed rest between pulses. Waiting on the stop event
+                # (rather than sleeping) means a cancel is honoured at once,
+                # which matters once the rest runs to hundreds of ms.
+                if self._stop_event.wait(rest_duration_s):
+                    stopped = True
+                    break
 
             # Close master valve (same order as the old inline loop)
             solenoid.close_cage(self._cage_id)
@@ -180,6 +197,14 @@ class CalibrationWizard(QDialog):
 
     calibration_complete = pyqtSignal(dict)  # Emits calibration results
 
+    # Default valve-closed rest offered in the wizard. Longer than the legacy
+    # 100 ms so a calibration run does not heat the coil the way a tight duty
+    # cycle does; the delivery path replays whatever is stored per cage.
+    DEFAULT_INTER_PULSE_INTERVAL_MS = 500
+
+    # Above this duty cycle the config page shows a (non-blocking) advisory.
+    DUTY_CYCLE_ADVISORY_PCT = 15.0
+
     def __init__(self, cage_id, database_handler, system_controller, parent=None):
         """
         Initialize calibration wizard.
@@ -208,6 +233,7 @@ class CalibrationWizard(QDialog):
         # Calibration parameters
         self.num_pulses = 250  # Default
         self.pulse_width_ms = 20  # Default
+        self.inter_pulse_interval_ms = self.DEFAULT_INTER_PULSE_INTERVAL_MS
         self.measured_volume_ml = 0.0
         self.calibration_result = None
 
@@ -350,7 +376,10 @@ class CalibrationWizard(QDialog):
         checklist_group.setLayout(checklist_layout)
         self.content_layout.addWidget(checklist_group)
 
-        warning = QLabel("This process will take ~8-10 minutes and cannot be paused once started.")
+        warning = QLabel(
+            "The run takes several minutes — the next step estimates it from your "
+            "settings — and cannot be paused once started."
+        )
         warning.setWordWrap(True)
         warning.setProperty("variant", "warning")
         self.content_layout.addWidget(warning)
@@ -381,21 +410,49 @@ class CalibrationWizard(QDialog):
         self.pulse_width_spin.setRange(10, 500)
         self.pulse_width_spin.setValue(20)
         self.pulse_width_spin.setSuffix(" ms")
-        self.pulse_width_spin.setToolTip("Pulse duration (default: 20ms for Parker Series 3)")
+        self.pulse_width_spin.setToolTip("How long the valve is held open for each pulse")
         config_layout.addRow("Pulse Width:", self.pulse_width_spin)
+
+        # Inter-pulse interval — the valve-closed rest between pulses. Stored
+        # with the calibration so deliveries replay the same timing profile.
+        self.interval_spin = QSpinBox()
+        self.interval_spin.setRange(100, 2000)
+        self.interval_spin.setValue(self.DEFAULT_INTER_PULSE_INTERVAL_MS)
+        self.interval_spin.setSingleStep(50)
+        self.interval_spin.setSuffix(" ms")
+        self.interval_spin.setToolTip(
+            "Rest between pulses, with the valve closed. A longer rest keeps "
+            "the coil cooler, which keeps the volume per pulse steady over a "
+            "long run. Deliveries reuse the interval you calibrate with."
+        )
+        config_layout.addRow("Inter-Pulse Interval:", self.interval_spin)
 
         # Estimated time
         self.time_estimate = QLabel()
-        self._update_time_estimate()
-        self.num_pulses_spin.valueChanged.connect(self._update_time_estimate)
         config_layout.addRow("Estimated Time:", self.time_estimate)
+
+        for spin in (self.num_pulses_spin, self.pulse_width_spin, self.interval_spin):
+            spin.valueChanged.connect(self._update_time_estimate)
 
         config_group.setLayout(config_layout)
         self.content_layout.addWidget(config_group)
 
-        info = QLabel("Recommended: Use default values (250 pulses @ 20ms) for best accuracy.")
+        # Duty-cycle advisory. Never blocks — the long-standing 20 ms / 100 ms
+        # profile is itself 16.7%, so this only tells the operator that a hot
+        # duty cycle can make the volume per pulse drift during the run.
+        self.duty_warning = QLabel()
+        self.duty_warning.setWordWrap(True)
+        self.duty_warning.setProperty("variant", "warning")
+        self.content_layout.addWidget(self.duty_warning)
+
+        info = QLabel(
+            "Calibrate with the pulse width and interval you intend to run. "
+            "Deliveries replay this cage's stored timing profile."
+        )
         info.setWordWrap(True)
         self.content_layout.addWidget(info)
+
+        self._update_time_estimate()
 
         self.content_layout.addStretch()
 
@@ -404,10 +461,31 @@ class CalibrationWizard(QDialog):
         self.next_btn.setEnabled(True)
 
     def _update_time_estimate(self):
-        """Update estimated time based on pulse count"""
-        num_pulses = self.num_pulses_spin.value() if hasattr(self, 'num_pulses_spin') else 250
-        est_minutes = (num_pulses * 0.12) / 60  # ~0.12s per pulse
-        self.time_estimate.setText(f"~{est_minutes:.1f} minutes")
+        """Refresh the run-time estimate and the duty-cycle advisory."""
+        if not hasattr(self, 'num_pulses_spin'):
+            return
+        num_pulses = self.num_pulses_spin.value()
+        pulse_width_ms = self.pulse_width_spin.value()
+        interval_ms = self.interval_spin.value()
+
+        # Master-valve settle (0.5 s) plus one period per pulse.
+        est_seconds = 0.5 + num_pulses * (pulse_width_ms + interval_ms) / 1000.0
+        if est_seconds < 90:
+            self.time_estimate.setText(f"~{est_seconds:.0f} seconds")
+        else:
+            self.time_estimate.setText(f"~{est_seconds / 60:.1f} minutes")
+
+        duty_pct = 100.0 * pulse_width_ms / (pulse_width_ms + interval_ms)
+        if duty_pct > self.DUTY_CYCLE_ADVISORY_PCT:
+            self.duty_warning.setText(
+                f"Duty cycle {duty_pct:.0f}% — the valve is energised for a large "
+                "share of the run, so the coil heats up and the volume per pulse "
+                "can drift downward. Lengthen the interval to reduce it."
+            )
+            self.duty_warning.setVisible(True)
+        else:
+            self.duty_warning.clear()
+            self.duty_warning.setVisible(False)
 
     def _show_execution(self):
         """Step 3: Execute pulse sequence"""
@@ -416,6 +494,7 @@ class CalibrationWizard(QDialog):
         # Save parameters
         self.num_pulses = self.num_pulses_spin.value()
         self.pulse_width_ms = self.pulse_width_spin.value()
+        self.inter_pulse_interval_ms = self.interval_spin.value()
 
         status = QLabel(
             f"<b>Executing {self.num_pulses} pulses on Cage {self.cage_id}...</b><br><br>"
@@ -436,7 +515,10 @@ class CalibrationWizard(QDialog):
         self.next_btn.setText("Executing...")
         self.cancel_btn.setEnabled(False)
 
-        self.log(f"Starting calibration: {self.num_pulses} pulses @ {self.pulse_width_ms}ms")
+        self.log(
+            f"Starting calibration: {self.num_pulses} pulses @ {self.pulse_width_ms}ms "
+            f"+ {self.inter_pulse_interval_ms}ms rest"
+        )
 
         # Start execution in background
         QTimer.singleShot(500, self._execute_calibration)
@@ -477,6 +559,7 @@ class CalibrationWizard(QDialog):
             pulse_width_ms=self.pulse_width_ms,
             system_settings=self.system_controller.settings,
             stop_event=self._worker_stop,
+            inter_pulse_interval_ms=self.inter_pulse_interval_ms,
         )
         # NOT parented to the dialog (a QObject moved to a thread must be
         # parentless); lifetime is managed in _on_worker_finished.
@@ -651,6 +734,13 @@ class CalibrationWizard(QDialog):
 
         results_layout.addRow("Total Volume:", QLabel(f"<b>{self.measured_volume_ml:.4f} mL</b>"))
         results_layout.addRow("Number of Pulses:", QLabel(f"<b>{self.num_pulses}</b>"))
+        results_layout.addRow(
+            "Pulse Timing:",
+            QLabel(
+                f"<b>{self.pulse_width_ms} ms open + "
+                f"{self.inter_pulse_interval_ms} ms rest</b>"
+            ),
+        )
         vpp = QLabel(f"Volume per Pulse: {volume_per_pulse:.6f} mL")
         vpp.setProperty("variant", "success")
         results_layout.addRow("", vpp)
@@ -831,7 +921,10 @@ class CalibrationWizard(QDialog):
             # Step 3: Save to database
             self.log("Saving to database...")
             relay_id = self.cage_id  # Assuming cage_id == relay_id
-            notes = f"Wizard calibration: {self.num_pulses} pulses @ {self.pulse_width_ms}ms"
+            notes = (
+                f"Wizard calibration: {self.num_pulses} pulses @ "
+                f"{self.pulse_width_ms}ms + {self.inter_pulse_interval_ms}ms rest"
+            )
 
             cal_id = self.db.save_valve_calibration(
                 cage_id=self.cage_id,
@@ -843,6 +936,9 @@ class CalibrationWizard(QDialog):
                 num_samples=int(self.num_pulses),
                 calibrated_by=trainer_id,
                 notes=notes,
+                # Always written: the row is replaced per cage, so omitting the
+                # interval here would silently reset a stored profile to legacy.
+                inter_pulse_interval_ms=int(self.inter_pulse_interval_ms),
             )
 
             if not cal_id:

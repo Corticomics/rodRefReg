@@ -1122,20 +1122,26 @@ class SettingsTab(QWidget):
 
             with open(file_path, 'w') as f:
                 f.write(
-                    "Cage,Status,Volume_per_Pulse_mL,CV_Percent,Num_Samples,Calibration_Date,Notes\n"
+                    "Cage,Status,Volume_per_Pulse_mL,CV_Percent,Num_Samples,"
+                    "Pulse_Width_ms,Inter_Pulse_Interval_ms,Calibration_Date,Notes\n"
                 )
 
                 for cage_id in range(1, 16):
                     if cage_id in calibrations:
                         cal = calibrations[cage_id]
+                        # Pre-timing-profile rows have no interval: report the
+                        # legacy cadence rather than an empty column.
+                        interval = cal.get('inter_pulse_interval_ms')
+                        interval_text = "100 (legacy)" if interval is None else str(interval)
                         f.write(
                             f"{cage_id},Calibrated,{cal['volume_per_pulse_ml']:.6f},"
                             f"{cal['coefficient_of_variation_pct']:.2f},"
-                            f"{cal['num_samples']},{cal['calibration_date']},"
+                            f"{cal['num_samples']},{cal['pulse_width_ms']},"
+                            f"\"{interval_text}\",{cal['calibration_date']},"
                             f"\"{cal.get('notes', '')}\"\n"
                         )
                     else:
-                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—\n")
+                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—,—,—\n")
 
             self.print_to_terminal(f"Calibration report exported to {file_path}")
             QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")
