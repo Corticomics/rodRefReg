@@ -6,6 +6,14 @@ import threading
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
+# Rest between pulses used before the timing profile was stored per cage.
+# Calibrations that predate the profile replay exactly this cadence.
+LEGACY_INTER_PULSE_INTERVAL_MS = 100
+
+# The inter-pulse rest is slept in slices no longer than this so a Stop is
+# honoured well inside the GUI's clean-exit budget (utils/stop_sequence.py).
+INTERVAL_SLICE_S = 0.25
+
 
 @dataclass
 class DeliveryResult:
@@ -142,24 +150,51 @@ class SolenoidFlowStrategy:
         # Best practice: deterministic run – use values saved prior to run.
         self._build_calibration_snapshot()
 
-    def _get_snapshot_entry(self, cage_id: int) -> Optional[Tuple[int, float]]:
+    @staticmethod
+    def _resolve_interval_ms(raw) -> int:
         """
-        Get (pulse_width_ms, volume_per_pulse_ml) for a cage from the snapshot.
-        Returns None if not present.
+        Normalise a stored inter-pulse interval to milliseconds.
+
+        Calibrations saved before the timing profile existed store NULL, and
+        those cages must keep the cadence they were calibrated at — the
+        legacy hardcoded rest.
+        """
+        try:
+            if raw is None:
+                return LEGACY_INTER_PULSE_INTERVAL_MS
+            interval = int(raw)
+        except (TypeError, ValueError):
+            return LEGACY_INTER_PULSE_INTERVAL_MS
+        return interval if interval > 0 else LEGACY_INTER_PULSE_INTERVAL_MS
+
+    def _get_snapshot_entry(self, cage_id: int) -> Optional[Tuple[int, int, float]]:
+        """
+        Get (pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml)
+        for a cage from the snapshot. Returns None if not present.
         """
         by_pw = self._cal_snapshot.get(cage_id)
         if not by_pw:
             return None
         if self._pulse_width_ms in by_pw:
-            entry = by_pw[self._pulse_width_ms]
-            return (self._pulse_width_ms, float(entry.get('volume_per_pulse_ml', 0.0)))
-        selected_pw = sorted(by_pw.keys())[0]
+            selected_pw = self._pulse_width_ms
+        else:
+            selected_pw = sorted(by_pw.keys())[0]
         entry = by_pw[selected_pw]
-        return (selected_pw, float(entry.get('volume_per_pulse_ml', 0.0)))
+        return (
+            selected_pw,
+            self._resolve_interval_ms(entry.get('inter_pulse_interval_ms')),
+            float(entry.get('volume_per_pulse_ml', 0.0)),
+        )
 
-    async def _get_cage_calibration(self, cage_id: int) -> Tuple[int, float]:
+    async def _get_cage_calibration(self, cage_id: int) -> Tuple[int, int, float]:
         """
-        Resolve the cage-specific calibration (pulse_width_ms, volume_per_pulse_ml).
+        Resolve the cage-specific timing profile and volume:
+        (pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml).
+
+        Delivery replays the profile the cage was calibrated at, so the
+        duty cycle that produced volume_per_pulse_ml is the duty cycle the
+        animal receives.
+
         Order:
           1) Snapshot (deterministic per-run)
           2) Read-through DB (cache into snapshot)
@@ -169,7 +204,8 @@ class SolenoidFlowStrategy:
         if snap:
             try:
                 print(
-                    f"[CAL RESOLVE] cage={cage_id} using snapshot width={snap[0]}ms vol={snap[1]:.6f} mL/pulse",
+                    f"[CAL RESOLVE] cage={cage_id} using snapshot width={snap[0]}ms "
+                    f"rest={snap[1]}ms vol={snap[2]:.6f} mL/pulse",
                     flush=True,
                 )
             except Exception:
@@ -181,30 +217,63 @@ class SolenoidFlowStrategy:
                 if cal:
                     pw = int(cal.get('pulse_width_ms', self._pulse_width_ms))
                     vol = float(cal.get('volume_per_pulse_ml', 0.0))
+                    interval = self._resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
                     if not self._cal_snapshot.get(cage_id):
                         self._cal_snapshot[cage_id] = {}
                     self._cal_snapshot[cage_id][pw] = {
                         'id': cal.get('calibration_id', 0),
                         'volume_per_pulse_ml': vol,
+                        'inter_pulse_interval_ms': interval,
                     }
                     self._logger.debug(
                         f"Using DB calibration (read-through) for cage {cage_id}: "
-                        f"{vol:.6f} mL/pulse @ {pw}ms"
+                        f"{vol:.6f} mL/pulse @ {pw}ms + {interval}ms rest"
                     )
                     try:
                         print(
-                            f"[CAL RESOLVE] cage={cage_id} using DB width={pw}ms vol={vol:.6f} mL/pulse",
+                            f"[CAL RESOLVE] cage={cage_id} using DB width={pw}ms "
+                            f"rest={interval}ms vol={vol:.6f} mL/pulse",
                             flush=True,
                         )
                     except Exception:
                         pass
-                    return (pw, vol)
+                    return (pw, interval, vol)
         except Exception as e:
             self._logger.debug(f"DB calibration read-through failed for cage {cage_id}: {e}")
         return (
             self._pulse_width_ms,
+            LEGACY_INTER_PULSE_INTERVAL_MS,
             self._empirical_pulse_volumes.get(self._pulse_width_ms, 0.026),
         )
+
+    def _estimate_pulse_period_s(self, pulse_width_ms: int, interval_ms: int) -> float:
+        """
+        Wall-clock cost of one pulse: valve open, settling, the calibrated
+        rest, and — when a sensor is in the loop — its measurement window
+        plus the amortised periodic sensor restart.
+        """
+        period_s = (pulse_width_ms + self._pulse_settling_ms + interval_ms) / 1000.0
+        if self._sensor_available:
+            period_s += 0.3  # measurement buffer after settling
+            period_s += 0.4  # sensor restart (~2s every 5 pulses), amortised
+        return period_s
+
+    async def _rest_between_pulses(self, interval_ms: int) -> bool:
+        """
+        Wait out the inter-pulse rest, in cancellable slices.
+
+        Returns True if the operator cancelled during the rest. A single
+        long sleep here would hold Stop past the GUI's clean-exit budget and
+        force a thread terminate, so the wait is sliced.
+        """
+        remaining_s = max(0.0, interval_ms / 1000.0)
+        while remaining_s > 0:
+            if self._check_cancelled():
+                return True
+            slice_s = min(INTERVAL_SLICE_S, remaining_s)
+            await asyncio.sleep(slice_s)
+            remaining_s -= slice_s
+        return self._check_cancelled()
 
     def _build_calibration_snapshot(self) -> None:
         """
@@ -220,15 +289,18 @@ class SolenoidFlowStrategy:
             for cage_id, cal in all_cals.items():
                 pw = int(cal.get('pulse_width_ms') or 0)
                 vol = float(cal.get('volume_per_pulse_ml') or 0.0)
+                interval = self._resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
                 if not self._cal_snapshot.get(cage_id):
                     self._cal_snapshot[cage_id] = {}
                 self._cal_snapshot[cage_id][pw] = {
                     'id': cal.get('calibration_id', 0),
                     'volume_per_pulse_ml': vol,
+                    'inter_pulse_interval_ms': interval,
                 }
                 try:
                     print(
-                        f"[CAL SNAPSHOT] cage={cage_id} width={pw}ms vol={vol:.6f} mL/pulse",
+                        f"[CAL SNAPSHOT] cage={cage_id} width={pw}ms rest={interval}ms "
+                        f"vol={vol:.6f} mL/pulse",
                         flush=True,
                     )
                 except Exception:
@@ -697,12 +769,15 @@ class SolenoidFlowStrategy:
             return False
 
         # Step 4: Calculate estimated pulses from cage-specific calibration
-        cage_pw_ms, expected_vol_per_pulse = await self._get_cage_calibration(cage_id)
+        cage_pw_ms, cage_interval_ms, expected_vol_per_pulse = await self._get_cage_calibration(
+            cage_id
+        )
         estimated_pulses = int(target_volume_ml / expected_vol_per_pulse) + 1
 
         est_msg = (
             f"[EST PULSES] cage={cage_id} target={target_volume_ml:.3f}mL "
-            f"pulse_vol={expected_vol_per_pulse:.4f}mL @ {cage_pw_ms}ms → est={estimated_pulses}"
+            f"pulse_vol={expected_vol_per_pulse:.4f}mL @ {cage_pw_ms}ms "
+            f"+ {cage_interval_ms}ms rest → est={estimated_pulses}"
         )
         self._logger.info(est_msg)
         try:
@@ -718,6 +793,23 @@ class SolenoidFlowStrategy:
             self._logger.error(
                 f"Estimated pulses ({estimated_pulses}) exceeds safety limit ({max_pulses}). "
                 f"Target volume too large or calibration invalid."
+            )
+            return False
+
+        # Refuse an over-long delivery BEFORE any water moves. Tripping the
+        # mid-flight time limit instead reports zero delivered while the
+        # animal has already had part of the dose, and the retry then sends
+        # the full volume again — so a slow timing profile must fail dry.
+        estimated_duration_s = estimated_pulses * self._estimate_pulse_period_s(
+            cage_pw_ms, cage_interval_ms
+        )
+        if estimated_duration_s > max_time_s:
+            self._logger.error(
+                f"Estimated delivery time ({estimated_duration_s:.1f}s) exceeds the limit "
+                f"({max_time_s:.1f}s) for cage {cage_id}: {estimated_pulses} pulses @ "
+                f"{cage_pw_ms}ms + {cage_interval_ms}ms rest. Refusing before dispensing — "
+                f"shorten the inter-pulse interval, split the volume, or raise "
+                f"max_pulse_delivery_time_s."
             )
             return False
 
@@ -805,8 +897,14 @@ class SolenoidFlowStrategy:
                     self._logger.error(f"Pulse {pulse_count+1} failed: {e}")
                     # Continue to next pulse (don't abort on single pulse failure)
 
-                # Small delay between pulses
-                await asyncio.sleep(0.1)
+                # Valve-closed rest between pulses, per this cage's calibrated
+                # timing profile. Sliced so Stop is honoured promptly even at
+                # long intervals; the loop-top check handles the actual bail.
+                if await self._rest_between_pulses(cage_interval_ms):
+                    self._logger.info(
+                        f"Pulse delivery cancelled for cage {cage_id}; closing valves"
+                    )
+                    return False
 
             # Step 7: Final summary
             duration_s = asyncio.get_event_loop().time() - start_time
@@ -858,7 +956,7 @@ class SolenoidFlowStrategy:
             Delivered volume in mL
         """
         # Step 1: Get cage-specific calibration (pulse width + expected volume)
-        cage_pw_ms, expected_vol_ml = await self._get_cage_calibration(cage_id)
+        cage_pw_ms, _cage_interval_ms, expected_vol_ml = await self._get_cage_calibration(cage_id)
 
         # FAST PATH: If no sensor available, just do the pulse and return calibrated volume
         if not self._sensor_available or self._sensor is None:
