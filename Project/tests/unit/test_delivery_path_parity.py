@@ -182,26 +182,50 @@ def test_window_guard_skips_once_target_is_met(monkeypatch, name, run):
 
 
 @pytest.mark.parametrize("name,run", ENTRY_POINTS)
-def test_failed_retry_compensation_is_capped_by_remaining(monkeypatch, name, run):
-    """Compensation inflates the request but never past the outstanding dose."""
+def test_retry_never_asks_for_more_than_is_outstanding(monkeypatch, name, run):
+    """
+    A retry requests the outstanding dose, never an inflated one.
+
+    Earlier code grew the request by 5% per prior failure. A failure is not
+    evidence the next delivery should be larger, and since a failed delivery
+    may have dispensed part of its volume already, inflating the retry is
+    how over-delivery compounded.
+    """
     worker = _make_worker(monkeypatch)
     worker.animal_windows = {1: {'target_volume': 1.0}}
     worker.delivered_volumes[1] = 0.5
-    worker.failed_deliveries[1] = 2  # +10%
+    worker.failed_deliveries[1] = 2  # prior failures must NOT inflate
 
     data = _delivery(volume=0.2)
     run(worker, data, success=True)
-    # 0.2 * 1.10 = 0.22, under the 0.5 mL still outstanding
-    assert data['water_volume'] == pytest.approx(0.22)
+    assert data['water_volume'] == pytest.approx(0.2), "request must not be inflated"
 
+    # And it is still capped by what the animal actually has coming.
     worker2 = _make_worker(monkeypatch)
     worker2.animal_windows = {1: {'target_volume': 1.0}}
     worker2.delivered_volumes[1] = 0.95
-    worker2.failed_deliveries[1] = 4  # +20%
+    worker2.failed_deliveries[1] = 4
     data2 = _delivery(volume=0.2)
     run(worker2, data2, success=True)
-    # 0.2 * 1.20 = 0.24 would overshoot; clamped to the 0.05 mL remaining
-    assert data2['water_volume'] == pytest.approx(0.05)
+    assert data2['water_volume'] == pytest.approx(0.05), "capped at the outstanding 0.05 mL"
+
+
+def test_completion_tolerance_scales_with_the_pulse(monkeypatch):
+    """A window can only land within half a pulse; judge it on that scale."""
+    worker = _make_worker(monkeypatch)
+    worker.settings = {'relay_unit_assignments': {'1': 3}}
+
+    # No calibration known -> the old fixed tolerance.
+    worker.strategy._cal_snapshot = {}
+    assert worker._completion_tolerance_ml(1) == pytest.approx(0.01)
+
+    # Calibrated cage -> half a pulse.
+    worker.strategy._cal_snapshot = {3: {25: {'volume_per_pulse_ml': 0.136}}}
+    assert worker._completion_tolerance_ml(1) == pytest.approx(0.068)
+
+    # A very fine pulse must not shrink the tolerance below the float guard.
+    worker.strategy._cal_snapshot = {3: {25: {'volume_per_pulse_ml': 0.001}}}
+    assert worker._completion_tolerance_ml(1) == pytest.approx(0.01)
 
 
 def _result(**kw):

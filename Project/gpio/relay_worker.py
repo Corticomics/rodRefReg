@@ -682,12 +682,17 @@ class RelayWorker(QObject):
             target_volume = window['target_volume']
             if current_delivered >= target_volume:
                 return {'proceed': False, 'result': True}
-            if failed_count > 0:
-                volume_increase = min(failed_count * 0.05, 0.2)
-                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                delivery_data['water_volume'] = min(
-                    adjusted_volume, target_volume - current_delivered
-                )
+            # Never ask for more than the animal still has coming. A retry
+            # follows a delivery that may have dispensed part of its volume
+            # already (that partial is credited in _finalize_delivery), so
+            # asking again for the original figure would double-dose.
+            #
+            # This replaces a "+5% per prior failure" inflation: a failed
+            # delivery is not evidence that the next one should be larger,
+            # and inflating a request whose predecessor may have partly
+            # succeeded is how the over-delivery compounded.
+            outstanding = target_volume - current_delivered
+            delivery_data['water_volume'] = min(delivery_data['water_volume'], outstanding)
 
         return {
             'proceed': True,
@@ -814,6 +819,38 @@ class RelayWorker(QObject):
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
             return False
+
+    def _completion_tolerance_ml(self, animal_id):
+        """
+        How close to the target counts as "done", in mL.
+
+        Water leaves the valve in whole pulses, so a window can only ever
+        land within half a pulse of its target. Judging completeness against
+        a fixed 0.01 mL — far finer than a single pulse on any real
+        calibration — marks a correctly-rounded window as incomplete, which
+        re-schedules deliveries that cannot help and can be misreported as a
+        sensor failure.
+
+        Falls back to the old fixed tolerance when the cage's volume per
+        pulse is unknown.
+        """
+        default_tolerance = 0.01
+        strategy = getattr(self, 'strategy', None)
+        snapshot = getattr(strategy, '_cal_snapshot', None) if strategy else None
+        if not snapshot:
+            return default_tolerance
+
+        assignments = self.settings.get('relay_unit_assignments') or {}
+        cage_id = assignments.get(str(animal_id), assignments.get(animal_id))
+        by_width = snapshot.get(cage_id) if cage_id is not None else None
+        if not by_width:
+            return default_tolerance
+
+        volumes = [float(entry.get('volume_per_pulse_ml') or 0.0) for entry in by_width.values()]
+        volumes = [v for v in volumes if v > 0]
+        if not volumes:
+            return default_tolerance
+        return max(default_tolerance, max(volumes) / 2.0)
 
     def schedule_retry(self, delivery_data):
         """Schedule a retry for failed delivery"""
@@ -983,7 +1020,7 @@ class RelayWorker(QObject):
                 delivered = self.delivered_volumes.get(animal_id, 0)
                 remaining = target - delivered
 
-                if remaining > 0.01:  # Allow 0.01 mL tolerance for floating point precision
+                if remaining > self._completion_tolerance_ml(animal_id):
                     incomplete_animals[animal_id] = {
                         'delivered': delivered,
                         'target': target,
