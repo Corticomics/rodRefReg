@@ -67,6 +67,7 @@ def _self(hardware_mode, *, animal_windows=None):
     # this test still exercises the production guard/compensation/logging.
     from gpio.relay_worker import RelayWorker  # noqa: PLC0415
 
+    ns._as_delivery_result = RelayWorker._as_delivery_result  # staticmethod
     ns._prepare_delivery = MethodType(RelayWorker._prepare_delivery, ns)
     ns._finalize_delivery = MethodType(RelayWorker._finalize_delivery, ns)
     return ns

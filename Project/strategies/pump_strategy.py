@@ -3,6 +3,8 @@ from __future__ import annotations
 import threading
 from typing import Optional
 
+from strategies.delivery_strategy import DeliveryResult
+
 
 class PumpStrategy:
     """Thin adapter around the existing PumpController.
@@ -44,7 +46,7 @@ class PumpStrategy:
         relay_unit_id: int,
         target_volume_ml: float,
         triggers_hint: Optional[int] = None,
-    ) -> bool:
+    ) -> DeliveryResult:
         if relay_unit_id is None:
             raise ValueError("relay_unit_id is required")
         if target_volume_ml is None or target_volume_ml <= 0:
@@ -53,7 +55,7 @@ class PumpStrategy:
         # Honor a cancel that landed before dispatch. Does NOT clear —
         # clearing is the worker's once-per-run responsibility.
         if self._cancel_event.is_set():
-            return False
+            return DeliveryResult(success=False, warning="cancelled before dispatch")
 
         # Prefer caller-provided hint to preserve legacy scheduling semantics.
         triggers = (
@@ -65,10 +67,19 @@ class PumpStrategy:
         # For consistency with legacy path, compute the actual volume we will command.
         volume_ml_for_command = (triggers * self._volume_calculator.pump_volume_ul) / 1000.0
 
-        return await self._pump_controller.dispense_water(
+        ok = await self._pump_controller.dispense_water(
             relay_unit_id,
             volume_ml_for_command,
             triggers,
+        )
+        # The pump path is open-loop: it commands a trigger count and has no
+        # way to observe what came out. The commanded volume is the honest
+        # figure, and the warning says it is unmeasured.
+        return DeliveryResult(
+            success=bool(ok),
+            delivered_ml=volume_ml_for_command if ok else 0.0,
+            pulses=int(triggers),
+            warning="pump mode: volume is commanded, not measured",
         )
 
     async def clean(self, relay_unit_id: int, to_waste: bool = True) -> None:

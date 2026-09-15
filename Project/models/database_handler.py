@@ -45,17 +45,33 @@ class DatabaseHandler:
                             volume_dispensed REAL NOT NULL,
                             status TEXT NOT NULL,
                             cycle_index INTEGER DEFAULT NULL,
+                            volume_actual_ml REAL DEFAULT NULL,
+                            pulses_fired INTEGER DEFAULT NULL,
+                            volume_per_pulse_ml REAL DEFAULT NULL,
                             FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
                             FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
                             FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
                         )
                     ''')
-                # If table exists but needs cycle_index column
-                elif 'cycle_index' not in existing_columns:
-                    cursor.execute('''
-                        ALTER TABLE dispensing_history 
-                        ADD COLUMN cycle_index INTEGER DEFAULT NULL
-                    ''')
+                else:
+                    # If table exists but needs cycle_index column
+                    if 'cycle_index' not in existing_columns:
+                        cursor.execute('''
+                            ALTER TABLE dispensing_history
+                            ADD COLUMN cycle_index INTEGER DEFAULT NULL
+                        ''')
+                    # What the hardware reports it ACTUALLY dispensed, as
+                    # opposed to volume_dispensed, which is what was asked
+                    # for. NULL on pre-v1.17.0 rows means "unknown".
+                    for column, decl in (
+                        ('volume_actual_ml', 'REAL DEFAULT NULL'),
+                        ('pulses_fired', 'INTEGER DEFAULT NULL'),
+                        ('volume_per_pulse_ml', 'REAL DEFAULT NULL'),
+                    ):
+                        if column not in existing_columns:
+                            cursor.execute(
+                                f'ALTER TABLE dispensing_history ADD COLUMN {column} {decl}'
+                            )
 
                 # Create trainers table
                 cursor.execute('''
@@ -1702,19 +1718,26 @@ class DatabaseHandler:
                 - schedule_id: ID of the schedule
                 - animal_id: ID of the animal
                 - relay_unit_id: ID of the relay unit used
-                - volume_delivered: Amount of water delivered
+                - volume_delivered: Volume REQUESTED of the delivery
                 - timestamp: Time of delivery
-                - status: Status of delivery ('completed' or 'failed')
+                - status: Status of delivery ('completed', 'partial' or 'failed')
+                - volume_actual_ml (optional): volume the hardware reports it
+                  actually dispensed — the figure to trust. Rows written
+                  before v1.17.0 have NULL here, which means "unknown", not
+                  zero.
+                - pulses_fired (optional): pulses the valve actually fired
+                - volume_per_pulse_ml (optional): the calibration in force
         """
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     '''
-                    INSERT INTO dispensing_history 
-                    (schedule_id, animal_id, relay_unit_id, timestamp, 
-                     volume_dispensed, status)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO dispensing_history
+                    (schedule_id, animal_id, relay_unit_id, timestamp,
+                     volume_dispensed, status, volume_actual_ml, pulses_fired,
+                     volume_per_pulse_ml)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         delivery_data['schedule_id'],
@@ -1723,6 +1746,9 @@ class DatabaseHandler:
                         delivery_data['timestamp'],
                         delivery_data['volume_delivered'],
                         delivery_data['status'],
+                        delivery_data.get('volume_actual_ml'),
+                        delivery_data.get('pulses_fired'),
+                        delivery_data.get('volume_per_pulse_ml'),
                     ),
                 )
 
