@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
+
+from strategies.delivery_strategy import DeliveryResult
 
 # Rest between pulses used before the timing profile was stored per cage.
 # Calibrations that predate the profile replay exactly this cadence.
@@ -15,12 +16,9 @@ LEGACY_INTER_PULSE_INTERVAL_MS = 100
 INTERVAL_SLICE_S = 0.25
 
 
-@dataclass
-class DeliveryResult:
-    success: bool
-    delivered_ml: float
-    duration_s: float
-    warning: Optional[str] = None
+# DeliveryResult moved to strategies.delivery_strategy (the Protocol's home)
+# and re-exported here so existing imports keep working.
+__all__ = ["DeliveryResult", "SolenoidFlowStrategy"]
 
 
 class SolenoidFlowStrategy:
@@ -87,6 +85,8 @@ class SolenoidFlowStrategy:
         self._cancel_event = threading.Event()
         # Per-run calibration snapshot (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml}})
         self._cal_snapshot: Dict[int, Dict[int, Dict[str, float]]] = {}
+        # Running record of what the delivery in flight has dispensed.
+        self._reset_ledger()
 
         # NEW: Track if sensor is available for guardrail mode
         self._sensor_available = flow_sensor is not None
@@ -343,27 +343,63 @@ class SolenoidFlowStrategy:
         relay_unit_id: int,
         target_volume_ml: float,
         triggers_hint: Optional[int] = None,
-    ) -> bool:
+    ) -> DeliveryResult:
         """
         Execute delivery using mode-specific logic.
 
         Best Practice: Strategy Pattern - delegate to mode-specific methods
+
+        Returns a :class:`DeliveryResult` carrying what was actually
+        dispensed. The mode-specific methods still return a bool; the volume
+        is read from the running ledger (:meth:`_reset_ledger`), which is
+        updated as each pulse fires. That way every one of the loop's abort
+        paths — cancel, max pulses, timeout, exception — reports the water it
+        had already put in the cage, without each having to remember to.
 
         Note: deliver() does NOT clear the cancellation token. Clearing
         is the worker's responsibility, once per schedule run (see
         reset_cancel). Clearing here would wipe a mid-schedule cancel.
         """
         cage_id = int(relay_unit_id)
+        self._reset_ledger()
 
         # Honor a cancel that landed before this chunk even started.
         if self._check_cancelled():
-            return False
+            return DeliveryResult(success=False, warning="cancelled before start")
 
-        # Route to mode-specific delivery method
+        started = asyncio.get_event_loop().time()
         if self._use_pulse_mode:
-            return await self._deliver_pulse_mode(cage_id, target_volume_ml)
+            ok = await self._deliver_pulse_mode(cage_id, target_volume_ml)
+            delivered_ml = self._ledger_volume_ml
+            warning = None if ok else "delivery did not complete"
         else:
-            return await self._deliver_continuous_mode(cage_id, target_volume_ml)
+            ok = await self._deliver_continuous_mode(cage_id, target_volume_ml)
+            # Continuous mode closes on its own flow integration and keeps no
+            # pulse ledger. Report the target it believes it met, and say so:
+            # this figure is an assumption, not a measurement.
+            delivered_ml = float(target_volume_ml) if ok else 0.0
+            warning = "continuous mode: volume not independently ledgered"
+
+        return DeliveryResult(
+            success=bool(ok),
+            delivered_ml=delivered_ml,
+            duration_s=asyncio.get_event_loop().time() - started,
+            pulses=self._ledger_pulses,
+            volume_per_pulse_ml=self._ledger_volume_per_pulse_ml,
+            warning=warning,
+        )
+
+    def _reset_ledger(self) -> None:
+        """Start a fresh record of what this delivery physically dispensed."""
+        self._ledger_volume_ml = 0.0
+        self._ledger_pulses = 0
+        self._ledger_volume_per_pulse_ml = None
+
+    def _record_pulse(self, volume_ml: float, volume_per_pulse_ml: float) -> None:
+        """Bank one fired pulse. Called from the loop, not from the exits."""
+        self._ledger_volume_ml += float(volume_ml)
+        self._ledger_pulses += 1
+        self._ledger_volume_per_pulse_ml = float(volume_per_pulse_ml)
 
     async def _deliver_continuous_mode(
         self,
@@ -876,6 +912,9 @@ class SolenoidFlowStrategy:
 
                     delivered_ml += pulse_volume
                     pulse_count += 1
+                    # Bank it immediately: whichever way this loop exits, the
+                    # water is already in the cage and must be reported.
+                    self._record_pulse(pulse_volume, expected_vol_per_pulse)
                     pulses_since_restart += 1
 
                     # Log progress every 10 pulses

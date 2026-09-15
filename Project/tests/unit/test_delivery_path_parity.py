@@ -204,6 +204,83 @@ def test_failed_retry_compensation_is_capped_by_remaining(monkeypatch, name, run
     assert data2['water_volume'] == pytest.approx(0.05)
 
 
+def _result(**kw):
+    from strategies.delivery_strategy import DeliveryResult  # noqa: PLC0415
+
+    return DeliveryResult(**kw)
+
+
+def _run_with_result(worker, data, result, path="primary"):
+    async def _deliver(**_kwargs):
+        return result
+
+    worker.strategy.deliver = _deliver
+    if path == "primary":
+        return worker._handle_delivery(data)
+    return asyncio.run(worker.execute_delivery(data))
+
+
+@pytest.mark.parametrize("path", ["primary", "retry"])
+def test_credits_actual_volume_not_requested(monkeypatch, path):
+    """A pulse is whole: asking for 0.2 mL can dispense 0.357 mL."""
+    worker = _make_worker(monkeypatch)
+    data = _delivery(volume=0.2)
+    result = _result(success=True, delivered_ml=0.357, pulses=1, volume_per_pulse_ml=0.357)
+
+    assert _run_with_result(worker, data, result, path) is True
+    assert worker.delivered_volumes[1] == pytest.approx(0.357)
+
+    logged = worker.database_handler.log_delivery.call_args.args[0]
+    assert logged['volume_actual_ml'] == pytest.approx(0.357)
+    assert logged['volume_delivered'] == pytest.approx(0.2), "requested figure preserved"
+    assert logged['pulses_fired'] == 1
+
+
+@pytest.mark.parametrize("path", ["primary", "retry"])
+def test_failed_result_is_never_mistaken_for_success(monkeypatch, path):
+    """A DeliveryResult object is always truthy — .success must be consulted."""
+    worker = _make_worker(monkeypatch)
+    data = _delivery(volume=0.2)
+    result = _result(success=False, delivered_ml=0.0)
+
+    assert _run_with_result(worker, data, result, path) is False
+    assert worker.failed_deliveries[1] == 1
+    assert worker.delivered_volumes.get(1, 0) == 0
+    assert len(worker.retries) == 1
+
+
+@pytest.mark.parametrize("path", ["primary", "retry"])
+def test_partial_delivery_is_credited_before_the_retry(monkeypatch, path):
+    """
+    Water already in the cage must be credited even though the delivery
+    failed — otherwise the retry sends the whole dose a second time.
+    """
+    worker = _make_worker(monkeypatch)
+    data = _delivery(volume=1.0)
+    result = _result(success=False, delivered_ml=0.64, pulses=2, volume_per_pulse_ml=0.32)
+
+    assert _run_with_result(worker, data, result, path) is False
+    assert worker.delivered_volumes[1] == pytest.approx(0.64), "partial volume credited"
+    assert worker.failed_deliveries[1] == 1
+
+    logged = worker.database_handler.log_delivery.call_args.args[0]
+    assert logged['status'] == 'partial'
+    assert logged['volume_actual_ml'] == pytest.approx(0.64)
+    assert len(worker.retries) == 1
+
+
+def test_legacy_truthy_outcome_still_works(monkeypatch):
+    """The pump branch returns relay_info/None, not a DeliveryResult."""
+    worker = _make_worker(monkeypatch)
+    normalised = worker._as_delivery_result({'relay': 1}, requested_ml=0.3)
+    assert normalised.success is True
+    assert normalised.delivered_ml == pytest.approx(0.3)
+
+    failed = worker._as_delivery_result(None, requested_ml=0.3)
+    assert failed.success is False
+    assert failed.delivered_ml == 0.0
+
+
 def test_both_paths_use_the_same_helpers():
     """Guard against the two paths drifting apart again."""
     import inspect  # noqa: PLC0415
