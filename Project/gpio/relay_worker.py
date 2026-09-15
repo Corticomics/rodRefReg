@@ -646,47 +646,78 @@ class RelayWorker(QObject):
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
             self.check_window_completion()
 
-    async def execute_delivery(self, delivery_data):
-        """Execute delivery with volume tracking and compensation"""
-        try:
-            # Cooperative cancel: a delivery QTimer may fire after Stop was
-            # pressed. Don't start a new delivery; return fast so
-            # run_until_complete unwinds and the thread can exit.
-            if self._cancel_requested.is_set():
-                return False
-            animal_id = delivery_data['animal_id']
-            current_delivered = self.delivered_volumes.get(animal_id, 0)
-            failed_count = self.failed_deliveries.get(animal_id, 0)
-            # Window-optional (same as _handle_delivery): staggered has a
-            # cumulative window target + guard + compensation; instant retries
-            # are one-shot and use the delivery's own volume.
-            window = getattr(self, 'animal_windows', None)
-            window = window.get(animal_id) if window else None
-            if window is not None:
-                target_volume = window['target_volume']
-                if current_delivered >= target_volume:
-                    return True
-                if failed_count > 0:
-                    volume_increase = min(failed_count * 0.05, 0.2)
-                    adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                    delivery_data['water_volume'] = min(
-                        adjusted_volume, target_volume - current_delivered
-                    )
+    def _prepare_delivery(self, delivery_data):
+        """
+        Shared pre-flight for both delivery paths.
 
-            success = await self.strategy.deliver(
-                relay_unit_id=delivery_data['relay_unit_id'],
-                target_volume_ml=delivery_data['water_volume'],
-                triggers_hint=delivery_data.get('triggers'),
-            )
+        Applies, in order: the cooperative-cancel check, the schedule_id
+        default, the cumulative over-delivery guard, and the failed-retry
+        volume compensation. Staggered deliveries carry a per-animal window
+        (cumulative target + guard + compensation); instant deliveries have
+        no window and simply use the delivery's own volume.
 
-            if success:
-                with QMutexLocker(self.mutex):
-                    actual_volume = delivery_data['water_volume']
-                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
-                    self.failed_deliveries[animal_id] = 0
+        Returns a dict:
+            proceed          -- False when the caller must return immediately
+            result           -- the value to return in that case
+            current_delivered/failed_count -- counters read BEFORE the
+                                hardware call, to be handed to
+                                :meth:`_finalize_delivery`
+        """
+        # A delivery QTimer may fire after Stop was pressed. Don't start a new
+        # delivery; return fast so the caller unwinds and the thread can exit.
+        if self._cancel_requested.is_set():
+            return {'proceed': False, 'result': False}
+
+        if 'schedule_id' not in delivery_data:
+            delivery_data['schedule_id'] = self.schedule_id
+
+        animal_id = delivery_data['animal_id']
+        current_delivered = self.delivered_volumes.get(animal_id, 0)
+        failed_count = self.failed_deliveries.get(animal_id, 0)
+
+        window = getattr(self, 'animal_windows', None)
+        window = window.get(animal_id) if window else None
+        if window is not None:
+            target_volume = window['target_volume']
+            if current_delivered >= target_volume:
+                return {'proceed': False, 'result': True}
+            if failed_count > 0:
+                volume_increase = min(failed_count * 0.05, 0.2)
+                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
+                delivery_data['water_volume'] = min(
+                    adjusted_volume, target_volume - current_delivered
+                )
+
+        return {
+            'proceed': True,
+            'result': None,
+            'current_delivered': current_delivered,
+            'failed_count': failed_count,
+        }
+
+    def _finalize_delivery(self, delivery_data, success, prepared):
+        """
+        Shared post-flight for both delivery paths: credit the volume, log
+        the outcome, emit progress, and schedule a retry on failure.
+
+        ``prepared`` is the dict returned by :meth:`_prepare_delivery`; its
+        counters were read before the hardware call so the accounting matches
+        what the caller decided on.
+        """
+        animal_id = delivery_data['animal_id']
+        current_delivered = prepared['current_delivered']
+        failed_count = prepared['failed_count']
+        schedule_id = delivery_data.get('schedule_id', self.schedule_id)
+
+        if success:
+            with QMutexLocker(self.mutex):
+                actual_volume = delivery_data['water_volume']
+                self.delivered_volumes[animal_id] = current_delivered + actual_volume
+                self.failed_deliveries[animal_id] = 0
+                if self.database_handler:
                     self.database_handler.log_delivery(
                         {
-                            'schedule_id': delivery_data['schedule_id'],
+                            'schedule_id': schedule_id,
                             'animal_id': animal_id,
                             'relay_unit_id': delivery_data['relay_unit_id'],
                             'volume_delivered': actual_volume,
@@ -695,17 +726,18 @@ class RelayWorker(QObject):
                         }
                     )
 
-                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
-                self.progress.emit(
-                    f"Delivered {actual_volume:.3f}mL to animal {animal_id} "
-                    f"(Total: {self.delivered_volumes[animal_id]:.3f}mL)"
-                )
-            else:
-                with QMutexLocker(self.mutex):
-                    self.failed_deliveries[animal_id] = failed_count + 1
+            self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
+            self.progress.emit(
+                f"Delivered {actual_volume:.3f}mL to animal {animal_id} "
+                f"(Total: {self.delivered_volumes[animal_id]:.3f}mL)"
+            )
+        else:
+            with QMutexLocker(self.mutex):
+                self.failed_deliveries[animal_id] = failed_count + 1
+                if self.database_handler:
                     self.database_handler.log_delivery(
                         {
-                            'schedule_id': delivery_data['schedule_id'],
+                            'schedule_id': schedule_id,
                             'animal_id': animal_id,
                             'relay_unit_id': delivery_data['relay_unit_id'],
                             'volume_delivered': 0,
@@ -713,9 +745,30 @@ class RelayWorker(QObject):
                             'status': 'failed',
                         }
                     )
-                self.schedule_retry(delivery_data)
+            self.schedule_retry(delivery_data)
 
-            return success
+        return success
+
+    async def execute_delivery(self, delivery_data):
+        """Execute delivery with volume tracking and compensation.
+
+        The retry path (see :meth:`schedule_retry`). Shares its pre- and
+        post-flight with :meth:`_handle_delivery`; the only difference is
+        that this one is already inside an event loop and can await the
+        strategy directly.
+        """
+        try:
+            prepared = self._prepare_delivery(delivery_data)
+            if not prepared['proceed']:
+                return prepared['result']
+
+            success = await self.strategy.deliver(
+                relay_unit_id=delivery_data['relay_unit_id'],
+                target_volume_ml=delivery_data['water_volume'],
+                triggers_hint=delivery_data.get('triggers'),
+            )
+
+            return self._finalize_delivery(delivery_data, success, prepared)
 
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
@@ -1298,35 +1351,20 @@ class RelayWorker(QObject):
             return False
 
     def _handle_delivery(self, delivery_data):
-        """Synchronously handle a delivery"""
+        """Synchronously handle a delivery.
+
+        The primary path, bound as a QTimer slot for both staggered and
+        instant deliveries. Shares its pre- and post-flight with
+        :meth:`execute_delivery`; the difference is that this one is called
+        from the worker thread with no running event loop, so it drives the
+        strategy in a private loop (or, in pump mode, the legacy
+        synchronous relay call).
+        """
         try:
-            # Cooperative cancel: a delivery QTimer may fire after Stop.
-            # Don't start a new run_until_complete(deliver()) — that's the
-            # blocking call that made Stop fall through to terminate().
-            if self._cancel_requested.is_set():
-                return False
-            if 'schedule_id' not in delivery_data:
-                delivery_data['schedule_id'] = self.schedule_id
+            prepared = self._prepare_delivery(delivery_data)
+            if not prepared['proceed']:
+                return prepared['result']
             animal_id = delivery_data['animal_id']
-            current_delivered = self.delivered_volumes.get(animal_id, 0)
-            failed_count = self.failed_deliveries.get(animal_id, 0)
-            # Staggered deliveries carry a cumulative per-animal window with a
-            # target volume + over-delivery guard + failed-retry compensation.
-            # Instant deliveries (run_instant_cycle reuses this method) are
-            # one-shot events with no window — deliver the delivery's own volume
-            # and skip the cumulative guard/compensation.
-            window = getattr(self, 'animal_windows', None)
-            window = window.get(animal_id) if window else None
-            if window is not None:
-                target_volume = window['target_volume']
-                if current_delivered >= target_volume:
-                    return True
-                if failed_count > 0:
-                    volume_increase = min(failed_count * 0.05, 0.2)
-                    adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                    delivery_data['water_volume'] = min(
-                        adjusted_volume, target_volume - current_delivered
-                    )
             # In pump mode, keep legacy synchronous path via trigger_relay to avoid behavior change.
             # For other modes, delivery is handled asynchronously by strategy at schedule time.
             if self.hardware_mode == 'pump':
@@ -1369,40 +1407,7 @@ class RelayWorker(QObject):
                     self.progress.emit(f"Delivery error for animal {animal_id}: {str(e)}")
                     self.progress.emit(f"[DEBUG] Exception traceback:\n{error_details}")
                     success = False
-            if success:
-                with QMutexLocker(self.mutex):
-                    actual_volume = delivery_data['water_volume']
-                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
-                    self.failed_deliveries[animal_id] = 0
-                    delivery_log = {
-                        'schedule_id': self.schedule_id,
-                        'animal_id': animal_id,
-                        'relay_unit_id': delivery_data['relay_unit_id'],
-                        'volume_delivered': actual_volume,
-                        'timestamp': delivery_data['instant_time'].isoformat(),
-                        'status': 'completed',
-                    }
-                    if self.database_handler:
-                        self.database_handler.log_delivery(delivery_log)
-                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
-                self.progress.emit(
-                    f"Delivered {actual_volume:.3f}mL to animal {animal_id} (Total: {self.delivered_volumes[animal_id]:.3f}mL)"
-                )
-            else:
-                with QMutexLocker(self.mutex):
-                    self.failed_deliveries[animal_id] = failed_count + 1
-                    if self.database_handler:
-                        delivery_log = {
-                            'schedule_id': self.schedule_id,
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': 0,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'failed',
-                        }
-                        self.database_handler.log_delivery(delivery_log)
-                self.schedule_retry(delivery_data)
-            return success
+            return self._finalize_delivery(delivery_data, success, prepared)
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
             return False

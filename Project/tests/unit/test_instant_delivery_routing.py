@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 import threading
 from datetime import datetime
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -62,6 +62,13 @@ def _self(hardware_mode, *, animal_windows=None):
     )
     if animal_windows is not None:
         ns.animal_windows = animal_windows
+    # _handle_delivery delegates its pre- and post-flight to two helpers it
+    # shares with execute_delivery; bind the real ones onto the stand-in so
+    # this test still exercises the production guard/compensation/logging.
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+
+    ns._prepare_delivery = MethodType(RelayWorker._prepare_delivery, ns)
+    ns._finalize_delivery = MethodType(RelayWorker._finalize_delivery, ns)
     return ns
 
 
