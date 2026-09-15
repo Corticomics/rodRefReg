@@ -65,7 +65,7 @@ def test_deliver_does_not_clear_cancel(monkeypatch):
         strat.deliver(relay_unit_id=1, target_volume_ml=0.5)
     )
     # Returned False without routing into the delivery, and token still set.
-    assert result is False
+    assert result.success is False
     assert routed["continuous"] is False
     assert strat._check_cancelled() is True
 
@@ -86,7 +86,7 @@ def test_deliver_proceeds_after_reset(monkeypatch):
     result = asyncio.get_event_loop().run_until_complete(
         strat.deliver(relay_unit_id=1, target_volume_ml=0.5)
     )
-    assert result is True
+    assert result.success is True
     assert routed["continuous"] is True
 
 
@@ -102,7 +102,7 @@ def test_cancelled_deliver_never_reports_success():
     result = asyncio.get_event_loop().run_until_complete(
         strat.deliver(relay_unit_id=3, target_volume_ml=0.5)
     )
-    assert result is False
+    assert result.success is False
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ def test_pump_request_cancel_prevents_dispatch():
     result = asyncio.get_event_loop().run_until_complete(
         strat.deliver(relay_unit_id=1, target_volume_ml=0.3)
     )
-    assert result is False
+    assert result.success is False
     pump.dispense_water.assert_not_called()
 
 
@@ -139,5 +139,5 @@ def test_pump_normal_dispatch_after_no_cancel():
     result = asyncio.get_event_loop().run_until_complete(
         strat.deliver(relay_unit_id=1, target_volume_ml=0.3)
     )
-    assert result is True
+    assert result.success is True
     pump.dispense_water.assert_called_once()

@@ -7,6 +7,7 @@ from functools import partial
 
 from drivers.solenoid_controller import SolenoidController
 from PyQt5.QtCore import QMutex, QMutexLocker, QObject, QTimer, pyqtSignal, pyqtSlot
+from strategies.delivery_strategy import DeliveryResult
 from strategies.factory import StrategyFactory
 from utils.calibration import CalibrationStore
 from utils.volume_calculator import VolumeCalculator
@@ -695,10 +696,35 @@ class RelayWorker(QObject):
             'failed_count': failed_count,
         }
 
-    def _finalize_delivery(self, delivery_data, success, prepared):
+    @staticmethod
+    def _as_delivery_result(outcome, requested_ml):
+        """
+        Normalise whatever a delivery path produced into a DeliveryResult.
+
+        The strategies return one already. The legacy pump branch returns
+        ``trigger_relay``'s relay_info (or None), and an exception handler may
+        hand us a bare False — so accept those too rather than letting a
+        truthy object masquerade as success.
+        """
+        if isinstance(outcome, DeliveryResult):
+            return outcome
+        ok = bool(outcome)
+        return DeliveryResult(
+            success=ok,
+            delivered_ml=float(requested_ml) if ok else 0.0,
+            warning=None if ok else "delivery reported failure",
+        )
+
+    def _finalize_delivery(self, delivery_data, outcome, prepared):
         """
         Shared post-flight for both delivery paths: credit the volume, log
         the outcome, emit progress, and schedule a retry on failure.
+
+        ``outcome`` is a DeliveryResult (or a legacy truthy/falsy value, which
+        is normalised). Crediting and logging use the volume that was
+        ACTUALLY dispensed, not the volume that was requested — a delivery
+        that aborts part-way has still put water in the cage, and recording
+        zero for it is what made a retry send the whole dose a second time.
 
         ``prepared`` is the dict returned by :meth:`_prepare_delivery`; its
         counters were read before the hardware call so the accounting matches
@@ -708,23 +734,38 @@ class RelayWorker(QObject):
         current_delivered = prepared['current_delivered']
         failed_count = prepared['failed_count']
         schedule_id = delivery_data.get('schedule_id', self.schedule_id)
+        requested_ml = delivery_data['water_volume']
+
+        result = self._as_delivery_result(outcome, requested_ml)
+        # NEVER `if result:` — a dataclass instance is always truthy, which
+        # would turn every failed delivery into a silent success.
+        success = result.success
+        actual_volume = float(result.delivered_ml)
+
+        def _log(status):
+            if not self.database_handler:
+                return
+            self.database_handler.log_delivery(
+                {
+                    'schedule_id': schedule_id,
+                    'animal_id': animal_id,
+                    'relay_unit_id': delivery_data['relay_unit_id'],
+                    # Kept as the REQUESTED figure for backwards compatibility
+                    # with rows written before actual volume was recorded.
+                    'volume_delivered': requested_ml if status == 'completed' else 0,
+                    'volume_actual_ml': actual_volume,
+                    'pulses_fired': result.pulses,
+                    'volume_per_pulse_ml': result.volume_per_pulse_ml,
+                    'timestamp': delivery_data['instant_time'].isoformat(),
+                    'status': status,
+                }
+            )
 
         if success:
             with QMutexLocker(self.mutex):
-                actual_volume = delivery_data['water_volume']
                 self.delivered_volumes[animal_id] = current_delivered + actual_volume
                 self.failed_deliveries[animal_id] = 0
-                if self.database_handler:
-                    self.database_handler.log_delivery(
-                        {
-                            'schedule_id': schedule_id,
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': actual_volume,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'completed',
-                        }
-                    )
+                _log('completed')
 
             self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
             self.progress.emit(
@@ -733,18 +774,18 @@ class RelayWorker(QObject):
             )
         else:
             with QMutexLocker(self.mutex):
+                # Credit any water that did reach the cage before the abort,
+                # so the retry asks for the remainder and not the whole dose.
+                if actual_volume > 0:
+                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
                 self.failed_deliveries[animal_id] = failed_count + 1
-                if self.database_handler:
-                    self.database_handler.log_delivery(
-                        {
-                            'schedule_id': schedule_id,
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': 0,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'failed',
-                        }
-                    )
+                _log('partial' if actual_volume > 0 else 'failed')
+            if actual_volume > 0:
+                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
+                self.progress.emit(
+                    f"Partial delivery to animal {animal_id}: {actual_volume:.3f}mL "
+                    f"of {requested_ml:.3f}mL before it stopped"
+                )
             self.schedule_retry(delivery_data)
 
         return success
