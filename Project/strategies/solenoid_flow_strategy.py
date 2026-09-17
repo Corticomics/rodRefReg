@@ -167,6 +167,28 @@ class SolenoidFlowStrategy:
             return LEGACY_INTER_PULSE_INTERVAL_MS
         return interval if interval > 0 else LEGACY_INTER_PULSE_INTERVAL_MS
 
+    def pulse_volume_for(self, cage_id) -> Optional[float]:
+        """
+        The volume one pulse delivers to this cage, in mL, or None when the
+        strategy is not dispensing in pulses.
+
+        This is the dose quantum: the scheduling layer uses it to plan whole
+        pulses instead of asking for volumes the hardware cannot resolve.
+        Resolution mirrors _get_cage_calibration (snapshot, then the
+        empirical default at the runtime width) but is synchronous and
+        read-only, so the worker can consult it while planning a chunk.
+        """
+        if not self._use_pulse_mode:
+            return None
+        try:
+            snap = self._get_snapshot_entry(int(cage_id))
+        except (TypeError, ValueError):
+            return None
+        volume = (
+            snap[2] if snap else self._empirical_pulse_volumes.get(self._pulse_width_ms, 0.026)
+        )
+        return float(volume) if volume and volume > 0 else None
+
     def _get_snapshot_entry(self, cage_id: int) -> Optional[Tuple[int, int, float]]:
         """
         Get (pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml)
