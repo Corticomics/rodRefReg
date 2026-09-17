@@ -88,6 +88,12 @@ class RelayWorker(QObject):
         self.timers = []
         # Track per-animal retry timers to avoid duplicate scheduling
         self.retry_timers = {}
+        # Cumulative volume asked of each animal this window; the dose
+        # quantizer rounds each slot against (issued - delivered), so the
+        # per-slot rounding remainder is carried inside the window instead
+        # of being rounded up on every chunk. Fresh per worker, i.e. per
+        # run: nothing crosses a window boundary.
+        self.issued_targets = {}
 
         # Initialize main_timer
         self.main_timer = QTimer(self)
@@ -682,15 +688,29 @@ class RelayWorker(QObject):
             target_volume = window['target_volume']
             if current_delivered >= target_volume:
                 return {'proceed': False, 'result': True}
-            # Never ask for more than the animal still has coming. A retry
+
+        # Water leaves the valve in whole pulses. Round this request to the
+        # pulse count the animal's running deficit has actually earned; a
+        # slot whose deficit is under half a pulse fires nothing and the
+        # carry is picked up by a later slot in the same window.
+        quantized = self._quantize_to_pulses(delivery_data, window, current_delivered)
+        if quantized == 'skip':
+            return {'proceed': False, 'result': True}
+
+        if quantized is None and window is not None:
+            # Non-pulse strategies (pump/continuous) request arbitrary mL:
+            # never ask for more than the animal still has coming. A retry
             # follows a delivery that may have dispensed part of its volume
-            # already (that partial is credited in _finalize_delivery), so
-            # asking again for the original figure would double-dose.
+            # already (credited in _finalize_delivery), so asking again for
+            # the original figure would double-dose. (Replaces the old
+            # "+5% per prior failure" inflation.)
             #
-            # This replaces a "+5% per prior failure" inflation: a failed
-            # delivery is not evidence that the next one should be larger,
-            # and inflating a request whose predecessor may have partly
-            # succeeded is how the over-delivery compounded.
+            # The quantized path must NOT take this cap: capping the request
+            # also caps what is counted toward the window, which strands the
+            # final slot below its target. There, over-delivery is bounded
+            # by the deficit arithmetic itself — cumulative issued never
+            # exceeds the window target, so delivered stays within half a
+            # pulse of it.
             outstanding = target_volume - current_delivered
             delivery_data['water_volume'] = min(delivery_data['water_volume'], outstanding)
 
@@ -700,6 +720,84 @@ class RelayWorker(QObject):
             'current_delivered': current_delivered,
             'failed_count': failed_count,
         }
+
+    def _quantize_to_pulses(self, delivery_data, window, current_delivered):
+        """
+        Rewrite the request as a whole number of pulses, carrying the
+        remainder within the window.
+
+        The old behaviour asked the strategy for an arbitrary volume, and
+        the pulse loop rounds UP — so every chunk delivered at least one
+        whole pulse however small its target, a bias of (pulse − chunk) per
+        chunk (+78% measured on the bench, +0.6% agreement with prediction).
+
+        Instead: track the cumulative volume this window has asked for, and
+        fire round(deficit / q) pulses where deficit = asked − actually
+        delivered. Zero is a legal answer. The window total then lands
+        within half a pulse of its cumulative target — the theoretical
+        floor — with nothing carried across the window boundary, and a
+        failed or partial delivery is absorbed by later slots because the
+        deficit is computed from ACTUAL delivered volume.
+
+        Returns 'skip' when this slot should be skipped entirely (its carry
+        has not yet earned a pulse), 'applied' when the request was rewritten
+        to a whole pulse count, and None when the strategy does not dispense
+        in pulses (pump/continuous) or no calibration is resolvable — the
+        caller then keeps the legacy mL behaviour.
+        """
+        strategy = getattr(self, 'strategy', None)
+        quantum_of = getattr(strategy, 'pulse_volume_for', None)
+        if quantum_of is None:
+            return None
+        # Accept only a positive real quantum; anything else means the
+        # strategy is not (or not verifiably) dispensing in pulses. An
+        # isinstance check rather than float(): test doubles and misbehaving
+        # strategies can return objects that coerce but are not volumes.
+        q = quantum_of(delivery_data['relay_unit_id'])
+        if not isinstance(q, (int, float)) or isinstance(q, bool) or q <= 0:
+            return None
+        q = float(q)
+
+        requested = float(delivery_data['water_volume'])
+        animal_id = delivery_data['animal_id']
+
+        if window is not None:
+            if not hasattr(self, 'issued_targets'):
+                self.issued_targets = {}
+            # A retry re-enters with the same delivery_data; its volume was
+            # already counted toward the window the first time through.
+            if not delivery_data.get('_counted_toward_window'):
+                delivery_data['_counted_toward_window'] = True
+                self.issued_targets[animal_id] = (
+                    self.issued_targets.get(animal_id, 0.0) + requested
+                )
+            deficit = self.issued_targets[animal_id] - current_delivered
+        else:
+            # Instant one-shot: no carry, just honest nearest rounding.
+            deficit = requested
+
+        n_pulses = max(0, int(deficit / q + 0.5))
+
+        # Anti-burst clamp: after repeated failures the deficit can span
+        # several slots; catching up all at once would defeat the
+        # little-by-little intent, so cap this slot near its own share.
+        cap = max(1, int(requested / q + 0.5)) + 2
+        if n_pulses > cap:
+            self.progress.emit(
+                f"Deficit for animal {animal_id} spans {n_pulses} pulses; "
+                f"capping this slot at {cap} and spreading the rest"
+            )
+            n_pulses = cap
+
+        if n_pulses == 0:
+            self.progress.emit(
+                f"Animal {animal_id}: carry of {max(0.0, deficit):.3f}mL is under half a "
+                f"pulse ({q:.3f}mL) — skipping this slot, a later one picks it up"
+            )
+            return 'skip'
+
+        delivery_data['water_volume'] = n_pulses * q
+        return 'applied'
 
     @staticmethod
     def _as_delivery_result(outcome, requested_ml):
