@@ -768,8 +768,17 @@ class RelayWorker(QObject):
             # already counted toward the window the first time through.
             if not delivery_data.get('_counted_toward_window'):
                 delivery_data['_counted_toward_window'] = True
-                self.issued_targets[animal_id] = (
-                    self.issued_targets.get(animal_id, 0.0) + requested
+                # Never ask the window for more than its dose. The planned
+                # chunks already sum to the target, but the cycle loop then
+                # re-requests whatever the rounding left over (target minus
+                # delivered) as a final sliver chunk; counting that on top
+                # pushed the cumulative ask above the target and bought one
+                # extra pulse whenever the timing allowed it — the 30-vs-31
+                # pulse split seen on the bench at 1.0 mL — and up to several
+                # after failed chunks were re-queued.
+                window_target = float(window.get('target_volume', float('inf')))
+                self.issued_targets[animal_id] = min(
+                    self.issued_targets.get(animal_id, 0.0) + requested, window_target
                 )
             deficit = self.issued_targets[animal_id] - current_delivered
         else:
@@ -934,18 +943,29 @@ class RelayWorker(QObject):
         """
         default_tolerance = 0.01
         strategy = getattr(self, 'strategy', None)
-        snapshot = getattr(strategy, '_cal_snapshot', None) if strategy else None
-        if not snapshot:
-            return default_tolerance
-
         assignments = self.settings.get('relay_unit_assignments') or {}
         cage_id = assignments.get(str(animal_id), assignments.get(animal_id))
-        by_width = snapshot.get(cage_id) if cage_id is not None else None
-        if not by_width:
+        if strategy is None or cage_id is None:
             return default_tolerance
 
-        volumes = [float(entry.get('volume_per_pulse_ml') or 0.0) for entry in by_width.values()]
-        volumes = [v for v in volumes if v > 0]
+        snapshot = getattr(strategy, '_cal_snapshot', None) or {}
+        by_width = snapshot.get(cage_id)
+        volumes = []
+        if by_width:
+            volumes = [float(e.get('volume_per_pulse_ml') or 0.0) for e in by_width.values()]
+            volumes = [v for v in volumes if v > 0]
+
+        if not volumes:
+            # No stored calibration for this cage, so the planner fell back
+            # to its empirical default quantum. Judge "done" on that same
+            # quantum — otherwise a correctly rounded window is marked
+            # incomplete, re-scheduled until the circuit breaker trips, and
+            # misreported as a sensor failure.
+            quantum_of = getattr(strategy, 'pulse_volume_for', None)
+            q = quantum_of(cage_id) if quantum_of is not None else None
+            if isinstance(q, (int, float)) and not isinstance(q, bool) and q > 0:
+                volumes = [float(q)]
+
         if not volumes:
             return default_tolerance
         return max(default_tolerance, max(volumes) / 2.0)

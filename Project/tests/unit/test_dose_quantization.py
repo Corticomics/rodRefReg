@@ -171,3 +171,64 @@ def test_retry_does_not_double_count_toward_the_window(monkeypatch):
     issued_after_first = worker.issued_targets[1]
     worker._handle_delivery(data)  # same dict re-enters, as schedule_retry does
     assert worker.issued_targets[1] == pytest.approx(issued_after_first)
+
+
+# Parker valve with the upstream needle, as calibrated on the Pi.
+NEEDLE_Q = 0.032936
+
+
+def _sliver(worker, target):
+    """What the cycle loop does after the planned chunks: re-request the
+    rounding leftover, cycle_volume = min(target - delivered, per_cycle)."""
+    remaining = target - worker.delivered_volumes.get(1, 0.0)
+    if remaining > 0:
+        worker._handle_delivery(_chunk(remaining))
+
+
+def test_post_plan_sliver_chunk_does_not_buy_an_extra_pulse(monkeypatch):
+    """
+    Bench, 1.0 mL windows: 30 or 31 pulses depending on window timing.
+    Nearest rounding of 1.0 / 0.032936 = 30.36 is 30. The 31st came from the
+    cycle loop's leftover chunk being counted toward the window a second
+    time; capping the cumulative ask at the target removes it.
+    """
+    worker = _make_worker(monkeypatch, NEEDLE_Q)
+    total = _run_window(worker, target=1.0, chunks=5)  # 5 x 0.2 -> 30 pulses
+    assert round(total / NEEDLE_Q) == 30
+
+    _sliver(worker, 1.0)  # a 6th cycle fires with the 0.012 mL leftover
+    _sliver(worker, 1.0)  # ...and, in a long window, a 7th
+    assert round(worker.delivered_volumes[1] / NEEDLE_Q) == 30, "no 31st pulse"
+    assert worker.issued_targets[1] == pytest.approx(1.0), "ask capped at the target"
+
+
+def test_slivers_after_a_failure_still_converge_without_overshoot(monkeypatch):
+    """Repeated leftover chunks may fill a real deficit, never exceed the dose."""
+    from strategies.delivery_strategy import DeliveryResult  # noqa: PLC0415
+
+    worker = _make_worker(monkeypatch, NEEDLE_Q)
+    calls = {'n': 0}
+
+    async def _flaky(relay_unit_id, target_volume_ml, triggers_hint=None):
+        calls['n'] += 1
+        if calls['n'] == 3:  # third chunk dies after one pulse
+            return DeliveryResult(success=False, delivered_ml=NEEDLE_Q, pulses=1)
+        worker.fired.append(target_volume_ml)
+        return DeliveryResult(success=True, delivered_ml=target_volume_ml)
+
+    worker.strategy.deliver = _flaky
+    _run_window(worker, target=1.0, chunks=5)
+    for _ in range(4):  # the loop keeps re-requesting the leftover
+        _sliver(worker, 1.0)
+
+    total = worker.delivered_volumes[1]
+    assert abs(total - 1.0) <= NEEDLE_Q / 2, f"window closed at {total:.3f}"
+    assert total <= 1.0 + NEEDLE_Q / 2, "never more than half a pulse over"
+
+
+def test_completion_tolerance_follows_the_fallback_quantum(monkeypatch):
+    """An uncalibrated cage plans at the empirical default; judge it on that."""
+    worker = _make_worker(monkeypatch, 0.026)  # pulse_volume_for -> fallback q
+    worker.settings = {'relay_unit_assignments': {'1': 3}}
+    worker.strategy._cal_snapshot = {}  # no stored calibration for cage 3
+    assert worker._completion_tolerance_ml(1) == pytest.approx(0.013)
