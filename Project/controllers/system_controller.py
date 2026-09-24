@@ -69,6 +69,11 @@ class SystemController(QObject):
             'residual_flow_threshold_ml_min': 1.0,
             'max_consecutive_sensor_errors': 10,
             'cage_relays': {},
+            # Dose rounding policy: nearest whole pulse unless the operator
+            # opts into rounding up. Deliberately NOT in the force-merged
+            # pulse_mode_settings block (ensure_solenoid_defaults), which
+            # would reset the choice on every start.
+            'round_doses_up': False,
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
@@ -103,6 +108,9 @@ class SystemController(QObject):
             'pulse_settling_ms',
             'max_pulses_per_delivery',
             'max_pulse_delivery_time_s',
+            # Dose rounding policy (v1.19.0): round every dose up to the
+            # next whole pulse instead of to the nearest one.
+            'round_doses_up',
             'debug_mode',
             'log_level',
             # Scheduler tuning
@@ -139,6 +147,7 @@ class SystemController(QObject):
             'pulse_settling_ms': int,
             'max_pulses_per_delivery': int,
             'max_pulse_delivery_time_s': float,
+            'round_doses_up': bool,
         }
         return type_map.get(key, str)
 

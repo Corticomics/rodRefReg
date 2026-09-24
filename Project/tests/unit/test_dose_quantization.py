@@ -232,3 +232,118 @@ def test_completion_tolerance_follows_the_fallback_quantum(monkeypatch):
     worker.settings = {'relay_unit_assignments': {'1': 3}}
     worker.strategy._cal_snapshot = {}  # no stored calibration for cage 3
     assert worker._completion_tolerance_ml(1) == pytest.approx(0.013)
+
+
+# --- Rounding policy: round_doses_up (v1.19.0) --------------------------------
+#
+# With the needle fitted, every mouse dose is a fraction over a whole pulse
+# count (9.11, 15.18, 18.22, 21.25, 30.36 pulses) and nearest rounding lands
+# all of them under target; weighed doses then came out 3-8% short. Rounding
+# up is the operator's choice of which side of the target to sit on. It must
+# be cumulative within the window (ceil of the total, not one extra pulse
+# per chunk) and must not touch doses that already round up.
+
+NO_NEEDLE_Q = 0.034164  # same valve without the needle, as calibrated on the Pi
+
+
+def _rounding_up(worker):
+    worker.settings = {'round_doses_up': True}
+    return worker
+
+
+def _pulses(worker, q):
+    return round(worker.delivered_volumes.get(1, 0.0) / q)
+
+
+@pytest.mark.parametrize(
+    "dose,expected_pulses", [(0.3, 10), (0.5, 16), (0.6, 19), (0.7, 22), (1.0, 31)]
+)
+def test_round_up_plans_the_next_whole_pulse_for_the_window(monkeypatch, dose, expected_pulses):
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    total = _run_window(worker, target=dose, chunks=5)
+    assert _pulses(worker, NEEDLE_Q) == expected_pulses
+    assert dose < total <= dose + NEEDLE_Q, "never under, at most one pulse over"
+
+
+def test_round_up_is_cumulative_across_chunks_not_per_chunk(monkeypatch):
+    """0.6 mL in three 0.2 mL chunks: ceil(18.22) = 19, not 3 x ceil(6.07) = 21."""
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    _run_window(worker, target=0.6, chunks=3)
+    assert _pulses(worker, NEEDLE_Q) == 19
+    assert worker.fired[0] == pytest.approx(7 * NEEDLE_Q), "first chunk carries the extra"
+    assert sum(round(v / NEEDLE_Q) for v in worker.fired) == 19
+
+
+def test_round_up_leaves_doses_that_already_round_up_alone(monkeypatch):
+    """Without the needle 0.3 mL is 8.78 pulses: 9 under either policy."""
+    nearest = _make_worker(monkeypatch, NO_NEEDLE_Q)
+    nearest.settings = {'round_doses_up': False}
+    _run_window(nearest, target=0.3, chunks=2)
+    up = _rounding_up(_make_worker(monkeypatch, NO_NEEDLE_Q))
+    _run_window(up, target=0.3, chunks=2)
+    assert _pulses(nearest, NO_NEEDLE_Q) == _pulses(up, NO_NEEDLE_Q) == 9
+
+    # 0.7 mL is 20.49 pulses: nearest gives 20 (97.6%), up gives 21.
+    nearest7 = _make_worker(monkeypatch, NO_NEEDLE_Q)
+    nearest7.settings = {'round_doses_up': False}
+    _run_window(nearest7, target=0.7, chunks=4)
+    up7 = _rounding_up(_make_worker(monkeypatch, NO_NEEDLE_Q))
+    _run_window(up7, target=0.7, chunks=4)
+    assert _pulses(nearest7, NO_NEEDLE_Q) == 20
+    assert _pulses(up7, NO_NEEDLE_Q) == 21
+
+
+def test_round_up_sliver_cycles_add_nothing(monkeypatch):
+    """The window is already over target, so the loop's leftover chunks skip."""
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    _run_window(worker, target=1.0, chunks=5)
+    for _ in range(3):
+        _sliver(worker, 1.0)
+    assert _pulses(worker, NEEDLE_Q) == 31
+
+
+def test_round_up_instant_one_shot(monkeypatch):
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    worker._handle_delivery(_chunk(0.3))
+    assert _pulses(worker, NEEDLE_Q) == 10  # ceil(9.11), was 9
+
+
+def test_round_up_does_not_overshoot_an_exact_multiple(monkeypatch):
+    """1.0 / 0.1 is 10.000000000000002 in floating point; ceil must say 10."""
+    worker = _rounding_up(_make_worker(monkeypatch, 0.1))
+    worker._handle_delivery(_chunk(1.0))
+    assert worker.fired == [pytest.approx(1.0)]
+    assert _pulses(worker, 0.1) == 10
+
+
+def test_round_up_after_a_partial_failure_lands_within_one_pulse_over(monkeypatch):
+    from strategies.delivery_strategy import DeliveryResult  # noqa: PLC0415
+
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    calls = {'n': 0}
+
+    async def _flaky(relay_unit_id, target_volume_ml, triggers_hint=None):
+        calls['n'] += 1
+        if calls['n'] == 2:  # second chunk dies after a single pulse
+            return DeliveryResult(success=False, delivered_ml=NEEDLE_Q, pulses=1)
+        worker.fired.append(target_volume_ml)
+        return DeliveryResult(success=True, delivered_ml=target_volume_ml)
+
+    worker.strategy.deliver = _flaky
+    total = _run_window(worker, target=0.6, chunks=3)
+    for _ in range(3):
+        _sliver(worker, 0.6)
+    assert 0.6 < worker.delivered_volumes[1] <= 0.6 + NEEDLE_Q, f"closed at {total:.3f}"
+
+
+def test_rounding_policy_defaults_to_nearest(monkeypatch):
+    """No setting, or a settings dict without the key, keeps nearest rounding."""
+    worker = _make_worker(monkeypatch, NEEDLE_Q)
+    assert not hasattr(worker, 'settings')
+    worker._handle_delivery(_chunk(0.3))
+    assert _pulses(worker, NEEDLE_Q) == 9
+
+    worker2 = _make_worker(monkeypatch, NEEDLE_Q)
+    worker2.settings = {}
+    worker2._handle_delivery(_chunk(0.3))
+    assert _pulses(worker2, NEEDLE_Q) == 9

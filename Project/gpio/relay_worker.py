@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import threading
 import time
 from datetime import datetime, timedelta
@@ -710,7 +711,7 @@ class RelayWorker(QObject):
             # final slot below its target. There, over-delivery is bounded
             # by the deficit arithmetic itself — cumulative issued never
             # exceeds the window target, so delivered stays within half a
-            # pulse of it.
+            # pulse of it (within one pulse above it under round_doses_up).
             outstanding = target_volume - current_delivered
             delivery_data['water_volume'] = min(delivery_data['water_volume'], outstanding)
 
@@ -738,6 +739,14 @@ class RelayWorker(QObject):
         floor — with nothing carried across the window boundary, and a
         failed or partial delivery is absorbed by later slots because the
         deficit is computed from ACTUAL delivered volume.
+
+        Rounding policy: by default the deficit rounds to the NEAREST whole
+        pulse, so the window lands within half a pulse either side of its
+        target. With the ``round_doses_up`` setting, any positive deficit
+        buys the next whole pulse, so the plan never falls below the dose
+        and lands within one pulse above it. The carry keeps this
+        cumulative — the window total is ceil(target / q), not one extra
+        pulse per slot.
 
         Returns 'skip' when this slot should be skipped entirely (its carry
         has not yet earned a pulse), 'applied' when the request was rewritten
@@ -785,7 +794,13 @@ class RelayWorker(QObject):
             # Instant one-shot: no carry, just honest nearest rounding.
             deficit = requested
 
-        n_pulses = max(0, int(deficit / q + 0.5))
+        round_up = self._rounds_doses_up()
+        if round_up:
+            # The small subtraction keeps an exact multiple of q (which
+            # floating point can land a hair above) from buying a pulse.
+            n_pulses = max(0, math.ceil(deficit / q - 1e-9))
+        else:
+            n_pulses = max(0, int(deficit / q + 0.5))
 
         # Anti-burst clamp: after repeated failures the deficit can span
         # several slots; catching up all at once would defeat the
@@ -799,14 +814,25 @@ class RelayWorker(QObject):
             n_pulses = cap
 
         if n_pulses == 0:
-            self.progress.emit(
-                f"Animal {animal_id}: carry of {max(0.0, deficit):.3f}mL is under half a "
-                f"pulse ({q:.3f}mL) — skipping this slot, a later one picks it up"
-            )
+            if round_up:
+                self.progress.emit(
+                    f"Animal {animal_id}: already at or above its cumulative target "
+                    f"— skipping this slot"
+                )
+            else:
+                self.progress.emit(
+                    f"Animal {animal_id}: carry of {max(0.0, deficit):.3f}mL is under half a "
+                    f"pulse ({q:.3f}mL) — skipping this slot, a later one picks it up"
+                )
             return 'skip'
 
         delivery_data['water_volume'] = n_pulses * q
         return 'applied'
+
+    def _rounds_doses_up(self):
+        """Whether the operator chose to round every dose UP to a whole pulse."""
+        settings = getattr(self, 'settings', None) or {}
+        return bool(settings.get('round_doses_up', False))
 
     @staticmethod
     def _as_delivery_result(outcome, requested_ml):
