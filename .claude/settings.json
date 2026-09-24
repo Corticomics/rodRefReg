@@ -5,7 +5,11 @@
       "Bash(/opt/homebrew/bin/bash ./install.sh --dry-run --only 99-nonexistent)",
       "Bash(sshpass -p '1234' scp /tmp/run_install.sh rrr@10.12.89.78:/tmp/run_install.sh)",
       "Bash(sshpass -p '1234' ssh rrr@10.12.89.78 'chmod +x /tmp/run_install.sh && echo \"i2c before:\"; ls /dev/i2c-* 2>/dev/null; echo \"---\"; SUDO_PWD=1234 /tmp/run_install.sh 2>&1 | tail -40')",
-      "Bash(brew install *)"
+      "Bash(brew install *)",
+      "Bash(python3 -m ruff format Project/models/database_handler.py Project/tests/unit/test_instant_schedule.py)",
+      "Bash(python3 -m ruff check .)",
+      "Bash(python3 -m ruff format --check .)",
+      "Bash(QT_QPA_PLATFORM=offscreen python3 -m pytest Project/tests/unit/test_instant_schedule.py -q -p no:cacheprovider)"
     ]
   }
 }

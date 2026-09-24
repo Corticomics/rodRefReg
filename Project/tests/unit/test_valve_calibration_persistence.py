@@ -158,3 +158,67 @@ def test_get_all_valve_calibrations_includes_interval(database_handler):
     assert set(calibrations.keys()) == {1, 2}
     assert calibrations[1]["inter_pulse_interval_ms"] == 300
     assert calibrations[2]["inter_pulse_interval_ms"] is None
+
+
+def test_dose_offset_round_trip_and_clear(database_handler):
+    """The retention allowance is stored per cage and read back by both getters."""
+    _save(database_handler, 1)
+    assert database_handler.get_valve_calibration(1)["dose_offset_ml"] is None
+
+    assert database_handler.set_dose_offset(1, 0.016) is True
+    assert database_handler.get_valve_calibration(1)["dose_offset_ml"] == pytest.approx(0.016)
+    assert database_handler.get_all_valve_calibrations()[1]["dose_offset_ml"] == pytest.approx(
+        0.016
+    )
+
+    assert database_handler.set_dose_offset(1, None) is True
+    assert database_handler.get_valve_calibration(1)["dose_offset_ml"] is None
+
+    # No calibration row -> nothing to update.
+    assert database_handler.set_dose_offset(42, 0.01) is False
+
+
+def test_dose_offset_survives_recalibration(database_handler):
+    """
+    The row is INSERT OR REPLACE'd on every save. A tuning measured from
+    weighed doses must not be wiped by the next calibration run.
+    """
+    _save(database_handler, 1, pulse_width_ms=30, inter_pulse_interval_ms=1000)
+    database_handler.set_dose_offset(1, 0.016)
+
+    # Re-calibrate the same cage (wizard-style save: no offset argument).
+    _save(database_handler, 1, pulse_width_ms=30, volume_per_pulse_ml=0.0329)
+
+    cal = database_handler.get_valve_calibration(1)
+    assert cal["volume_per_pulse_ml"] == pytest.approx(0.0329), "new calibration took"
+    assert cal["dose_offset_ml"] == pytest.approx(0.016), "offset preserved across re-save"
+
+    # An explicit value on save still wins.
+    _save(database_handler, 1, dose_offset_ml=0.02)
+    assert database_handler.get_valve_calibration(1)["dose_offset_ml"] == pytest.approx(0.02)
+
+
+def test_old_database_gains_dose_offset_column(tmp_path: Path):
+    """Pre-v1.19 databases are migrated in place; legacy rows read None."""
+    db_path = tmp_path / "pre_offset.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(OLD_VALVE_CALIBRATION_DDL)
+        conn.execute(OLD_VALVE_CALIBRATION_HISTORY_DDL)
+        conn.execute(
+            """
+            INSERT INTO valve_calibration
+            (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
+             stddev_ml, coefficient_of_variation_pct, num_samples,
+             calibration_date, calibrated_by, notes)
+            VALUES (3, 3, 30, 0.0341, 0.001, 1.0, 250, '2026-09-17T00:00:00', NULL, NULL)
+            """
+        )
+        conn.commit()
+
+    from models.database_handler import DatabaseHandler  # noqa: PLC0415
+
+    handler = DatabaseHandler(db_path=str(db_path))
+    assert "dose_offset_ml" in _table_columns(db_path, "valve_calibration")
+    assert handler.get_valve_calibration(3)["dose_offset_ml"] is None
+    assert handler.set_dose_offset(3, 0.016) is True
+    assert handler.get_valve_calibration(3)["dose_offset_ml"] == pytest.approx(0.016)

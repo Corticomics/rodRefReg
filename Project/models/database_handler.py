@@ -239,6 +239,7 @@ class DatabaseHandler:
                         calibrated_by INTEGER,
                         notes TEXT,
                         inter_pulse_interval_ms INTEGER,
+                        dose_offset_ml REAL,
                         FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -308,6 +309,21 @@ class DatabaseHandler:
                     cursor.execute('''
                         ALTER TABLE valve_calibration_history
                         ADD COLUMN inter_pulse_interval_ms INTEGER DEFAULT NULL
+                    ''')
+
+                # Per-delivery retention offset: volume added to each
+                # delivery's plan to cover water that never reaches the
+                # animal (a drop held on the outlet tip, line compliance).
+                # It is a tuning measured from weighed doses, not a
+                # calibration measurement, so it lives only on the current
+                # row (no history) and survives re-calibration. NULL = none.
+                cursor.execute("PRAGMA table_info(valve_calibration)")
+                columns = [col[1] for col in cursor.fetchall()]
+
+                if 'dose_offset_ml' not in columns:
+                    cursor.execute('''
+                        ALTER TABLE valve_calibration
+                        ADD COLUMN dose_offset_ml REAL DEFAULT NULL
                     ''')
 
                 conn.commit()
@@ -1854,6 +1870,7 @@ class DatabaseHandler:
         calibrated_by=None,
         notes=None,
         inter_pulse_interval_ms=None,
+        dose_offset_ml=None,
     ):
         """
         Save valve calibration data (per-valve empirical calibration).
@@ -1870,6 +1887,10 @@ class DatabaseHandler:
             notes: Optional notes
             inter_pulse_interval_ms: Rest between pulses used for calibration
                 (None = legacy timing)
+            dose_offset_ml: Per-delivery retention allowance. None means
+                "keep whatever this cage already has" — the row is replaced
+                on every save, and a re-calibration must not silently wipe a
+                tuning that was measured separately.
 
         Returns:
             calibration_id if successful, None otherwise
@@ -1878,6 +1899,14 @@ class DatabaseHandler:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 calibration_date = datetime.now().isoformat()
+
+                if dose_offset_ml is None:
+                    cursor.execute(
+                        'SELECT dose_offset_ml FROM valve_calibration WHERE cage_id = ?',
+                        (cage_id,),
+                    )
+                    previous = cursor.fetchone()
+                    dose_offset_ml = previous[0] if previous else None
 
                 # Insert into history first
                 cursor.execute(
@@ -1909,8 +1938,9 @@ class DatabaseHandler:
                     INSERT OR REPLACE INTO valve_calibration
                     (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
                      stddev_ml, coefficient_of_variation_pct, num_samples,
-                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms,
+                     dose_offset_ml)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         cage_id,
@@ -1924,6 +1954,7 @@ class DatabaseHandler:
                         calibrated_by,
                         notes,
                         inter_pulse_interval_ms,
+                        dose_offset_ml,
                     ),
                 )
 
@@ -1958,7 +1989,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms
+                           inter_pulse_interval_ms, dose_offset_ml
                     FROM valve_calibration
                     WHERE cage_id = ?
                 ''',
@@ -1980,12 +2011,37 @@ class DatabaseHandler:
                         'calibrated_by': row[9],
                         'notes': row[10],
                         'inter_pulse_interval_ms': row[11],
+                        'dose_offset_ml': row[12],
                     }
                 return None
 
         except sqlite3.Error as e:
             print(f"Error getting valve calibration: {e}")
             return None
+
+    def set_dose_offset(self, cage_id, offset_ml):
+        """
+        Set a cage's per-delivery retention allowance, in mL (None clears it).
+
+        Measured from weighed doses, not from the calibration wizard: the
+        shortfall between what the app records as dispensed and what a small
+        dose actually weighs. Kept separate from the calibration proper so a
+        re-calibration does not overwrite it.
+
+        Returns True if the cage had a calibration row to update.
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'UPDATE valve_calibration SET dose_offset_ml = ? WHERE cage_id = ?',
+                    (offset_ml, cage_id),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Error setting dose offset: {e}")
+            return False
 
     def get_all_valve_calibrations(self):
         """
@@ -2002,7 +2058,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms
+                           inter_pulse_interval_ms, dose_offset_ml
                     FROM valve_calibration
                     ORDER BY cage_id
                 ''')
@@ -2021,6 +2077,7 @@ class DatabaseHandler:
                         'calibrated_by': row[8],
                         'notes': row[9],
                         'inter_pulse_interval_ms': row[10],
+                        'dose_offset_ml': row[11],
                     }
 
                 return calibrations

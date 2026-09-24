@@ -721,6 +721,21 @@ class RelayWorker(QObject):
             'failed_count': failed_count,
         }
 
+    @staticmethod
+    def _retention_offset_ml(strategy, cage_id, q):
+        """
+        The cage's per-delivery retention allowance, in mL, clamped to
+        [0, one pulse]. 0.0 when the strategy has none, or reports anything
+        that is not a positive real number.
+        """
+        getter = getattr(strategy, 'dose_offset_for', None)
+        if getter is None:
+            return 0.0
+        offset = getter(cage_id)
+        if not isinstance(offset, (int, float)) or isinstance(offset, bool) or offset <= 0:
+            return 0.0
+        return min(float(offset), q)
+
     def _quantize_to_pulses(self, delivery_data, window, current_delivered):
         """
         Rewrite the request as a whole number of pulses, carrying the
@@ -761,6 +776,17 @@ class RelayWorker(QObject):
         requested = float(delivery_data['water_volume'])
         animal_id = delivery_data['animal_id']
 
+        # Per-delivery retention allowance: water this delivery will leave
+        # on the outlet tip or in line compliance instead of in the bowl.
+        # Measured from weighed doses; bounded to one pulse. Planned as
+        # extra volume the animal needs, so it rounds with everything else.
+        offset = self._retention_offset_ml(strategy, delivery_data['relay_unit_id'], q)
+        if offset > 0:
+            self.progress.emit(
+                f"Animal {animal_id}: +{1000 * offset:.0f} µL retention allowance "
+                f"added to this delivery's plan"
+            )
+
         if window is not None:
             if not hasattr(self, 'issued_targets'):
                 self.issued_targets = {}
@@ -769,19 +795,19 @@ class RelayWorker(QObject):
             if not delivery_data.get('_counted_toward_window'):
                 delivery_data['_counted_toward_window'] = True
                 self.issued_targets[animal_id] = (
-                    self.issued_targets.get(animal_id, 0.0) + requested
+                    self.issued_targets.get(animal_id, 0.0) + requested + offset
                 )
             deficit = self.issued_targets[animal_id] - current_delivered
         else:
             # Instant one-shot: no carry, just honest nearest rounding.
-            deficit = requested
+            deficit = requested + offset
 
         n_pulses = max(0, int(deficit / q + 0.5))
 
         # Anti-burst clamp: after repeated failures the deficit can span
         # several slots; catching up all at once would defeat the
         # little-by-little intent, so cap this slot near its own share.
-        cap = max(1, int(requested / q + 0.5)) + 2
+        cap = max(1, int((requested + offset) / q + 0.5)) + 2
         if n_pulses > cap:
             self.progress.emit(
                 f"Deficit for animal {animal_id} spans {n_pulses} pulses; "

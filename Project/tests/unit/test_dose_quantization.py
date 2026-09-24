@@ -171,3 +171,58 @@ def test_retry_does_not_double_count_toward_the_window(monkeypatch):
     issued_after_first = worker.issued_targets[1]
     worker._handle_delivery(data)  # same dict re-enters, as schedule_retry does
     assert worker.issued_targets[1] == pytest.approx(issued_after_first)
+
+
+# Parker valve with the fine outlet needle: recalibrated at 32.936 uL/pulse,
+# and weighed doses came up ~16 uL short of the app's plan at every size.
+NEEDLE_Q = 0.032936
+RETENTION_ML = 0.016
+
+
+def _with_offset(worker, offset):
+    worker.strategy.dose_offset_for = lambda cage_id: offset
+    return worker
+
+
+@pytest.mark.parametrize(
+    "dose,expected_pulses", [(0.3, 10), (0.5, 16), (0.6, 19), (0.7, 22), (1.0, 31)]
+)
+def test_retention_offset_adds_the_missing_water(monkeypatch, dose, expected_pulses):
+    """
+    Bench: 9/15/18/21/30 pulses left each dose ~16 uL short. Planning the
+    allowance in before rounding lifts every one of them by one pulse.
+    """
+    worker = _with_offset(_make_worker(monkeypatch, NEEDLE_Q), RETENTION_ML)
+    worker._handle_delivery(_chunk(dose))  # instant one-shot
+    assert round(worker.delivered_volumes[1] / NEEDLE_Q) == expected_pulses
+
+    # What reaches the bowl (valve output minus the retained volume) is
+    # within half a pulse of target.
+    reaches_bowl = worker.delivered_volumes[1] - RETENTION_ML
+    assert abs(reaches_bowl - dose) <= NEEDLE_Q / 2
+
+
+def test_retention_offset_is_applied_per_delivery_in_a_window(monkeypatch):
+    """Each chunk is its own delivery event, so each earns its own allowance."""
+    worker = _with_offset(_make_worker(monkeypatch, NEEDLE_Q), RETENTION_ML)
+    total = _run_window(worker, target=0.6, chunks=3)
+    planned_for = 0.6 + 3 * RETENTION_ML
+    assert abs(total - planned_for) <= NEEDLE_Q / 2
+
+
+def test_retention_offset_is_capped_at_one_pulse(monkeypatch):
+    """A misconfigured offset cannot add more than a single pulse per delivery."""
+    worker = _with_offset(_make_worker(monkeypatch, NEEDLE_Q), 0.5)  # absurd value
+    worker._handle_delivery(_chunk(0.3))
+    pulses = round(worker.delivered_volumes[1] / NEEDLE_Q)
+    assert pulses == round((0.3 + NEEDLE_Q) / NEEDLE_Q + 0.5) - 1 or pulses == 10
+
+
+def test_retention_offset_ignored_when_absent_or_invalid(monkeypatch):
+    worker = _make_worker(monkeypatch, NEEDLE_Q)  # MagicMock strategy: no real getter
+    worker._handle_delivery(_chunk(0.3))
+    assert round(worker.delivered_volumes[1] / NEEDLE_Q) == 9
+
+    worker2 = _with_offset(_make_worker(monkeypatch, NEEDLE_Q), -0.01)  # negative -> ignored
+    worker2._handle_delivery(_chunk(0.3))
+    assert round(worker2.delivered_volumes[1] / NEEDLE_Q) == 9

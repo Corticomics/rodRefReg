@@ -50,6 +50,24 @@ Two controls set the profile, and both are stored with the calibration:
 
 **Existing calibrations are unaffected.** A calibration saved before v1.16.0 has no stored interval and keeps the previous 100 ms cadence exactly. It only changes when you re-calibrate that cage.
 
+### Retention offset (v1.19.0)
+
+A short dose can come up short by a roughly **fixed** amount — water left as a drop on the outlet tip, or spent filling line compliance on the first pulse. A 250-pulse calibration cannot see it (it is 0.2 % of a calibration run) but it is 6 % of a 9-pulse dose. With a fine outlet needle fitted, bench doses of 0.3–0.7 mL came up 13–19 µL short of what the app had planned, at every dose size.
+
+**Measure it:** weigh ~10 doses at a small target (0.3 mL is the most sensitive) and compare each to the app's own record — `pulses_fired × mL/pulse` in `dispensing_history`, or the `volume_actual_ml` column. The average shortfall per dose is the offset.
+
+**Set it per cage** (app closed; the value survives re-calibration and is cleared by passing `None`):
+
+```bash
+cd ~/rrr/current/Project && RRR_DATA=~/rrr/shared/data python3 -c \
+  "from models.database_handler import DatabaseHandler; print(DatabaseHandler().set_dose_offset(1, 0.016))"
+```
+
+Deliveries then plan `round((dose + offset) ÷ mL/pulse)` pulses. The offset is capped at one pulse. Two things to know:
+
+- `volume_actual_ml` in the history records what **left the valve**; the bowl receives about `offset` less per delivery. The record is honest about the hardware, not adjusted for the tip.
+- The offset applies **per delivery**. It was measured on single-delivery doses; a staggered dose split into N chunks receives N × offset. Weigh a chunked window once before relying on it for long schedules.
+
 **Finding the right profile.** There is no universal answer — it depends on the valve, the head, and the dose. Calibrate the same valve at several intervals (for example 100, 500 and 1000 ms), repeat each several times, and pick the shortest interval whose output stays flat across runs. Record the winner for your lab.
 
 ---

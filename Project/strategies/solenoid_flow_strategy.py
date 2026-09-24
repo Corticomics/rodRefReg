@@ -189,6 +189,28 @@ class SolenoidFlowStrategy:
         )
         return float(volume) if volume and volume > 0 else None
 
+    def dose_offset_for(self, cage_id) -> float:
+        """
+        Per-delivery retention allowance for this cage, in mL; 0.0 if none.
+
+        A short dose comes up short by a roughly fixed amount — a drop held
+        on the outlet tip, line compliance filled on the first pulse — that a
+        250-pulse calibration cannot see. The scheduling layer adds this to
+        each delivery's plan before rounding to whole pulses.
+        """
+        try:
+            by_pw = self._cal_snapshot.get(int(cage_id))
+        except (TypeError, ValueError):
+            return 0.0
+        if not by_pw:
+            return 0.0
+        pw = self._pulse_width_ms if self._pulse_width_ms in by_pw else sorted(by_pw.keys())[0]
+        try:
+            offset = float(by_pw[pw].get('dose_offset_ml') or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+        return offset if offset > 0 else 0.0
+
     def _get_snapshot_entry(self, cage_id: int) -> Optional[Tuple[int, int, float]]:
         """
         Get (pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml)
@@ -246,6 +268,7 @@ class SolenoidFlowStrategy:
                         'id': cal.get('calibration_id', 0),
                         'volume_per_pulse_ml': vol,
                         'inter_pulse_interval_ms': interval,
+                        'dose_offset_ml': cal.get('dose_offset_ml'),
                     }
                     self._logger.debug(
                         f"Using DB calibration (read-through) for cage {cage_id}: "
@@ -314,15 +337,17 @@ class SolenoidFlowStrategy:
                 interval = self._resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
                 if not self._cal_snapshot.get(cage_id):
                     self._cal_snapshot[cage_id] = {}
+                offset = cal.get('dose_offset_ml')
                 self._cal_snapshot[cage_id][pw] = {
                     'id': cal.get('calibration_id', 0),
                     'volume_per_pulse_ml': vol,
                     'inter_pulse_interval_ms': interval,
+                    'dose_offset_ml': offset,
                 }
                 try:
                     print(
                         f"[CAL SNAPSHOT] cage={cage_id} width={pw}ms rest={interval}ms "
-                        f"vol={vol:.6f} mL/pulse",
+                        f"vol={vol:.6f} mL/pulse offset={float(offset or 0.0):.4f} mL",
                         flush=True,
                     )
                 except Exception:
