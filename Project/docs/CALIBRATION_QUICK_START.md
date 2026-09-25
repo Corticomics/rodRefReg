@@ -64,7 +64,7 @@ Water leaves the valve in whole pulses, so a dose can only ever land within one 
 
 **What the log shows.** `volume_actual_ml` in the dispensing history, the window progress percentage and the completion "precision" line are the plan — `pulses_fired × mL/pulse` — not a weighing. With rounding up they read one pulse above the target even when the bowl, with a retention shortfall, lands near it. Only the scale tells you where the bowl is.
 
-**What it does not change.** The volume per pulse, the timing profile, the per-window carry and the history columns are the same; only the rounding direction of the plan changes. The setting is global (all cages), off by default, and read when a schedule starts — a schedule that is already running keeps the policy it started with.
+**What it does not change.** The volume per pulse, the timing profile, the per-window carry and the history columns are the same; only the rounding direction of the plan changes — including what counts as "done": nearest rounding closes a window within half a pulse of its target, rounding up closes it only at or above the target (a window cut short by a failed chunk is topped up after the window ends, as today). The setting is global (all cages), off by default, and read when a schedule starts — a schedule that is already running keeps the policy it started with.
 
 ---
 

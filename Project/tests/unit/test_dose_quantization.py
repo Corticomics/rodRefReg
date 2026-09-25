@@ -17,6 +17,7 @@ actually-delivered volume.
 from __future__ import annotations
 
 import asyncio
+import math
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -82,11 +83,22 @@ def _chunk(volume, animal_id=1):
     }
 
 
-def _run_window(worker, target, chunks):
+def _run_window(worker, target, chunks, per=None):
+    """Drive a window the way run_staggered_cycle / schedule_deliveries do.
+
+    Each cycle asks ``min(target - delivered, volume_per_cycle)`` — sized from
+    what has actually been delivered, not from a fixed plan — and asks
+    nothing once the target is met. Asking a fixed ``per`` every cycle would
+    hide a whole class of planner bugs (a closing chunk that under-asks
+    because earlier chunks delivered above their share).
+    """
     worker.animal_windows = {1: {'target_volume': target}}
-    per = target / chunks
+    per = per if per is not None else target / chunks
     for _ in range(chunks):
-        worker._handle_delivery(_chunk(per))
+        remaining = target - worker.delivered_volumes.get(1, 0.0)
+        if remaining <= 0:
+            break
+        worker._handle_delivery(_chunk(min(remaining, per)))
     return worker.delivered_volumes.get(1, 0.0)
 
 
@@ -347,3 +359,83 @@ def test_rounding_policy_defaults_to_nearest(monkeypatch):
     worker2.settings = {}
     worker2._handle_delivery(_chunk(0.3))
     assert _pulses(worker2, NEEDLE_Q) == 9
+
+
+# The device's own chunking: cycles = max(target / max_cycle_volume, 2) and
+# volume_per_cycle = min(target / cycles, 0.2), so 0.3 mL runs as 0.15 mL
+# chunks and everything larger as 0.2 mL chunks, with the closing chunk
+# sized to whatever is still outstanding.
+DEVICE_CHUNKING = [(0.3, 0.15, 2), (0.5, 0.2, 3), (0.6, 0.2, 3), (0.7, 0.2, 4), (1.0, 0.2, 5)]
+
+
+@pytest.mark.parametrize("dose,per,cycles", DEVICE_CHUNKING)
+def test_round_up_reaches_ceil_with_the_device_chunk_sizing(monkeypatch, dose, per, cycles):
+    """
+    Review finding: with chunks sized from delivered volume, round-up
+    over-delivers each chunk, so the closing chunk asks for less than the
+    window still needs and the cumulative ask never reached the target —
+    0.6 mL fired 18 pulses, the same as nearest, instead of 19. The
+    closing ask must count as the whole remaining dose.
+    """
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    total = _run_window(worker, target=dose, chunks=cycles, per=per)
+    assert _pulses(worker, NEEDLE_Q) == math.ceil(dose / NEEDLE_Q - 1e-9)
+    assert dose < total <= dose + NEEDLE_Q
+
+
+def test_round_up_closing_chunk_asks_for_the_whole_outstanding_dose(monkeypatch):
+    """The exact trace from the review: 0.6 mL in three device-sized chunks."""
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    _run_window(worker, target=0.6, chunks=3, per=0.2)
+    assert [round(v / NEEDLE_Q) for v in worker.fired] == [7, 6, 6]
+    assert worker.issued_targets[1] == pytest.approx(0.6)
+
+
+@pytest.mark.parametrize("dose,per,cycles", DEVICE_CHUNKING)
+def test_nearest_is_unchanged_by_the_closing_ask_rule(monkeypatch, dose, per, cycles):
+    """The log-confirmed nearest counts (9/15/18/21/30) must not move."""
+    worker = _make_worker(monkeypatch, NEEDLE_Q)
+    worker.settings = {'round_doses_up': False}
+    _run_window(worker, target=dose, chunks=cycles, per=per)
+    for _ in range(3):
+        _sliver(worker, dose)
+    assert _pulses(worker, NEEDLE_Q) == int(dose / NEEDLE_Q + 0.5)
+
+
+def test_round_up_completion_tolerance_is_delivered_at_least_target(monkeypatch):
+    """Nearest judges 'done' within half a pulse; round-up only at or above target."""
+    nearest = _make_worker(monkeypatch, NEEDLE_Q)
+    nearest.settings = {'relay_unit_assignments': {'1': 3}}
+    nearest.strategy._cal_snapshot = {}
+    assert nearest._completion_tolerance_ml(1) == pytest.approx(NEEDLE_Q / 2)
+
+    up = _make_worker(monkeypatch, NEEDLE_Q)
+    up.settings = {'relay_unit_assignments': {'1': 3}, 'round_doses_up': True}
+    up.strategy._cal_snapshot = {}
+    assert 0 < up._completion_tolerance_ml(1) <= 1e-6
+
+
+def test_round_up_short_window_is_topped_up_by_a_completion_ask(monkeypatch):
+    """
+    A window cut short (last chunk fails outright) ends under target. The
+    completion pass asks for the remainder; under round-up that must land
+    the window at or above its dose, within one pulse.
+    """
+    from strategies.delivery_strategy import DeliveryResult  # noqa: PLC0415
+
+    worker = _rounding_up(_make_worker(monkeypatch, NEEDLE_Q))
+    calls = {'n': 0}
+
+    async def _dies_on_third(relay_unit_id, target_volume_ml, triggers_hint=None):
+        calls['n'] += 1
+        if calls['n'] == 3:
+            return DeliveryResult(success=False, delivered_ml=0.0, pulses=0)
+        worker.fired.append(target_volume_ml)
+        return DeliveryResult(success=True, delivered_ml=target_volume_ml)
+
+    worker.strategy.deliver = _dies_on_third
+    _run_window(worker, target=0.6, chunks=3, per=0.2)
+    assert worker.delivered_volumes[1] < 0.6, "window ended short"
+
+    _sliver(worker, 0.6)  # what check_final_completion asks for
+    assert 0.6 < worker.delivered_volumes[1] <= 0.6 + NEEDLE_Q

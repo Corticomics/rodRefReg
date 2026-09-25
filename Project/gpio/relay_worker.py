@@ -777,18 +777,33 @@ class RelayWorker(QObject):
             # already counted toward the window the first time through.
             if not delivery_data.get('_counted_toward_window'):
                 delivery_data['_counted_toward_window'] = True
-                # Never ask the window for more than its dose. The planned
-                # chunks already sum to the target, but the cycle loop then
-                # re-requests whatever the rounding left over (target minus
-                # delivered) as a final sliver chunk; counting that on top
-                # pushed the cumulative ask above the target and bought one
-                # extra pulse whenever the timing allowed it — the 30-vs-31
-                # pulse split seen on the bench at 1.0 mL — and up to several
-                # after failed chunks were re-queued.
                 window_target = float(window.get('target_volume', float('inf')))
-                self.issued_targets[animal_id] = min(
-                    self.issued_targets.get(animal_id, 0.0) + requested, window_target
-                )
+                outstanding = window_target - current_delivered
+                if requested >= outstanding - 1e-12:
+                    # The cycle loop sizes every chunk from DELIVERED volume
+                    # (min(target − delivered, per_cycle)), so an ask that
+                    # covers everything still outstanding — the closing
+                    # chunk, a leftover sliver, a completion-pass top-up — is
+                    # the window asking for the rest of its dose: from here
+                    # the cumulative ask is the whole target. Summing the ask
+                    # instead leaves the total short by whatever earlier
+                    # slots delivered above their ask. Nearest rounding
+                    # shrugs that off (the completion pass makes it up), but
+                    # under round-up every slot lands above its ask, so the
+                    # sum never reached the target and the window closed a
+                    # pulse short — exactly the shortfall the policy exists
+                    # to remove.
+                    self.issued_targets[animal_id] = window_target
+                else:
+                    # Never ask the window for more than its dose: counting a
+                    # re-requested leftover on top of chunks that already sum
+                    # to the target bought an extra pulse whenever the timing
+                    # allowed it (the 30-vs-31 pulse split seen on the bench
+                    # at 1.0 mL), and up to several after failed chunks were
+                    # re-queued.
+                    self.issued_targets[animal_id] = min(
+                        self.issued_targets.get(animal_id, 0.0) + requested, window_target
+                    )
             deficit = self.issued_targets[animal_id] - current_delivered
         else:
             # Instant one-shot: no carry; this one request is rounded on
@@ -995,6 +1010,11 @@ class RelayWorker(QObject):
 
         if not volumes:
             return default_tolerance
+        if self._rounds_doses_up():
+            # Round-up promises the window never closes below its dose, so
+            # "done" is delivered >= target. The epsilon only absorbs the
+            # floating-point sum of n pulses landing a hair under n*q.
+            return 1e-6
         return max(default_tolerance, max(volumes) / 2.0)
 
     def schedule_retry(self, delivery_data):
