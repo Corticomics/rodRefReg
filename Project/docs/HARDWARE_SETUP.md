@@ -82,8 +82,12 @@ currently under evaluation.
 | 12 V DC (or 24 V DC) normally-closed solenoid valve, ≤ 2 A holding current, with female 2.1 × 5.5 mm DC barrel-jack pigtail or equivalent leads | 16 per HAT (1 master + 15 animal) | **TBD — exact model pending lab confirmation.** Confirm voltage matches your PSU. Normally-closed (NC) is required so a power loss closes the valve. |
 
 > **Why 16, not 15?** The master valve is wired in series upstream of the
-> animal valves and provides a single shutoff point. Reserve relay channel 1
-> for the master and relays 2–16 for animal channels.
+> animal valves and provides a single shutoff point. Relay channel **16** is
+> the master and channels 1–15 are the animal channels — that is the
+> application's default (`global_master_relay_id = 16` in
+> [`Project/controllers/system_controller.py`](../controllers/system_controller.py),
+> stored per device in the `system_settings` table). Wire to match the
+> setting, never the other way round.
 
 ### 2.3 DC power and distribution
 
@@ -147,7 +151,7 @@ twenty-minute layout exercise saves hours of rework and a spool of wasted wire.
    tubing run. Photograph the sketch — you will reference it during wiring.
 6. **Decide your master-valve location.** The master sits between the
    reservoir and the splitter feeding the animal valves. Wire it to relay
-   channel 1.
+   channel 16 (the application default — see [§7.2](#72-why-the-master-valve-is-on-channel-16)).
 
 ---
 
@@ -384,7 +388,8 @@ a wiring error on valve 1 is a five-minute fix; catching it after wiring all
 
 ### 7.1 Per-valve wiring
 
-For each valve, in order from relay channel 1 (master) through channel 16:
+For each valve, in order from relay channel 1 through channel 15 (animal
+channels) and then channel 16 (master):
 
 1. **Identify the relay channel's NO and COM terminals** on the HAT's
    pluggable terminal block. NO is "normally open" (the side the valve sees
@@ -402,13 +407,26 @@ For each valve, in order from relay channel 1 (master) through channel 16:
 5. **Label both ends of every wire** with the channel number (e.g., `R03+`
    and `R03-` for relay 3).
 
-### 7.2 Why master valve on channel 1
+### 7.2 Why the master valve is on channel 16
 
 The master is software-treated as a global shutoff. The application opens it
 before any animal valve and closes it after the last one in any delivery
-cycle. Channel 1 is the default master in
-[`Project/drivers/solenoid_controller.py`](../drivers/solenoid_controller.py)
-— remap only if you have a hardware reason to.
+cycle. Channel 16 is the default master: `global_master_relay_id = 16` in
+[`Project/controllers/system_controller.py`](../controllers/system_controller.py),
+stored per device in the `system_settings` table. The cage map skips that one
+relay, so a single HAT gives 15 animal channels (1–15); a second HAT adds 16
+more (relays 17–32 are all animal channels — the master is global, not per
+HAT). Remap only if you have a hardware reason to, and change the setting
+before you rewire: `SolenoidController` takes the id from the setting and has
+no default of its own.
+
+> **Independent setup (one syringe and one valve per animal, no manifold, no
+> master).** Until the `valve_topology` setting ships (planned for v1.20.0),
+> the software still energises relay 16 before every delivery, in the priming
+> tab and in the calibration wizard. On a rig without a master valve, **leave
+> relay channel 16 unwired** — anything connected to it will be opened for
+> about half a second per delivery. Every other step in this guide applies
+> unchanged: one relay per animal valve, one reservoir per animal.
 
 ### 7.3 Verify before powering
 
