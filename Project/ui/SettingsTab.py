@@ -405,7 +405,9 @@ class SettingsTab(QWidget):
             "On: rounding always goes up, so a dose never plans below its target "
             "and lands up to one pulse over.\n"
             "Turn this on when weighed doses come out short — for example with a "
-            "flow-restricting needle on the reservoir."
+            "flow-restricting needle on the reservoir.\n"
+            "Applies to schedules started after the change; a running schedule keeps "
+            "the policy it started with."
         )
         pulse_layout.addRow("", self.round_doses_up)
 

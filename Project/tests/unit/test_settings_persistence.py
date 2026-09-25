@@ -95,6 +95,13 @@ def test_round_doses_up_is_a_persisted_bool_that_defaults_off(database_handler):
     sc2 = SystemController(database_handler)
     assert sc2.settings["round_doses_up"] is True
 
+    # main.setup() runs this on every device boot, and its pulse_mode_settings
+    # block force-merges values: a key placed there would reset the operator's
+    # choice on every launch.
+    sc2.ensure_solenoid_defaults()
+    assert sc2.settings["round_doses_up"] is True
+    assert database_handler.get_system_settings()["round_doses_up"] is True
+
 
 # ---------------------------------------------------------------------------
 # Legacy-JSON migration

@@ -791,7 +791,8 @@ class RelayWorker(QObject):
                 )
             deficit = self.issued_targets[animal_id] - current_delivered
         else:
-            # Instant one-shot: no carry, just honest nearest rounding.
+            # Instant one-shot: no carry; this one request is rounded on
+            # its own (nearest, or up under round_doses_up).
             deficit = requested
 
         round_up = self._rounds_doses_up()
