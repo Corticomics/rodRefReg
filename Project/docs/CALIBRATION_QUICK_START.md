@@ -54,6 +54,20 @@ Two controls set the profile, and both are stored with the calibration:
 
 ---
 
+## Dose rounding policy
+
+Water leaves the valve in whole pulses, so a dose can only ever land within one pulse of its target — at 33 µL per pulse, a 0.3 mL dose is 9.1 pulses and the app must fire 9 or 10. The default rounds to the **nearest** pulse: the dose lands within half a pulse either side of its target, and which side depends on the arithmetic (9.1 → 9, under; 8.8 → 9, over).
+
+**Settings → Delivery → Pulse Mode → "Round doses up to the next whole pulse"** flips that: any dose that is not an exact number of pulses gets the next whole pulse, so the plan never falls below its target and lands up to one pulse over. The rounding stays cumulative within a schedule window — a 0.6 mL window split into three chunks fires `ceil(0.6 ÷ mL/pulse)` pulses in total, not one extra per chunk.
+
+**When to use it.** Turn it on when weighed doses come out consistently short of their target and you would rather err over than under. The bench case: with a flow-restricting needle on the reservoir, 0.3–0.7 mL doses weighed 3–8 % under target at nearest rounding. Rounding up plans one more pulse per dose. At 33 µL per pulse that puts the plan at +10 / +5 / +4 / +3.5 / +2 % for 0.3 / 0.5 / 0.6 / 0.7 / 1.0 mL — the ceiling, if the hardware delivers exactly what is planned — and with the ~16 µL per-dose shortfall measured on the needle rig the bowl lands around +4.5 / +2 / +1.5 / +1 / +0.5 %. Verify with ten weighed doses at the smallest target you use — the choice is a policy, not a calibration, and only weighing tells you which side of the target your rig should sit on. If the needle comes out later, turn the setting off again: on a cage without the shortfall it still adds one pulse to every dose that rounds down.
+
+**What the log shows.** `volume_actual_ml` in the dispensing history, the window progress percentage and the completion "precision" line are the plan — `pulses_fired × mL/pulse` — not a weighing. With rounding up they read one pulse above the target even when the bowl, with a retention shortfall, lands near it. Only the scale tells you where the bowl is.
+
+**What it does not change.** The volume per pulse, the timing profile, the per-window carry and the history columns are the same; only the rounding direction of the plan changes — including what counts as "done": nearest rounding closes a window within half a pulse of its target, rounding up closes it only at or above the target (a window cut short by a failed chunk is topped up after the window ends, as today). The setting is global (all cages), off by default, and read when a schedule starts — a schedule that is already running keeps the policy it started with.
+
+---
+
 ## Option B — CLI Tool (headless or advanced)
 
 ### Step 1: Prepare (same as Option A)

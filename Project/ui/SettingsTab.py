@@ -149,6 +149,7 @@ class SettingsTab(QWidget):
         self.predictive_close_ms.valueChanged.connect(self._auto_save_settings)
         self.use_pulse_delivery.stateChanged.connect(self._auto_save_settings)
         self.pulse_width_ms.valueChanged.connect(self._auto_save_settings)
+        self.round_doses_up.stateChanged.connect(self._auto_save_settings)
 
         # Pump settings
         self.pump_volume.valueChanged.connect(self._auto_save_settings)
@@ -190,6 +191,7 @@ class SettingsTab(QWidget):
                 'predictive_close_ms': self.predictive_close_ms.value(),
                 'use_pulse_delivery': self.use_pulse_delivery.isChecked(),
                 'pulse_width_ms': self.pulse_width_ms.value(),
+                'round_doses_up': self.round_doses_up.isChecked(),
                 # Pump settings
                 'pump_volume_ul': self.pump_volume.value(),
                 'calibration_factor': self.calibration_factor.value(),
@@ -390,6 +392,24 @@ class SettingsTab(QWidget):
         self.pulse_width_ms.setSuffix(" ms")
         self.pulse_width_ms.setToolTip("Pulse duration (default: 20ms for Parker Series 3)")
         pulse_layout.addRow("Pulse Width:", self.pulse_width_ms)
+
+        # Dose rounding policy. Water leaves the valve in whole pulses, so a
+        # dose can only land within one pulse of its target; this picks
+        # which side of the target that pulse falls on.
+        self.round_doses_up = QCheckBox("Round doses up to the next whole pulse")
+        self.round_doses_up.setChecked(bool(self.settings.get('round_doses_up', False)))
+        self.round_doses_up.setToolTip(
+            "Doses are delivered in whole pulses.\n"
+            "Off (default): each dose is rounded to the nearest pulse, so it can land "
+            "up to half a pulse under or over its target.\n"
+            "On: rounding always goes up, so a dose never plans below its target "
+            "and lands up to one pulse over.\n"
+            "Turn this on when weighed doses come out short — for example with a "
+            "flow-restricting needle on the reservoir.\n"
+            "Applies to schedules started after the change; a running schedule keeps "
+            "the policy it started with."
+        )
+        pulse_layout.addRow("", self.round_doses_up)
 
         pulse_group.setLayout(pulse_layout)
         solenoid_layout.addWidget(pulse_group)
