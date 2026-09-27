@@ -27,20 +27,12 @@ pytest.importorskip("PyQt5")
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-
-@pytest.fixture(autouse=True)
-def _restore_event_loop():
-    """_handle_delivery's solenoid branch calls asyncio.set_event_loop(None)
-    (correct in the worker thread). Running it on the test's MainThread leaves
-    no current loop, which would break later tests that use
-    asyncio.get_event_loop(). Restore one after each test."""
-    import asyncio
-
-    yield
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
+# _handle_delivery's solenoid branch ends with asyncio.set_event_loop(None)
+# (correct in the worker thread). On the test's main thread that leaves no
+# policy loop behind, which is fine: every async test in this suite runs its
+# coroutine under asyncio.run(), which owns and closes its own loop. A fixture
+# that used to "restore" a policy loop here leaked that loop (never closed)
+# and surfaced as an unclosed-event-loop ResourceWarning at session end.
 
 
 def _self(hardware_mode, *, animal_windows=None):
