@@ -9,10 +9,72 @@ guaranteed to be restored even on test failure.
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Callable
 
 import pytest
+
+
+class FakeRelayHandler:
+    """Stateful stand-in for ``gpio.gpio_handler.RelayHandler``.
+
+    Keeps the state of every relay it has been asked to drive and an ordered
+    log of every write, so a test can assert on the exact relay sequence a
+    delivery produced (the "golden trace") and on the final state of the
+    hardware, rather than on which methods were called.
+
+    Faults are modelled the way the real HAT path fails: ``fail_on`` makes
+    the matching write silently not happen while ``set_relays`` still
+    returns True, which is what ``RelayHandler`` does when the vendor
+    library raises (errors are printed and swallowed there).
+    """
+
+    def __init__(self, *_args, **_kwargs):
+        self.states: dict[int, int] = {}
+        self.writes: list[tuple[tuple[int, ...], int, int]] = []  # (ids, state, thread)
+        self.dropped: list[tuple[tuple[int, ...], int]] = []
+        self._fail_nth: int | None = None
+        self._fail_relay: int | None = None
+
+    def fail_on(self, nth: int | None = None, relay: int | None = None) -> None:
+        """Drop the ``nth`` write (1-based) and/or every write touching ``relay``."""
+        self._fail_nth = nth
+        self._fail_relay = relay
+
+    def set_relays(self, relay_ids, state) -> bool:
+        ids = tuple(int(r) for r in relay_ids)
+        state = int(state)
+        attempt = len(self.writes) + len(self.dropped) + 1
+        if attempt == self._fail_nth or (
+            self._fail_relay is not None and self._fail_relay in ids
+        ):
+            self.dropped.append((ids, state))
+            return True
+        self.writes.append((ids, state, threading.get_ident()))
+        for relay in ids:
+            self.states[relay] = state
+        return True
+
+    def set_all_relays(self, state) -> None:
+        state = int(state)
+        self.writes.append((("all",), state, threading.get_ident()))
+        for relay in list(self.states):
+            self.states[relay] = state
+
+    @property
+    def trace(self) -> list[tuple[tuple[int, ...], int]]:
+        """The write sequence without thread idents: ``[((16,), 1), ...]``."""
+        return [(ids, state) for ids, state, _ in self.writes]
+
+    def energized(self) -> set[int]:
+        return {relay for relay, state in self.states.items() if state}
+
+
+@pytest.fixture
+def fake_relay_handler() -> FakeRelayHandler:
+    """A fresh :class:`FakeRelayHandler`; pass it where a RelayHandler is expected."""
+    return FakeRelayHandler()
 
 
 @pytest.fixture
