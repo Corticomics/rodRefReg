@@ -421,16 +421,38 @@ before you rewire: `SolenoidController` takes the id from the setting and has
 no default of its own.
 
 > **Independent setup (one syringe and one valve per animal, no manifold, no
-> master).** Set the device's valve topology to `independent` (v1.20.0+:
-> with the app closed, `RRR_DATA=~/rrr/shared/data python3
-> tools/set_valve_topology.py independent`, then start the app; a Settings
-> control follows in a later release). The software then never drives relay
-> 16: deliveries pulse the cage valve only, with no manifold prime. On a rig
-> still on a release before v1.20.0, or before the setting is applied,
-> **leave relay channel 16 unwired** — the shared-manifold code energises it
-> for about half a second per delivery, in the priming tab and in the
-> calibration wizard. Every other step in this guide applies unchanged: one
-> relay per animal valve, one reservoir per animal.
+> master).** From v1.20.0 the device's valve topology can be set to
+> `independent`; a Settings control follows in a later release. On the
+> device, with the app stopped:
+>
+> ```bash
+> systemctl --user stop rrr.service
+> cd ~/rrr/current/Project
+> ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py independent --yes
+> ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py   # prints: current valve_topology: independent
+> systemctl --user start rrr.service
+> ```
+>
+> The tool prints the database it is acting on and refuses to create one;
+> the app's log then says `Valve topology: independent` on every start.
+> Deliveries pulse the cage valve only, with no manifold prime, and relay
+> 16 is never driven. It is, however, still **reserved** in this release —
+> an independent rig gets 15 animal channels on the first HAT (and 16 on
+> each additional HAT, since only relay 16 is reserved), and channel 16
+> should stay unwired until a later release lifts the reservation.
+>
+> On a release before v1.20.0, or before the setting is applied, the
+> shared-manifold code energises relay 16 for the **whole** of every
+> delivery (a 200 ms prime, then held open across every pulse — seconds to
+> tens of seconds depending on the interval), for the whole of a calibration
+> run, and in the priming tab from Open Master until Close Master. So on a
+> rig without a master valve, leave channel 16 unwired. Every other step in
+> this guide applies unchanged: one relay per animal valve, one reservoir
+> per animal.
+>
+> Never set `independent` on a rig that has a master valve: the master would
+> never open and every delivery would be logged as a full dose while the
+> animal received nothing.
 
 ### 7.3 Verify before powering
 

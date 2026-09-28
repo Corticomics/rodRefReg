@@ -441,17 +441,27 @@ class SystemController(QObject):
 
             # Valve topology: a value nobody recognises would leave the app
             # unsure whether a master valve exists. Fall back to the shared
-            # manifold (today's behaviour) and say so, rather than guess.
-            from utils.topology import normalize as normalize_topology
+            # manifold (today's behaviour) and say so, rather than guess —
+            # and announce the resolved topology on every boot, so a rig set
+            # to 'independent' says so in its log before any water moves.
+            from utils import topology as topo
+
+            # Printed as well as emitted: at boot nothing is connected to
+            # system_status yet, and the journal is where an operator looks.
+            def _announce(message):
+                print(f"[TOPOLOGY] {message}", flush=True)
+                self.system_status.emit(message)
 
             stored_topology = s.get('valve_topology')
-            topology = normalize_topology(stored_topology)
+            topology = topo.normalize(stored_topology)
             if stored_topology != topology:
                 s['valve_topology'] = topology
                 settings_changed = True
-                self.system_status.emit(
-                    f"Unknown valve_topology {stored_topology!r}; using '{topology}'"
-                )
+                if topo.is_known(stored_topology):
+                    _announce(f"Normalised valve_topology {stored_topology!r} -> '{topology}'")
+                else:
+                    _announce(f"Unknown valve_topology {stored_topology!r}; using '{topology}'")
+            _announce(f"Valve topology: {topology} ({topo.describe(topology)})")
 
             # Save settings if any changes were made
             if settings_changed:

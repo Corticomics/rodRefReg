@@ -168,13 +168,19 @@ def test_independent_topology_pulses_the_cage_and_never_the_master(qapp, fake_re
 
     wizard = _make_wizard(num_pulses=5, settings=dict(_SETTINGS, valve_topology="independent"))
     results = []
+    log_lines = []
 
     wizard._execute_calibration()
     assert wizard._worker is not None
     wizard._worker.finished.connect(lambda ok, err: results.append((ok, err)))
+    wizard._worker.log.connect(log_lines.append)
 
     assert _drain_until(qapp, lambda: results and wizard._worker is None)
     assert results[0] == (True, None)
+
+    # The wizard's own branch: it said so, and never claimed to open a master.
+    assert any("No master valve on this topology" in line for line in log_lines), log_lines
+    assert not any("Master valve opened" in line for line in log_lines), log_lines
 
     writes = [(ids, state) for ids, state, _ in fake_relays[0].calls]
     assert writes, "no relay writes recorded"

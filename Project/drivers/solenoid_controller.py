@@ -3,6 +3,22 @@ from __future__ import annotations
 from typing import Dict
 
 
+def _cage_map_from(cage_to_relay_id: Dict[int, int]) -> Dict[int, int]:
+    """Normalise a cage->relay map and refuse relay ids the HAT layer would misroute.
+
+    RelayHandler routes ids with divmod(id - 1, 16) and no lower bound, so a
+    0 or -1 would energise relay 16 or 15 on the LAST HAT — on a one-HAT
+    shared rig that is the master valve, on a stacked rig another animal's.
+    """
+    if not cage_to_relay_id:
+        raise ValueError("cage_relays mapping is required")
+    cage_map = {int(k): int(v) for k, v in cage_to_relay_id.items()}
+    bad = {cage: relay for cage, relay in cage_map.items() if relay < 1}
+    if bad:
+        raise ValueError(f"cage relay ids must be >= 1, got {bad}")
+    return cage_map
+
+
 class SolenoidController:
     """High-level controller for master and per-cage solenoids.
 
@@ -29,18 +45,16 @@ class SolenoidController:
             raise ValueError("relay_handler is required")
         if master_relay_id is None:
             raise ValueError("master_relay_id is required")
-        if not cage_to_relay_id:
-            raise ValueError("cage_relays mapping is required")
+        cage_map = _cage_map_from(cage_to_relay_id)
         master = int(master_relay_id)
         if master < 1:
-            # RelayHandler routes ids with divmod(id - 1, 16) and no lower
-            # bound, so 0 or -1 would energise relay 16 or 15 on the LAST HAT.
+            # Same misrouting hazard as for cage ids (see _cage_map_from).
             # "No master" is a topology (IndependentSolenoidController), not a
             # number.
             raise ValueError(f"master_relay_id must be >= 1, got {master_relay_id!r}")
         self._relay_handler = relay_handler
         self._master = master
-        self._cage_map = {int(k): int(v) for k, v in cage_to_relay_id.items()}
+        self._cage_map = cage_map
 
         # Diagnostic: Print configuration on init
         print(f"[SolenoidController] Initialized with master_relay={self._master}")
@@ -111,11 +125,9 @@ class IndependentSolenoidController(SolenoidController):
     def __init__(self, relay_handler, cage_to_relay_id: Dict[int, int]) -> None:
         if relay_handler is None:
             raise ValueError("relay_handler is required")
-        if not cage_to_relay_id:
-            raise ValueError("cage_relays mapping is required")
         self._relay_handler = relay_handler
         self._master = None
-        self._cage_map = {int(k): int(v) for k, v in cage_to_relay_id.items()}
+        self._cage_map = _cage_map_from(cage_to_relay_id)
 
         print("[SolenoidController] Initialized with NO master valve (independent topology)")
         print(f"[SolenoidController] Cage-to-relay map: {self._cage_map}")

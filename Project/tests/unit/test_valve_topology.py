@@ -22,6 +22,7 @@ Pinned here:
 from __future__ import annotations
 
 import importlib.util
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -71,13 +72,18 @@ def test_setting_defaults_to_shared_and_persists_as_a_string(database_handler):
     sc1 = SystemController(database_handler)
     assert sc1.settings[SETTING_KEY] == SHARED_MANIFOLD
     assert SETTING_KEY in sc1._get_persisted_keys()
-    assert sc1._get_setting_type(SETTING_KEY) is str
     assert is_independent(sc1.settings) is False
 
     sc1.save_settings({SETTING_KEY: INDEPENDENT})
     sc2 = SystemController(database_handler)
     assert sc2.settings[SETTING_KEY] == INDEPENDENT
     assert is_independent(sc2.settings) is True
+    # The row is tagged as a string, which is what governs the read-back.
+    with sqlite3.connect(database_handler.db_path) as conn:
+        row = conn.execute(
+            "SELECT setting_type FROM system_settings WHERE setting_key = ?", (SETTING_KEY,)
+        ).fetchone()
+    assert row == ('str',)
 
     # main.setup() runs this on every boot; its pulse_mode_settings block
     # force-merges values, so a key placed there would reset the choice.
@@ -103,6 +109,34 @@ def test_unrecognised_stored_value_is_normalised_on_boot(database_handler, store
     assert sc.settings[SETTING_KEY] == expected
     assert database_handler.get_system_settings()[SETTING_KEY] == expected
     assert any(SETTING_KEY in m and repr(stored) in m for m in messages), messages
+    # A recognised-but-untidy value is reported as normalised, not unknown.
+    verb = "Normalised" if expected == INDEPENDENT else "Unknown"
+    assert any(m.startswith(verb) for m in messages), messages
+
+
+def test_boot_announces_the_resolved_topology(database_handler, capsys):
+    """
+    Nothing is connected to system_status at boot (main.setup and the
+    splash worker call ensure_solenoid_defaults with no receivers), so the
+    announcement must also be printed - that is what reaches the journal an
+    operator checks. Asserted on stdout with NO signal receiver connected.
+    """
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    sc = SystemController(database_handler)
+    sc.ensure_solenoid_defaults()
+    out = capsys.readouterr().out
+    assert "[TOPOLOGY] Valve topology: shared_manifold" in out
+
+    sc.save_settings({SETTING_KEY: INDEPENDENT})
+    sc.ensure_solenoid_defaults()
+    out = capsys.readouterr().out
+    assert "[TOPOLOGY] Valve topology: independent" in out and "no master valve" in out
+
+    sc.save_settings({SETTING_KEY: "bogus"})
+    sc.ensure_solenoid_defaults()
+    out = capsys.readouterr().out
+    assert "[TOPOLOGY] Unknown valve_topology 'bogus'" in out
 
 
 # --- the controllers --------------------------------------------------------
@@ -147,6 +181,19 @@ def test_shared_controller_rejects_a_master_id_that_would_hit_the_last_hat(
     of the last HAT, -1 -> relay 15. A sentinel must never reach the hardware."""
     with pytest.raises(ValueError):
         SolenoidController(fake_relay_handler, bad_master, CAGES)
+
+
+@pytest.mark.parametrize("bad_relay", [0, -1])
+@pytest.mark.parametrize("build", ["shared", "independent"])
+def test_controllers_reject_a_cage_relay_id_that_would_hit_the_last_hat(
+    fake_relay_handler, build, bad_relay
+):
+    """A cage mapped to relay 0 or -1 would be misrouted exactly like a bad master id."""
+    with pytest.raises(ValueError, match="cage relay ids"):
+        if build == "shared":
+            SolenoidController(fake_relay_handler, 16, {1: bad_relay})
+        else:
+            IndependentSolenoidController(fake_relay_handler, {1: bad_relay})
 
 
 def test_shared_controller_still_drives_the_master(fake_relay_handler):
@@ -200,21 +247,125 @@ def _load_tool():
     return module
 
 
-def test_tool_shows_sets_and_reads_back_through_system_controller(database_handler, capsys):
+@pytest.fixture
+def tool(monkeypatch):
+    module = _load_tool()
+    monkeypatch.setattr(module, "_app_running", lambda: (False, "inactive"))
+    return module
+
+
+class _FakeRun:
+    """Stand-in for subprocess.run returning a fixed systemctl result."""
+
+    def __init__(self, returncode, stdout="", stderr="", raise_=None):
+        self.returncode, self.stdout, self.stderr, self.raise_ = returncode, stdout, stderr, raise_
+
+    def __call__(self, *_args, **_kwargs):
+        if self.raise_:
+            raise self.raise_
+        return self
+
+
+@pytest.mark.parametrize(
+    "run,expected",
+    [
+        (_FakeRun(0, stdout="active"), True),
+        (_FakeRun(3, stdout="inactive"), False),
+        (_FakeRun(4, stderr="Unit rrr.service could not be found."), False),
+        (_FakeRun(1, stderr="Failed to connect to bus: no session bus"), None),
+        (_FakeRun(0, raise_=FileNotFoundError("systemctl")), None),
+    ],
+)
+def test_app_running_is_tri_state(monkeypatch, run, expected):
+    module = _load_tool()
+    monkeypatch.setattr(module.subprocess, "run", run)
+    state, _detail = module._app_running()
+    assert state is expected
+
+
+def test_tool_refuses_when_it_cannot_tell_whether_the_app_runs(
+    database_handler, monkeypatch, capsys
+):
+    """A shell without a session bus must not be read as 'app stopped'."""
     from controllers.system_controller import SystemController  # noqa: PLC0415
 
-    tool = _load_tool()
+    module = _load_tool()
+    monkeypatch.setattr(module.subprocess, "run", _FakeRun(1, stderr="Failed to connect to bus"))
+
+    assert module.main([INDEPENDENT, "--yes"]) == 2
+    err = capsys.readouterr().err
+    assert "could not determine" in err and "Failed to connect to bus" in err
+    assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
+
+    assert module.main([]) == 0, "showing never needs the check"
+    assert module.main([INDEPENDENT, "--yes", "--force"]) == 0
+
+
+def test_tool_names_a_data_dir_that_is_not_a_directory(tool, tmp_path, capsys):
+    not_a_dir = tmp_path / "file"
+    not_a_dir.write_text("x")
+    assert tool.main(["--data-dir", str(not_a_dir)]) == 2
+    assert "is not a directory" in capsys.readouterr().err
+
+
+def test_tool_shows_sets_and_reads_back_through_system_controller(
+    database_handler, tool, capsys
+):
+    from controllers.system_controller import SystemController  # noqa: PLC0415
 
     assert tool.main([]) == 0
-    assert f"current {SETTING_KEY}: {SHARED_MANIFOLD}" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert f"database: {database_handler.db_path}" in out
+    assert f"current {SETTING_KEY}: {SHARED_MANIFOLD}" in out
 
-    assert tool.main([INDEPENDENT]) == 0
+    assert tool.main([INDEPENDENT, "--yes"]) == 0
     out = capsys.readouterr().out
     assert f"{SETTING_KEY} set to: {INDEPENDENT}" in out
     assert SystemController(database_handler).settings[SETTING_KEY] == INDEPENDENT
 
-    assert tool.main([INDEPENDENT]) == 0
+    assert tool.main([INDEPENDENT, "--yes"]) == 0
     assert "no change" in capsys.readouterr().out
 
     assert tool.main([SHARED_MANIFOLD]) == 0
     assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
+
+
+def test_tool_requires_confirmation_to_set_independent(database_handler, tool, capsys):
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    assert tool.main([INDEPENDENT]) == 2
+    assert "NO WATER" in capsys.readouterr().err
+    assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
+
+
+def test_tool_refuses_without_a_data_directory_and_creates_nothing(tool, tmp_path, monkeypatch):
+    monkeypatch.delenv("RRR_DATA", raising=False)
+    missing_default = tmp_path / "no-such-rrr-data"
+    monkeypatch.setattr(tool, "DEFAULT_DATA_DIR", str(missing_default))
+
+    assert tool.main([INDEPENDENT, "--yes"]) == 2
+    assert not missing_default.exists()
+    assert not list(tmp_path.rglob("rrr_database.db"))
+
+
+def test_tool_never_creates_a_database(tool, tmp_path):
+    empty = tmp_path / "data"
+    empty.mkdir()
+    assert tool.main([INDEPENDENT, "--yes", "--data-dir", str(empty)]) == 2
+    assert not (empty / "rrr_database.db").exists()
+    assert not (empty / "secrets.json").exists()
+
+
+def test_tool_refuses_while_the_app_is_running_unless_forced(
+    database_handler, tool, monkeypatch, capsys
+):
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    monkeypatch.setattr(tool, "_app_running", lambda: (True, "active"))
+    assert tool.main([INDEPENDENT, "--yes"]) == 2
+    assert "rrr.service is running" in capsys.readouterr().err
+    assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
+
+    assert tool.main([]) == 0, "showing is always allowed"
+    assert tool.main([INDEPENDENT, "--yes", "--force"]) == 0
+    assert SystemController(database_handler).settings[SETTING_KEY] == INDEPENDENT

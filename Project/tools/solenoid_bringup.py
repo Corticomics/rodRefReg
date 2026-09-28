@@ -297,7 +297,8 @@ class Bringup:
             try:
                 self._set_state("close_cage")
                 time.sleep(self.interval_s)
-                self._set_state("close_master")
+                if not self.no_master:
+                    self._set_state("close_master")
             finally:
                 self._log("Cleanup complete.")
 

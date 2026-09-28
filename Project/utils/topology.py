@@ -32,13 +32,23 @@ TOPOLOGIES = (SHARED_MANIFOLD, INDEPENDENT)
 DEFAULT_MASTER_RELAY_ID = 16
 
 
+def is_known(value) -> bool:
+    """Whether a stored value names a topology (case and whitespace aside)."""
+    return isinstance(value, str) and value.strip().lower() in TOPOLOGIES
+
+
 def normalize(value) -> str:
     """Map a stored value to a known topology; anything else is the shared one."""
-    if isinstance(value, str):
-        candidate = value.strip().lower()
-        if candidate in TOPOLOGIES:
-            return candidate
+    if is_known(value):
+        return value.strip().lower()
     return SHARED_MANIFOLD
+
+
+def describe(topology: str) -> str:
+    """One line an operator can read: what the topology means for the master valve."""
+    if normalize(topology) == INDEPENDENT:
+        return "one syringe and one valve per animal; no master valve is ever driven"
+    return "master valve + manifold; the master is primed and held around every delivery"
 
 
 def topology_from(settings) -> str:

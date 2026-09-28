@@ -61,7 +61,7 @@ def _independent_strategy(fake, monkeypatch):
     return _strategy(IndependentSolenoidController(fake, CAGE_MAP), monkeypatch)
 
 
-def _strategy(valves, monkeypatch):
+def _strategy(valves, monkeypatch, pulse=True):
     db = _StubDB(
         {
             CAGE: {
@@ -72,11 +72,12 @@ def _strategy(valves, monkeypatch):
             }
         }
     )
+    settings = dict(SETTINGS, use_pulse_delivery=pulse, expected_flow_ml_min=60.0)
     strategy = SolenoidFlowStrategy(
         solenoid_controller=valves,
         flow_sensor=None,  # production runs calibration-only
         calibration_store=None,
-        settings=dict(SETTINGS),
+        settings=settings,
         database_handler=db,
     )
 
@@ -207,6 +208,34 @@ def test_both_topologies_plan_and_fire_the_same_pulses(fake_relay_handler, monke
     cage_opens = [w for w in fake_relay_handler.trace if w == ((CAGE,), 1)]
     assert result.pulses == len(cage_opens) == 9
     assert rests == [INTERVAL_MS] * 8
+
+
+# Continuous mode is force-disabled on devices (use_pulse_delivery is
+# force-merged True on every boot), but its master gates are the same code
+# and are pinned here so they cannot drift from pulse mode.
+
+
+def test_continuous_mode_shared_trace_primes_and_holds_the_master(fake_relay_handler, monkeypatch):
+    valves = SolenoidController(fake_relay_handler, MASTER, CAGE_MAP)
+    strategy, sleeps, _rests = _strategy(valves, monkeypatch, pulse=False)
+
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=1.0))
+
+    assert result.success is True
+    # prime (master open), cage open, cage close, master close
+    assert fake_relay_handler.trace == [((MASTER,), 1), ((CAGE,), 1), ((CAGE,), 0), ((MASTER,), 0)]
+    assert sleeps == [0.2, 1.0]  # prime, then 1.0 mL at 60 mL/min
+
+
+def test_continuous_mode_independent_trace_is_the_cage_only(fake_relay_handler, monkeypatch):
+    valves = IndependentSolenoidController(fake_relay_handler, CAGE_MAP)
+    strategy, sleeps, _rests = _strategy(valves, monkeypatch, pulse=False)
+
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=1.0))
+
+    assert result.success is True
+    assert fake_relay_handler.trace == [((CAGE,), 1), ((CAGE,), 0)]
+    assert sleeps == [1.0]
 
 
 def test_fake_relay_handler_models_a_silently_lost_write(fake_relay_handler):

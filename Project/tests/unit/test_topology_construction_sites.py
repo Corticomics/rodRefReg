@@ -45,6 +45,14 @@ def _reset_lock(qapp):
     ol._singleton = None
 
 
+@pytest.fixture(autouse=True)
+def _silence_msgbox(monkeypatch):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    for name in ("warning", "critical", "information"):
+        monkeypatch.setattr(QMessageBox, name, staticmethod(lambda *a, **k: QMessageBox.Ok))
+
+
 # --- RelayWorker._initialize_hardware ----------------------------------------
 
 
@@ -149,3 +157,31 @@ def test_priming_widget_builds_the_independent_controller(qapp, priming_hardware
     valves.open_master()
     valves.open_cage(3)
     assert priming_hardware.trace == [((3,), 1)], "master control is a no-op, cage still works"
+
+
+def test_priming_click_flow_on_the_independent_topology(qapp, priming_hardware):
+    """
+    Until the priming UI is adapted, an operator on an independent rig
+    still clicks Open Master first. That click must acquire the lock and
+    drive nothing; a cage open then drives exactly that cage; Close Master
+    closes every cage, drives no master, and releases the lock.
+    """
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+    from utils.operation_lock import PRIMING, get_operation_lock  # noqa: PLC0415
+
+    widget = PrimingControlWidget(dict(INDEPENDENT), lambda *_: None)
+
+    widget._on_open_master_clicked()
+    assert get_operation_lock().held_by(PRIMING) is True
+    assert priming_hardware.trace == []
+
+    index = widget.cage_selector.findData(3)
+    assert index >= 0
+    widget.cage_selector.setCurrentIndex(index)
+    widget._on_open_cage_clicked()
+    assert priming_hardware.trace == [((3,), 1)]
+
+    widget._on_close_master_clicked()
+    assert get_operation_lock().is_busy() is False
+    assert priming_hardware.energized() == set()
+    assert all(16 not in ids for ids, _state in priming_hardware.trace)
