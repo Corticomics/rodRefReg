@@ -85,11 +85,11 @@ def fake_relays(monkeypatch):
     return created
 
 
-def _make_wizard(num_pulses, pulse_width_ms=10):
+def _make_wizard(num_pulses, pulse_width_ms=10, settings=None):
     from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
 
     controller = MagicMock()
-    controller.settings = dict(_SETTINGS)
+    controller.settings = dict(_SETTINGS if settings is None else settings)
     wizard = CalibrationWizard(
         cage_id=1, database_handler=MagicMock(), system_controller=controller
     )
@@ -158,6 +158,31 @@ def test_run_completes_off_gui_thread(qapp, fake_relays):
     assert handler.calls[-1][:2] == ((_MASTER_RELAY,), 0)
 
     # Lock released once the run is over
+    assert get_operation_lock().is_busy() is False
+    wizard.close()
+
+
+def test_independent_topology_pulses_the_cage_and_never_the_master(qapp, fake_relays):
+    """On the independent topology (v1.20.0) the wizard drives only the cage valve."""
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    wizard = _make_wizard(num_pulses=5, settings=dict(_SETTINGS, valve_topology="independent"))
+    results = []
+
+    wizard._execute_calibration()
+    assert wizard._worker is not None
+    wizard._worker.finished.connect(lambda ok, err: results.append((ok, err)))
+
+    assert _drain_until(qapp, lambda: results and wizard._worker is None)
+    assert results[0] == (True, None)
+
+    writes = [(ids, state) for ids, state, _ in fake_relays[0].calls]
+    assert writes, "no relay writes recorded"
+    assert all(ids != (_MASTER_RELAY,) for ids, _ in writes), writes
+    assert writes[0] == ((_CAGE_RELAY,), 1)
+    assert writes[-1] == ((_CAGE_RELAY,), 0)
+    assert sum(1 for ids, state in writes if ids == (_CAGE_RELAY,) and state == 1) == 5
+
     assert get_operation_lock().is_busy() is False
     wizard.close()
 

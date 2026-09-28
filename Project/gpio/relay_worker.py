@@ -6,11 +6,11 @@ import time
 from datetime import datetime, timedelta
 from functools import partial
 
-from drivers.solenoid_controller import SolenoidController
 from PyQt5.QtCore import QMutex, QMutexLocker, QObject, QTimer, pyqtSignal, pyqtSlot
 from strategies.delivery_strategy import DeliveryResult
 from strategies.factory import StrategyFactory
 from utils.calibration import CalibrationStore
+from utils.topology import build_solenoid_controller
 from utils.volume_calculator import VolumeCalculator
 
 """
@@ -316,11 +316,14 @@ class RelayWorker(QObject):
                 print(f"[DEBUG] Built fallback cage_map with {len(cage_map)} cages")
             except Exception as e:
                 print(f"Failed to build sequential cage_relays: {e}")
-        print(f"[DEBUG] Step 3b: Building SolenoidController...")
-        master_id = int(system_settings.get('global_master_relay_id', 16))
-        print(f"[DEBUG] Step 3b: master_id={master_id}, cage_map={cage_map}")
-        solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
-        print(f"[DEBUG] Step 3b:  SolenoidController created")
+        print(f"[DEBUG] Step 3b: Building valve controller for this device's topology...")
+        # The device's valve topology decides whether a master valve exists;
+        # utils.topology is the one place that decision is made.
+        solenoid = build_solenoid_controller(self.relay_handler, system_settings, cage_map)
+        print(
+            f"[DEBUG] Step 3b:  {type(solenoid).__name__} created "
+            f"(has_master={solenoid.has_master}, cage_map={cage_map})"
+        )
 
         print(f"[DEBUG] Step 4: Creating strategy...")
         cal_store = CalibrationStore()

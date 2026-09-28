@@ -360,6 +360,19 @@ class SolenoidFlowStrategy:
     def _check_cancelled(self) -> bool:
         return self._cancel_event.is_set()
 
+    @property
+    def _has_master(self) -> bool:
+        """
+        Whether the valve controller drives a master valve.
+
+        The shared manifold primes and holds the master around every
+        delivery; the independent topology (one syringe and valve per
+        animal) has no master, so those steps are skipped. A controller
+        that predates the attribute is treated as having one — today's
+        behaviour.
+        """
+        return bool(getattr(self._valves, 'has_master', True))
+
     async def deliver(
         self,
         relay_unit_id: int,
@@ -469,9 +482,11 @@ class SolenoidFlowStrategy:
             )
 
             try:
-                # Prime manifold
-                self._valves.open_master()
-                await asyncio.sleep(self._prime_ms / 1000.0)
+                # Prime manifold (no master, nothing to prime, on the
+                # independent topology)
+                if self._has_master:
+                    self._valves.open_master()
+                    await asyncio.sleep(self._prime_ms / 1000.0)
 
                 # Deliver
                 self._valves.open_cage(cage_id)
@@ -507,16 +522,17 @@ class SolenoidFlowStrategy:
         residual_flow_threshold = float(self._settings.get('residual_flow_threshold_ml_min', 1.0))
         max_sensor_errors = int(self._settings.get('max_consecutive_sensor_errors', 10))
 
-        # Prime path (master only)
+        # Prime path (master only; skipped on the independent topology)
         await asyncio.sleep(0)  # yield once
-        try:
-            self._valves.open_master()
-            await asyncio.sleep(self._prime_ms / 1000.0)
-            self._valves.close_master()
-            await asyncio.sleep(0.05)
-        except Exception:
-            # Hardware or mapping issue – fail fast
-            return False
+        if self._has_master:
+            try:
+                self._valves.open_master()
+                await asyncio.sleep(self._prime_ms / 1000.0)
+                self._valves.close_master()
+                await asyncio.sleep(0.05)
+            except Exception:
+                # Hardware or mapping issue – fail fast
+                return False
 
         # Delivery
         delivered_ul = 0.0
@@ -590,7 +606,8 @@ class SolenoidFlowStrategy:
             # Quiet period before switching relays to reduce collisions
             quiet_ms = float(self._settings.get('valve_switch_quiet_ms', 800.0))
             await asyncio.sleep(max(0.0, quiet_ms) / 1000.0)
-            self._valves.open_master()
+            if self._has_master:
+                self._valves.open_master()
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valves.open_cage(cage_id)
             self._logger.info(f"Solenoids opened successfully for cage {cage_id}")
@@ -815,16 +832,21 @@ class SolenoidFlowStrategy:
                 )
                 self._sensor_available = False
 
-        # Step 3: Prime manifold (master valve only)
-        try:
-            self._logger.debug("Priming manifold...")
-            self._valves.open_master()
-            await asyncio.sleep(self._prime_ms / 1000.0)
-            self._valves.close_master()
-            await asyncio.sleep(0.05)
-        except Exception as e:
-            self._logger.error(f"Failed to prime manifold: {e}")
-            return False
+        # Step 3: Prime manifold (master valve only). The independent
+        # topology has no master and nothing to prime: the cage valve is the
+        # whole fluid path, so the delivery goes straight to the pulses.
+        if self._has_master:
+            try:
+                self._logger.debug("Priming manifold...")
+                self._valves.open_master()
+                await asyncio.sleep(self._prime_ms / 1000.0)
+                self._valves.close_master()
+                await asyncio.sleep(0.05)
+            except Exception as e:
+                self._logger.error(f"Failed to prime manifold: {e}")
+                return False
+        else:
+            self._logger.debug("No master valve on this topology; skipping manifold prime")
 
         # Step 4: Calculate estimated pulses from cage-specific calibration
         cage_pw_ms, cage_interval_ms, expected_vol_per_pulse = await self._get_cage_calibration(
@@ -880,8 +902,9 @@ class SolenoidFlowStrategy:
 
         try:
             # Open master valve for delivery (stays open during pulses)
-            self._valves.open_master()
-            await asyncio.sleep(0.3)  # Let manifold stabilize
+            if self._has_master:
+                self._valves.open_master()
+                await asyncio.sleep(0.3)  # Let manifold stabilize
 
             while delivered_ml < target_volume_ml:
                 # Cooperative cancellation: operator pressed Stop. Bail into
