@@ -30,6 +30,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from utils.operation_lock import PRIMING, get_operation_lock
+from utils.topology import is_independent
 
 
 class RelayControlModel(QObject):
@@ -41,6 +42,10 @@ class RelayControlModel(QObject):
     - Provide thread-safe state access
     - Emit signals on state changes
 
+    On a topology without a master valve (one syringe and valve per animal)
+    the "master" is permanently open as far as the interlocks are concerned:
+    there is nothing upstream of a cage valve to open first.
+
     Best Practices:
     - Single Responsibility Principle
     - Observer pattern via Qt signals
@@ -50,10 +55,19 @@ class RelayControlModel(QObject):
     master_state_changed = pyqtSignal(bool)  # True = open, False = closed
     cage_state_changed = pyqtSignal(int, bool)  # cage_id, is_open
 
-    def __init__(self):
+    def __init__(self, has_master: bool = True):
         super().__init__()
-        self._master_open: bool = False
+        self._has_master = has_master
+        self._master_open: bool = not has_master
         self._open_cages: Set[int] = set()
+
+    @property
+    def has_master(self) -> bool:
+        return self._has_master
+
+    def master_closed(self) -> None:
+        """The master is closed — or, without one, stays virtually open."""
+        self.set_master_open(not self._has_master)
 
     @property
     def is_master_open(self) -> bool:
@@ -89,7 +103,7 @@ class RelayControlModel(QObject):
 
     def reset(self) -> None:
         """Reset all states to closed."""
-        self.set_master_open(False)
+        self.master_closed()
         self.close_all_cages()
 
 
@@ -98,12 +112,17 @@ class PrimingControlWidget(QWidget):
     Standalone widget for manual relay control and tube priming.
 
     Features:
-    - Master solenoid control
+    - Master solenoid control (shared-manifold topology only)
     - Individual cage relay control
-    - Safety interlocks (master must be open before cages)
+    - Safety interlocks (master must be open before cages, where a master exists)
     - Visual state indicators
     - Emergency stop functionality
     - Activity logging
+
+    Valve topology: on the independent topology (one syringe and valve per
+    animal, ``valve_topology = independent``) the master group is hidden, a
+    cage valve is primed directly, and the PRIMING operation lock is held
+    from the first cage valve opened until the last one is closed.
 
     Usage:
         settings = system_controller.settings
@@ -128,8 +147,13 @@ class PrimingControlWidget(QWidget):
         self.settings = settings
         self._print_callback = print_callback or (lambda x: None)
 
+        # Valve topology: on the independent topology there is no master
+        # valve, so the master controls are hidden, a cage valve is primed
+        # directly, and the priming lock follows the cage valves instead.
+        self._independent = is_independent(settings)
+
         # Initialize model
-        self._model = RelayControlModel()
+        self._model = RelayControlModel(has_master=not self._independent)
 
         # Hardware controllers (lazy initialization)
         self._relay_handler = None
@@ -208,6 +232,11 @@ class PrimingControlWidget(QWidget):
 
         layout.addLayout(btn_layout)
         group.setLayout(layout)
+        # No master valve on the independent topology: the group stays built
+        # (its handlers and labels are wired throughout) but is never shown.
+        self.master_group = group
+        if self._independent:
+            group.hide()
         return group
 
     def _create_cage_control_group(self) -> QGroupBox:
@@ -216,9 +245,29 @@ class PrimingControlWidget(QWidget):
         layout = QVBoxLayout()
 
         # Info label
-        info = QLabel("Select a cage relay to control. Master must be open first.")
+        if self._independent:
+            info_text = (
+                "Select a cage valve to control. This device has no master valve: "
+                "opening a cage valve primes that animal's line directly."
+            )
+        else:
+            info_text = "Select a cage relay to control. Master must be open first."
+        info = QLabel(info_text)
         info.setObjectName("HelpText")
+        info.setWordWrap(True)
         layout.addWidget(info)
+        self.cage_info_label = info
+
+        if self._independent:
+            advisory = QLabel(
+                "Check every syringe line daily. A primed line holds for about three "
+                "days, so a line left idle over a long weekend must be primed again "
+                "before its animal depends on it."
+            )
+            advisory.setProperty("variant", "warning")
+            advisory.setWordWrap(True)
+            layout.addWidget(advisory)
+            self.daily_check_label = advisory
 
         # Selector and controls
         control_layout = QHBoxLayout()
@@ -387,7 +436,7 @@ class PrimingControlWidget(QWidget):
                 self._model.close_all_cages()
 
             if controller.close_master():
-                self._model.set_master_open(False)
+                self._model.master_closed()
                 # All valves closed — end the priming session, release the lock.
                 get_operation_lock().release(PRIMING)
                 self._log_success("Master solenoid CLOSED, all cages closed")
@@ -409,12 +458,26 @@ class PrimingControlWidget(QWidget):
                 )
                 return
 
-            controller = self._get_solenoid_controller()
-            if not controller:
-                return
-
             cage_id = self._get_selected_cage_id()
             if cage_id is None:
+                return
+
+            # Without a master valve the priming session starts with the
+            # first cage valve opened, so the hardware lock is taken here
+            # (the shared topology takes it on Open Master).
+            lock = get_operation_lock()
+            if self._independent and not lock.held_by(PRIMING):
+                if not lock.try_acquire(PRIMING):
+                    QMessageBox.warning(
+                        self,
+                        "Hardware busy",
+                        f"Cannot prime while {lock.active_label()} is in progress.",
+                    )
+                    return
+
+            controller = self._get_solenoid_controller()
+            if not controller:
+                self._release_if_idle()
                 return
 
             if controller.open_cage(cage_id):
@@ -422,13 +485,20 @@ class PrimingControlWidget(QWidget):
                 cage_text = self.cage_selector.currentText()
                 self._log_success(f"OPENED: {cage_text}")
             else:
+                self._release_if_idle()
                 QMessageBox.warning(
                     self, "Hardware Error", f"Failed to open {self.cage_selector.currentText()}."
                 )
 
         except Exception as e:
+            self._release_if_idle()
             self._log_error(f"Error opening cage: {e}")
             QMessageBox.critical(self, "Error", f"Failed to open cage:\n{str(e)}")
+
+    def _release_if_idle(self) -> None:
+        """Independent topology: the session ends when no cage valve is open."""
+        if self._independent and not self._model.get_open_cages():
+            get_operation_lock().release(PRIMING)
 
     def _on_close_cage_clicked(self):
         """Handle cage close button click."""
@@ -445,6 +515,7 @@ class PrimingControlWidget(QWidget):
                 self._model.set_cage_open(cage_id, False)
                 cage_text = self.cage_selector.currentText()
                 self._log_success(f"CLOSED: {cage_text}")
+                self._release_if_idle()
             else:
                 QMessageBox.warning(
                     self, "Hardware Error", f"Failed to close {self.cage_selector.currentText()}."
