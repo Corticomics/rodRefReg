@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import asyncio
 
-from drivers.solenoid_controller import SolenoidController
+import pytest
+
+from drivers.solenoid_controller import IndependentSolenoidController, SolenoidController
 from strategies.solenoid_flow_strategy import SolenoidFlowStrategy
 
 NEEDLE_Q = 0.032936  # mL per pulse, Parker 003-0257-900 at 30 ms with the upstream needle
@@ -51,7 +53,15 @@ class _StubDB:
 
 def _shared_strategy(fake, monkeypatch):
     """The production object graph over the fake: real controller, real strategy."""
-    valves = SolenoidController(fake, MASTER, CAGE_MAP)
+    return _strategy(SolenoidController(fake, MASTER, CAGE_MAP), monkeypatch)
+
+
+def _independent_strategy(fake, monkeypatch):
+    """The same strategy over the no-master controller of the independent topology."""
+    return _strategy(IndependentSolenoidController(fake, CAGE_MAP), monkeypatch)
+
+
+def _strategy(valves, monkeypatch):
     db = _StubDB(
         {
             CAGE: {
@@ -145,6 +155,58 @@ def test_refused_delivery_leaves_the_master_closed_without_pulsing(
     assert result.pulses == 0
     assert fake_relay_handler.trace == [((MASTER,), 1), ((MASTER,), 0)]
     assert fake_relay_handler.energized() == set()
+
+
+# --- the independent topology (v1.20.0) ---------------------------------------
+#
+# One syringe and one valve per animal: no master, no manifold, nothing to
+# prime. The same strategy over the no-master controller must pulse the cage
+# exactly as before and never touch relay 16 — and the shared trace above
+# must not have moved by a single write.
+
+
+def test_independent_trace_is_the_cage_pulses_and_nothing_else(fake_relay_handler, monkeypatch):
+    strategy, sleeps, rests = _independent_strategy(fake_relay_handler, monkeypatch)
+
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=9 * NEEDLE_Q))
+
+    assert result.success is True
+    assert result.pulses == 9
+    assert abs(result.delivered_ml - 9 * NEEDLE_Q) < 1e-9
+
+    pulses = [((CAGE,), 1), ((CAGE,), 0)] * 9
+    close = [((CAGE,), 0)]  # the finally's close_master is a no-op on this topology
+    assert fake_relay_handler.trace == pulses + close
+
+    # No prime, no post-prime settle, no manifold stabilize: only the pulses.
+    assert sleeps == [PULSE_WIDTH_MS / 1000, SETTLING_MS / 1000] * 9
+    assert rests == [INTERVAL_MS] * 8
+
+    touched = {relay for ids, _state in fake_relay_handler.trace for relay in ids}
+    assert touched == {CAGE}
+    assert MASTER not in touched
+    assert fake_relay_handler.energized() == set()
+
+
+def test_independent_refusal_touches_no_relay_at_all(fake_relay_handler, monkeypatch):
+    strategy, _sleeps, _rests = _independent_strategy(fake_relay_handler, monkeypatch)
+    strategy._settings['max_pulses_per_delivery'] = 5
+
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=9 * NEEDLE_Q))
+
+    assert result.success is False
+    assert fake_relay_handler.trace == []
+
+
+@pytest.mark.parametrize("build", [_shared_strategy, _independent_strategy])
+def test_both_topologies_plan_and_fire_the_same_pulses(fake_relay_handler, monkeypatch, build):
+    """The topology changes the master choreography only; the dose does not move."""
+    strategy, _sleeps, rests = build(fake_relay_handler, monkeypatch)
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=9 * NEEDLE_Q))
+
+    cage_opens = [w for w in fake_relay_handler.trace if w == ((CAGE,), 1)]
+    assert result.pulses == len(cage_opens) == 9
+    assert rests == [INTERVAL_MS] * 8
 
 
 def test_fake_relay_handler_models_a_silently_lost_write(fake_relay_handler):

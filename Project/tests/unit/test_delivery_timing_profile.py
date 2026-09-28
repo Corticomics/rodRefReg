@@ -165,6 +165,24 @@ def test_slow_profile_is_refused_before_any_water_moves():
     assert valves.close_master.called
 
 
+def test_slow_profile_refusal_on_the_independent_topology_touches_nothing():
+    """Same pre-flight refusal, no master valve: no relay of any kind is driven."""
+    valves = MagicMock()
+    valves.has_master = False
+    db = _StubDB({1: _cal(volume=0.025, interval=2000)})
+    strategy = _make(
+        settings={'max_pulse_delivery_time_s': 60.0, 'max_pulses_per_delivery': 100},
+        db=db,
+        valves=valves,
+    )
+
+    ok = asyncio.run(strategy._deliver_pulse_mode(cage_id=1, target_volume_ml=1.0))
+
+    assert ok is False
+    assert valves.open_cage.call_count == 0
+    assert valves.open_master.call_count == 0, "no master to prime on this topology"
+
+
 def test_workable_profile_is_not_refused():
     """The same dose at the default interval stays within budget."""
     valves = MagicMock()

@@ -90,13 +90,12 @@ class _CalibrationPulseWorker(QObject):
         solenoid = None
         valves_closed = False
         try:
-            from drivers.solenoid_controller import SolenoidController
             from gpio.gpio_handler import RelayHandler
             from models.relay_unit_manager import RelayUnitManager
+            from utils.topology import build_solenoid_controller
 
             system_settings = self._system_settings
             cage_map = {str(i): i for i in range(1, 16)}
-            master_id = int(system_settings.get('global_master_relay_id', 16))
 
             # Create relay unit manager and handler.
             # NOTE: this is the wizard's OWN RelayHandler instance (not shared
@@ -105,15 +104,18 @@ class _CalibrationPulseWorker(QObject):
             relay_unit_manager = RelayUnitManager(system_settings)
             relay_handler = RelayHandler(relay_unit_manager, system_settings['num_hats'])
 
-            # Create solenoid controller
-            solenoid = SolenoidController(relay_handler, master_id, cage_map)
+            # The device's valve topology decides whether a master valve exists.
+            solenoid = build_solenoid_controller(relay_handler, system_settings, cage_map)
 
             self.log.emit(" Hardware initialized")
 
-            # Open master valve
-            solenoid.open_master()
-            time.sleep(0.5)
-            self.log.emit(" Master valve opened")
+            if solenoid.has_master:
+                # Open master valve
+                solenoid.open_master()
+                time.sleep(0.5)
+                self.log.emit(" Master valve opened")
+            else:
+                self.log.emit(" No master valve on this topology; pulsing the cage valve only")
 
             # Execute pulses
             pulse_count = 0

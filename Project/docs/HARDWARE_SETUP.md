@@ -421,12 +421,16 @@ before you rewire: `SolenoidController` takes the id from the setting and has
 no default of its own.
 
 > **Independent setup (one syringe and one valve per animal, no manifold, no
-> master).** Until the `valve_topology` setting ships (planned for v1.20.0),
-> the software still energises relay 16 before every delivery, in the priming
-> tab and in the calibration wizard. On a rig without a master valve, **leave
-> relay channel 16 unwired** — anything connected to it will be opened for
-> about half a second per delivery. Every other step in this guide applies
-> unchanged: one relay per animal valve, one reservoir per animal.
+> master).** Set the device's valve topology to `independent` (v1.20.0+:
+> with the app closed, `RRR_DATA=~/rrr/shared/data python3
+> tools/set_valve_topology.py independent`, then start the app; a Settings
+> control follows in a later release). The software then never drives relay
+> 16: deliveries pulse the cage valve only, with no manifold prime. On a rig
+> still on a release before v1.20.0, or before the setting is applied,
+> **leave relay channel 16 unwired** — the shared-manifold code energises it
+> for about half a second per delivery, in the priming tab and in the
+> calibration wizard. Every other step in this guide applies unchanged: one
+> relay per animal valve, one reservoir per animal.
 
 ### 7.3 Verify before powering
 

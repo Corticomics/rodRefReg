@@ -291,16 +291,20 @@ class PrimingControlWidget(QWidget):
         """Lazy initialization of solenoid controller."""
         if self._solenoid_controller is None:
             try:
-                from drivers.solenoid_controller import SolenoidController
+                from utils.topology import build_solenoid_controller
 
                 relay_handler = self._get_relay_handler()
                 if not relay_handler:
                     return None
 
-                master_id = self.settings.get('global_master_relay_id', 16)
                 cage_map = self._build_cage_map()
 
-                self._solenoid_controller = SolenoidController(relay_handler, master_id, cage_map)
+                # The device's valve topology decides whether a master valve
+                # exists; on the independent topology the master controls
+                # here become no-ops until the priming UI is adapted.
+                self._solenoid_controller = build_solenoid_controller(
+                    relay_handler, self.settings, cage_map
+                )
 
             except Exception as e:
                 self._log_error(f"Failed to initialize solenoid controller: {e}")
