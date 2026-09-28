@@ -437,8 +437,9 @@ no default of its own.
 > the app's log then says `Valve topology: independent` on every start.
 > Deliveries pulse the cage valve only, with no manifold prime, and relay
 > 16 is never driven. It is, however, still **reserved** in this release —
-> an independent rig gets 15 animal channels per HAT, and channel 16 should
-> stay unwired until a later release lifts the reservation.
+> an independent rig gets 15 animal channels on the first HAT (and 16 on
+> each additional HAT, since only relay 16 is reserved), and channel 16
+> should stay unwired until a later release lifts the reservation.
 >
 > On a release before v1.20.0, or before the setting is applied, the
 > shared-manifold code energises relay 16 for the **whole** of every

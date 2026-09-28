@@ -79,8 +79,16 @@ def _resolve_data_dir(explicit: str | None) -> str | None:
     return root
 
 
-def _app_running() -> bool:
-    """Best effort: is the app's user service active on this device?"""
+def _app_running() -> tuple[bool | None, str]:
+    """
+    Is the app's user service active? Returns (state, detail).
+
+    ``state`` is True when it is running, False when systemd says it is
+    not, and None when that could not be determined — no systemctl, a
+    shell without a session bus ("Failed to connect to bus"), a timeout.
+    An unknown state must not be read as "stopped": a running app writes
+    its whole settings back on its next auto-save.
+    """
     try:
         result = subprocess.run(
             ['systemctl', '--user', 'is-active', SERVICE],
@@ -88,9 +96,15 @@ def _app_running() -> bool:
             text=True,
             timeout=5,
         )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return result.returncode == 0
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"systemctl unavailable ({exc.__class__.__name__}: {exc})"
+    detail = (result.stdout + result.stderr).strip()
+    if result.returncode == 0:
+        return True, detail
+    # systemctl is-active: 3 = inactive/failed, 4 = no such unit (newer systemd).
+    if result.returncode in (3, 4):
+        return False, detail
+    return None, detail or f"systemctl exited {result.returncode}"
 
 
 def _controller():
@@ -129,6 +143,12 @@ def main(argv=None) -> int:
 
     root = _resolve_data_dir(args.data_dir)
     if root is None:
+        configured = os.environ.get('RRR_DATA')
+        if configured:
+            return _fail(
+                f"the data directory {configured!r} (from --data-dir or RRR_DATA) is not a "
+                "directory."
+            )
         return _fail(
             "cannot find the device data directory: RRR_DATA is not set and "
             f"{DEFAULT_DATA_DIR} does not exist. Pass --data-dir PATH."
@@ -144,11 +164,19 @@ def main(argv=None) -> int:
             "On a rig that still has a master valve that is NO WATER, logged as full "
             "doses. Re-run with --yes to confirm."
         )
-    if args.topology is not None and not args.force and _app_running():
-        return _fail(
-            f"{SERVICE} is running and would overwrite the value on its next auto-save. "
-            f"Stop it first (systemctl --user stop {SERVICE}) or pass --force."
-        )
+    if args.topology is not None and not args.force:
+        running, detail = _app_running()
+        if running:
+            return _fail(
+                f"{SERVICE} is running and would overwrite the value on its next auto-save. "
+                f"Stop it first (systemctl --user stop {SERVICE}) or pass --force."
+            )
+        if running is None:
+            return _fail(
+                f"could not determine whether {SERVICE} is running ({detail}). "
+                "Run this from the device's own login session, or pass --force if you "
+                "are sure the app is stopped."
+            )
 
     controller = _controller()
     current = topology_from(controller.settings)

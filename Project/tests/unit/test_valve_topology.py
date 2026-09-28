@@ -114,21 +114,29 @@ def test_unrecognised_stored_value_is_normalised_on_boot(database_handler, store
     assert any(m.startswith(verb) for m in messages), messages
 
 
-def test_boot_announces_the_resolved_topology(database_handler):
+def test_boot_announces_the_resolved_topology(database_handler, capsys):
+    """
+    Nothing is connected to system_status at boot (main.setup and the
+    splash worker call ensure_solenoid_defaults with no receivers), so the
+    announcement must also be printed - that is what reaches the journal an
+    operator checks. Asserted on stdout with NO signal receiver connected.
+    """
     from controllers.system_controller import SystemController  # noqa: PLC0415
 
     sc = SystemController(database_handler)
-    messages = []
-    sc.system_status.connect(messages.append)
     sc.ensure_solenoid_defaults()
-    assert any(m.startswith("Valve topology: shared_manifold") for m in messages), messages
+    out = capsys.readouterr().out
+    assert "[TOPOLOGY] Valve topology: shared_manifold" in out
 
     sc.save_settings({SETTING_KEY: INDEPENDENT})
-    messages.clear()
     sc.ensure_solenoid_defaults()
-    assert any(
-        m.startswith("Valve topology: independent") and "no master valve" in m for m in messages
-    ), messages
+    out = capsys.readouterr().out
+    assert "[TOPOLOGY] Valve topology: independent" in out and "no master valve" in out
+
+    sc.save_settings({SETTING_KEY: "bogus"})
+    sc.ensure_solenoid_defaults()
+    out = capsys.readouterr().out
+    assert "[TOPOLOGY] Unknown valve_topology 'bogus'" in out
 
 
 # --- the controllers --------------------------------------------------------
@@ -242,8 +250,62 @@ def _load_tool():
 @pytest.fixture
 def tool(monkeypatch):
     module = _load_tool()
-    monkeypatch.setattr(module, "_app_running", lambda: False)
+    monkeypatch.setattr(module, "_app_running", lambda: (False, "inactive"))
     return module
+
+
+class _FakeRun:
+    """Stand-in for subprocess.run returning a fixed systemctl result."""
+
+    def __init__(self, returncode, stdout="", stderr="", raise_=None):
+        self.returncode, self.stdout, self.stderr, self.raise_ = returncode, stdout, stderr, raise_
+
+    def __call__(self, *_args, **_kwargs):
+        if self.raise_:
+            raise self.raise_
+        return self
+
+
+@pytest.mark.parametrize(
+    "run,expected",
+    [
+        (_FakeRun(0, stdout="active"), True),
+        (_FakeRun(3, stdout="inactive"), False),
+        (_FakeRun(4, stderr="Unit rrr.service could not be found."), False),
+        (_FakeRun(1, stderr="Failed to connect to bus: no session bus"), None),
+        (_FakeRun(0, raise_=FileNotFoundError("systemctl")), None),
+    ],
+)
+def test_app_running_is_tri_state(monkeypatch, run, expected):
+    module = _load_tool()
+    monkeypatch.setattr(module.subprocess, "run", run)
+    state, _detail = module._app_running()
+    assert state is expected
+
+
+def test_tool_refuses_when_it_cannot_tell_whether_the_app_runs(
+    database_handler, monkeypatch, capsys
+):
+    """A shell without a session bus must not be read as 'app stopped'."""
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    module = _load_tool()
+    monkeypatch.setattr(module.subprocess, "run", _FakeRun(1, stderr="Failed to connect to bus"))
+
+    assert module.main([INDEPENDENT, "--yes"]) == 2
+    err = capsys.readouterr().err
+    assert "could not determine" in err and "Failed to connect to bus" in err
+    assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
+
+    assert module.main([]) == 0, "showing never needs the check"
+    assert module.main([INDEPENDENT, "--yes", "--force"]) == 0
+
+
+def test_tool_names_a_data_dir_that_is_not_a_directory(tool, tmp_path, capsys):
+    not_a_dir = tmp_path / "file"
+    not_a_dir.write_text("x")
+    assert tool.main(["--data-dir", str(not_a_dir)]) == 2
+    assert "is not a directory" in capsys.readouterr().err
 
 
 def test_tool_shows_sets_and_reads_back_through_system_controller(
@@ -299,7 +361,7 @@ def test_tool_refuses_while_the_app_is_running_unless_forced(
 ):
     from controllers.system_controller import SystemController  # noqa: PLC0415
 
-    monkeypatch.setattr(tool, "_app_running", lambda: True)
+    monkeypatch.setattr(tool, "_app_running", lambda: (True, "active"))
     assert tool.main([INDEPENDENT, "--yes"]) == 2
     assert "rrr.service is running" in capsys.readouterr().err
     assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD

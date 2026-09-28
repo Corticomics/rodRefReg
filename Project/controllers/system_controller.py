@@ -446,20 +446,22 @@ class SystemController(QObject):
             # to 'independent' says so in its log before any water moves.
             from utils import topology as topo
 
+            # Printed as well as emitted: at boot nothing is connected to
+            # system_status yet, and the journal is where an operator looks.
+            def _announce(message):
+                print(f"[TOPOLOGY] {message}", flush=True)
+                self.system_status.emit(message)
+
             stored_topology = s.get('valve_topology')
             topology = topo.normalize(stored_topology)
             if stored_topology != topology:
                 s['valve_topology'] = topology
                 settings_changed = True
                 if topo.is_known(stored_topology):
-                    self.system_status.emit(
-                        f"Normalised valve_topology {stored_topology!r} -> '{topology}'"
-                    )
+                    _announce(f"Normalised valve_topology {stored_topology!r} -> '{topology}'")
                 else:
-                    self.system_status.emit(
-                        f"Unknown valve_topology {stored_topology!r}; using '{topology}'"
-                    )
-            self.system_status.emit(f"Valve topology: {topology} ({topo.describe(topology)})")
+                    _announce(f"Unknown valve_topology {stored_topology!r}; using '{topology}'")
+            _announce(f"Valve topology: {topology} ({topo.describe(topology)})")
 
             # Save settings if any changes were made
             if settings_changed:
