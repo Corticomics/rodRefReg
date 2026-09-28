@@ -74,6 +74,11 @@ class SystemController(QObject):
             # pulse_mode_settings block (ensure_solenoid_defaults), which
             # would reset the choice on every start.
             'round_doses_up': False,
+            # Valve topology: 'shared_manifold' (master valve + manifold, the
+            # production rig) or 'independent' (one syringe and valve per
+            # animal, no master). Read by utils.topology; like round_doses_up
+            # it is kept out of the force-merged pulse block below.
+            'valve_topology': 'shared_manifold',
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
@@ -111,6 +116,8 @@ class SystemController(QObject):
             # Dose rounding policy (v1.19.0): round every dose up to the
             # next whole pulse instead of to the nearest one.
             'round_doses_up',
+            # Valve topology (v1.20.0): shared_manifold | independent.
+            'valve_topology',
             'debug_mode',
             'log_level',
             # Scheduler tuning
@@ -148,6 +155,7 @@ class SystemController(QObject):
             'max_pulses_per_delivery': int,
             'max_pulse_delivery_time_s': float,
             'round_doses_up': bool,
+            'valve_topology': str,
         }
         return type_map.get(key, str)
 
@@ -429,6 +437,20 @@ class SystemController(QObject):
                 settings_changed = True
                 self.system_status.emit(
                     f"Created cage mapping: {len(new_map)} cages, master on relay {master_id}"
+                )
+
+            # Valve topology: a value nobody recognises would leave the app
+            # unsure whether a master valve exists. Fall back to the shared
+            # manifold (today's behaviour) and say so, rather than guess.
+            from utils.topology import normalize as normalize_topology
+
+            stored_topology = s.get('valve_topology')
+            topology = normalize_topology(stored_topology)
+            if stored_topology != topology:
+                s['valve_topology'] = topology
+                settings_changed = True
+                self.system_status.emit(
+                    f"Unknown valve_topology {stored_topology!r}; using '{topology}'"
                 )
 
             # Save settings if any changes were made
