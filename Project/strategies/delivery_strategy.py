@@ -19,6 +19,11 @@ class DeliveryResult:
     Never test the result object itself for truthiness — a dataclass instance
     is always truthy, so ``if result:`` would treat every failure as a
     success.
+
+    ``calibration_id``, ``pulse_width_ms`` and ``inter_pulse_interval_ms``
+    say which calibration row and timing profile the pulses were fired at
+    (None when the strategy does not pulse, or fell back to a default), so
+    the delivery record can be compared across devices and topologies.
     """
 
     success: bool
@@ -27,6 +32,9 @@ class DeliveryResult:
     pulses: int = 0
     volume_per_pulse_ml: Optional[float] = None
     warning: Optional[str] = None
+    calibration_id: Optional[int] = None
+    pulse_width_ms: Optional[int] = None
+    inter_pulse_interval_ms: Optional[int] = None
 
 
 @runtime_checkable
