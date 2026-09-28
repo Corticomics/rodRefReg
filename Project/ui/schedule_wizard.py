@@ -14,9 +14,10 @@ Architecture:
 - Step 4: Review & Save
 
 Hardware Constraints:
-- Max cages per HAT: 15 (relay 16 reserved for master solenoid)
-- Multi-HAT: 15 × num_hats total cages available
-- Validation ensures no animal assigned to master relay
+- One relay in the stack (global_master_relay_id, default 16) is reserved for
+  the master solenoid: 15 cages on one HAT, 31 on two, 16 × num_hats − 1 in general
+- Cage ids and relay ids are different number spaces (cage 16 drives relay 17
+  on a second HAT); validation compares relay to relay via relay_for_cage()
 
 Reference: RSO NewSessionWizard pattern
 """
@@ -171,6 +172,30 @@ def get_available_cages(system_controller) -> Tuple[int, int, Set[int]]:
         return 15, 16, set(range(1, 16))
 
 
+def relay_for_cage(system_controller, cage_id: int) -> Optional[int]:
+    """
+    The physical relay a cage id drives, or None if the cage does not exist.
+
+    Cage ids and relay ids are different number spaces: relay 16 is the
+    master, so cage 16 (on a second HAT) drives relay 17. The stored
+    ``cage_relays`` map wins when present; otherwise cages are numbered
+    sequentially over every relay except the master, exactly as the
+    delivery path builds its map.
+    """
+    settings = getattr(system_controller, 'settings', None) or {}
+    cage_relays = settings.get('cage_relays') or {}
+    if cage_relays:
+        relay = cage_relays.get(str(cage_id), cage_relays.get(cage_id))
+        return int(relay) if relay is not None else None
+
+    num_hats = int(settings.get('num_hats', 1))
+    master_id = int(settings.get('global_master_relay_id', 16))
+    sequential = [relay for relay in range(1, 16 * num_hats + 1) if relay != master_id]
+    if 1 <= int(cage_id) <= len(sequential):
+        return sequential[int(cage_id) - 1]
+    return None
+
+
 # ============================================================================
 # SCHEDULE BUILDER (shared by create + edit)
 # ============================================================================
@@ -273,10 +298,12 @@ def build_schedule_from_config(
                 )
             cage_id = available[0]
 
-        if cage_id == master_relay:
+        # Compare relay to relay, never cage id to relay id: on a second HAT
+        # cage 16 drives relay 17 and is a perfectly good cage.
+        if relay_for_cage(system_controller, cage_id) == master_relay:
             raise ValueError(
-                f"Animal {animal_id} cannot be assigned to cage {cage_id} "
-                f"(reserved for master solenoid)"
+                f"Animal {animal_id} cannot be assigned to cage {cage_id}: it is wired "
+                f"to relay {master_relay}, which is reserved for the master solenoid"
             )
         if cage_id not in valid_cages:
             raise ValueError(
@@ -403,7 +430,7 @@ class Step2SelectAnimals(QWidget):
 
     Hardware Constraints:
     - Max selectable animals limited by available cages (15 per HAT)
-    - Cage 16 (master solenoid) is never assignable
+    - The master relay is never assignable as a cage (cage ids skip it)
     - Warning shown when selection exceeds limit
     """
 
@@ -758,12 +785,13 @@ class Step3ConfigureParameters(QWidget):
 
     def _generate_default_cage_options(self) -> List[Dict[str, Any]]:
         """Generate default cage options (fallback when database unavailable)."""
+        _max_cages, _master_relay, valid_cages = get_available_cages(self._system_controller)
         cages = []
-        for cage_id in range(1, 16):  # 1-15 (16 is master)
+        for cage_id in sorted(valid_cages):
             cages.append(
                 {
                     'cage_id': cage_id,
-                    'relay_id': cage_id,
+                    'relay_id': relay_for_cage(self._system_controller, cage_id),
                     'name': f"Cage {cage_id}",
                     'display_name': f"Cage {cage_id}",
                 }
