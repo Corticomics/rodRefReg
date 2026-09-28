@@ -159,12 +159,16 @@ def test_priming_widget_builds_the_independent_controller(qapp, priming_hardware
     assert priming_hardware.trace == [((3,), 1)], "master control is a no-op, cage still works"
 
 
-def test_priming_click_flow_on_the_independent_topology(qapp, priming_hardware):
+def test_hidden_master_handlers_stay_lock_safe_on_the_independent_topology(
+    qapp, priming_hardware
+):
     """
-    Until the priming UI is adapted, an operator on an independent rig
-    still clicks Open Master first. That click must acquire the lock and
-    drive nothing; a cage open then drives exactly that cage; Close Master
-    closes every cage, drives no master, and releases the lock.
+    On an independent rig the master group is hidden and the operator's
+    flow is cage Open / Close (pinned in test_operation_gating.py). The
+    master handlers still exist behind the hidden buttons; if anything ever
+    invokes them they must stay lock-safe: Open Master acquires the lock
+    and drives nothing, a cage open drives exactly that cage, and Close
+    Master closes every cage, drives no master, and releases the lock.
     """
     from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
     from utils.operation_lock import PRIMING, get_operation_lock  # noqa: PLC0415

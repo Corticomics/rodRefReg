@@ -349,8 +349,9 @@ class PrimingControlWidget(QWidget):
                 cage_map = self._build_cage_map()
 
                 # The device's valve topology decides whether a master valve
-                # exists; on the independent topology the master controls
-                # here become no-ops until the priming UI is adapted.
+                # exists. On the independent topology the master group is
+                # hidden, the controller's master operations are no-ops and
+                # the cage buttons drive the valves directly.
                 self._solenoid_controller = build_solenoid_controller(
                     relay_handler, self.settings, cage_map
                 )
@@ -619,11 +620,21 @@ class PrimingControlWidget(QWidget):
         return self.cage_selector.currentData()
 
     def _update_cage_button_states(self):
-        """Update cage control button states based on current state."""
+        """Update cage control button states based on current state.
+
+        Open also stays greyed while another hardware operation holds the
+        lock. On the independent topology the (virtual) master is open from
+        construction, so without this a cage-selector change during a
+        schedule run would re-enable Open under an "Unavailable" tooltip.
+        The shared path is unchanged: there an open master already means
+        PRIMING holds the lock.
+        """
         has_selection = self.cage_selector.count() > 0
         master_is_open = self._model.is_master_open
+        lock = get_operation_lock()
+        blocked = lock.is_busy() and not lock.held_by(PRIMING)
 
-        self.cage_open_btn.setEnabled(master_is_open and has_selection)
+        self.cage_open_btn.setEnabled(master_is_open and has_selection and not blocked)
         self.cage_close_btn.setEnabled(has_selection)
 
     # ==================== Logging Methods ====================

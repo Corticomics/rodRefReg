@@ -183,9 +183,13 @@ def test_independent_cage_open_is_refused_while_a_schedule_runs(qapp, fake_relay
     assert w.cage_open_btn.isEnabled() is False, "greyed out while the schedule holds the lock"
 
     _select(w, 3)
+    assert w.cage_open_btn.isEnabled() is False, "a selector change must not re-enable Open"
     w._on_open_cage_clicked()
     assert fake_relays.trace == [], "refused before touching hardware"
     assert get_operation_lock().held_by(SCHEDULE) is True
+
+    get_operation_lock().release(SCHEDULE)
+    assert w.cage_open_btn.isEnabled() is True, "live again once the schedule lets go"
 
 
 def test_independent_emergency_stop_closes_everything_and_frees_the_lock(qapp, fake_relays):
