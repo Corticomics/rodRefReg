@@ -35,9 +35,10 @@ class _CalibrationPulseWorker(QObject):
     """
     Executes the calibration pulse sequence on a worker thread.
 
-    Owns ONLY the hardware pulse loop: open master / settle / loop
-    [open cage relay, sleep(pulse width), close cage relay, sleep(rest)] /
-    close master. The timing code is intentionally identical to the old
+    Owns ONLY the hardware pulse loop: on the shared manifold, open master /
+    settle; then loop [open cage relay, sleep(pulse width), close cage relay,
+    sleep(rest)]; then close cage and master (a no-op on the independent
+    topology, which has no master). The timing code is intentionally identical to the old
     inline GUI-thread loop (same time.sleep calls, same order, same
     hardware calls) so calibration timing characteristics are unchanged —
     time.sleep on a dedicated thread is correct here; QTimer scheduling
@@ -477,8 +478,12 @@ class CalibrationWizard(QDialog):
         pulse_width_ms = self.pulse_width_spin.value()
         interval_ms = self.interval_spin.value()
 
-        # Master-valve settle (0.5 s) plus one period per pulse.
-        est_seconds = 0.5 + num_pulses * (pulse_width_ms + interval_ms) / 1000.0
+        from utils.topology import is_independent  # noqa: PLC0415
+
+        # Master-valve settle (0.5 s, shared manifold only) plus one period per pulse.
+        settings = getattr(getattr(self, 'system_controller', None), 'settings', None) or {}
+        settle_s = 0.0 if is_independent(settings) else 0.5
+        est_seconds = settle_s + num_pulses * (pulse_width_ms + interval_ms) / 1000.0
         if est_seconds < 90:
             self.time_estimate.setText(f"~{est_seconds:.0f} seconds")
         else:

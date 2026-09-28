@@ -81,11 +81,11 @@ def fake_relays(monkeypatch):
     return created
 
 
-def _make_wizard(db=None):
+def _make_wizard(db=None, settings=None):
     from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
 
     controller = MagicMock()
-    controller.settings = dict(_SETTINGS)
+    controller.settings = dict(_SETTINGS if settings is None else settings)
     return CalibrationWizard(
         cage_id=1,
         database_handler=db if db is not None else MagicMock(),
@@ -180,6 +180,19 @@ def test_time_estimate_tracks_all_three_spin_boxes(qapp):
     wizard.num_pulses_spin.setValue(500)
     assert wizard.time_estimate.text().endswith("minutes")
     wizard.close()
+
+
+def test_time_estimate_drops_the_master_settle_on_the_independent_topology(qapp):
+    """No master valve, no 0.5 s settle before the first pulse."""
+    for topology, expected in (("shared_manifold", "~2 seconds"), ("independent", "~1 seconds")):
+        wizard = _make_wizard(settings=dict(_SETTINGS, valve_topology=topology))
+        wizard._show_configuration()
+        wizard.num_pulses_spin.setValue(10)
+        wizard.pulse_width_spin.setValue(20)
+        wizard.interval_spin.setValue(100)
+        # 10 x 120 ms = 1.2 s, plus 0.5 s only when a master must settle.
+        assert wizard.time_estimate.text() == expected, topology
+        wizard.close()
 
 
 def test_pulse_count_allows_short_sampling_runs(qapp):
