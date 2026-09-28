@@ -767,8 +767,12 @@ class SettingsTab(QWidget):
         from PyQt5.QtCore import Qt
         from PyQt5.QtGui import QColor
         from PyQt5.QtWidgets import QPushButton
+        from utils.topology import cage_map_from
 
-        self.calibration_table.setRowCount(15)  # 15 cages
+        # One row per cage in the device's real cage map: 15 on one HAT, 31
+        # on two (relay 16 is the master and has no row).
+        cage_map = cage_map_from(self.settings)
+        self.calibration_table.setRowCount(len(cage_map))
 
         # Per-row launch buttons are recreated here; track them fresh so the
         # operation-lock gating can grey them out (see _apply_calibration_lock_state).
@@ -788,8 +792,7 @@ class SettingsTab(QWidget):
         except Exception as e:
             self.print_to_terminal(f"Error loading cage names: {e}")
 
-        for cage_id in range(1, 16):
-            row = cage_id - 1
+        for row, (cage_id, relay_id) in enumerate(sorted(cage_map.items())):
             cal = calibrations.get(cage_id)
 
             # Cage name - use custom name if set, otherwise "Cage N"
@@ -802,7 +805,7 @@ class SettingsTab(QWidget):
 
             cage_item = QTableWidgetItem(display_name)
             cage_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            cage_item.setToolTip(f"Cage {cage_id} - Relay {cage_info.get('relay_id', cage_id)}")
+            cage_item.setToolTip(f"Cage {cage_id} - Relay {relay_id}")
             self.calibration_table.setItem(row, 0, cage_item)
 
             if cal:
@@ -1099,9 +1102,11 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Access Denied", "You must be logged in.")
             return
 
+        from utils.topology import cage_map_from
+
         # Get uncalibrated cages
         calibrations = self.database_handler.get_all_valve_calibrations()
-        uncalibrated = [c for c in range(1, 16) if c not in calibrations]
+        uncalibrated = [c for c in sorted(cage_map_from(self.settings)) if c not in calibrations]
 
         if not uncalibrated:
             QMessageBox.information(self, "All Calibrated", "All valves are already calibrated!")
@@ -1138,6 +1143,8 @@ class SettingsTab(QWidget):
             if not file_path:
                 return
 
+            from utils.topology import cage_map_from
+
             calibrations = self.database_handler.get_all_valve_calibrations()
 
             with open(file_path, 'w') as f:
@@ -1146,7 +1153,7 @@ class SettingsTab(QWidget):
                     "Pulse_Width_ms,Inter_Pulse_Interval_ms,Calibration_Date,Notes\n"
                 )
 
-                for cage_id in range(1, 16):
+                for cage_id in sorted(cage_map_from(self.settings)):
                     if cage_id in calibrations:
                         cal = calibrations[cage_id]
                         # Pre-timing-profile rows have no interval: report the

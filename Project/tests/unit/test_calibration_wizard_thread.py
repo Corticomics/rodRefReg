@@ -85,13 +85,13 @@ def fake_relays(monkeypatch):
     return created
 
 
-def _make_wizard(num_pulses, pulse_width_ms=10, settings=None):
+def _make_wizard(num_pulses, pulse_width_ms=10, settings=None, cage_id=1):
     from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
 
     controller = MagicMock()
     controller.settings = dict(_SETTINGS if settings is None else settings)
     wizard = CalibrationWizard(
-        cage_id=1, database_handler=MagicMock(), system_controller=controller
+        cage_id=cage_id, database_handler=MagicMock(), system_controller=controller
     )
     # Bypass the config step's spin boxes; drive the run parameters directly.
     wizard.num_pulses = num_pulses
@@ -190,6 +190,26 @@ def test_independent_topology_pulses_the_cage_and_never_the_master(qapp, fake_re
     assert sum(1 for ids, state in writes if ids == (_CAGE_RELAY,) and state == 1) == 5
 
     assert get_operation_lock().is_busy() is False
+    wizard.close()
+
+
+def test_second_hat_cage_pulses_the_relay_it_is_wired_to(qapp, fake_relays):
+    """Cage 16 exists only with two HATs and drives relay 17, not relay 16."""
+    wizard = _make_wizard(num_pulses=3, settings=dict(_SETTINGS, num_hats=2), cage_id=16)
+    results = []
+
+    wizard._execute_calibration()
+    assert wizard._worker is not None
+    wizard._worker.finished.connect(lambda ok, err: results.append((ok, err)))
+    assert _drain_until(qapp, lambda: results and wizard._worker is None)
+    assert results[0] == (True, None)
+
+    writes = [(ids, state) for ids, state, _ in fake_relays[0].calls]
+    assert writes[0] == ((_MASTER_RELAY,), 1)
+    assert [w for w in writes if w == ((17,), 1)] == [((17,), 1)] * 3
+    assert not any(ids == (16,) and state == 1 for ids, state in writes[1:]), (
+        "relay 16 is the master, opened once before the pulses and never as a cage"
+    )
     wizard.close()
 
 

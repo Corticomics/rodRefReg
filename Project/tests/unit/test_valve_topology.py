@@ -139,6 +139,30 @@ def test_boot_announces_the_resolved_topology(database_handler, capsys):
     assert "[TOPOLOGY] Unknown valve_topology 'bogus'" in out
 
 
+# --- the cage map -----------------------------------------------------------
+
+
+def test_cage_map_numbers_cages_over_every_relay_but_the_master():
+    from utils.topology import cage_map_from  # noqa: PLC0415
+
+    one_hat = cage_map_from({"num_hats": 1, "global_master_relay_id": 16})
+    assert one_hat == {cage: cage for cage in range(1, 16)}
+
+    two_hats = cage_map_from({"num_hats": 2, "global_master_relay_id": 16})
+    assert len(two_hats) == 31
+    assert two_hats[15] == 15 and two_hats[16] == 17 and two_hats[31] == 32
+
+    master_first = cage_map_from({"num_hats": 1, "global_master_relay_id": 1})
+    assert master_first[1] == 2 and master_first[15] == 16
+
+
+def test_cage_map_prefers_the_stored_map_with_int_keys():
+    from utils.topology import cage_map_from  # noqa: PLC0415
+
+    assert cage_map_from({"cage_relays": {"1": 5, "2": 9}, "num_hats": 2}) == {1: 5, 2: 9}
+    assert cage_map_from({}) == {cage: cage for cage in range(1, 16)}
+
+
 # --- the controllers --------------------------------------------------------
 
 

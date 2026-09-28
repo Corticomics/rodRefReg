@@ -93,10 +93,12 @@ class _CalibrationPulseWorker(QObject):
         try:
             from gpio.gpio_handler import RelayHandler
             from models.relay_unit_manager import RelayUnitManager
-            from utils.topology import build_solenoid_controller
+            from utils.topology import build_solenoid_controller, cage_map_from
 
             system_settings = self._system_settings
-            cage_map = {str(i): i for i in range(1, 16)}
+            # The device's real cage map, so a cage on a second HAT (cage 16 on
+            # relay 17) is calibratable and drives the relay it is wired to.
+            cage_map = cage_map_from(system_settings)
 
             # Create relay unit manager and handler.
             # NOTE: this is the wizard's OWN RelayHandler instance (not shared
@@ -934,7 +936,12 @@ class CalibrationWizard(QDialog):
 
             # Step 3: Save to database
             self.log("Saving to database...")
-            relay_id = self.cage_id  # Assuming cage_id == relay_id
+            from utils.topology import cage_map_from  # noqa: PLC0415
+
+            # The relay this cage is wired to (cage 16 on a second HAT is
+            # relay 17), so the stored row says which valve was measured.
+            settings = getattr(self.system_controller, 'settings', None) or {}
+            relay_id = cage_map_from(settings).get(int(self.cage_id), self.cage_id)
             notes = (
                 f"Wizard calibration: {self.num_pulses} pulses @ "
                 f"{self.pulse_width_ms}ms + {self.inter_pulse_interval_ms}ms rest"
