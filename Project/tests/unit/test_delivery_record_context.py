@@ -147,12 +147,41 @@ def test_log_delivery_without_context_still_works(database_handler):
 
 
 def test_delivery_result_context_defaults_to_none():
+    """Nothing recorded reaches the ledger as NULL, never as a measured zero."""
     result = DeliveryResult(success=True)
     assert (result.calibration_id, result.pulse_width_ms, result.inter_pulse_interval_ms) == (
         None,
         None,
         None,
     )
+    assert result.duration_s is None
+
+
+def test_outcomes_nobody_timed_carry_no_duration():
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+
+    assert RelayWorker._as_delivery_result(True, 0.3).duration_s is None
+    assert RelayWorker._as_delivery_result(False, 0.3).duration_s is None
+
+
+def test_pump_strategy_times_its_dispense():
+    from strategies.pump_strategy import PumpStrategy  # noqa: PLC0415
+
+    class _Pump:
+        async def dispense_water(self, relay_unit_id, volume_ml, triggers):
+            await asyncio.sleep(0.02)
+            return True
+
+    class _Calculator:
+        pump_volume_ul = 50.0
+
+        def calculate_triggers(self, volume_ml):
+            return 6
+
+    result = asyncio.run(PumpStrategy(_Pump(), _Calculator()).deliver(1, 0.3))
+    assert result.success is True and result.pulses == 6
+    assert result.duration_s is not None and result.duration_s >= 0.02
+    assert result.calibration_id is None, "the pump has no calibration row to cite"
 
 
 class _StubDB:
@@ -166,7 +195,7 @@ class _StubDB:
         return self._calibrations.get(cage_id)
 
 
-def _strategy(fake, calibrations, monkeypatch):
+def _strategy(fake, calibrations, monkeypatch, db=None):
     strategy = SolenoidFlowStrategy(
         solenoid_controller=SolenoidController(fake, 16, {1: 1}),
         flow_sensor=None,
@@ -178,7 +207,7 @@ def _strategy(fake, calibrations, monkeypatch):
             'max_pulses_per_delivery': 100,
             'max_pulse_delivery_time_s': 120.0,
         },
-        database_handler=_StubDB(calibrations),
+        database_handler=db if db is not None else _StubDB(calibrations),
     )
 
     async def _no_sleep(_seconds):
@@ -211,6 +240,45 @@ def test_strategy_reports_the_calibration_row_and_profile_it_fired_at(
     assert result.calibration_id == 42
     assert (result.pulse_width_ms, result.inter_pulse_interval_ms) == (30, 1000)
     assert result.duration_s >= 0.0
+
+
+def test_strategy_cites_the_row_the_real_handler_saved(
+    database_handler, fake_relay_handler, monkeypatch
+):
+    """
+    The per-run snapshot is built from get_all_valve_calibrations, which
+    did not return the row id: every calibrated cage banked id 0 and the
+    ledger read NULL on the production path while the stub-backed test
+    stayed green. Pinned against the real handler, including the id
+    changing when a cage is recalibrated (INSERT OR REPLACE makes a new row).
+    """
+
+    def _save(volume):
+        saved = database_handler.save_valve_calibration(
+            cage_id=1,
+            relay_id=1,
+            pulse_width_ms=30,
+            volume_per_pulse_ml=volume,
+            stddev_ml=0.0003,
+            cv_pct=1.0,
+            num_samples=250,
+            inter_pulse_interval_ms=1000,
+        )
+        assert saved is not None
+        return saved
+
+    first = _save(0.032936)
+    strategy = _strategy(fake_relay_handler, None, monkeypatch, db=database_handler)
+    result = asyncio.run(strategy.deliver(relay_unit_id=1, target_volume_ml=3 * 0.032936))
+    assert result.success is True and result.calibration_id == first
+    assert (result.pulse_width_ms, result.inter_pulse_interval_ms) == (30, 1000)
+
+    second = _save(0.034164)
+    assert second != first
+    rerun = _strategy(fake_relay_handler, None, monkeypatch, db=database_handler)
+    result = asyncio.run(rerun.deliver(relay_unit_id=1, target_volume_ml=3 * 0.034164))
+    assert result.calibration_id == second
+    assert result.volume_per_pulse_ml == pytest.approx(0.034164)
 
 
 def test_strategy_reports_no_calibration_row_when_it_fell_back(fake_relay_handler, monkeypatch):

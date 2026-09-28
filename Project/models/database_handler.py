@@ -2029,7 +2029,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms
+                           inter_pulse_interval_ms, calibration_id
                     FROM valve_calibration
                     ORDER BY cage_id
                 ''')
@@ -2048,6 +2048,9 @@ class DatabaseHandler:
                         'calibrated_by': row[8],
                         'notes': row[9],
                         'inter_pulse_interval_ms': row[10],
+                        # The row the delivery strategy cites in
+                        # dispensing_history; same key as get_valve_calibration.
+                        'calibration_id': row[11],
                     }
 
                 return calibrations
