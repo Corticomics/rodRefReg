@@ -261,6 +261,24 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 2. Verify status shows: **"Status: CLOSED"** (gray)
 3. All cages automatically closed for safety
 
+#### 2b. **Prime Tubes on the Independent Topology** (v1.21.0)
+
+On a device set to `valve_topology = independent` (one syringe and one
+valve per animal, no master valve — see `HARDWARE_SETUP.md` §7.2), the
+Master Solenoid Control group is not shown and there is nothing to open
+first:
+
+1. Select the cage from the dropdown
+2. Click **"Open Selected"** — water flows through that animal's line; the
+   hardware lock is taken with the first valve opened
+3. Click **"Close Selected"** once primed — the lock is released when the
+   last open valve closes
+
+**Check every syringe line daily.** A primed line holds for about three
+days; a line left idle over a long weekend must be primed again before its
+animal depends on it. The panel shows this reminder on the independent
+topology.
+
 #### 3. **Emergency Stop**
 - Click **"CLOSE ALL RELAYS"** at any time
 - Immediately closes master + all cages
@@ -268,9 +286,11 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 
 ### Safety Features
 
-1. **Interlock Protection**
+1. **Interlock Protection** (shared-manifold topology)
    - Cage relays can only open when master is open
    - Prevents dry-running or hardware damage
+   - On the independent topology there is no master; the lock follows the
+     cage valves instead
 
 2. **Auto-Close on Master Close**
    - Closing master automatically closes all cages
@@ -419,7 +439,8 @@ def test_hardware_priming_sequence():
 
 **Cause**: Attempting to open cage while master is closed (safety feature)
 
-**Solution**: Click "Open Master" button first
+**Solution**: Click "Open Master" button first. (This message cannot
+appear on the independent topology, which has no master valve.)
 
 #### 3. **Cage selector is empty**
 
