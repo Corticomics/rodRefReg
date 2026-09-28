@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -36,14 +37,14 @@ def _reset_lock(qapp):
     ol._singleton = None
 
 
-def _settings_tab(system_controller, database_handler):
+def _settings_tab(system_controller, database_handler, terminal=None):
     from ui.SettingsTab import SettingsTab  # noqa: PLC0415
 
     login = SimpleNamespace(is_logged_in=lambda: True, get_current_trainer=lambda: None)
     return SettingsTab(
         system_controller,
         login_system=login,
-        print_to_terminal=lambda _msg: None,
+        print_to_terminal=terminal or (lambda _msg: None),
         database_handler=database_handler,
     )
 
@@ -93,3 +94,66 @@ def test_export_lists_every_cage_in_the_map(
     assert lines[0].startswith("Cage,Status")
     assert len(lines) == 1 + 31
     assert lines[16].startswith("16,Not Calibrated")
+
+
+def test_an_unreadable_stored_cage_map_does_not_take_the_tab_down(
+    qapp, database_handler, system_controller, tmp_path, monkeypatch
+):
+    """
+    SettingsTab is built unguarded inside the main window, so an exception
+    here at boot means no window at all. A map that cannot be read (only
+    reachable by hand-editing the database) falls back to the sequential
+    layout for the hat count, in every view that reads the map.
+    """
+    from PyQt5.QtWidgets import QFileDialog, QMessageBox  # noqa: PLC0415
+
+    system_controller.settings['num_hats'] = 1
+    system_controller.settings['cage_relays'] = {"1": None, "2": 2}
+    terminal = []
+    tab = _settings_tab(system_controller, database_handler, terminal.append)
+
+    assert tab.calibration_table.rowCount() == 15
+    assert any("cage map is unreadable" in line for line in terminal)
+
+    questions = []
+    monkeypatch.setattr(
+        QMessageBox, "question", staticmethod(lambda *a, **k: questions.append(a) or QMessageBox.No)
+    )
+    tab._calibrate_all_uncalibrated()
+    assert len(questions) == 1 and "Found 15 uncalibrated" in questions[0][2]
+
+    out = tmp_path / "report.csv"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), "")))
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    tab._export_calibration_report()
+    assert len(out.read_text().splitlines()) == 1 + 15
+
+
+def test_changing_the_hat_count_refreshes_the_calibration_table(monkeypatch):
+    """main.change_relay_hats used to refresh only the Cages tab, leaving a
+    calibration table sized for the old hat count until a manual Refresh."""
+    import sys  # noqa: PLC0415
+
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)  # main installs its own on import
+    import main  # noqa: PLC0415
+
+    settings = {'num_hats': 1, 'cage_relays': {"1": 1}}
+    gui = SimpleNamespace(
+        projects_section=SimpleNamespace(cages_tab=SimpleNamespace(refresh=MagicMock())),
+        settings_tab=SimpleNamespace(refresh_calibration_table=MagicMock()),
+        print_to_terminal=MagicMock(),
+    )
+    monkeypatch.setattr(main.QInputDialog, "getInt", staticmethod(lambda *a, **k: (2, True)))
+    monkeypatch.setattr(main, "RelayUnitManager", MagicMock())
+    monkeypatch.setattr(main, "cleanup", lambda: None)
+    # Run-time globals that setup() normally binds.
+    monkeypatch.setattr(main, "app_settings", settings, raising=False)
+    monkeypatch.setattr(main, "relay_handler", MagicMock(), raising=False)
+    monkeypatch.setattr(main, "system_controller", MagicMock(), raising=False)
+    monkeypatch.setattr(main, "gui", gui, raising=False)
+
+    main.change_relay_hats()
+
+    assert settings['num_hats'] == 2 and settings['cage_relays'] == {}
+    gui.projects_section.cages_tab.refresh.assert_called_once()
+    gui.settings_tab.refresh_calibration_table.assert_called_once()

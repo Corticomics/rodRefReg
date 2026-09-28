@@ -618,6 +618,12 @@ def change_relay_hats():
         gui.projects_section.cages_tab.refresh()
     except Exception as exc:
         gui.print_to_terminal(f"Cages tab refresh failed: {exc}")
+    # The calibration table's rows follow the cage map too; SettingsTab
+    # shares the settings dict just mutated, so a repopulate is enough.
+    try:
+        gui.settings_tab.refresh_calibration_table()
+    except Exception as exc:
+        gui.print_to_terminal(f"Calibration table refresh failed: {exc}")
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 

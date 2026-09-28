@@ -120,12 +120,37 @@ class SettingsTab(QWidget):
         """
         Public method to refresh the calibration table.
 
-        Called when cage names are updated in the Cages tab to keep
-        calibration table in sync. Follows Observer pattern via Qt signals.
+        Called when cage names change in the Cages tab and when the hat
+        count changes (main.change_relay_hats), so the rows follow the
+        device's cage map without a restart.
         """
         if hasattr(self, 'calibration_table'):
             self._populate_calibration_table()
-            self.print_to_terminal("Calibration table refreshed with updated cage names")
+            self.print_to_terminal("Calibration table refreshed")
+
+    def _cage_map(self) -> dict:
+        """
+        The device's cage map for the calibration views.
+
+        A stored map that cannot be read (only reachable by hand-editing
+        the database) must not take the Settings tab, and with it the whole
+        main window, down at boot: fall back to the sequential layout for
+        the hat count and say so, as the neighbouring database reads do.
+        """
+        from utils.topology import cage_map_from
+
+        try:
+            return cage_map_from(self.settings)
+        except (TypeError, ValueError) as exc:
+            self.print_to_terminal(
+                f"Stored cage map is unreadable ({exc}); showing the default layout"
+            )
+            layout = {
+                key: self.settings[key]
+                for key in ('num_hats', 'global_master_relay_id')
+                if self.settings.get(key) is not None
+            }
+            return cage_map_from(layout)
 
     def _connect_auto_save_handlers(self):
         """
@@ -767,11 +792,10 @@ class SettingsTab(QWidget):
         from PyQt5.QtCore import Qt
         from PyQt5.QtGui import QColor
         from PyQt5.QtWidgets import QPushButton
-        from utils.topology import cage_map_from
 
         # One row per cage in the device's real cage map: 15 on one HAT, 31
         # on two (relay 16 is the master and has no row).
-        cage_map = cage_map_from(self.settings)
+        cage_map = self._cage_map()
         self.calibration_table.setRowCount(len(cage_map))
 
         # Per-row launch buttons are recreated here; track them fresh so the
@@ -1102,11 +1126,9 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Access Denied", "You must be logged in.")
             return
 
-        from utils.topology import cage_map_from
-
         # Get uncalibrated cages
         calibrations = self.database_handler.get_all_valve_calibrations()
-        uncalibrated = [c for c in sorted(cage_map_from(self.settings)) if c not in calibrations]
+        uncalibrated = [c for c in sorted(self._cage_map()) if c not in calibrations]
 
         if not uncalibrated:
             QMessageBox.information(self, "All Calibrated", "All valves are already calibrated!")
@@ -1143,8 +1165,6 @@ class SettingsTab(QWidget):
             if not file_path:
                 return
 
-            from utils.topology import cage_map_from
-
             calibrations = self.database_handler.get_all_valve_calibrations()
 
             with open(file_path, 'w') as f:
@@ -1153,7 +1173,7 @@ class SettingsTab(QWidget):
                     "Pulse_Width_ms,Inter_Pulse_Interval_ms,Calibration_Date,Notes\n"
                 )
 
-                for cage_id in sorted(cage_map_from(self.settings)):
+                for cage_id in sorted(self._cage_map()):
                     if cage_id in calibrations:
                         cal = calibrations[cage_id]
                         # Pre-timing-profile rows have no interval: report the
