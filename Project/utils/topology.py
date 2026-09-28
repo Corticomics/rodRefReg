@@ -59,6 +59,27 @@ def is_independent(settings) -> bool:
     return topology_from(settings) == INDEPENDENT
 
 
+def cage_map_from(settings) -> dict[int, int]:
+    """
+    The device's cage -> relay map, ``{cage_id: relay_id}`` with int keys.
+
+    The stored ``cage_relays`` wins when present. Otherwise cages are
+    numbered sequentially over every relay in the stack except the master
+    (``global_master_relay_id``), which is how the delivery path builds its
+    own map: one HAT gives cages 1-15 on relays 1-15, a second HAT adds
+    cages 16-31 on relays 17-32. Cage ids and relay ids are different
+    number spaces; never assume ``relay == cage``.
+    """
+    settings = settings or {}
+    stored = settings.get('cage_relays') or {}
+    if stored:
+        return {int(cage): int(relay) for cage, relay in stored.items()}
+    num_hats = int(settings.get('num_hats', 1))
+    master_id = int(settings.get('global_master_relay_id', DEFAULT_MASTER_RELAY_ID))
+    relays = [relay for relay in range(1, 16 * num_hats + 1) if relay != master_id]
+    return {cage: relay for cage, relay in enumerate(relays, start=1)}
+
+
 def build_solenoid_controller(relay_handler, settings, cage_map):
     """The valve controller for this device's topology.
 

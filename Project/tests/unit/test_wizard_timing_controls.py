@@ -81,13 +81,13 @@ def fake_relays(monkeypatch):
     return created
 
 
-def _make_wizard(db=None, settings=None):
+def _make_wizard(db=None, settings=None, cage_id=1):
     from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
 
     controller = MagicMock()
     controller.settings = dict(_SETTINGS if settings is None else settings)
     return CalibrationWizard(
-        cage_id=1,
+        cage_id=cage_id,
         database_handler=db if db is not None else MagicMock(),
         system_controller=controller,
     )
@@ -156,6 +156,25 @@ def test_save_always_persists_the_interval(qapp, fake_relays):
     assert kwargs['pulse_width_ms'] == 25
     # Provenance: the profile is also recorded in the notes.
     assert "750ms rest" in kwargs['notes']
+    wizard.close()
+
+
+def test_save_records_the_relay_the_cage_is_wired_to(qapp, fake_relays):
+    """Cage 16 on a second HAT drives relay 17; the stored row must say so."""
+    db = MagicMock()
+    db.save_valve_calibration.return_value = 7
+
+    wizard = _make_wizard(db=db, settings=dict(_SETTINGS, num_hats=2), cage_id=16)
+    wizard.num_pulses = 100
+    wizard.pulse_width_ms = 30
+    wizard.inter_pulse_interval_ms = 1000
+    wizard.calibration_result = {'volume_per_pulse_ml': 0.033, 'stddev_ml': 0.001, 'cv_pct': 1.0}
+
+    wizard._save_and_finish()
+
+    kwargs = db.save_valve_calibration.call_args.kwargs
+    assert kwargs['cage_id'] == 16
+    assert kwargs['relay_id'] == 17
     wizard.close()
 
 
