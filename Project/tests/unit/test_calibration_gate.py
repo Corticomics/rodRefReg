@@ -351,3 +351,18 @@ def test_an_instant_delivery_still_ahead_to_an_uncalibrated_cage_refuses_the_run
     assert run_path.started == []
     ((title, text),) = run_path.shown
     assert title == "Valve calibration needed" and "Not calibrated: cage 9" in text
+
+
+def test_a_refused_start_takes_down_the_loading_monitor(run_path, database_handler, monkeypatch):
+    """run_program opens the Execution Monitor in its loading state before
+    the checks run; every refusal must take it down again, as reset_ui does."""
+    from ui.run_stop_section import RunStopSection  # noqa: PLC0415
+
+    hidden = []
+    gui = type("RodentRefreshmentGUI", (), {"hide_execution_monitor": lambda self: hidden.append(1)})
+    monkeypatch.setattr(RunStopSection, "_get_parent_gui", lambda self: gui())
+
+    run_path.run(_staggered([3]))  # cage 3 is not calibrated
+
+    assert run_path.started == []
+    assert hidden == [1]

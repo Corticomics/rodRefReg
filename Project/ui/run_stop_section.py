@@ -590,11 +590,20 @@ class RunStopSection(QWidget):
         return False
 
     def _reset_run_button(self):
-        """Reset run button to initial state after error or cancellation."""
+        """Reset run button to initial state after error or cancellation.
+
+        Also takes down the Execution Monitor that run_program opened in its
+        loading state, as reset_ui does: a start that never happened must
+        not leave "Loading…" on screen with the GUI believing a schedule
+        runs.
+        """
         self.job_in_progress = False
         get_operation_lock().release(SCHEDULE)
         self.run_button.setText("Run")
         self.update_button_states()
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
+            parent_gui.hide_execution_monitor()
 
     def _execute_program(self, schedule, mode, window_start, window_end):
         """
