@@ -339,8 +339,11 @@ CREATE TABLE dispensing_history (
     volume_dispensed REAL    NOT NULL,
     status           TEXT    NOT NULL,
     cycle_index      INTEGER DEFAULT NULL,    -- added by inline migration
-    -- v1.17.0: what the hardware reports it ACTUALLY dispensed (volume_dispensed
-    -- is the REQUESTED figure). NULL on older rows means "unknown", not zero.
+    -- volume_dispensed is the PLANNED volume: for a pulse delivery, whole
+    -- pulses x mL/pulse, i.e. the ask after rounding (0 on rows that did not
+    -- complete). The ask before rounding is volume_requested_ml (v1.21.0).
+    -- v1.17.0: what the hardware reports it ACTUALLY dispensed.
+    -- NULL on older rows means "unknown", not zero.
     volume_actual_ml        REAL    DEFAULT NULL,
     pulses_fired            INTEGER DEFAULT NULL,
     volume_per_pulse_ml     REAL    DEFAULT NULL,
@@ -352,6 +355,8 @@ CREATE TABLE dispensing_history (
     inter_pulse_interval_ms INTEGER DEFAULT NULL,
     duration_s              REAL    DEFAULT NULL,
     app_version             TEXT    DEFAULT NULL,
+    volume_requested_ml     REAL    DEFAULT NULL,   -- the ask, before whole-pulse rounding
+    dose_rounding           TEXT    DEFAULT NULL,   -- 'nearest' | 'up'; NULL = not rounded to pulses
     FOREIGN KEY(schedule_id)   REFERENCES schedules(schedule_id),
     FOREIGN KEY(animal_id)     REFERENCES animals(animal_id),
     FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
@@ -454,7 +459,7 @@ in the handler; every `INSERT` names its columns).
 | `animals.sex` | Add a nullable `sex TEXT CHECK(sex IN ('male','female'))` if absent. | pre-v1.5 |
 | `valve_calibration.inter_pulse_interval_ms`, `valve_calibration_history.inter_pulse_interval_ms` | The valve-closed rest the calibration was measured at; NULL = legacy 100 ms cadence. | v1.16.0 |
 | `dispensing_history.volume_actual_ml`, `.pulses_fired`, `.volume_per_pulse_ml` | What the hardware reports it actually dispensed; NULL = unknown. | v1.17.0 |
-| `dispensing_history.topology`, `.calibration_id`, `.pulse_width_ms`, `.inter_pulse_interval_ms`, `.duration_s`, `.app_version` | The context the delivery ran under (valve topology, calibration row, timing profile, wall-clock duration, app version). | v1.21.0 |
+| `dispensing_history.topology`, `.calibration_id`, `.pulse_width_ms`, `.inter_pulse_interval_ms`, `.duration_s`, `.app_version`, `.volume_requested_ml`, `.dose_rounding` | The context the delivery ran under (valve topology, calibration row, timing profile, wall-clock duration, app version), and the volume asked for before whole-pulse rounding with the rounding policy applied. | v1.21.0 |
 
 When you need another migration, add it to `create_tables()` in the same
 style; *do not* introduce a parallel framework — see [`docs/UPDATE_SYSTEM.md`

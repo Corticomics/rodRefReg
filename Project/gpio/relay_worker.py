@@ -679,6 +679,13 @@ class RelayWorker(QObject):
         if 'schedule_id' not in delivery_data:
             delivery_data['schedule_id'] = self.schedule_id
 
+        # The ledger records the volume asked of this delivery before the
+        # whole-pulse planner (or the window cap) rewrites water_volume;
+        # without it, volume_dispensed (the rounded plan) is all anyone can
+        # grade against. A retry re-enters with the same, already rewritten
+        # dict, so the first ask is kept.
+        delivery_data.setdefault('requested_ml', float(delivery_data['water_volume']))
+
         animal_id = delivery_data['animal_id']
         current_delivered = self.delivered_volumes.get(animal_id, 0)
         failed_count = self.failed_deliveries.get(animal_id, 0)
@@ -843,6 +850,7 @@ class RelayWorker(QObject):
             return 'skip'
 
         delivery_data['water_volume'] = n_pulses * q
+        delivery_data['dose_rounding'] = 'up' if round_up else 'nearest'
         return 'applied'
 
     @staticmethod
@@ -937,6 +945,8 @@ class RelayWorker(QObject):
                     'inter_pulse_interval_ms': result.inter_pulse_interval_ms,
                     'duration_s': result.duration_s,
                     'app_version': __version__,
+                    'volume_requested_ml': delivery_data.get('requested_ml'),
+                    'dose_rounding': delivery_data.get('dose_rounding'),
                 }
             )
 

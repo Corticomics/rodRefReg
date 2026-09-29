@@ -37,6 +37,8 @@ CONTEXT_COLUMNS = (
     'inter_pulse_interval_ms',
     'duration_s',
     'app_version',
+    'volume_requested_ml',
+    'dose_rounding',
 )
 
 # The table as v1.17.0 created it, before the context columns existed.
@@ -125,6 +127,8 @@ def test_log_delivery_stores_the_context(database_handler):
             inter_pulse_interval_ms=1000,
             duration_s=9.7,
             app_version=__version__,
+            volume_requested_ml=0.3,
+            dose_rounding='nearest',
         )
     )
     row = _row(database_handler.db_path)
@@ -133,6 +137,8 @@ def test_log_delivery_stores_the_context(database_handler):
     assert (row['pulse_width_ms'], row['inter_pulse_interval_ms']) == (30, 1000)
     assert row['duration_s'] == pytest.approx(9.7)
     assert row['app_version'] == __version__
+    assert row['volume_requested_ml'] == pytest.approx(0.3)
+    assert row['dose_rounding'] == 'nearest'
 
 
 def test_log_delivery_without_context_still_works(database_handler):
@@ -357,3 +363,123 @@ def test_worker_logs_the_context_it_ran_under(monkeypatch, topology):
     assert (logged['pulse_width_ms'], logged['inter_pulse_interval_ms']) == (30, 1000)
     assert logged['duration_s'] == pytest.approx(3.4)
     assert logged['app_version'] == __version__
+
+
+# --- the dose asked for, before whole-pulse rounding ---------------------------
+#
+# The whole-pulse planner rewrites water_volume to pulses x q before the
+# delivery is logged, so volume_dispensed carries the plan, not the ask.
+# Without the ask, a planner or rounding regression cannot be seen from the
+# ledger, and two rigs with different q put the same nominal dose in
+# different cells.
+
+NEEDLE_Q = 0.032936  # mL per pulse, Parker valve with the upstream needle
+
+
+def _pulse_worker(monkeypatch, q=NEEDLE_Q, round_up=False):
+    pytest.importorskip("PyQt5")
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+    from PyQt5.QtCore import QMutex, QObject  # noqa: PLC0415
+
+    worker = RelayWorker.__new__(RelayWorker)
+    QObject.__init__(worker)
+    worker.mutex = QMutex()
+    worker.settings = {'valve_topology': 'shared_manifold', 'round_doses_up': round_up}
+    worker.delivered_volumes = {}
+    worker.failed_deliveries = {}
+    worker.issued_targets = {}
+    worker.schedule_id = 7
+    worker.hardware_mode = 'solenoid'
+    worker.database_handler = MagicMock()
+    worker.progress.connect(lambda _m: None)
+    worker.volume_updated.connect(lambda *_a: None)
+
+    class _Event:
+        def is_set(self):
+            return False
+
+    worker._cancel_requested = _Event()
+    worker.retries = []
+    monkeypatch.setattr(
+        type(worker), "schedule_retry", lambda self, data: self.retries.append(data), raising=False
+    )
+
+    strategy = MagicMock()
+    strategy.pulse_volume_for = lambda cage_id: q
+    worker.outcomes = []  # scripted results, consumed in order; then success
+
+    async def _deliver(relay_unit_id, target_volume_ml, triggers_hint=None):
+        n = round(target_volume_ml / q)
+        if worker.outcomes:
+            return worker.outcomes.pop(0)(n)
+        return DeliveryResult(success=True, delivered_ml=n * q, pulses=n, volume_per_pulse_ml=q)
+
+    strategy.deliver = _deliver
+    worker.strategy = strategy
+    return worker
+
+
+def _instant(volume):
+    return {
+        'animal_id': 1,
+        'relay_unit_id': 3,
+        'water_volume': volume,
+        'instant_time': datetime(2026, 9, 29, 8, 0, 0),
+        'schedule_id': 7,
+    }
+
+
+def _logged(worker):
+    return [call.args[0] for call in worker.database_handler.log_delivery.call_args_list]
+
+
+@pytest.mark.parametrize("round_up,pulses,policy", [(False, 18, 'nearest'), (True, 19, 'up')])
+def test_worker_logs_the_dose_asked_for_before_rounding(monkeypatch, round_up, pulses, policy):
+    """0.6 mL at q = 32.936 uL is 18.2 pulses: 18 at nearest, 19 rounded up."""
+    worker = _pulse_worker(monkeypatch, round_up=round_up)
+    worker._handle_delivery(_instant(0.6))
+
+    (row,) = _logged(worker)
+    assert row['volume_requested_ml'] == pytest.approx(0.6)
+    assert row['dose_rounding'] == policy
+    assert row['pulses_fired'] == pulses
+    # volume_dispensed keeps its meaning: the plan, whole pulses x q.
+    assert row['volume_delivered'] == pytest.approx(pulses * NEEDLE_Q)
+
+
+def test_a_retry_keeps_the_first_ask(monkeypatch):
+    worker = _pulse_worker(monkeypatch)
+    worker.outcomes = [
+        lambda n: DeliveryResult(
+            success=False, delivered_ml=0.0, pulses=0, volume_per_pulse_ml=NEEDLE_Q
+        )
+    ]
+    data = _instant(0.6)
+    worker._handle_delivery(data)
+    assert worker.retries == [data]
+    worker._handle_delivery(data)  # schedule_retry re-enters with the same dict
+
+    first, second = _logged(worker)
+    assert (first['status'], second['status']) == ('failed', 'completed')
+    assert first['volume_requested_ml'] == pytest.approx(0.6)
+    assert second['volume_requested_ml'] == pytest.approx(0.6)
+
+
+def test_a_staggered_chunk_logs_its_own_ask(monkeypatch):
+    worker = _pulse_worker(monkeypatch)
+    worker.animal_windows = {1: {'target_volume': 0.6}}
+    worker._handle_delivery(_instant(0.2))
+
+    (row,) = _logged(worker)
+    assert row['volume_requested_ml'] == pytest.approx(0.2)
+    assert row['dose_rounding'] == 'nearest'
+
+
+def test_a_delivery_not_rounded_to_pulses_records_no_policy(monkeypatch):
+    worker = _pulse_worker(monkeypatch)
+    del worker.strategy.pulse_volume_for  # pump / continuous: no pulse quantum
+    worker._handle_delivery(_instant(0.25))
+
+    (row,) = _logged(worker)
+    assert row['volume_requested_ml'] == pytest.approx(0.25)
+    assert row['dose_rounding'] is None
