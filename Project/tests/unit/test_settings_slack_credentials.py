@@ -50,7 +50,7 @@ def stored(isolated_data_dir):
     return isolated_data_dir / "secrets.json"
 
 
-def _tab(database_handler):
+def _tab(database_handler, notification_handler=None):
     from controllers.system_controller import SystemController  # noqa: PLC0415
     from ui.SettingsTab import SettingsTab  # noqa: PLC0415
 
@@ -62,6 +62,7 @@ def _tab(database_handler):
         login_system=login,
         print_to_terminal=messages.append,
         database_handler=database_handler,
+        notification_handler=notification_handler,
     )
     return tab, controller, messages
 
@@ -97,6 +98,33 @@ def test_a_typed_token_is_saved_and_does_not_break_later_saves(
     assert database_handler.get_system_settings()["round_doses_up"] is True
     assert _secrets(stored)["slack_token"] == "xoxb-new"
     assert not any("Auto-save failed" in m for m in messages)
+
+
+def test_a_typed_token_reaches_the_running_notification_handler(
+    qapp, stored, database_handler
+):
+    """The handler is built once at start-up and shared by every RelayWorker;
+    a token saved from Settings must reach it without a restart."""
+    from notifications.notifications import NotificationHandler  # noqa: PLC0415
+
+    handler = NotificationHandler(TOKEN, "C9")
+    handler.last_status = {"ok": False, "detail": "invalid_auth", "timestamp": "t"}
+    tab, _controller, messages = _tab(database_handler, notification_handler=handler)
+    old_client = handler.client
+
+    tab.round_doses_up.setChecked(True)  # a save that leaves the credentials alone
+    assert handler.client is old_client, "unchanged credentials keep the client"
+
+    tab.slack_token.setText("xoxb-new")
+    tab.slack_token.editingFinished.emit()
+    tab.slack_channel.setText("C10")
+    tab.slack_channel.editingFinished.emit()
+
+    assert handler.client is not old_client
+    assert handler.client.token == "xoxb-new"
+    assert handler.channel_id == "C10"
+    assert handler.last_status is None, "the old token's failure no longer shows"
+    assert "Slack credentials updated; the next message uses them" in messages
 
 
 def test_the_tab_writes_no_key_file(qapp, stored, database_handler, tmp_path, monkeypatch):

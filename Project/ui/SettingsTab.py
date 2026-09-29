@@ -229,9 +229,21 @@ class SettingsTab(QWidget):
             if hasattr(self, 'slack_channel'):
                 updated_settings['channel_id'] = self.slack_channel.text()
 
+            credentials = ('slack_token', 'channel_id')
+            before = tuple(self.settings.get(key) for key in credentials)
+
             # Update settings via system controller (ensures persistence)
             self.settings.update(updated_settings)
             self.system_controller.save_settings(self.settings)
+
+            # The running NotificationHandler was built with the credentials
+            # at start-up; point it at the new ones so Slack uses them now.
+            after = tuple(self.settings.get(key) for key in credentials)
+            handler = self.notification_handler
+            if after != before and hasattr(handler, 'update_credentials'):
+                handler.update_credentials(*after)
+                self._refresh_slack_status()
+                self.print_to_terminal("Slack credentials updated; the next message uses them")
 
             # Emit signal for other components
             self.settings_updated.emit(self.settings)

@@ -46,6 +46,18 @@ class NotificationHandler:
         # Format: {"ok": bool, "detail": str, "timestamp": iso8601}.
         self.last_status = None
 
+    def update_credentials(self, slack_token, channel_id):
+        """Use new Slack credentials from the next message on, without a restart.
+
+        Every holder shares this one object (the GUI, the Settings tab and
+        each RelayWorker), so updating it in place reaches them all. The
+        indicator goes back to "no message yet" until the next message shows
+        whether the new token works.
+        """
+        self.client = WebClient(token=slack_token, timeout=_SLACK_TIMEOUT_S)
+        self.channel_id = channel_id
+        self.last_status = None
+
     def send_slack_notification(self, message):
         """Send ``message`` to Slack; on any failure, log it locally instead.
 
