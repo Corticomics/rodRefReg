@@ -870,6 +870,44 @@ class RelayWorker(QObject):
             )
         return str(system_settings.get('hardware_mode') or 'solenoid').strip().lower()
 
+    def _ledger_context(self):
+        """
+        The context every dispensing_history row carries, whichever path
+        writes it: the valve topology and schedule mode the run used, and
+        the app version. The schedule mode is kept on the row because the
+        schedule itself can be deleted later, and a staggered chunk's pulse
+        count (planned from the window's running carry) cannot be judged
+        like an instant dose's.
+        """
+        mode = getattr(self, 'mode', None)
+        return {
+            'topology': topology_from(getattr(self, 'settings', None)),
+            'app_version': __version__,
+            'delivery_mode': mode if mode in ('instant', 'staggered') else None,
+        }
+
+    def _log_undelivered(self, animal_id, info):
+        """The circuit-breaker row: the part of a window's dose never delivered.
+
+        Written through the same context as every other row, with the
+        undelivered remainder as its volume_requested_ml, so the ledger
+        shows how much the animal missed.
+        """
+        if not self.database_handler:
+            return
+        self.database_handler.log_delivery(
+            {
+                'schedule_id': self.schedule_id,
+                'animal_id': animal_id,
+                'relay_unit_id': self.animal_windows[animal_id]['relay_unit'],
+                'volume_delivered': 0,
+                'timestamp': datetime.now().isoformat(),
+                'status': 'sensor_failure',
+                'volume_requested_ml': info.get('remaining'),
+                **self._ledger_context(),
+            }
+        )
+
     def _rounds_doses_up(self):
         """Whether the operator chose to round every dose UP to a whole pulse."""
         settings = getattr(self, 'settings', None) or {}
@@ -929,8 +967,8 @@ class RelayWorker(QObject):
                     'schedule_id': schedule_id,
                     'animal_id': animal_id,
                     'relay_unit_id': delivery_data['relay_unit_id'],
-                    # Kept as the REQUESTED figure for backwards compatibility
-                    # with rows written before actual volume was recorded.
+                    # The PLANNED figure (for a pulse delivery, whole pulses x
+                    # mL/pulse); the ask before rounding is volume_requested_ml.
                     'volume_delivered': requested_ml if status == 'completed' else 0,
                     'volume_actual_ml': actual_volume,
                     'pulses_fired': result.pulses,
@@ -939,12 +977,11 @@ class RelayWorker(QObject):
                     'status': status,
                     # The context this delivery ran under, so the ledger of
                     # one device can be compared with another's.
-                    'topology': topology_from(getattr(self, 'settings', None)),
+                    **self._ledger_context(),
                     'calibration_id': result.calibration_id,
                     'pulse_width_ms': result.pulse_width_ms,
                     'inter_pulse_interval_ms': result.inter_pulse_interval_ms,
                     'duration_s': result.duration_s,
-                    'app_version': __version__,
                     'volume_requested_ml': delivery_data.get('requested_ml'),
                     'dose_rounding': delivery_data.get('dose_rounding'),
                 }
@@ -1250,17 +1287,7 @@ class RelayWorker(QObject):
 
                     # Log all incomplete deliveries as failed
                     for animal_id, info in incomplete_animals.items():
-                        if self.database_handler:
-                            self.database_handler.log_delivery(
-                                {
-                                    'schedule_id': self.schedule_id,
-                                    'animal_id': animal_id,
-                                    'relay_unit_id': self.animal_windows[animal_id]['relay_unit'],
-                                    'volume_delivered': 0,
-                                    'timestamp': datetime.now().isoformat(),
-                                    'status': 'sensor_failure',
-                                }
-                            )
+                        self._log_undelivered(animal_id, info)
 
                         self.progress.emit(
                             f"  Animal {animal_id}: INCOMPLETE - {info['delivered']:.3f}/{info['target']:.3f}mL "

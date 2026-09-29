@@ -39,6 +39,7 @@ CONTEXT_COLUMNS = (
     'app_version',
     'volume_requested_ml',
     'dose_rounding',
+    'delivery_mode',
 )
 
 # The table as v1.17.0 created it, before the context columns existed.
@@ -129,6 +130,7 @@ def test_log_delivery_stores_the_context(database_handler):
             app_version=__version__,
             volume_requested_ml=0.3,
             dose_rounding='nearest',
+            delivery_mode='instant',
         )
     )
     row = _row(database_handler.db_path)
@@ -139,6 +141,7 @@ def test_log_delivery_stores_the_context(database_handler):
     assert row['app_version'] == __version__
     assert row['volume_requested_ml'] == pytest.approx(0.3)
     assert row['dose_rounding'] == 'nearest'
+    assert row['delivery_mode'] == 'instant'
 
 
 def test_log_delivery_without_context_still_works(database_handler):
@@ -376,7 +379,7 @@ def test_worker_logs_the_context_it_ran_under(monkeypatch, topology):
 NEEDLE_Q = 0.032936  # mL per pulse, Parker valve with the upstream needle
 
 
-def _pulse_worker(monkeypatch, q=NEEDLE_Q, round_up=False):
+def _pulse_worker(monkeypatch, q=NEEDLE_Q, round_up=False, mode='instant'):
     pytest.importorskip("PyQt5")
     from gpio.relay_worker import RelayWorker  # noqa: PLC0415
     from PyQt5.QtCore import QMutex, QObject  # noqa: PLC0415
@@ -390,6 +393,7 @@ def _pulse_worker(monkeypatch, q=NEEDLE_Q, round_up=False):
     worker.issued_targets = {}
     worker.schedule_id = 7
     worker.hardware_mode = 'solenoid'
+    worker.mode = mode
     worker.database_handler = MagicMock()
     worker.progress.connect(lambda _m: None)
     worker.volume_updated.connect(lambda *_a: None)
@@ -442,6 +446,7 @@ def test_worker_logs_the_dose_asked_for_before_rounding(monkeypatch, round_up, p
     (row,) = _logged(worker)
     assert row['volume_requested_ml'] == pytest.approx(0.6)
     assert row['dose_rounding'] == policy
+    assert row['delivery_mode'] == 'instant'
     assert row['pulses_fired'] == pulses
     # volume_dispensed keeps its meaning: the plan, whole pulses x q.
     assert row['volume_delivered'] == pytest.approx(pulses * NEEDLE_Q)
@@ -466,13 +471,16 @@ def test_a_retry_keeps_the_first_ask(monkeypatch):
 
 
 def test_a_staggered_chunk_logs_its_own_ask(monkeypatch):
-    worker = _pulse_worker(monkeypatch)
+    worker = _pulse_worker(monkeypatch, mode='staggered')
     worker.animal_windows = {1: {'target_volume': 0.6}}
     worker._handle_delivery(_instant(0.2))
 
     (row,) = _logged(worker)
     assert row['volume_requested_ml'] == pytest.approx(0.2)
     assert row['dose_rounding'] == 'nearest'
+    # Kept on the row: the schedule (and its mode) can be deleted later, and a
+    # carried chunk must not then be judged like an instant dose.
+    assert row['delivery_mode'] == 'staggered'
 
 
 def test_a_delivery_not_rounded_to_pulses_records_no_policy(monkeypatch):
@@ -483,3 +491,25 @@ def test_a_delivery_not_rounded_to_pulses_records_no_policy(monkeypatch):
     (row,) = _logged(worker)
     assert row['volume_requested_ml'] == pytest.approx(0.25)
     assert row['dose_rounding'] is None
+
+
+def test_the_breaker_row_carries_the_same_context(monkeypatch):
+    """The sensor_failure row used to skip the context every other row carries."""
+    worker = _pulse_worker(monkeypatch, mode='staggered')
+    worker.settings['valve_topology'] = 'independent'
+    worker.animal_windows = {1: {'relay_unit': 3, 'target_volume': 0.6}}
+    worker._log_undelivered(1, {'delivered': 0.3, 'target': 0.6, 'remaining': 0.3})
+
+    (row,) = _logged(worker)
+    assert (row['status'], row['relay_unit_id'], row['volume_delivered']) == ('sensor_failure', 3, 0)
+    assert row['volume_requested_ml'] == pytest.approx(0.3), "the part never delivered"
+    assert (row['topology'], row['delivery_mode'], row['app_version']) == (
+        'independent',
+        'staggered',
+        __version__,
+    )
+
+
+def test_a_worker_without_a_known_mode_records_none(monkeypatch):
+    worker = _pulse_worker(monkeypatch, mode='bogus')
+    assert worker._ledger_context()['delivery_mode'] is None
