@@ -54,6 +54,8 @@ class DatabaseHandler:
                             inter_pulse_interval_ms INTEGER DEFAULT NULL,
                             duration_s REAL DEFAULT NULL,
                             app_version TEXT DEFAULT NULL,
+                            volume_requested_ml REAL DEFAULT NULL,
+                            dose_rounding TEXT DEFAULT NULL,
                             FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
                             FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
                             FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
@@ -67,11 +69,14 @@ class DatabaseHandler:
                             ADD COLUMN cycle_index INTEGER DEFAULT NULL
                         ''')
                     # What the hardware reports it ACTUALLY dispensed, as
-                    # opposed to volume_dispensed, which is what was asked
-                    # for. NULL on pre-v1.17.0 rows means "unknown".
+                    # opposed to volume_dispensed, the planned volume (for a
+                    # pulse delivery: whole pulses x mL/pulse, i.e. the ask
+                    # after rounding). NULL on pre-v1.17.0 rows means "unknown".
                     # v1.21.0: the context a delivery ran under, so rows from
                     # two devices (or two topologies) can be compared from the
-                    # ledger alone. NULL on older rows means "not recorded".
+                    # ledger alone, including the volume asked for BEFORE
+                    # whole-pulse rounding and the rounding policy applied.
+                    # NULL on older rows means "not recorded".
                     for column, decl in (
                         ('volume_actual_ml', 'REAL DEFAULT NULL'),
                         ('pulses_fired', 'INTEGER DEFAULT NULL'),
@@ -82,6 +87,8 @@ class DatabaseHandler:
                         ('inter_pulse_interval_ms', 'INTEGER DEFAULT NULL'),
                         ('duration_s', 'REAL DEFAULT NULL'),
                         ('app_version', 'TEXT DEFAULT NULL'),
+                        ('volume_requested_ml', 'REAL DEFAULT NULL'),
+                        ('dose_rounding', 'TEXT DEFAULT NULL'),
                     ):
                         if column not in existing_columns:
                             cursor.execute(
@@ -1733,7 +1740,8 @@ class DatabaseHandler:
                 - schedule_id: ID of the schedule
                 - animal_id: ID of the animal
                 - relay_unit_id: ID of the relay unit used
-                - volume_delivered: Volume REQUESTED of the delivery
+                - volume_delivered: the PLANNED volume (for a pulse delivery,
+                  whole pulses x mL/pulse: the request after rounding)
                 - timestamp: Time of delivery
                 - status: Status of delivery ('completed', 'partial' or 'failed')
                 - volume_actual_ml (optional): volume the hardware reports it
@@ -1747,6 +1755,10 @@ class DatabaseHandler:
                   v1.21.0): the context the delivery ran under, so rows from
                   two devices or two topologies can be compared from the
                   ledger alone
+                - volume_requested_ml, dose_rounding (optional, v1.21.0): the
+                  volume asked of this delivery before whole-pulse rounding,
+                  and the rounding policy applied ('nearest' or 'up'; NULL
+                  when the delivery was not rounded to pulses)
         """
         try:
             with self.connect() as conn:
@@ -1757,8 +1769,9 @@ class DatabaseHandler:
                     (schedule_id, animal_id, relay_unit_id, timestamp,
                      volume_dispensed, status, volume_actual_ml, pulses_fired,
                      volume_per_pulse_ml, topology, calibration_id, pulse_width_ms,
-                     inter_pulse_interval_ms, duration_s, app_version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     inter_pulse_interval_ms, duration_s, app_version,
+                     volume_requested_ml, dose_rounding)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         delivery_data['schedule_id'],
@@ -1776,6 +1789,8 @@ class DatabaseHandler:
                         delivery_data.get('inter_pulse_interval_ms'),
                         delivery_data.get('duration_s'),
                         delivery_data.get('app_version'),
+                        delivery_data.get('volume_requested_ml'),
+                        delivery_data.get('dose_rounding'),
                     ),
                 )
 
