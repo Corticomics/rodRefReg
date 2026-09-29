@@ -20,7 +20,6 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from ui.gui import RodentRefreshmentGUI
-from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
 from utils import paths, stop_sequence, updater
 from version import __version__
@@ -207,18 +206,6 @@ def setup():
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler,
-    )
-
-    gui.settings_tab = SettingsTab(
-        system_controller=system_controller,
-        suggest_callback=gui.suggest_settings_callback,
-        push_callback=gui.push_settings_callback,
-        save_slack_callback=gui.save_slack_credentials_callback,
-        run_stop_section=gui.run_stop_section,
-        login_system=login_system,
-        print_to_terminal=gui.print_to_terminal,
-        database_handler=database_handler,
         notification_handler=notification_handler,
     )
 
@@ -661,7 +648,6 @@ def _create_gui_from_components(components: dict):
 
     # Import GUI components (deferred for faster splash display)
     from ui.gui import RodentRefreshmentGUI
-    from ui.SettingsTab import SettingsTab
 
     # Extract components from background initialization
     database_handler = components.get('database_handler')
@@ -682,18 +668,6 @@ def _create_gui_from_components(components: dict):
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler,
-    )
-
-    gui.settings_tab = SettingsTab(
-        system_controller=system_controller,
-        suggest_callback=gui.suggest_settings_callback,
-        push_callback=gui.push_settings_callback,
-        save_slack_callback=gui.save_slack_credentials_callback,
-        run_stop_section=gui.run_stop_section,
-        login_system=login_system,
-        print_to_terminal=gui.print_to_terminal,
-        database_handler=database_handler,
         notification_handler=notification_handler,
     )
 
