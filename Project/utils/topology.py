@@ -59,6 +59,41 @@ def is_independent(settings) -> bool:
     return topology_from(settings) == INDEPENDENT
 
 
+# --- calibrations -------------------------------------------------------------
+#
+# A calibration is measured under one topology: the manifold's head and the
+# master valve (or their absence) shape the volume per pulse. From v1.21.0
+# every saved calibration records the topology it was measured under;
+# rows saved before that carry NULL, and every device then ran the shared
+# manifold, so an untagged row reads as shared_manifold ("legacy").
+
+
+def calibration_topology(calibration) -> str:
+    """The topology a stored calibration row was measured under."""
+    return normalize((calibration or {}).get('topology'))
+
+
+def calibration_is_legacy(calibration) -> bool:
+    """Whether the row predates the topology tag (NULL in the database)."""
+    return not is_known((calibration or {}).get('topology'))
+
+
+def calibration_label(calibration) -> str:
+    """What an operator sees: the topology, marked '(legacy)' when untagged."""
+    topology = calibration_topology(calibration)
+    return f"{topology} (legacy)" if calibration_is_legacy(calibration) else topology
+
+
+def calibration_is_stale(calibration, settings) -> bool:
+    """Whether a stored calibration was measured under the other topology.
+
+    None (no calibration) is not stale: it is uncalibrated, a different gap.
+    """
+    if calibration is None:
+        return False
+    return calibration_topology(calibration) != topology_from(settings)
+
+
 def cage_map_from(settings) -> dict[int, int]:
     """
     The device's cage -> relay map, ``{cage_id: relay_id}`` with int keys.

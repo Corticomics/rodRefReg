@@ -291,6 +291,13 @@ else:
 - Pressure change in system
 - Fluid type change (e.g. water to saline)
 - After maintenance on manifold
+- After switching the device's valve topology (manifold to independent, or
+  back): every animal-carrying cage. Since v1.21.0 each calibration records the
+  topology it was measured under; one from the other topology shows **Stale**
+  in Settings → Calibration, is flagged in the Terminal tab when a schedule
+  starts (`[CAL TOPOLOGY] cage=N calibration measured on …`), and is still
+  used until the cage is recalibrated. Calibrations saved before v1.21.0 carry
+  no tag and count as measured on the shared manifold.
 
 **Should calibrate:**
 - Every 3 months (routine)

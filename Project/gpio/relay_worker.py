@@ -335,6 +335,7 @@ class RelayWorker(QObject):
             database_handler=self.system_controller.database_handler,
         )
         print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
+        self._report_stale_calibrations(system_settings)
 
         # Start flow sensor in continuous mode (only if available)
         print(f"[DEBUG] Step 5: Starting flow sensor...")
@@ -869,6 +870,50 @@ class RelayWorker(QObject):
                 f"system settings must be a dict, got {type(system_settings).__name__}"
             )
         return str(system_settings.get('hardware_mode') or 'solenoid').strip().lower()
+
+    def _run_cage_ids(self):
+        """The cages this run delivers to, from its instant deliveries and
+        staggered assignments (empty when neither is known)."""
+        settings = getattr(self, 'settings', None) or {}
+        cages = set()
+        for delivery in settings.get('delivery_instants') or []:
+            try:
+                cages.add(int(delivery['relay_unit_id']))
+            except (KeyError, TypeError, ValueError):
+                pass
+        for relay_unit in (settings.get('relay_unit_assignments') or {}).values():
+            try:
+                cages.add(int(relay_unit))
+            except (TypeError, ValueError):
+                pass
+        return cages
+
+    def _report_stale_calibrations(self, system_settings):
+        """
+        Tell the operator, once per run, which cages this run waters with a
+        calibration measured under the other valve topology.
+
+        The strategy still uses those calibrations (refusing would leave an
+        animal without water); this is the prompt to recalibrate. Never
+        raises: a reporting failure must not abort the run's hardware setup.
+        """
+        try:
+            stale_of = getattr(self.strategy, 'stale_calibrations', None)
+            stale = stale_of() if callable(stale_of) else {}
+            if not isinstance(stale, dict) or not stale:
+                return
+            run_cages = self._run_cage_ids()
+            device = topology_from(system_settings)
+            for cage_id, measured_on in sorted(stale.items()):
+                if run_cages and cage_id not in run_cages:
+                    continue
+                self.progress.emit(
+                    f"⚠️ Cage {cage_id}: calibration measured on {measured_on}, this device "
+                    f"runs {device} - deliveries use it anyway; recalibrate cage {cage_id} "
+                    "(Settings -> Calibration)"
+                )
+        except Exception as exc:
+            self.progress.emit(f"Could not check calibration topologies: {exc}")
 
     def _rounds_doses_up(self):
         """Whether the operator chose to round every dose UP to a whole pulse."""

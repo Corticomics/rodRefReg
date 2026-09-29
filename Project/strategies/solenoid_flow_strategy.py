@@ -5,6 +5,8 @@ import logging
 import threading
 from typing import Dict, Optional, Tuple
 
+from utils.topology import calibration_is_stale, calibration_label, topology_from
+
 from strategies.delivery_strategy import DeliveryResult
 
 # Rest between pulses used before the timing profile was stored per cage.
@@ -71,6 +73,13 @@ class SolenoidFlowStrategy:
         self._sensor = flow_sensor  # Can be None for calibration-only mode
         self._cal = calibration_store
         self._settings = settings
+        # The device's valve topology, read from the same settings dict the
+        # worker logs to dispensing_history, so the ledger and the stale-
+        # calibration check always agree. Set before the snapshot is built.
+        self._topology = topology_from(settings)
+        # Cages whose calibration was measured under the OTHER topology:
+        # {cage_id: what it was measured on}. Reported once per cage.
+        self._stale_calibrations: Dict[int, str] = {}
         self._prime_ms = int(prime_ms)
         self._db = database_handler  # For per-valve calibration lookup
         self._logger = logging.getLogger(self.__class__.__name__)
@@ -83,8 +92,9 @@ class SolenoidFlowStrategy:
         # threading.Event is used because the write crosses threads.
         # See the v1.8.0 incident write-up in utils/stop_sequence.py.
         self._cancel_event = threading.Event()
-        # Per-run calibration snapshot (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml}})
-        self._cal_snapshot: Dict[int, Dict[int, Dict[str, float]]] = {}
+        # Per-run calibration snapshot
+        # (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml, inter_pulse_interval_ms, topology}})
+        self._cal_snapshot: Dict[int, Dict[int, Dict[str, object]]] = {}
         # Running record of what the delivery in flight has dispensed.
         self._reset_ledger()
 
@@ -246,7 +256,9 @@ class SolenoidFlowStrategy:
                         'id': cal.get('calibration_id', 0),
                         'volume_per_pulse_ml': vol,
                         'inter_pulse_interval_ms': interval,
+                        'topology': cal.get('topology'),
                     }
+                    self._note_calibration_topology(cage_id, cal)
                     self._logger.debug(
                         f"Using DB calibration (read-through) for cage {cage_id}: "
                         f"{vol:.6f} mL/pulse @ {pw}ms + {interval}ms rest"
@@ -318,18 +330,54 @@ class SolenoidFlowStrategy:
                     'id': cal.get('calibration_id', 0),
                     'volume_per_pulse_ml': vol,
                     'inter_pulse_interval_ms': interval,
+                    'topology': cal.get('topology'),
                 }
                 try:
                     print(
                         f"[CAL SNAPSHOT] cage={cage_id} width={pw}ms rest={interval}ms "
-                        f"vol={vol:.6f} mL/pulse",
+                        f"vol={vol:.6f} mL/pulse topology={calibration_label(cal)}",
                         flush=True,
                     )
                 except Exception:
                     pass
+                self._note_calibration_topology(cage_id, cal)
             self._logger.info(f"Calibration snapshot loaded for {len(self._cal_snapshot)} cages")
         except Exception as e:
             self._logger.warning(f"Failed to build calibration snapshot: {e}")
+
+    def _note_calibration_topology(self, cage_id: int, calibration: dict) -> None:
+        """
+        Warn, once per cage, when its calibration was measured under the
+        other valve topology.
+
+        The calibration is still used. Refusing, or swapping in the empirical
+        default, would change what the animal receives in the middle of a
+        schedule; the operator is told to recalibrate instead (Settings shows
+        the row as Stale). Printed like the [CAL SNAPSHOT] lines, so it lands
+        in the Terminal tab.
+        """
+        if cage_id in self._stale_calibrations:
+            return
+        if not calibration_is_stale(calibration, self._settings):
+            return
+        label = calibration_label(calibration)
+        self._stale_calibrations[cage_id] = label
+        message = (
+            f"[CAL TOPOLOGY] cage={cage_id} calibration measured on {label}; "
+            f"this device runs {self._topology} - using it anyway; recalibrate cage {cage_id}"
+        )
+        self._logger.info(message)
+        try:
+            print(message, flush=True)
+        except Exception:
+            pass
+
+    def stale_calibrations(self) -> Dict[int, str]:
+        """Cages whose calibration was measured under the other topology.
+
+        ``{cage_id: what it was measured on}``, e.g. ``'shared_manifold (legacy)'``.
+        """
+        return dict(self._stale_calibrations)
 
     def request_cancel(self) -> None:
         """Request cooperative cancellation of an in-flight delivery.

@@ -27,6 +27,13 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from utils.operation_lock import CALIBRATION, get_operation_lock
+from utils.topology import (
+    calibration_is_stale,
+    calibration_label,
+    calibration_topology,
+    describe,
+    topology_from,
+)
 
 from ui.PrimingControlWidget import PrimingControlWidget
 from ui.UpdatesTab import UpdatesTab
@@ -749,7 +756,8 @@ class SettingsTab(QWidget):
         calibrate_all_btn.setObjectName("CompactButton")
         calibrate_all_btn.setFixedHeight(28)
         calibrate_all_btn.setToolTip(
-            "Run calibration wizard for all uncalibrated valves (all users)"
+            "Run the calibration wizard for every valve with no calibration, or with one "
+            "measured under the other valve topology (Stale) (all users)"
         )
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
@@ -770,7 +778,9 @@ class SettingsTab(QWidget):
         # Help text
         help_text = QLabel(
             "<b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
-            "Requires lab scale (±0.001g). CV% <5% = production ready."
+            "Requires lab scale (±0.001g). CV% <5% = production ready. "
+            "<b>Stale</b> = measured under the other valve topology; deliveries still "
+            "use it, so recalibrate that cage."
         )
         help_text.setWordWrap(True)
         help_text.setObjectName("HelpText")
@@ -832,12 +842,26 @@ class SettingsTab(QWidget):
             cage_item.setToolTip(f"Cage {cage_id} - Relay {relay_id}")
             self.calibration_table.setItem(row, 0, cage_item)
 
+            stale = bool(cal) and calibration_is_stale(cal, self.settings)
             if cal:
-                # Calibrated - show data
-                status_item = QTableWidgetItem("[OK]")
-                status_item.setForeground(QColor(0, 150, 0))
+                # Calibrated - show data. A calibration measured under the
+                # other valve topology is still used by deliveries, so it is
+                # flagged, not hidden.
+                if stale:
+                    device = topology_from(self.settings)
+                    status_item = QTableWidgetItem("Stale")
+                    status_item.setForeground(QColor(200, 150, 0))
+                    status_item.setToolTip(
+                        f"Measured on {calibration_label(cal)} "
+                        f"({describe(calibration_topology(cal))}). "
+                        f"This device runs {device} ({describe(device)}). "
+                        "Deliveries still use this calibration - recalibrate this cage."
+                    )
+                else:
+                    status_item = QTableWidgetItem("[OK]")
+                    status_item.setForeground(QColor(0, 150, 0))
+                    status_item.setToolTip(f"Calibrated on {calibration_label(cal)}")
                 status_item.setTextAlignment(Qt.AlignCenter)
-                status_item.setToolTip("Calibrated")
 
                 volume_item = QTableWidgetItem(f"{cal['volume_per_pulse_ml']:.6f}")
                 volume_item.setTextAlignment(Qt.AlignCenter)
@@ -871,8 +895,11 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 3, cv_item)
                 self.calibration_table.setItem(row, 4, date_item)
 
-                # Action button - Recalibrate (compact for table)
+                # Action button - Recalibrate (compact for table); a stale
+                # row's button stands out like an uncalibrated row's.
                 btn = QPushButton("Recalibrate")
+                if stale:
+                    btn.setProperty("variant", "primary")
                 btn.setStyleSheet(self._ACTION_BUTTON_STYLE)
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
@@ -1126,25 +1153,39 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Access Denied", "You must be logged in.")
             return
 
-        # Get uncalibrated cages
+        # Cages with no calibration, then cages whose calibration was measured
+        # under the other valve topology (still used, but stale).
         calibrations = self.database_handler.get_all_valve_calibrations()
-        uncalibrated = [c for c in sorted(self._cage_map()) if c not in calibrations]
+        cages = sorted(self._cage_map())
+        uncalibrated = [c for c in cages if c not in calibrations]
+        stale = [
+            c
+            for c in cages
+            if c in calibrations and calibration_is_stale(calibrations[c], self.settings)
+        ]
+        batch = uncalibrated + stale
 
-        if not uncalibrated:
+        if not batch:
             QMessageBox.information(self, "All Calibrated", "All valves are already calibrated!")
             return
 
+        found = f"Found {len(uncalibrated)} uncalibrated valves:\n{uncalibrated}"
+        if stale:
+            found += (
+                f"\nand {len(stale)} calibrated under the other valve topology "
+                f"(Stale):\n{stale}"
+            )
         reply = QMessageBox.question(
             self,
             "Calibrate All",
-            f"Found {len(uncalibrated)} uncalibrated valves:\n{uncalibrated}\n\n"
-            f"This will take approximately {len(uncalibrated) * 10} minutes.\n\n"
+            f"{found}\n\n"
+            f"This will take approximately {len(batch) * 10} minutes.\n\n"
             "Continue?",
             QMessageBox.Yes | QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
-            for cage_id in uncalibrated:
+            for cage_id in batch:
                 self._launch_calibration_wizard(cage_id)
                 # If user cancels one, stop the batch
                 if not hasattr(self, '_last_calibration_success'):
@@ -1170,7 +1211,7 @@ class SettingsTab(QWidget):
             with open(file_path, 'w') as f:
                 f.write(
                     "Cage,Status,Volume_per_Pulse_mL,CV_Percent,Num_Samples,"
-                    "Pulse_Width_ms,Inter_Pulse_Interval_ms,Calibration_Date,Notes\n"
+                    "Pulse_Width_ms,Inter_Pulse_Interval_ms,Calibration_Date,Notes,Topology\n"
                 )
 
                 for cage_id in sorted(self._cage_map()):
@@ -1180,15 +1221,18 @@ class SettingsTab(QWidget):
                         # legacy cadence rather than an empty column.
                         interval = cal.get('inter_pulse_interval_ms')
                         interval_text = "100 (legacy)" if interval is None else str(interval)
+                        status = (
+                            "Stale" if calibration_is_stale(cal, self.settings) else "Calibrated"
+                        )
                         f.write(
-                            f"{cage_id},Calibrated,{cal['volume_per_pulse_ml']:.6f},"
+                            f"{cage_id},{status},{cal['volume_per_pulse_ml']:.6f},"
                             f"{cal['coefficient_of_variation_pct']:.2f},"
                             f"{cal['num_samples']},{cal['pulse_width_ms']},"
                             f"\"{interval_text}\",{cal['calibration_date']},"
-                            f"\"{cal.get('notes', '')}\"\n"
+                            f"\"{cal.get('notes', '')}\",{calibration_label(cal)}\n"
                         )
                     else:
-                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—,—,—\n")
+                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—,—,—,—\n")
 
             self.print_to_terminal(f"Calibration report exported to {file_path}")
             QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")

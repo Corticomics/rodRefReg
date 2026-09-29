@@ -453,6 +453,11 @@ no default of its own.
 > Never set `independent` on a rig that has a master valve: the master would
 > never open and every delivery would be logged as a full dose while the
 > animal received nothing.
+>
+> After switching, calibrate every animal channel in **Settings →
+> Calibration**. A calibration measured on the manifold shows **Stale** there,
+> and a schedule that uses it says so in the Terminal tab; it is still used
+> until the cage is recalibrated.
 
 ### 7.3 Verify before powering
 
