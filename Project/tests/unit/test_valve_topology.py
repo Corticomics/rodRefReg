@@ -22,6 +22,7 @@ Pinned here:
 from __future__ import annotations
 
 import importlib.util
+import os
 import sqlite3
 from pathlib import Path
 
@@ -301,8 +302,10 @@ class _FakeRun:
     ],
 )
 def test_app_running_is_tri_state(monkeypatch, run, expected):
+    """Without /proc to scan, systemd's answer is all there is."""
     module = _load_tool()
     monkeypatch.setattr(module.subprocess, "run", run)
+    monkeypatch.setattr(module, "_app_processes", lambda: None)
     state, _detail = module._app_running()
     assert state is expected
 
@@ -315,6 +318,7 @@ def test_tool_refuses_when_it_cannot_tell_whether_the_app_runs(
 
     module = _load_tool()
     monkeypatch.setattr(module.subprocess, "run", _FakeRun(1, stderr="Failed to connect to bus"))
+    monkeypatch.setattr(module, "_app_processes", lambda: None)  # no /proc either
 
     assert module.main([INDEPENDENT, "--yes"]) == 2
     err = capsys.readouterr().err
@@ -385,11 +389,123 @@ def test_tool_refuses_while_the_app_is_running_unless_forced(
 ):
     from controllers.system_controller import SystemController  # noqa: PLC0415
 
-    monkeypatch.setattr(tool, "_app_running", lambda: (True, "active"))
+    monkeypatch.setattr(tool, "_app_running", lambda: (True, "rrr.service is active"))
     assert tool.main([INDEPENDENT, "--yes"]) == 2
-    assert "rrr.service is running" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "the app is running (rrr.service is active)" in err and "Close it first" in err
     assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
 
     assert tool.main([]) == 0, "showing is always allowed"
     assert tool.main([INDEPENDENT, "--yes", "--force"]) == 0
     assert SystemController(database_handler).settings[SETTING_KEY] == INDEPENDENT
+
+
+# --- finding the app however it was started --------------------------------------
+#
+# The desktop icon starts the app outside rrr.service, so asking systemd
+# alone said "stopped" while the app ran, and the tool wrote a value the
+# app then saved its old one back over. The launcher runs `python3 main.py`
+# from the release's Project directory either way; the tool finds that
+# process through /proc.
+
+
+def _fake_project(tmp_path, name="releases/1.21.0/Project"):
+    project = tmp_path / name
+    (project / "gpio").mkdir(parents=True)
+    (project / "version.py").write_text('__version__ = "1.21.0"\n')
+    (project / "gpio" / "relay_worker.py").write_text("")
+    return project
+
+
+def _fake_proc(tmp_path, entries):
+    """entries: {pid: (argv or None, cwd or None)} -> a /proc-shaped tree."""
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    (proc / "self").mkdir()  # non-numeric entries are ignored
+    for pid, (argv, cwd) in entries.items():
+        entry = proc / str(pid)
+        entry.mkdir()
+        if argv is not None:
+            (entry / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+        if cwd is not None:
+            (entry / "cwd").symlink_to(cwd)
+    return proc
+
+
+def test_the_process_scan_finds_the_app_and_nothing_else(tmp_path):
+    module = _load_tool()
+    project = _fake_project(tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    venv_python = "/home/pi/rrr/shared/venv/bin/python3"
+    proc = _fake_proc(
+        tmp_path,
+        {
+            101: ([venv_python, "main.py"], project),  # the launcher's way
+            102: ([venv_python, "main.py"], elsewhere),  # some other main.py
+            103: (["python3", str(project / "main.py")], elsewhere),  # absolute path
+            104: (None, project),  # gone mid-scan / unreadable
+            105: (["python3", "-m", "pytest"], project),  # not the app
+            os.getpid(): ([venv_python, "main.py"], project),  # never ourselves
+        },
+    )
+    assert module._app_processes(str(proc)) == [101, 103]
+    assert module._app_processes(str(tmp_path / "no-proc")) is None
+
+
+@pytest.mark.parametrize(
+    "unit,pids,expected",
+    [
+        (True, [], True),
+        (False, [4242], True),  # started from the desktop icon, not the service
+        (None, [], False),  # the scan answers what systemd could not
+        (False, [], False),
+        (False, None, False),  # no /proc: systemd's answer stands
+        (None, None, None),  # neither can tell: never read as "stopped"
+    ],
+)
+def test_app_running_combines_the_service_and_the_process_scan(monkeypatch, unit, pids, expected):
+    module = _load_tool()
+    monkeypatch.setattr(module, "_unit_state", lambda: (unit, "systemctl says so"))
+    monkeypatch.setattr(module, "_app_processes", lambda: pids)
+    state, detail = module._app_running()
+    assert state is expected
+    if pids:
+        assert f"pid {pids[0]}" in detail
+
+
+def test_tool_refuses_while_a_desktop_launched_app_runs(database_handler, monkeypatch, capsys):
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    module = _load_tool()
+    monkeypatch.setattr(module.subprocess, "run", _FakeRun(3, stdout="inactive"))
+    monkeypatch.setattr(module, "_app_processes", lambda: [4242])
+
+    assert module.main([INDEPENDENT, "--yes"]) == 2
+    err = capsys.readouterr().err
+    assert "RRR app process running (pid 4242)" in err and "Close it first" in err
+    assert SystemController(database_handler).settings[SETTING_KEY] == SHARED_MANIFOLD
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc"), reason="needs a real /proc (Linux, as on the Pi)")
+def test_the_process_scan_finds_a_real_app_process(tmp_path):
+    """Against the real /proc: a `python3 main.py` child run from a Project tree."""
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    module = _load_tool()
+    project = _fake_project(tmp_path)
+    (project / "main.py").write_text("import time\ntime.sleep(30)\n")
+    child = subprocess.Popen([sys.executable, "main.py"], cwd=str(project))
+    try:
+        deadline = time.monotonic() + 10
+        found = []
+        while time.monotonic() < deadline and child.pid not in found:
+            found = module._app_processes() or []
+            time.sleep(0.05)
+        assert child.pid in found
+    finally:
+        child.kill()
+        child.wait()
+    assert child.pid not in (module._app_processes() or [])
