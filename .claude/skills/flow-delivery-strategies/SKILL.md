@@ -60,9 +60,11 @@ Auto-selected from `settings['use_pulse_delivery']`:
   micro-pulses (10-500 ms each) using empirical per-valve
   pulse-to-volume calibration. Precision: ~±0.003 mL.
 
-The pulse profile lives in
+Per-cage pulse profiles live in the `valve_calibration` table, written by
+the calibration wizard through `DatabaseHandler.save_valve_calibration`.
 [`Project/utils/pulse_calibration.py`](Project/utils/pulse_calibration.py)
-and is filled per cage by the calibration wizard.
+holds only the global default profile (`CalibrationStore`, a JSON file with
+hardcoded fallbacks) used for a cage that has no row.
 
 ## Flow sensors — two drivers, one shape
 
@@ -88,13 +90,15 @@ Per-cage pulse-to-volume calibration:
 
 1. Operator opens the calibration wizard from the UI:
    [`Project/ui/CalibrationWizard.py`](Project/ui/CalibrationWizard.py).
-2. The wizard runs N fixed pulses, records the integrated volume per
-   pulse via the flow sensor.
-3. `pulse_calibration.py` writes the empirical
-   `pulse_width_ms`/`volume_per_pulse_ml` pair to the
-   `valve_calibration` table (also appended to `valve_calibration_history`).
-4. Future deliveries through `SolenoidFlowStrategy` read the calibration
-   per cage via `DatabaseHandler.get_valve_calibration(cage_id)`.
+2. The wizard fires N pulses at the chosen width and interval into a
+   beaker; the operator weighs the output and enters it (gravimetric; the
+   production rig runs without a flow sensor).
+3. **Save & Finish** calls `DatabaseHandler.save_valve_calibration`, which
+   upserts the cage's `valve_calibration` row and appends to
+   `valve_calibration_history`.
+4. At schedule start `SolenoidFlowStrategy` snapshots every row
+   (`get_all_valve_calibrations`), reading through to
+   `get_valve_calibration(cage_id)` for a cage missing from the snapshot.
 
 Priming the line (filling tubing without metering volume) is its own
 flow:

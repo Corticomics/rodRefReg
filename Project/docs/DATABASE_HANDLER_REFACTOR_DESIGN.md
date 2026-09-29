@@ -316,7 +316,7 @@ self-construct.
 | `ui/schedule_drop_area.py:30` | Yes | **Fix** → accept param; caller `run_stop_section.py:121` already holds `self.database_handler` (run_stop_section.py:51). |
 | `ui/splash_screen.py:54` | Yes | **Defer** — splash worker is disabled (`USE_SPLASH_SCREEN=False`); handle under Phase 5.2. |
 | `main.py:140` `DatabaseHandler().connect().close()` | Yes (throwaway) | **Keep** — `--selftest` health probe; a standalone instance is correct here. |
-| `tools/valve_calibration_tool.py:344` | Yes (`args.db_path`) | **Keep** — standalone CLI, intentionally independent of the app. |
+| ~~`tools/valve_calibration_tool.py:344`~~ | Yes (`args.db_path`) | **Removed in v1.21.0** — the CLI could not start (it imported `gpio.solenoid_controller`, which no longer exists); the in-app wizard is the calibration path. |
 
 So the *live-app* DI work is exactly **two** objects:
 `ProjectsController` and `ScheduleDropArea`.
