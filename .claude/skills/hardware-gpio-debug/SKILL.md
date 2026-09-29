@@ -38,16 +38,24 @@ ground). If `16relind` works but RRR doesn't → it's a Python-layer problem.
 
 | File | What it owns |
 |---|---|
-| [Project/gpio/gpio_handler.py](Project/gpio/gpio_handler.py) `RelayHandler` | Public façade. Owns the per-HAT `SM16relind` instances; routes trigger commands; tolerates missing hardware by falling back to `MockSM16relind`. |
+| [Project/gpio/gpio_handler.py](Project/gpio/gpio_handler.py) `RelayHandler` | Public façade. Owns the per-HAT `SM16relind` instances; routes trigger commands; If the `SM16relind` module is missing, or a HAT does not answer at start-up, it initialises no hats and every write becomes a silent no-op that still returns True (see the seam below). |
 | [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py) `RelayWorker(QObject)` | Lives on a `QThread`. **Lazy-imports** the flow-sensor and solenoid drivers inside method bodies (line ~215) so GUI startup doesn't pull hardware modules. |
-| [Project/gpio/mock_gpio_handler.py](Project/gpio/mock_gpio_handler.py) `MockSM16relind` | Drop-in stand-in when `sm_16relind` isn't installed or hardware is absent. Logs the call instead of clicking. |
 | [Project/gpio/custom_SM16relind.py](Project/gpio/custom_SM16relind.py) | Project-local wrapper used for Pi 5 — upstream lib originally Pi-4-only. |
 | [Project/drivers/i2c_coordinator.py](Project/drivers/i2c_coordinator.py) `I2CCoordinator` | Single mutex-guarded I²C handle shared by the relay HAT and flow sensor; prevents address-collision deadlocks. |
 
 ## The mock-vs-real seam
 
-`RelayHandler.__init__` tries `from sm_16relind import SM16relind` and falls back
-to `MockSM16relind` on `ImportError` or board-not-found errors. **Do not** add
+At import, `gpio/gpio_handler.py` tries `import SM16relind`, then
+`import sm_16relind`. If both raise `ImportError` it prints `WARNING:
+SM16relind module not found` and binds the name to an inline
+`MockSM16relind` class, but `RelayHandler.__init__` looks up
+`SM16relind.SM16relind`, which the mock class does not have, so no hat is
+created (`Failed to initialize any relay hats`). The same empty-handler
+state follows when the real module loads but the HAT does not answer at
+start-up. In that state every `set_relays` call does nothing and still
+returns True: the app runs, and deliveries are logged, with no valve moving.
+Check the journal for those two lines before trusting a run. Unit tests use
+`FakeRelayHandler` from `Project/tests/unit/conftest.py`. **Do not** add
 new hardware imports at module top-level — they break boot on a dev Mac and
 the headless smoke test. Follow the lazy-import pattern at
 [Project/gpio/relay_worker.py:215](Project/gpio/relay_worker.py#L215):

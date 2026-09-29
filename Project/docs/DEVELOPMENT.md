@@ -95,8 +95,7 @@ rodent-refreshment-regulator/
 │   │   └── projects_controller.py
 │   ├── gpio/                # Hardware control
 │   │   ├── gpio_handler.py
-│   │   ├── relay_worker.py              # Worker thread; lazy hardware init
-│   │   └── mock_gpio_handler.py
+│   │   └── relay_worker.py              # Worker thread; lazy hardware init
 │   ├── strategies/          # Delivery strategies
 │   │   ├── solenoid_flow_strategy.py    # Solenoid + flow sensor
 │   │   └── (peristaltic legacy)
@@ -376,7 +375,7 @@ python test_relay_diagnostic.py  # Run diagnostics
 
 ### Mock Hardware:
 
-For development without physical hardware, use the mock hardware module by modifying the `gpio_handler.py` to use `mock_gpio_handler.py`.
+Without the relay library (a laptop, or CI) the app still starts. When neither `SM16relind` nor `sm_16relind` can be imported, `gpio/gpio_handler.py` prints `WARNING: SM16relind module not found`, `RelayHandler` initialises no relay hats (`Failed to initialize any relay hats`), and every relay write is a silent no-op that still reports success. Nothing is driven and no per-write line is printed. For tests, use `FakeRelayHandler` from `Project/tests/unit/conftest.py`: it records every write in order, so a test can assert the exact relay sequence.
 
 ## Testing Guidelines
 
