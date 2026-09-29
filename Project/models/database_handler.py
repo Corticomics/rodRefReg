@@ -56,6 +56,7 @@ class DatabaseHandler:
                             app_version TEXT DEFAULT NULL,
                             volume_requested_ml REAL DEFAULT NULL,
                             dose_rounding TEXT DEFAULT NULL,
+                            delivery_mode TEXT DEFAULT NULL,
                             FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
                             FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
                             FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
@@ -89,6 +90,7 @@ class DatabaseHandler:
                         ('app_version', 'TEXT DEFAULT NULL'),
                         ('volume_requested_ml', 'REAL DEFAULT NULL'),
                         ('dose_rounding', 'TEXT DEFAULT NULL'),
+                        ('delivery_mode', 'TEXT DEFAULT NULL'),
                     ):
                         if column not in existing_columns:
                             cursor.execute(
@@ -1755,10 +1757,12 @@ class DatabaseHandler:
                   v1.21.0): the context the delivery ran under, so rows from
                   two devices or two topologies can be compared from the
                   ledger alone
-                - volume_requested_ml, dose_rounding (optional, v1.21.0): the
-                  volume asked of this delivery before whole-pulse rounding,
-                  and the rounding policy applied ('nearest' or 'up'; NULL
-                  when the delivery was not rounded to pulses)
+                - volume_requested_ml, dose_rounding, delivery_mode (optional,
+                  v1.21.0): the volume asked of this delivery before
+                  whole-pulse rounding (for a sensor_failure row, the part of
+                  the window's dose never delivered), the rounding policy
+                  applied ('nearest' or 'up'), and the schedule mode the run
+                  used ('instant' or 'staggered')
         """
         try:
             with self.connect() as conn:
@@ -1770,8 +1774,8 @@ class DatabaseHandler:
                      volume_dispensed, status, volume_actual_ml, pulses_fired,
                      volume_per_pulse_ml, topology, calibration_id, pulse_width_ms,
                      inter_pulse_interval_ms, duration_s, app_version,
-                     volume_requested_ml, dose_rounding)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     volume_requested_ml, dose_rounding, delivery_mode)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         delivery_data['schedule_id'],
@@ -1791,6 +1795,7 @@ class DatabaseHandler:
                         delivery_data.get('app_version'),
                         delivery_data.get('volume_requested_ml'),
                         delivery_data.get('dose_rounding'),
+                        delivery_data.get('delivery_mode'),
                     ),
                 )
 
