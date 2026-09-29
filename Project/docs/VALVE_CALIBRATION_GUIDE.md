@@ -388,7 +388,7 @@ Adaptive correction: sensor=0.045mL, cal=0.075mL, using=0.060mL (dev=40%)
 3. At schedule start the app's **Terminal** tab lists the calibration each
    cage will use:
    ```
-   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
    A cage with no line has no calibration and runs on the default. (Once the
    window is up the app sends its output to the Terminal tab, not to the
@@ -457,8 +457,10 @@ from models.database_handler import DatabaseHandler
 db = DatabaseHandler(db_path=os.path.expanduser('~/rrr/shared/data/rrr_database.db'))
 
 # Save calibration. The cage's row is replaced, so always pass the
-# inter-pulse interval: leaving it out stores NULL, which resets that
-# cage's timing profile to the legacy 100 ms cadence.
+# inter-pulse interval and the topology: leaving the interval out stores
+# NULL, which resets that cage's timing profile to the legacy 100 ms
+# cadence; leaving the topology out marks the row as measured on the
+# shared manifold, which shows it Stale on an independent rig.
 cal_id = db.save_valve_calibration(
     cage_id=15,
     relay_id=15,
@@ -470,6 +472,7 @@ cal_id = db.save_valve_calibration(
     calibrated_by=1,  # trainer ID
     notes="Initial calibration",
     inter_pulse_interval_ms=1000,
+    topology='shared_manifold',  # or 'independent': what it was measured under
 )
 
 # Load calibration

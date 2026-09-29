@@ -424,5 +424,57 @@ def test_calibrate_all_includes_stale_cages(settings_tab, database_handler, monk
     tab._calibrate_all_uncalibrated()
 
     (question,) = questions
-    assert "Found 0 uncalibrated valves" in question[2]
-    assert "and 1 calibrated under the other valve topology (Stale):\n[4]" in question[2]
+    assert question[2].startswith("Found 1 calibrated under the other valve topology (Stale):\n[4]")
+    assert "0 uncalibrated" not in question[2]
+
+
+def _batch_tab(settings_tab, database_handler, monkeypatch, outcomes):
+    """A tab whose wizard launcher records the cages and returns scripted outcomes."""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    for cage in (1, 2, 3):
+        _save(database_handler, cage_id=cage)  # legacy: stale on an independent device
+    tab = settings_tab(INDEPENDENT)
+    launched, shown = [], []
+    outcomes = list(outcomes)
+
+    def _launch(cage_id, announce=True):
+        launched.append((cage_id, announce))
+        return outcomes.pop(0) if outcomes else True
+
+    monkeypatch.setattr(tab, "_launch_calibration_wizard", _launch)
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda *a, **k: shown.append(a[2]))
+    )
+    return tab, launched, shown
+
+
+def test_calibrate_all_runs_every_cage_in_the_batch(settings_tab, database_handler, monkeypatch):
+    """It used to stop after the first wizard every time: the flag it tested was never set."""
+    tab, launched, shown = _batch_tab(settings_tab, database_handler, monkeypatch, [])
+    tab._calibrate_all_uncalibrated()
+    # Uncalibrated cages first (4-15), then the stale ones (1-3).
+    assert [c for c, _ in launched] == list(range(4, 16)) + [1, 2, 3]
+    assert all(announce is False for _, announce in launched), "one summary, not a box per cage"
+    assert shown == ["Calibrated 15 of 15 valves."]
+
+
+def test_calibrate_all_stops_where_the_operator_cancels(settings_tab, database_handler, monkeypatch):
+    tab, launched, shown = _batch_tab(settings_tab, database_handler, monkeypatch, [True, False])
+    tab._calibrate_all_uncalibrated()
+    assert [c for c, _ in launched] == [4, 5]
+    assert shown[0].startswith("Calibrated 1 of 15 valves. Not done: [5, 6,")
+
+
+def test_the_launcher_reports_a_refusal(settings_tab, database_handler, monkeypatch):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from utils.operation_lock import SCHEDULE, get_operation_lock  # noqa: PLC0415
+
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: None))
+    tab = settings_tab(INDEPENDENT)
+    get_operation_lock().try_acquire(SCHEDULE)
+    assert tab._launch_calibration_wizard(1) is False
+    get_operation_lock().release(SCHEDULE)
+    tab.login_system = SimpleNamespace(is_logged_in=lambda: False)
+    assert tab._launch_calibration_wizard(1) is False

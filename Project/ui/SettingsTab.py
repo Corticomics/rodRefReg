@@ -852,9 +852,9 @@ class SettingsTab(QWidget):
                     status_item = QTableWidgetItem("Stale")
                     status_item.setForeground(QColor(200, 150, 0))
                     status_item.setToolTip(
-                        f"Measured on {calibration_label(cal)} "
-                        f"({describe(calibration_topology(cal))}). "
-                        f"This device runs {device} ({describe(device)}). "
+                        f"Measured on {calibration_label(cal)}: "
+                        f"{describe(calibration_topology(cal))}. "
+                        f"This device runs {device}: {describe(device)}. "
                         "Deliveries still use this calibration - recalibrate this cage."
                     )
                 else:
@@ -970,11 +970,16 @@ class SettingsTab(QWidget):
     # on a real Pi display.
     _ACTION_BUTTON_STYLE = "QPushButton { min-height: 26px; max-height: 26px; padding: 2px 12px; }"
 
-    def _launch_calibration_wizard(self, cage_id):
+    def _launch_calibration_wizard(self, cage_id, announce=True):
         """
         Launch calibration wizard for specific cage.
 
         All users can calibrate - action is logged to database with trainer_id.
+
+        Returns True when the wizard finished and saved (Accepted), False
+        when it was refused, cancelled or crashed, so Calibrate All knows
+        whether to open the next cage. ``announce=False`` skips the
+        per-cage success box (the batch shows one summary instead).
 
         CRITICAL: Don't use print() to sys.stderr in this method - it's redirected
         through Qt signals which can corrupt during dialog operations.
@@ -984,7 +989,7 @@ class SettingsTab(QWidget):
             QMessageBox.warning(
                 self, "Access Denied", "You must be logged in to calibrate valves."
             )
-            return
+            return False
 
         # Hardware mutual-exclusion: no calibration while another hardware
         # operation (schedule run / priming) holds the lock. Authoritative check
@@ -996,7 +1001,7 @@ class SettingsTab(QWidget):
                 "Hardware busy",
                 f"Cannot calibrate while {_lock.active_label()} is in progress.",
             )
-            return
+            return False
 
         # Import and create wizard dialog
         from ui.CalibrationWizard import CalibrationWizard
@@ -1062,7 +1067,7 @@ class SettingsTab(QWidget):
                 self.print_to_terminal("Table refreshed - calibration may have been saved")
             except Exception as refresh_error:
                 self.print_to_terminal(f"Failed to refresh table: {refresh_error}")
-            return
+            return False
 
         if result == QDialog.Accepted:
             # Calibration completed successfully
@@ -1085,7 +1090,10 @@ class SettingsTab(QWidget):
 
                         self.print_to_terminal(traceback.format_exc())
 
-                    # Show success message
+                    # Show success message (one summary instead, in a batch)
+                    if not announce:
+                        self.print_to_terminal("Post-calibration handling complete")
+                        return
                     try:
                         self.print_to_terminal("Retrieving calibration data...")
                         cal = self.database_handler.get_valve_calibration(cage_id)
@@ -1132,15 +1140,17 @@ class SettingsTab(QWidget):
 
             self.print_to_terminal("Scheduling post-calibration operations...")
             QTimer.singleShot(200, handle_successful_calibration)
+            return True
 
         elif result == QDialog.Rejected:
             # User cancelled/discarded calibration
             self.print_to_terminal(f"Cage {cage_id} calibration cancelled by user")
-            # No further action needed - just return silently
+            return False
 
         else:
             # Unexpected result
             self.print_to_terminal(f"Warning: Unexpected dialog result: {result}")
+            return False
 
     def _calibrate_all_uncalibrated(self):
         """
@@ -1169,12 +1179,14 @@ class SettingsTab(QWidget):
             QMessageBox.information(self, "All Calibrated", "All valves are already calibrated!")
             return
 
-        found = f"Found {len(uncalibrated)} uncalibrated valves:\n{uncalibrated}"
+        parts = []
+        if uncalibrated:
+            parts.append(f"{len(uncalibrated)} uncalibrated valves:\n{uncalibrated}")
         if stale:
-            found += (
-                f"\nand {len(stale)} calibrated under the other valve topology "
-                f"(Stale):\n{stale}"
+            parts.append(
+                f"{len(stale)} calibrated under the other valve topology (Stale):\n{stale}"
             )
+        found = "Found " + "\nand ".join(parts)
         reply = QMessageBox.question(
             self,
             "Calibrate All",
@@ -1185,11 +1197,20 @@ class SettingsTab(QWidget):
         )
 
         if reply == QMessageBox.Yes:
+            done = 0
             for cage_id in batch:
-                self._launch_calibration_wizard(cage_id)
-                # If user cancels one, stop the batch
-                if not hasattr(self, '_last_calibration_success'):
+                # Stop at the first wizard the operator cancels (or that
+                # cannot run) rather than open the next cage's. This used to
+                # stop after the first wizard every time: the flag it tested
+                # was never set anywhere.
+                if not self._launch_calibration_wizard(cage_id, announce=False):
                     break
+                done += 1
+            summary = f"Calibrated {done} of {len(batch)} valves."
+            if done < len(batch):
+                summary += f" Not done: {batch[done:]}"
+            self.print_to_terminal(summary)
+            QMessageBox.information(self, "Calibrate All", summary)
 
     def _export_calibration_report(self):
         """Export calibration data to CSV"""
