@@ -279,6 +279,16 @@ days; a line left idle over a long weekend must be primed again before its
 animal depends on it. The panel shows this reminder on the independent
 topology.
 
+#### 2c. **After the Valve Topology Changes in Settings** (v1.21.0)
+
+The panel lays out its controls for the topology RRR started with. After a
+change in **Settings → Delivery → Valve Topology**, **Open Master** and
+**Open Selected** stay greyed out with the tooltip *"Restart RRR to prime
+with the new valve topology"* until RRR is closed and reopened. **Close
+Master**, **Close Selected** and **CLOSE ALL RELAYS** keep working. The
+change itself is refused while a priming session is open, so no valve can
+be left open across it.
+
 #### 3. **Emergency Stop**
 - Click **"CLOSE ALL RELAYS"** at any time
 - Immediately closes master + all cages
