@@ -705,6 +705,16 @@ class RelayWorker(QObject):
         if quantized == 'skip':
             return {'proceed': False, 'result': True}
 
+        if quantized is None and window is None and delivery_data.get('_dispensed_ml'):
+            # An instant retry on a strategy that does not dispense in pulses
+            # (pump/continuous): ask only for what the earlier attempt did
+            # not deliver.
+            ask = float(delivery_data.get('requested_ml', delivery_data['water_volume']))
+            rest = ask - float(delivery_data['_dispensed_ml'])
+            if rest <= 1e-9:
+                return {'proceed': False, 'result': True}
+            delivery_data['water_volume'] = rest
+
         if quantized is None and window is not None:
             # Non-pulse strategies (pump/continuous) request arbitrary mL:
             # never ask for more than the animal still has coming. A retry
@@ -814,8 +824,13 @@ class RelayWorker(QObject):
             deficit = self.issued_targets[animal_id] - current_delivered
         else:
             # Instant one-shot: no carry; this one request is rounded on
-            # its own (nearest, or up under round_doses_up).
-            deficit = requested
+            # its own (nearest, or up under round_doses_up). A retry after a
+            # partial delivery re-enters with the first attempt's whole plan
+            # in water_volume, and there is no window to subtract what was
+            # already dispensed: plan only the rest of the original ask, or
+            # the animal receives the partial plus the whole dose again.
+            ask = float(delivery_data.get('requested_ml', requested))
+            deficit = ask - float(delivery_data.get('_dispensed_ml', 0.0))
 
         round_up = self._rounds_doses_up()
         if round_up:
@@ -967,6 +982,11 @@ class RelayWorker(QObject):
                 # so the retry asks for the remainder and not the whole dose.
                 if actual_volume > 0:
                     self.delivered_volumes[animal_id] = current_delivered + actual_volume
+                    # ...and on the delivery itself: an instant retry has no
+                    # window to subtract it from, so it plans from this.
+                    delivery_data['_dispensed_ml'] = (
+                        float(delivery_data.get('_dispensed_ml', 0.0)) + actual_volume
+                    )
                 self.failed_deliveries[animal_id] = failed_count + 1
                 _log('partial' if actual_volume > 0 else 'failed')
             if actual_volume > 0:
