@@ -22,6 +22,7 @@ import hashlib
 import importlib.util
 import json
 import sqlite3
+import statistics
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -661,6 +662,78 @@ def test_precision_is_pooled_within_cages(gravimetric, compare_tool, tmp_path, c
     (precision,) = json.loads(report_path.read_text())['precision']
     assert precision['df'] == 18 and precision['df_reference'] == 9
     assert precision['ratio'] == pytest.approx(1.0), "the 0.045 mL between the cages' plans is not noise"
+
+
+def test_a_cage_recalibrated_between_rows_is_not_counted_as_noise(
+    gravimetric, compare_tool, tmp_path, capsys
+):
+    """The review's case: ten manifold rows, then ten after a recalibration 2.5 %
+    higher (18 pulses became 17). Taken about the weighed mean, the step between
+    the two plans inflated the manifold's SD about threefold and let a rig three
+    times less precise pass."""
+    manifold, independent = tmp_path / "manifold.csv", tmp_path / "independent.csv"
+    _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, FREE_Q, 0.0, OFFSETS)
+    rows = _checks(manifold)
+    for row in rows:
+        row['history_id'] = 'before' + row['history_id']
+    gravimetric.write_checks(str(manifold), rows)
+    _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, FREE_Q * 1.025, 0.0, OFFSETS)
+    three_times = [o * 3 for o in OFFSETS]
+    _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.0, three_times)
+
+    report_path = tmp_path / 'report.json'
+    argv = [str(manifold), str(independent), '--json', str(report_path)]
+    assert compare_tool.main(argv) == 1
+    assert "(2 plans: sd about each row's own)" in capsys.readouterr().out
+    report = json.loads(report_path.read_text())
+    (cell,) = [g for g in report['by_cage'] if g['topology'] == 'shared_manifold']
+    assert (cell['n'], cell['plans'], cell['sd_basis']) == (20, 2, 'plan')
+    assert cell['sd_ml'] == pytest.approx(statistics.stdev(OFFSETS + OFFSETS))
+    (precision,) = report['precision']
+    assert precision['verdicts'] == {'precision_vs_reference': False}
+    assert precision['ratio'] == pytest.approx(
+        statistics.stdev(three_times) / statistics.stdev(OFFSETS + OFFSETS)
+    )
+
+
+def test_the_sd_is_the_weighed_spread_unless_plans_differ(compare_tool):
+    def rows(expected):
+        return [
+            {
+                'history_id': str(i), 'topology': 'independent', 'cage_id': 7,
+                'target_ml': 0.6, 'measured_ml': 0.615 + o, 'expected_ml': expected,
+                'q': None, 'pulses': None, 'planner': 'ok', 'dose_rounding': 'nearest',
+            }
+            for i, o in enumerate(OFFSETS)
+        ]
+
+    weighed = statistics.stdev(0.615 + o for o in OFFSETS)
+    (one_plan,) = compare_tool.compare(rows(0.615), reference=None, cv_max=5.0, min_n=10)['by_cage']
+    assert (one_plan['sd_basis'], one_plan['plans']) == ('plan', 1)
+    assert one_plan['sd_ml'] == pytest.approx(weighed), "one plan: exactly the weighed SD"
+    (no_plan,) = compare_tool.compare(rows(None), reference=None, cv_max=5.0, min_n=10)['by_cage']
+    assert (no_plan['sd_basis'], no_plan['plans']) == ('weighed', 0)
+    assert no_plan['sd_ml'] == pytest.approx(weighed)
+
+
+def test_a_run_without_the_rig_under_validation_is_incomplete(
+    gravimetric, compare_tool, tmp_path, capsys
+):
+    """The review's case: the second file came from the manifold rig too (or the
+    independent device still says shared_manifold). C3 alone is not a pass."""
+    manifold, second = tmp_path / "manifold.csv", tmp_path / "independent.csv"
+    _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, NEEDLE_Q, -0.016, OFFSETS)
+    wide = [o * 3 for o in OFFSETS]
+    _write_checks(gravimetric, second, 'shared_manifold', 5, 0.6, NEEDLE_Q, -0.016, wide)
+
+    assert compare_tool.main([str(manifold), str(second)]) == 1
+    out = capsys.readouterr().out
+    assert 'RESULT: INCOMPLETE' in out
+    assert (
+        "no gradable rows from any topology other than the reference shared_manifold"
+        in ' '.join(_failures(out))
+    )
+    assert compare_tool.main([str(manifold), '--reference', 'none']) == 0
 
 
 def test_an_equally_precise_rig_passes_at_the_family_wise_rate(compare_tool):

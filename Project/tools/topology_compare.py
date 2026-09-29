@@ -20,9 +20,12 @@ compared with the reference's:
 
     precision      s2_topology / s2_reference <= F(1 - alpha/k; df_topology, df_reference)
 
-where s2 is the pooled within-cage variance (so cages with different
-mL/pulse do not inflate it) and the bound is a one-sided F test at a
-family-wise alpha (--alpha, 5 %) over the k doses compared (Bonferroni).
+where s2 is the pooled within-cage variance of each row's deviation from
+its own plan (weighed - pulses x mL/pulse), so neither cages with different
+mL/pulse nor a cage recalibrated between rows inflate it, and the bound is a
+one-sided F test at a family-wise alpha (--alpha, 5 %) over the k doses
+compared (Bonferroni). C2's SD is taken the same way. A group whose rows lack
+a plan falls back to the spread of the weighed volumes.
 A rig exactly as precise as the reference passes it 95 % of the time. At
 ten rows a side and one dose the bound is 1.78 x the reference SD; at four
 doses, about 2.2 x. C2's absolute 5 % cap still applies on top.
@@ -38,7 +41,8 @@ sizes and the manifold's needle differ by design.
 Exit status: 0 when every graded criterion passed, 1 when one failed or the
 comparison is INCOMPLETE, 2 on a usage or input error. The comparison is
 incomplete when the reference has no gradable rows (pass --reference none
-to grade one rig alone), or when a dose either rig ran has no cage with
+to grade one rig alone), when no other topology has any (nothing was
+compared with the reference), or when a dose either rig ran has no cage with
 --min-n rows on the other side. Groups with fewer than --min-n rows are
 listed but not graded, and a report with nothing graded is not a pass.
 Rows that did not complete, staggered chunks, and rows without a recorded
@@ -244,10 +248,24 @@ def _stats(values):
 
 
 def grade_group(rows, *, cv_max, min_n, policy, is_reference) -> dict:
-    """Summary and C2/C3/C4 verdicts for one (topology, cage, dose) group."""
+    """Summary and C2/C3/C4 verdicts for one (topology, cage, dose) group.
+
+    The SD is repeatability: the spread of each row's deviation from its own
+    plan (pulses x mL/pulse). With one plan in the group that is exactly
+    the spread of the weighed volumes; when the cage was recalibrated
+    between rows, or a retry fired fewer pulses, the step between plans is
+    not counted as noise. Rows without a plan fall back to the weighed
+    spread.
+    """
     measured = [r['measured_ml'] for r in rows]
     n, mean, sd, cv = _stats(measured)
     expected = [r['expected_ml'] for r in rows if r['expected_ml'] is not None]
+    sd_basis = 'weighed'
+    if n >= 2 and len(expected) == n:
+        sd = statistics.stdev(m - e for m, e in zip(measured, expected))
+        cv = (sd / mean * 100.0) if mean else None
+        sd_basis = 'plan'
+    plans = len({round(e, 6) for e in expected})
     qs = [r['q'] for r in rows if r['q']]
     q = statistics.median(qs) if qs else None
     mean_expected = statistics.fmean(expected) if expected else None
@@ -293,6 +311,8 @@ def grade_group(rows, *, cv_max, min_n, policy, is_reference) -> dict:
         'reference': is_reference,
         'mean_ml': mean,
         'sd_ml': sd,
+        'sd_basis': sd_basis,
+        'plans': plans,
         'cv_pct': cv,
         'q_ml': q,
         'mean_expected_ml': mean_expected,
@@ -311,7 +331,8 @@ def pooled_within_cage(groups):
 
     The pooled within-cage variance, sum((n_i - 1) s_i^2) / sum(n_i - 1),
     measures repeatability without the spread between cages whose plans
-    differ (each cage has its own mL/pulse).
+    differ (each cage has its own mL/pulse); each s_i is already taken
+    about the rows' own plans (see grade_group).
     """
     df = sum(g['n'] - 1 for g in groups)
     variance = sum((g['n'] - 1) * g['sd_ml'] ** 2 for g in groups) / df
@@ -412,8 +433,15 @@ def compare(rows, *, reference, cv_max, min_n, policy=None, alpha=DEFAULT_ALPHA,
     reference_present = reference is not None and reference in topologies
     precision = []
     incomplete = []
-    if reference is not None and others:
-        if not reference_present:
+    if reference is not None:
+        if not others:
+            # Only the baseline rig's rows: C3 alone would read as a pass
+            # although no rig was compared with it.
+            incomplete.append(
+                f"no gradable rows from any topology other than the reference {reference}; "
+                "nothing was compared with it (grade one rig alone with --reference none)"
+            )
+        elif not reference_present:
             incomplete.append(
                 f"no gradable rows from the reference topology {reference}; the comparison "
                 "between rigs cannot be made (grade one rig alone with --reference none)"
@@ -526,6 +554,7 @@ def print_report(report) -> None:
                 f"{_planner_text(g):26} {_mark(g, 'C2_precision'):4} {_mark(g, 'C3_planner'):4} "
                 f"{_mark(g, 'C4_trueness'):4}"
                 + ("" if g['graded'] else "  (not graded: n too small)")
+                + (f"  ({g['plans']} plans: sd about each row's own)" if g['plans'] > 1 else "")
             )
     say("")
     if report['reference'] is None:
@@ -535,8 +564,6 @@ def print_report(report) -> None:
             f"Precision against the reference ({report['reference']}), pooled within cages; "
             f"one-sided F test, family-wise alpha {report['alpha']:g}"
         )
-        if not report['precision'] and not report['incomplete']:
-            say("  no other topology in the input to compare")
     for e in report['precision']:
         if not e['graded']:
             say(
