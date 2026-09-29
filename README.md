@@ -96,6 +96,7 @@ table of contents you need to bookmark.
 | [CALIBRATION_QUICK_START.md](Project/docs/CALIBRATION_QUICK_START.md) | Calibrating a valve in 10 minutes via the in-app wizard or the CLI tool. |
 | [VALVE_CALIBRATION_GUIDE.md](Project/docs/VALVE_CALIBRATION_GUIDE.md) | Technical reference behind the calibration wizard (algorithm, schema, API). |
 | [PRIMING_FEATURE_DOCUMENTATION.md](Project/docs/PRIMING_FEATURE_DOCUMENTATION.md) | Priming control architecture and safety interlocks. |
+| [TOPOLOGY_VALIDATION.md](Project/docs/TOPOLOGY_VALIDATION.md) | Proving an independent (one syringe per animal) rig against the manifold rig: pre-declared criteria C1–C9, bench recipe, and the tools that grade the weighings. |
 | [DEVELOPMENT.md](Project/docs/DEVELOPMENT.md) | Software architecture, modules, data flow, and dev-environment setup. |
 | [DATABASE.md](Project/docs/DATABASE.md) / [DATABASE_ARCHITECTURE.md](Project/docs/DATABASE_ARCHITECTURE.md) | SQLite schema, ERD, and `DatabaseHandler` reference. |
 | [MAINTENANCE.md](Project/docs/MAINTENANCE.md) | Release, versioning (SemVer for RRR), tagging, and recovery procedures. |
