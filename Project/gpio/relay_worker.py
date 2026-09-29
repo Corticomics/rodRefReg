@@ -10,8 +10,9 @@ from PyQt5.QtCore import QMutex, QMutexLocker, QObject, QTimer, pyqtSignal, pyqt
 from strategies.delivery_strategy import DeliveryResult
 from strategies.factory import StrategyFactory
 from utils.calibration import CalibrationStore
-from utils.topology import build_solenoid_controller
+from utils.topology import build_solenoid_controller, topology_from
 from utils.volume_calculator import VolumeCalculator
+from version import __version__
 
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
@@ -915,6 +916,14 @@ class RelayWorker(QObject):
                     'volume_per_pulse_ml': result.volume_per_pulse_ml,
                     'timestamp': delivery_data['instant_time'].isoformat(),
                     'status': status,
+                    # The context this delivery ran under, so the ledger of
+                    # one device can be compared with another's.
+                    'topology': topology_from(getattr(self, 'settings', None)),
+                    'calibration_id': result.calibration_id,
+                    'pulse_width_ms': result.pulse_width_ms,
+                    'inter_pulse_interval_ms': result.inter_pulse_interval_ms,
+                    'duration_s': result.duration_s,
+                    'app_version': __version__,
                 }
             )
 

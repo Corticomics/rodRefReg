@@ -422,6 +422,9 @@ class SolenoidFlowStrategy:
             pulses=self._ledger_pulses,
             volume_per_pulse_ml=self._ledger_volume_per_pulse_ml,
             warning=warning,
+            calibration_id=self._ledger_calibration_id,
+            pulse_width_ms=self._ledger_pulse_width_ms,
+            inter_pulse_interval_ms=self._ledger_interval_ms,
         )
 
     def _reset_ledger(self) -> None:
@@ -429,6 +432,17 @@ class SolenoidFlowStrategy:
         self._ledger_volume_ml = 0.0
         self._ledger_pulses = 0
         self._ledger_volume_per_pulse_ml = None
+        self._ledger_calibration_id = None
+        self._ledger_pulse_width_ms = None
+        self._ledger_interval_ms = None
+
+    def _record_profile(self, cage_id: int, pulse_width_ms: int, interval_ms: int) -> None:
+        """Bank which calibration row and timing profile this delivery runs at."""
+        self._ledger_pulse_width_ms = int(pulse_width_ms)
+        self._ledger_interval_ms = int(interval_ms)
+        entry = (self._cal_snapshot.get(cage_id) or {}).get(int(pulse_width_ms)) or {}
+        cal_id = entry.get('id')
+        self._ledger_calibration_id = int(cal_id) if cal_id else None
 
     def _record_pulse(self, volume_ml: float, volume_per_pulse_ml: float) -> None:
         """Bank one fired pulse. Called from the loop, not from the exits."""
@@ -852,6 +866,7 @@ class SolenoidFlowStrategy:
         cage_pw_ms, cage_interval_ms, expected_vol_per_pulse = await self._get_cage_calibration(
             cage_id
         )
+        self._record_profile(cage_id, cage_pw_ms, cage_interval_ms)
         estimated_pulses = int(target_volume_ml / expected_vol_per_pulse) + 1
 
         est_msg = (

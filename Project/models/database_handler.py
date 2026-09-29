@@ -48,6 +48,12 @@ class DatabaseHandler:
                             volume_actual_ml REAL DEFAULT NULL,
                             pulses_fired INTEGER DEFAULT NULL,
                             volume_per_pulse_ml REAL DEFAULT NULL,
+                            topology TEXT DEFAULT NULL,
+                            calibration_id INTEGER DEFAULT NULL,
+                            pulse_width_ms INTEGER DEFAULT NULL,
+                            inter_pulse_interval_ms INTEGER DEFAULT NULL,
+                            duration_s REAL DEFAULT NULL,
+                            app_version TEXT DEFAULT NULL,
                             FOREIGN KEY(schedule_id) REFERENCES schedules(schedule_id),
                             FOREIGN KEY(animal_id) REFERENCES animals(animal_id),
                             FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
@@ -63,10 +69,19 @@ class DatabaseHandler:
                     # What the hardware reports it ACTUALLY dispensed, as
                     # opposed to volume_dispensed, which is what was asked
                     # for. NULL on pre-v1.17.0 rows means "unknown".
+                    # v1.21.0: the context a delivery ran under, so rows from
+                    # two devices (or two topologies) can be compared from the
+                    # ledger alone. NULL on older rows means "not recorded".
                     for column, decl in (
                         ('volume_actual_ml', 'REAL DEFAULT NULL'),
                         ('pulses_fired', 'INTEGER DEFAULT NULL'),
                         ('volume_per_pulse_ml', 'REAL DEFAULT NULL'),
+                        ('topology', 'TEXT DEFAULT NULL'),
+                        ('calibration_id', 'INTEGER DEFAULT NULL'),
+                        ('pulse_width_ms', 'INTEGER DEFAULT NULL'),
+                        ('inter_pulse_interval_ms', 'INTEGER DEFAULT NULL'),
+                        ('duration_s', 'REAL DEFAULT NULL'),
+                        ('app_version', 'TEXT DEFAULT NULL'),
                     ):
                         if column not in existing_columns:
                             cursor.execute(
@@ -1727,6 +1742,11 @@ class DatabaseHandler:
                   zero.
                 - pulses_fired (optional): pulses the valve actually fired
                 - volume_per_pulse_ml (optional): the calibration in force
+                - topology, calibration_id, pulse_width_ms,
+                  inter_pulse_interval_ms, duration_s, app_version (optional,
+                  v1.21.0): the context the delivery ran under, so rows from
+                  two devices or two topologies can be compared from the
+                  ledger alone
         """
         try:
             with self.connect() as conn:
@@ -1736,8 +1756,9 @@ class DatabaseHandler:
                     INSERT INTO dispensing_history
                     (schedule_id, animal_id, relay_unit_id, timestamp,
                      volume_dispensed, status, volume_actual_ml, pulses_fired,
-                     volume_per_pulse_ml)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     volume_per_pulse_ml, topology, calibration_id, pulse_width_ms,
+                     inter_pulse_interval_ms, duration_s, app_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         delivery_data['schedule_id'],
@@ -1749,6 +1770,12 @@ class DatabaseHandler:
                         delivery_data.get('volume_actual_ml'),
                         delivery_data.get('pulses_fired'),
                         delivery_data.get('volume_per_pulse_ml'),
+                        delivery_data.get('topology'),
+                        delivery_data.get('calibration_id'),
+                        delivery_data.get('pulse_width_ms'),
+                        delivery_data.get('inter_pulse_interval_ms'),
+                        delivery_data.get('duration_s'),
+                        delivery_data.get('app_version'),
                     ),
                 )
 
@@ -2002,7 +2029,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms
+                           inter_pulse_interval_ms, calibration_id
                     FROM valve_calibration
                     ORDER BY cage_id
                 ''')
@@ -2021,6 +2048,9 @@ class DatabaseHandler:
                         'calibrated_by': row[8],
                         'notes': row[9],
                         'inter_pulse_interval_ms': row[10],
+                        # The row the delivery strategy cites in
+                        # dispensing_history; same key as get_valve_calibration.
+                        'calibration_id': row[11],
                     }
 
                 return calibrations

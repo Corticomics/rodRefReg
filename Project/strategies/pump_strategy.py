@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Optional
 
 from strategies.delivery_strategy import DeliveryResult
@@ -67,6 +68,7 @@ class PumpStrategy:
         # For consistency with legacy path, compute the actual volume we will command.
         volume_ml_for_command = (triggers * self._volume_calculator.pump_volume_ul) / 1000.0
 
+        started = time.monotonic()
         ok = await self._pump_controller.dispense_water(
             relay_unit_id,
             volume_ml_for_command,
@@ -78,6 +80,7 @@ class PumpStrategy:
         return DeliveryResult(
             success=bool(ok),
             delivered_ml=volume_ml_for_command if ok else 0.0,
+            duration_s=time.monotonic() - started,
             pulses=int(triggers),
             warning="pump mode: volume is commanded, not measured",
         )
