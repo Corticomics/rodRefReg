@@ -26,8 +26,8 @@ under "valve_calibration".
 
 ## The flow (UI side)
 
-1. Operator opens the calibration wizard from the Settings tab or from
-   the Cages visualization.
+1. Operator opens the calibration wizard from **Settings → Calibration**
+   (the Cages tab has no calibration entry point).
    Entry point: [`Project/ui/CalibrationWizard.py`](Project/ui/CalibrationWizard.py).
 2. The operator opens it per cage (the row's **Calibrate** button, or
    **Calibrate All Uncalibrated**), works through the pre-flight checklist

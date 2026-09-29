@@ -440,21 +440,29 @@ the other operation first.
 ### Database Methods
 
 ```python
+import os
+
 from models.database_handler import DatabaseHandler
 
-db = DatabaseHandler('rrr_database.db')
+# Name the device database explicitly. It lives in ~/rrr/shared/data (the
+# launcher's RRR_DATA); DatabaseHandler() in a shell without RRR_DATA
+# resolves to a path next to the code and creates an EMPTY database there.
+db = DatabaseHandler(db_path=os.path.expanduser('~/rrr/shared/data/rrr_database.db'))
 
-# Save calibration
+# Save calibration. The cage's row is replaced, so always pass the
+# inter-pulse interval: leaving it out stores NULL, which resets that
+# cage's timing profile to the legacy 100 ms cadence.
 cal_id = db.save_valve_calibration(
     cage_id=15,
     relay_id=15,
-    pulse_width_ms=20,
-    volume_per_pulse_ml=0.075,
-    stddev_ml=0.000212,
-    cv_pct=0.27,
+    pulse_width_ms=30,
+    volume_per_pulse_ml=0.032936,
+    stddev_ml=0.000330,
+    cv_pct=1.0,
     num_samples=250,
     calibrated_by=1,  # trainer ID
-    notes="Initial calibration"
+    notes="Initial calibration",
+    inter_pulse_interval_ms=1000,
 )
 
 # Load calibration
