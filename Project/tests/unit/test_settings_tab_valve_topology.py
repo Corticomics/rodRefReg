@@ -293,11 +293,13 @@ def test_a_value_the_database_does_not_keep_is_rolled_back(
 ):
     from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
 
+    system_controller.save_settings({"valve_topology": SHARED})  # the device's stored row
     terminal = []
     tab = _settings_tab(system_controller, database_handler, terminal=terminal.append)
     dialogs.answer = QMessageBox.Yes
-    # update_system_setting swallows sqlite errors and returns False, while
-    # save_settings still changes the in-memory value.
+    # A database that reads but does not write: update_system_setting swallows
+    # the sqlite error and returns False, while save_settings still changes
+    # the in-memory value.
     monkeypatch.setattr(database_handler, "update_system_setting", lambda *a, **k: False)
 
     assert tab._on_valve_topology_chosen(INDEPENDENT) is False
@@ -325,6 +327,33 @@ def test_a_read_back_that_fails_undoes_the_write(
     assert read()["valve_topology"] == SHARED, "the next start agrees with the running app"
     assert system_controller.settings["valve_topology"] == SHARED
     assert tab.valve_topology_radios[SHARED].isChecked()
+    assert _titles(dialogs, "critical") == ["Topology Not Confirmed"]
+
+
+def test_an_unreadable_database_is_not_taken_for_the_default(
+    qapp, database_handler, system_controller, dialogs, monkeypatch
+):
+    """The review's case: {} from an unreadable database normalised to
+    shared_manifold, so a failed save to shared read back as done while the
+    next start would load independent."""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    system_controller.save_settings({"valve_topology": INDEPENDENT})
+    terminal = []
+    tab = _settings_tab(system_controller, database_handler, terminal=terminal.append)
+    dialogs.answer = QMessageBox.Yes
+    read = database_handler.get_system_settings
+    monkeypatch.setattr(database_handler, "update_system_setting", lambda *a, **k: False)
+    monkeypatch.setattr(database_handler, "get_system_settings", lambda: {})
+
+    assert tab._on_valve_topology_chosen(SHARED) is False
+
+    assert system_controller.settings["valve_topology"] == INDEPENDENT
+    assert read()["valve_topology"] == INDEPENDENT
+    assert tab.valve_topology_radios[INDEPENDENT].isChecked()
+    assert _titles(dialogs, "critical") == ["Topology Not Confirmed"]
+    assert _titles(dialogs, "information") == [], "never reported as changed"
+    assert any(line.startswith("[TOPOLOGY] Valve topology NOT confirmed") for line in terminal)
 
 
 # --- what a change does to calibrations and priming ------------------------------------
@@ -444,6 +473,35 @@ def test_a_shared_priming_panel_will_not_open_after_a_switch(qapp, fake_relays, 
     # whichever order a caller updates the model and the lock.
     panel._on_master_state_changed(False)
     assert not panel.master_open_btn.isEnabled()
+
+
+def test_a_close_after_a_switch_keeps_the_panel_on_its_own_topology(qapp, fake_relays):
+    """The review's case: a Close after a switch built (and kept) a controller
+    for the new topology; switching back then re-enabled Open Master on a
+    controller that never drives the master valve."""
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+
+    settings = dict(_SETTINGS)
+    panel = PrimingControlWidget(settings, lambda *_: None)
+    settings["valve_topology"] = INDEPENDENT
+    panel.refresh_topology_state()
+    _select(panel, 1)
+    panel._on_close_cage_clicked()
+    assert panel._solenoid_controller.has_master is True, "built for the panel's topology"
+
+    settings["valve_topology"] = SHARED  # switched back before any restart
+    panel.refresh_topology_state()
+    panel._on_open_master_clicked()
+    assert fake_relays.trace[-1] == ((16,), 1), "Open Master drives the master relay"
+    panel._on_close_master_clicked()
+    assert fake_relays.energized() == set()
+
+    reverse = dict(_SETTINGS, valve_topology=INDEPENDENT)
+    panel = PrimingControlWidget(reverse, lambda *_: None)
+    reverse["valve_topology"] = SHARED
+    _select(panel, 1)
+    panel._on_close_cage_clicked()
+    assert panel._solenoid_controller.has_master is False
 
 
 def test_an_independent_priming_panel_will_not_open_after_a_switch(qapp, fake_relays):

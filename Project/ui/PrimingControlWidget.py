@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from utils.operation_lock import PRIMING, get_operation_lock
-from utils.topology import is_independent
+from utils.topology import INDEPENDENT, SETTING_KEY, SHARED_MANIFOLD, is_independent
 
 
 class RelayControlModel(QObject):
@@ -351,9 +351,14 @@ class PrimingControlWidget(QWidget):
                 # The device's valve topology decides whether a master valve
                 # exists. On the independent topology the master group is
                 # hidden, the controller's master operations are no-ops and
-                # the cage buttons drive the valves directly.
+                # the cage buttons drive the valves directly. The topology is
+                # the one this panel was built for, not the live setting: a
+                # Close after a change in Settings must not build (and keep)
+                # a controller for the other topology, which Open would use
+                # once the change is undone.
+                built_for = INDEPENDENT if self._independent else SHARED_MANIFOLD
                 self._solenoid_controller = build_solenoid_controller(
-                    relay_handler, self.settings, cage_map
+                    relay_handler, {**self.settings, SETTING_KEY: built_for}, cage_map
                 )
 
             except Exception as e:

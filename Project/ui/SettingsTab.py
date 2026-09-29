@@ -39,6 +39,7 @@ from utils.topology import (
     calibration_label,
     calibration_topology,
     describe,
+    is_known,
     normalize,
     topology_from,
 )
@@ -665,17 +666,32 @@ class SettingsTab(QWidget):
         # it: a schedule, priming session or calibration may have started.
         if self._refuse_valve_topology_change(old):
             return False
-        if not self._save_valve_topology(old, new):
+        outcome = self._save_valve_topology(old, new)
+        if outcome != 'saved':
             self._show_valve_topology(old)
-            self._announce_valve_topology(
-                f"Valve topology NOT changed: {new} could not be saved; still {old}"
-            )
-            QMessageBox.critical(
-                self,
-                "Topology Not Saved",
-                f"The valve topology could not be saved, so this device stays on {old}.\n\n"
-                "The Terminal tab shows the database error.",
-            )
+            if outcome == 'unchanged':
+                self._announce_valve_topology(
+                    f"Valve topology NOT changed: {new} could not be saved; still {old}"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Topology Not Saved",
+                    f"The valve topology could not be saved, so this device stays on "
+                    f"{old}.\n\nThe Terminal tab shows the database error.",
+                )
+            else:
+                self._announce_valve_topology(
+                    f"Valve topology NOT confirmed: the database could not be read back "
+                    f"after saving {new}; running on {old} until restart"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Topology Not Confirmed",
+                    f"The database could not confirm the valve topology. RRR keeps running "
+                    f"on {old}, but the next start may load {new}.\n\n"
+                    "The Terminal tab shows the database error. Restart RRR and check "
+                    "Settings > Delivery > Valve Topology before running a schedule.",
+                )
             return False
 
         trainer = self.login_system.get_current_trainer() or {}
@@ -735,28 +751,34 @@ class SettingsTab(QWidget):
 
     def _save_valve_topology(self, old, new):
         """
-        Persist the topology alone and read it back.
+        Persist the topology alone and read it back: 'saved', 'unchanged'
+        (the database confirms the old topology) or 'unknown'.
 
         save_settings reports failures on a signal instead of raising, and a
         failed row write still changes the in-memory value, so the database
         is the judge. On a mismatch the old topology is put back in memory
-        and, as far as the database allows, on disk, so the running app and
-        the next start agree.
+        and, as far as the database allows, on disk; 'unknown' means the
+        database confirmed neither, so the next start cannot be predicted.
         """
         self.system_controller.save_settings({SETTING_KEY: new})
         if self._stored_valve_topology() == new:
-            return True
+            return 'saved'
         self.system_controller.save_settings({SETTING_KEY: old})
         self.settings[SETTING_KEY] = old
-        return False
+        return 'unchanged' if self._stored_valve_topology() == old else 'unknown'
 
     def _stored_valve_topology(self):
-        """The topology the next start will load, or None if it cannot be read."""
+        """
+        The topology stored in the database, or None when it cannot be
+        confirmed. get_system_settings() answers {} when the database cannot
+        be read, so a missing row is not taken for the default topology.
+        """
         try:
-            return topology_from(self.database_handler.get_system_settings())
+            stored = self.database_handler.get_system_settings().get(SETTING_KEY)
         except Exception as exc:
             self.print_to_terminal(f"Could not read the valve topology back: {exc}")
             return None
+        return normalize(stored) if is_known(stored) else None
 
     def _announce_valve_topology(self, message):
         """
