@@ -1,10 +1,7 @@
-import base64
 import json
-import os
 from datetime import datetime
 
 import pandas as pd
-from cryptography.fernet import Fernet
 from models.animal import Animal
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -221,14 +218,16 @@ class SettingsTab(QWidget):
                 'pump_volume_ul': self.pump_volume.value(),
                 'calibration_factor': self.calibration_factor.value(),
                 'min_triggers': self.min_triggers.value(),
-                # Notifications (if exist)
-                'slack_token': self._encrypt_sensitive_data(self.slack_token.text())
-                if hasattr(self, 'slack_token')
-                else '',
-                'channel_id': self.slack_channel.text() if hasattr(self, 'slack_channel') else '',
                 # System
                 'log_level': self.log_level.value() if hasattr(self, 'log_level') else 2,
             }
+            # Slack credentials, stored as entered: SystemController keeps
+            # them in the mode-0600 secrets.json. Only when their fields
+            # exist, so a save can never blank credentials it did not show.
+            if hasattr(self, 'slack_token'):
+                updated_settings['slack_token'] = self.slack_token.text()
+            if hasattr(self, 'slack_channel'):
+                updated_settings['channel_id'] = self.slack_channel.text()
 
             # Update settings via system controller (ensures persistence)
             self.settings.update(updated_settings)
@@ -1277,9 +1276,7 @@ class SettingsTab(QWidget):
         slack_layout.setSpacing(8)
 
         self.slack_token = QLineEdit()
-        self.slack_token.setText(
-            self._decrypt_sensitive_data(self.settings.get('slack_token', ''))
-        )
+        self.slack_token.setText(self.settings.get('slack_token', ''))
         self.slack_token.setEchoMode(QLineEdit.Password)
         slack_layout.addRow("Slack Bot Token:", self.slack_token)
 
@@ -1494,30 +1491,6 @@ class SettingsTab(QWidget):
             self.mode_toggle_button.setEnabled(False)
             self.mode_status_label.setText("Current Mode: Guest (login required)")
 
-    def _get_or_create_key(self):
-        key_file = "settings_key.key"
-        if os.path.exists(key_file):
-            with open(key_file, "rb") as f:
-                return base64.urlsafe_b64decode(f.read())
-        else:
-            key = Fernet.generate_key()
-            with open(key_file, "wb") as f:
-                f.write(base64.urlsafe_b64encode(key))
-            return key
-
-    def _encrypt_sensitive_data(self, data):
-        if not data:
-            return ""
-        return self.fernet.encrypt(data.encode()).decode()
-
-    def _decrypt_sensitive_data(self, data):
-        if not data:
-            return ""
-        try:
-            return self.fernet.decrypt(data.encode()).decode()
-        except:
-            return ""
-
     def create_backup(self):
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1559,9 +1532,7 @@ class SettingsTab(QWidget):
         """Reload all settings into UI elements"""
         self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
         self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
-        self.slack_token.setText(
-            self._decrypt_sensitive_data(self.settings.get('slack_token', ''))
-        )
+        self.slack_token.setText(self.settings.get('slack_token', ''))
         self.slack_channel.setText(self.settings.get('channel_id', ''))
         self.log_level.setValue(self.settings.get('log_level', 2))
 
