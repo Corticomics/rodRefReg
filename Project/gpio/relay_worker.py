@@ -137,11 +137,7 @@ class RelayWorker(QObject):
             f"[DEBUG] system_settings.get('uart_port'): {system_settings.get('uart_port') if isinstance(system_settings, dict) else 'NOT A DICT'}"
         )
 
-        self.hardware_mode = (
-            (system_settings.get('hardware_mode') or 'pump')
-            if isinstance(system_settings, dict)
-            else 'pump'
-        )
+        self.hardware_mode = self._resolve_hardware_mode(system_settings)
         print(f"[DEBUG] Resolved hardware_mode: '{self.hardware_mode}'")
         print(f"[DEBUG] Type of hardware_mode: {type(self.hardware_mode)}")
         print(f"[DEBUG] hardware_mode == 'solenoid': {self.hardware_mode == 'solenoid'}")
@@ -848,6 +844,23 @@ class RelayWorker(QObject):
 
         delivery_data['water_volume'] = n_pulses * q
         return 'applied'
+
+    @staticmethod
+    def _resolve_hardware_mode(system_settings):
+        """
+        The delivery hardware this run drives, normalised ('solenoid', 'pump').
+
+        A missing or empty value means the SystemController default,
+        'solenoid', the only mode a device boots in (ensure_solenoid_defaults
+        forces it). It used to fall back to 'pump', which on a valve rig
+        would drive the relays with pump trigger timing. Values the factory
+        does not know are refused there, not guessed here.
+        """
+        if not isinstance(system_settings, dict):
+            raise TypeError(
+                f"system settings must be a dict, got {type(system_settings).__name__}"
+            )
+        return str(system_settings.get('hardware_mode') or 'solenoid').strip().lower()
 
     def _rounds_doses_up(self):
         """Whether the operator chose to round every dose UP to a whole pulse."""

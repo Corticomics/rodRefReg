@@ -5,12 +5,15 @@ from typing import Optional
 from .pump_strategy import PumpStrategy
 from .solenoid_flow_strategy import SolenoidFlowStrategy
 
+VALID_HARDWARE_MODES = ('solenoid', 'pump')
+
 
 class StrategyFactory:
     """Creates delivery strategies based on hardware mode.
 
     Parameters expected by create():
-    - hardware_mode: 'pump' | 'solenoid' | None (defaults to 'pump')
+    - hardware_mode: 'solenoid' | 'pump' (case and surrounding spaces are
+      ignored; anything else raises ValueError)
     - pump_controller: required for pump mode
     - volume_calculator: required for pump mode
     - solenoid_controller: required for solenoid mode
@@ -20,8 +23,9 @@ class StrategyFactory:
 
     Best Practices:
     - Factory Pattern: Centralized strategy creation
-    - Fail-fast: Validate required dependencies
-    - Backward compatibility: Fallback to pump mode for unknown values
+    - Fail-fast: Validate required dependencies, and refuse a mode it does
+      not know. Unknown values used to fall back to the pump strategy; on a
+      valve rig that would pulse the relays with pump trigger timing.
 
     Note: SolenoidFlowStrategy auto-detects pulse mode from settings
     """
@@ -39,7 +43,7 @@ class StrategyFactory:
         database_handler=None,
         **kwargs,
     ):
-        mode = (hardware_mode or "pump").strip().lower()
+        mode = hardware_mode.strip().lower() if isinstance(hardware_mode, str) else ""
 
         if mode == "pump":
             return PumpStrategy(pump_controller, volume_calculator)
@@ -58,5 +62,7 @@ class StrategyFactory:
                 database_handler=database_handler,  # For per-valve calibration
             )
 
-        # Fallback to pump mode for unknown values to preserve current behavior.
-        return PumpStrategy(pump_controller, volume_calculator)
+        raise ValueError(
+            f"Unknown hardware_mode {hardware_mode!r}: expected one of "
+            f"{', '.join(VALID_HARDWARE_MODES)}. Refusing to guess which hardware to drive."
+        )
