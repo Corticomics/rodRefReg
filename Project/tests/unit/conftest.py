@@ -24,10 +24,11 @@ class FakeRelayHandler:
     delivery produced (the "golden trace") and on the final state of the
     hardware, rather than on which methods were called.
 
-    Faults are modelled the way the real HAT path fails: ``fail_on`` makes
-    the matching write silently not happen while ``set_relays`` still
-    returns True, which is what ``RelayHandler`` does when the vendor
-    library raises (errors are printed and swallowed there).
+    Faults are modelled the way the real HAT path reports them: ``fail_on``
+    makes the matching write not happen and ``set_relays`` return False,
+    as ``RelayHandler`` does when the vendor library raises or a relay has
+    no initialised HAT. ``fail_all_off`` does the same for
+    ``set_all_relays``: nothing switches and it returns False.
     """
 
     def __init__(self, *_args, **_kwargs):
@@ -36,6 +37,7 @@ class FakeRelayHandler:
         self.dropped: list[tuple[tuple[int, ...], int]] = []
         self._fail_nth: int | None = None
         self._fail_relay: int | None = None
+        self.fail_all_off = False
 
     def fail_on(self, nth: int | None = None, relay: int | None = None) -> None:
         """Drop the ``nth`` write (1-based) and/or every write touching ``relay``."""
@@ -50,17 +52,21 @@ class FakeRelayHandler:
             self._fail_relay is not None and self._fail_relay in ids
         ):
             self.dropped.append((ids, state))
-            return True
+            return False
         self.writes.append((ids, state, threading.get_ident()))
         for relay in ids:
             self.states[relay] = state
         return True
 
-    def set_all_relays(self, state) -> None:
+    def set_all_relays(self, state) -> bool:
         state = int(state)
+        if self.fail_all_off:
+            self.dropped.append((("all",), state))
+            return False
         self.writes.append((("all",), state, threading.get_ident()))
         for relay in list(self.states):
             self.states[relay] = state
+        return True
 
     @property
     def trace(self) -> list[tuple[tuple[int, ...], int]]:

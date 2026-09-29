@@ -114,7 +114,11 @@ class _CalibrationPulseWorker(QObject):
 
             if solenoid.has_master:
                 # Open master valve
-                solenoid.open_master()
+                if not solenoid.open_master():
+                    raise RuntimeError(
+                        "The master valve did not open: its relay did not switch. "
+                        "No pulses were fired. Check the relay HAT."
+                    )
                 time.sleep(0.5)
                 self.log.emit(" Master valve opened")
             else:
@@ -132,13 +136,27 @@ class _CalibrationPulseWorker(QObject):
                     stopped = True
                     break
 
-                # Open valve
-                solenoid.open_cage(self._cage_id)
+                # Open valve. A relay that did not switch stops the run:
+                # the weighed water would no longer match the pulse count,
+                # and the calibration saved from it would be wrong.
+                if not solenoid.open_cage(self._cage_id):
+                    raise RuntimeError(
+                        f"The cage {self._cage_id} valve did not open at pulse "
+                        f"{pulse_count + 1} of {self._num_pulses}: its relay did not switch. "
+                        "Check the relay HAT, and do not save a measurement from this run."
+                    )
                 time.sleep(pulse_duration_s)
 
                 # Close valve
-                solenoid.close_cage(self._cage_id)
+                closed = solenoid.close_cage(self._cage_id)
                 pulse_count += 1
+                if not closed:
+                    raise RuntimeError(
+                        f"The cage {self._cage_id} valve did not close after pulse "
+                        f"{pulse_count} of {self._num_pulses}: its relay did not switch, so "
+                        "the valve may still be OPEN. Check the rig, and do not save a "
+                        "measurement from this run."
+                    )
 
                 # Update progress
                 self.progress.emit(pulse_count)
@@ -157,10 +175,11 @@ class _CalibrationPulseWorker(QObject):
                     stopped = True
                     break
 
-            # Close master valve (same order as the old inline loop)
-            solenoid.close_cage(self._cage_id)
-            solenoid.close_master()
-            valves_closed = True
+            # Close master valve (same order as the old inline loop). A
+            # close that did not reach its relay is tried again below.
+            cage_closed = solenoid.close_cage(self._cage_id)
+            master_closed = solenoid.close_master()
+            valves_closed = bool(cage_closed) and bool(master_closed)
 
             if stopped:
                 self.log.emit(f"Calibration cancelled after {pulse_count} pulses")
@@ -177,12 +196,15 @@ class _CalibrationPulseWorker(QObject):
             # (The old inline loop did NOT close valves on exception — this
             # backstop is a deliberate safety improvement.)
             if solenoid is not None and not valves_closed:
+                unconfirmed = "close did not reach its relay; it may still be OPEN"
                 try:
-                    solenoid.close_cage(self._cage_id)
+                    if not solenoid.close_cage(self._cage_id):
+                        self.log.emit(f"WARNING: the cage valve {unconfirmed}")
                 except Exception as close_error:
                     self.log.emit(f"WARNING: failed to close cage valve: {close_error}")
                 try:
-                    solenoid.close_master()
+                    if not solenoid.close_master():
+                        self.log.emit(f"WARNING: the master valve {unconfirmed}")
                 except Exception as close_error:
                     self.log.emit(f"WARNING: failed to close master valve: {close_error}")
             self.finished.emit(success, error)

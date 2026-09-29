@@ -433,7 +433,14 @@ class PrimingControlWidget(QWidget):
 
             # Close all cages first (safety)
             if self._model.get_open_cages():
-                controller.close_all_cages()
+                if not controller.close_all_cages():
+                    QMessageBox.warning(
+                        self,
+                        "Hardware Error",
+                        "The open cage valves did not confirm closed (a relay did not "
+                        "switch), so the master stays open.\n\nUse CLOSE ALL RELAYS.",
+                    )
+                    return
                 self._model.close_all_cages()
 
             if controller.close_master():
@@ -534,7 +541,7 @@ class PrimingControlWidget(QWidget):
                 return
 
             # Direct hardware call for fastest response
-            relay_handler.set_all_relays(0)
+            all_off = relay_handler.set_all_relays(0)
 
             # Reset model state
             self._model.reset()
@@ -543,6 +550,18 @@ class PrimingControlWidget(QWidget):
             # operation lock so a stuck/stale holder can't lock out the app.
             get_operation_lock().force_release()
 
+            if all_off is False:
+                # A HAT missing or not answering: its relays are in an
+                # unknown state, which only cutting the power settles.
+                self._log_error("⛔ EMERGENCY STOP - relays NOT confirmed off")
+                QMessageBox.critical(
+                    self,
+                    "Emergency Stop Failed",
+                    "Not every relay HAT confirmed the command, so a valve may still be "
+                    "OPEN.\n\nDisconnect the valve power supply now, then check the relay "
+                    "HAT and its I²C connection.",
+                )
+                return
             self._log_warning("⛔ EMERGENCY STOP - All relays closed")
             QMessageBox.information(self, "Emergency Stop", "All relays have been closed.")
 
@@ -669,7 +688,10 @@ class PrimingControlWidget(QWidget):
         try:
             # Close all relays on cleanup for safety
             if self._relay_handler:
-                self._relay_handler.set_all_relays(0)
+                if self._relay_handler.set_all_relays(0) is False:
+                    self._print_callback(
+                        "[X] Priming cleanup: relays NOT confirmed off; a valve may still be open"
+                    )
 
             self._model.reset()
             self._print_callback("Priming control widget cleaned up")

@@ -472,8 +472,10 @@ def cleanup():
                 pass
 
         if relay_handler:
-            relay_handler.set_all_relays(0)
-            print("[DEBUG] All relays deactivated")
+            if relay_handler.set_all_relays(0) is False:
+                print("[CLEANUP] CRITICAL: relays NOT confirmed off; a valve may still be open")
+            else:
+                print("[DEBUG] All relays deactivated")
 
         # Clear worker reference (deleteLater handles actual cleanup)
         worker = None
@@ -504,6 +506,22 @@ def cleanup():
 # =============================================================================
 # stop_program() – called when the user clicks "Stop."
 # =============================================================================
+def _warn_relays_not_confirmed_off():
+    """Stop could not confirm every relay off: the operator must cut the power."""
+    try:
+        from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+        QMessageBox.critical(
+            None,
+            "Relays Not Confirmed Off",
+            "The schedule stopped, but not every relay HAT confirmed OFF, so a valve "
+            "may still be OPEN.\n\nDisconnect the valve power supply now, then check "
+            "the relay HAT and its I²C connection.",
+        )
+    except Exception as exc:
+        print(f"[STOP] Could not show the relay warning: {exc}")
+
+
 def _show_stopping_dialog():
     """Modal indeterminate progress dialog while the worker tears down.
 
@@ -518,7 +536,7 @@ def _show_stopping_dialog():
         from PyQt5.QtWidgets import QProgressDialog  # noqa: PLC0415
 
         dialog = QProgressDialog(
-            "Stopping schedule…\nHardware is safe; closing the worker.",
+            "Stopping schedule…\nRelays switched off; closing the worker.",
             None,
             0,
             0,
@@ -551,6 +569,7 @@ def stop_program():
             thread,
             control_signals,
             dialog_factory=_show_stopping_dialog,
+            on_unsafe=_warn_relays_not_confirmed_off,
         )
     except Exception as exc:
         print(f"[ERROR] Stop sequence failed: {exc}")

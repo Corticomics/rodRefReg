@@ -51,13 +51,21 @@ def force_hardware_safe_state(handler) -> bool:
     if handler is None:
         return False
     try:
-        handler.set_all_relays(0)
-        print("[STOP] HARDWARE SAFE: all relays off (master + cages)")
-        return True
+        all_off = handler.set_all_relays(0)
     except Exception as exc:
         print(f"[STOP] CRITICAL: hardware safe-state call failed: {exc}")
         traceback.print_exc()
         return False
+    if all_off is False:
+        # RelayHandler says a HAT was missing or did not take the command:
+        # its relays, and the valves on them, are in an unknown state.
+        print(
+            "[STOP] CRITICAL: not every relay HAT confirmed OFF; a valve may still be "
+            "open. Disconnect the valve power supply."
+        )
+        return False
+    print("[STOP] HARDWARE SAFE: all relays off (master + cages)")
+    return True
 
 
 def bounded_worker_teardown(worker_obj, thread_obj, signals) -> None:
@@ -117,7 +125,9 @@ def bounded_worker_teardown(worker_obj, thread_obj, signals) -> None:
         print("[DEBUG] Thread already deleted")
 
 
-def execute_stop_sequence(handler, worker_obj, thread_obj, signals, dialog_factory=None) -> bool:
+def execute_stop_sequence(
+    handler, worker_obj, thread_obj, signals, dialog_factory=None, on_unsafe=None
+) -> bool:
     """Run the stop sequence in the safety-critical order.
 
     Contract (locked by tests/unit/test_stop_sequence.py):
@@ -127,9 +137,13 @@ def execute_stop_sequence(handler, worker_obj, thread_obj, signals, dialog_facto
 
     ``dialog_factory`` (optional) returns an object with a ``close()``
     method shown during teardown; it is always closed, even on error.
+
+    ``on_unsafe`` (optional) is called once the worker is torn down if the
+    relays could not be confirmed off, so the operator can be told to cut
+    the power; the stop then returns False.
     """
     print("[DEBUG] Starting stop sequence")
-    force_hardware_safe_state(handler)
+    safe = force_hardware_safe_state(handler)
 
     dialog = dialog_factory() if dialog_factory else None
     try:
@@ -141,5 +155,10 @@ def execute_stop_sequence(handler, worker_obj, thread_obj, signals, dialog_facto
             except Exception:
                 pass
 
+    if handler is not None and not safe:
+        if on_unsafe is not None:
+            on_unsafe()
+        print("[DEBUG] Stop sequence completed; relays NOT confirmed off")
+        return False
     print("[DEBUG] Stop sequence completed successfully")
     return True

@@ -238,11 +238,13 @@ def test_continuous_mode_independent_trace_is_the_cage_only(fake_relay_handler, 
     assert sleeps == [1.0]
 
 
-def test_fake_relay_handler_models_a_silently_lost_write(fake_relay_handler):
-    """The HAT path swallows vendor errors and reports True; so does the fake."""
+def test_fake_relay_handler_reports_a_lost_write(fake_relay_handler):
+    """The HAT path reports a write it could not make (RelayHandler returns
+    False since v1.21.0; it used to swallow the error and return True), and
+    so does the fake."""
     fake_relay_handler.fail_on(nth=2)
     assert fake_relay_handler.set_relays([16], 1) is True
-    assert fake_relay_handler.set_relays([1], 1) is True  # dropped
+    assert fake_relay_handler.set_relays([1], 1) is False  # dropped
     assert fake_relay_handler.set_relays([1], 0) is True
 
     assert fake_relay_handler.trace == [((16,), 1), ((1,), 0)]

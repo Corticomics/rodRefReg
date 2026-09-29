@@ -435,6 +435,16 @@ def test_hardware_priming_sequence():
 - Test I²C: `sudo i2cdetect -y 1`
 - Check user in `i2c` group: `groups $USER`
 
+#### 1b. **"Emergency Stop Failed"** (v1.21.0)
+
+**Cause**: **CLOSE ALL RELAYS** could not confirm every relay HAT took the
+command (a HAT missing at start-up or an I²C error), so a valve may still be
+open. Before v1.21.0 the panel said "All relays have been closed" regardless.
+
+**Solutions**:
+- Disconnect the valve power supply first
+- Then check the relay HAT as in item 1
+
 #### 2. **"Master solenoid must be open before opening cage relays"**
 
 **Cause**: Attempting to open cage while master is closed (safety feature)
