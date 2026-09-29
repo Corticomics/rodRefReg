@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.topology import is_independent
 
 
 class RelayTerminalWidget(QFrame):
@@ -50,6 +51,7 @@ class RelayTerminalWidget(QFrame):
         relay_id: int,
         cage_data: Optional[Dict[str, Any]] = None,
         is_master: bool = False,
+        independent: bool = False,
         parent=None,
     ):
         super().__init__(parent)
@@ -60,6 +62,9 @@ class RelayTerminalWidget(QFrame):
         # cage_id and never emit name_changed anyway.
         self._cage_id = cage_data.get('cage_id', relay_id) if cage_data else relay_id
         self._is_master = is_master
+        # The reserved relay on a device with no master valve: shown as
+        # reserved and unused, never as a master (it is never driven).
+        self._reserved_unused = is_master and independent
         self._selected = False
         self._editing = False
         self._name_label = None
@@ -68,7 +73,8 @@ class RelayTerminalWidget(QFrame):
 
     def _init_ui(self) -> None:
         """Build terminal widget with editable name."""
-        self.setObjectName("MasterTerminal" if self._is_master else "RelayTerminal")
+        master_look = self._is_master and not self._reserved_unused
+        self.setObjectName("MasterTerminal" if master_look else "RelayTerminal")
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(44)
         self.setMaximumWidth(220)  # Limit width for better proportions
@@ -86,7 +92,15 @@ class RelayTerminalWidget(QFrame):
         layout.addWidget(relay_label)
 
         # Name display/edit area
-        if self._is_master:
+        if self._reserved_unused:
+            name_label = QLabel("RESERVED (unused)")
+            name_label.setObjectName("UnassignedLabel")
+            layout.addWidget(name_label, 1)
+            self.setToolTip(
+                f"Relay {self._relay_id} is reserved. This device has no master valve "
+                "(independent topology), so it is never driven: leave it unwired."
+            )
+        elif self._is_master:
             name_label = QLabel("MASTER SOLENOID")
             name_label.setObjectName("MasterLabel")
             layout.addWidget(name_label, 1)
@@ -116,8 +130,10 @@ class RelayTerminalWidget(QFrame):
 
         # Status dot
         status_dot = QLabel("●")
-        status_dot.setObjectName("MasterStatusDot" if self._is_master else "StatusDot")
+        status_dot.setObjectName("MasterStatusDot" if master_look else "StatusDot")
         layout.addWidget(status_dot)
+        if self._reserved_unused:
+            status_dot.hide()
 
     def mousePressEvent(self, event):
         """Single click to select."""
@@ -226,6 +242,7 @@ class CagesVisualizationTab(QWidget):
 
         self._num_hats = 1
         self._master_relay = 16
+        self._independent = False
         if system_controller and hasattr(system_controller, 'settings'):
             self._num_hats = int(system_controller.settings.get('num_hats', 1))
             self._master_relay = int(system_controller.settings.get('global_master_relay_id', 16))
@@ -319,10 +336,11 @@ class CagesVisualizationTab(QWidget):
 
         master_legend = QHBoxLayout()
         master_legend.setSpacing(6)
-        master_dot = QLabel("●")
-        master_dot.setObjectName("MasterStatusDot")
-        master_legend.addWidget(master_dot)
-        master_legend.addWidget(QLabel("Master solenoid"))
+        self._master_legend_dot = QLabel("●")
+        self._master_legend_dot.setObjectName("MasterStatusDot")
+        master_legend.addWidget(self._master_legend_dot)
+        self._master_legend_label = QLabel("Master solenoid")
+        master_legend.addWidget(self._master_legend_label)
         legend_layout.addLayout(master_legend)
 
         legend_layout.addStretch()
@@ -429,6 +447,14 @@ class CagesVisualizationTab(QWidget):
         """Show relay-to-cage relationship info dialog."""
         from PyQt5.QtWidgets import QMessageBox
 
+        if self._reads_independent():
+            reserved = (
+                f"This device has no master valve (independent topology: one syringe "
+                f"and one valve per animal). Relay {self._master_relay} stays reserved "
+                "and is never driven: leave it unwired.\n"
+            )
+        else:
+            reserved = "The master solenoid is global (default: relay 16 on HAT 0).\n"
         QMessageBox.information(
             self,
             "Relay-to-Cage Relationship",
@@ -436,11 +462,30 @@ class CagesVisualizationTab(QWidget):
             "On every HAT:\n"
             "• Left side terminals: HAT-local relays 1-8\n"
             "• Right side terminals: HAT-local relays 9-16\n\n"
-            "The master solenoid is global (default: relay 16 on HAT 0).\n"
+            f"{reserved}"
             "All other relays across all HATs are cage valves.\n\n"
             "Wire each cage's valve to its corresponding terminal.\n"
             "Double-click a cage name to rename it.",
         )
+
+    def _reads_independent(self) -> bool:
+        """The device's topology now: Settings can change it while RRR runs."""
+        settings = getattr(self._system_controller, 'settings', None)
+        return is_independent(settings)
+
+    def _apply_topology_legend(self) -> None:
+        if self._independent:
+            self._master_legend_label.setText("Reserved relay (unused)")
+            self._master_legend_dot.hide()
+        else:
+            self._master_legend_label.setText("Master solenoid")
+            self._master_legend_dot.show()
+
+    def showEvent(self, event):
+        """Follow a valve topology change made in Settings since the last load."""
+        super().showEvent(event)
+        if self._reads_independent() != self._independent:
+            self._load_cage_data()
 
     def _load_cage_data(self) -> None:
         """Load cage data and populate per-HAT terminals.
@@ -455,6 +500,8 @@ class CagesVisualizationTab(QWidget):
             self._clear_layout(containers['left'])
             self._clear_layout(containers['right'])
         self._relay_widgets.clear()
+        self._independent = self._reads_independent()
+        self._apply_topology_legend()
 
         try:
             cages = self._database_handler.get_cages_for_dropdown(
@@ -481,6 +528,7 @@ class CagesVisualizationTab(QWidget):
                         relay_id=relay_id,
                         cage_data=cage_by_relay.get(relay_id) if not is_master else None,
                         is_master=is_master,
+                        independent=self._independent,
                     )
                     widget.clicked.connect(self._on_relay_clicked)
                     widget.name_changed.connect(self._on_name_changed)
@@ -495,13 +543,17 @@ class CagesVisualizationTab(QWidget):
                         relay_id=relay_id,
                         cage_data=cage_by_relay.get(relay_id) if not is_master else None,
                         is_master=is_master,
+                        independent=self._independent,
                     )
                     widget.clicked.connect(self._on_relay_clicked)
                     widget.name_changed.connect(self._on_name_changed)
                     containers['right'].addWidget(widget)
                     self._relay_widgets[relay_id] = widget
 
-            self._status_label.setText(f"{len(cages)} cages · {self._num_hats} HAT")
+            status = f"{len(cages)} cages · {self._num_hats} HAT"
+            if self._independent:
+                status += " · independent (no master valve)"
+            self._status_label.setText(status)
 
         except Exception as e:
             self._status_label.setText(f"Error: {str(e)}")

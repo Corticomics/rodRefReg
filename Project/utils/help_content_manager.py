@@ -501,13 +501,13 @@ def _build_content() -> Dict[str, HelpContent]:
   <ul>
     <li><strong>Left column (R1–R8)</strong> — left-side terminals on the HAT.</li>
     <li><strong>Right column (R16–R9)</strong> — right-side terminals, with R16 reserved
-    as the master solenoid.</li>
+    (see <em>Relay 16</em> below).</li>
   </ul>
   <p>Each terminal badge shows the relay number and the custom cage name.</p>
 
   <h2>Renaming a Cage</h2>
   <ol>
-    <li>Double-click on any non-master terminal.</li>
+    <li>Double-click any cage terminal (the reserved R16 terminal cannot be renamed).</li>
     <li>Type the new name directly in the inline editor.</li>
     <li>Press <strong>Enter</strong> or click elsewhere to save.  Press
     <strong>Escape</strong> to cancel.</li>
@@ -515,10 +515,19 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>Names are saved to the database immediately and reflected in the
   <strong>Calibration</strong> table and the wizard's cage-assignment dropdowns.</p>
 
-  <h2>Master Solenoid (R16)</h2>
-  <p>Relay 16 is the master solenoid that controls the shared water supply line.  It is
-  always reserved and cannot be assigned to a cage.  The Priming panel requires the master
-  solenoid to be open before individual cage relays can be opened.</p>
+  <h2>Relay 16 (Reserved)</h2>
+  <p>Relay 16 is always reserved and cannot be assigned to a cage.  What it does depends
+  on how the rig is plumbed (its <em>valve topology</em>):</p>
+  <ul>
+    <li><strong>Shared-manifold rig</strong> — R16 is the <strong>master solenoid</strong>
+    that controls the shared water supply line.  The Priming panel requires the master to
+    be open before individual cage relays can be opened.</li>
+    <li><strong>Independent rig</strong> (one syringe and one valve per animal) — there is
+    no master valve.  The terminal shows <em>RESERVED (unused)</em>, is never driven, and
+    should stay unwired.</li>
+  </ul>
+  <p>The status line under the board says <em>independent (no master valve)</em> on an
+  independent rig.</p>
 
   <div class='help-tip'>
     <strong>Tip:</strong> Name cages after their physical location (e.g., "Rack A Row 1")
@@ -534,6 +543,8 @@ def _build_content() -> Dict[str, HelpContent]:
                 "relay terminal",
                 "master solenoid",
                 "r16",
+                "reserved relay",
+                "independent",
                 "hat",
                 "layout",
                 "visualization",
@@ -644,8 +655,9 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Step 2 — Select Animals</h2>
   <p>Choose which animals will receive water.  The wizard shows all animals available to
-  you and enforces the hardware limit (up to 15 per relay HAT — relay 16 is reserved for
-  the master solenoid).  Use <em>Select All</em> to fill available slots, or tick
+  you and enforces the hardware limit (15 cages on one relay HAT, 31 on two — relay 16 is
+  reserved: the master solenoid on a shared-manifold rig, unused on an independent rig).
+  Use <em>Select All</em> to fill available slots, or tick
   individual animals.</p>
 
   <h2>Step 3 — Configure Parameters</h2>
@@ -793,9 +805,10 @@ def _build_content() -> Dict[str, HelpContent]:
   Slack messages, allowing remote monitoring.</p>
 
   <h2>Priming Safety Interlocks</h2>
-  <p>In the Priming panel, individual cage relays cannot be opened unless the master
-  solenoid is open first.  The <em>Close All Relays</em> emergency button closes
-  every relay immediately.</p>
+  <p>In the Priming panel on a shared-manifold rig, individual cage relays cannot be
+  opened unless the master solenoid is open first.  An independent rig has no master, so a
+  cage valve opens directly.  The <em>Close All Relays</em> emergency button closes every
+  relay immediately.</p>
 
   <div class='help-warning'>
     <strong>Warning:</strong> If the Stop button does not respond, disconnect power from
@@ -843,7 +856,8 @@ def _build_content() -> Dict[str, HelpContent]:
     board).</li>
     <li>Wire each cage's valve or pump to its assigned relay terminal (R1–R15).  Refer to
     the <strong>Cages</strong> tab for the relay-to-cage mapping.</li>
-    <li>Connect the master solenoid to relay R16 (solenoid mode).</li>
+    <li>Shared-manifold rig: connect the master solenoid to relay R16 (solenoid mode).
+    Independent rig (one syringe and one valve per animal): leave R16 unwired.</li>
     <li>If using a Teensy flow-sensor bridge, connect it via USB.  Configure the serial
     port in <strong>Settings → Delivery</strong>.</li>
     <li>Power on hardware and verify all relay indicator lights are off (safe state).</li>
@@ -862,6 +876,9 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Inspect water connections for leaks.</li>
     <li>Verify the System Messages terminal shows no startup errors.</li>
     <li>Confirm the Teensy flow-sensor bridge is connected (solenoid mode).</li>
+    <li>Independent rig: check every syringe line.  A primed line holds for about three
+    days, so a line left idle over a long weekend must be primed again before its animal
+    depends on it.</li>
   </ul>
 
   <h2>Weekly Maintenance</h2>
@@ -913,7 +930,9 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Solenoid Mode (Default)</h2>
   <p>In solenoid mode, each cage has a single solenoid valve wired to one relay (R1–R15).
-  A master solenoid on R16 controls the shared water supply line.  Volume is measured in
+  On a shared-manifold rig a master solenoid on R16 controls the shared water supply
+  line; an independent rig (one syringe and one valve per animal) has no master valve and
+  leaves R16 unwired.  Volume is measured in
   real time by a Teensy-based flow sensor via USB serial.</p>
   <ul>
     <li>One relay per cage — scalable to 15 cages per HAT.</li>
@@ -1062,14 +1081,16 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>The panel has three sections:</p>
   <ul>
     <li><strong>Master Solenoid Control</strong> — open or close the master solenoid
-    (R16) that supplies water to all cage lines.</li>
+    (R16) that supplies water to all cage lines.  Shown on a shared-manifold rig only.</li>
     <li><strong>Cage Relay Control</strong> — select a cage from the dropdown and open
-    or close its individual relay.  The master must be open first (safety interlock).</li>
+    or close its individual relay.  On a shared-manifold rig the master must be open first
+    (safety interlock); on an independent rig a cage valve opens directly.</li>
     <li><strong>Emergency Controls</strong> — <em>Close All Relays</em> immediately
-    closes every relay, including the master.</li>
+    closes every relay, including the master where there is one.</li>
   </ul>
 
   <h2>How to Prime</h2>
+  <p><strong>Shared-manifold rig:</strong></p>
   <ol>
     <li>Ensure the water reservoir is connected and filled.</li>
     <li>Click <strong>Open Master</strong> to open the master solenoid.</li>
@@ -1079,11 +1100,23 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Click <strong>Close Selected</strong> before moving to the next cage.</li>
     <li>When all lines are primed, click <strong>Close Master</strong>.</li>
   </ol>
+  <p><strong>Independent rig</strong> (one syringe and one valve per animal, no master):</p>
+  <ol>
+    <li>Fill the cage's syringe.</li>
+    <li>Select the cage and click <strong>Open Selected</strong>; wait until water flows
+    steadily from the spout (no air bubbles).</li>
+    <li>Click <strong>Close Selected</strong>, then move to the next cage.</li>
+  </ol>
+  <p>Check every syringe line daily: a primed line holds for about three days, so a line
+  left idle over a long weekend must be primed again before its animal depends on it.</p>
 
   <h2>Safety Interlocks</h2>
   <ul>
-    <li>Individual cage relays cannot be opened unless the master solenoid is open.</li>
-    <li>Closing the master solenoid automatically closes any open cage relays first.</li>
+    <li>Shared-manifold rig: individual cage relays cannot be opened unless the master
+    solenoid is open, and closing the master automatically closes any open cage relays
+    first.</li>
+    <li>Independent rig: the hardware lock is held from the first cage valve opened until
+    the last one is closed; schedules and calibration wait until then.</li>
     <li><em>Close All Relays</em> bypasses normal sequencing for rapid emergency
     shutdown.</li>
   </ul>
@@ -1125,7 +1158,8 @@ def _build_content() -> Dict[str, HelpContent]:
   <h1>Flow Sensor</h1>
   <p>In solenoid mode, RRR uses a <strong>Teensy microcontroller</strong> as a USB serial
   bridge to a liquid flow sensor.  The sensor measures the volume of water passing through
-  the main supply line in real time, allowing the software to close each valve at exactly
+  the supply line it is fitted to in real time, allowing the software to close each valve at
+  exactly
   the right moment.</p>
 
   <h2>What It Measures</h2>
@@ -1232,7 +1266,7 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Schedule Errors or Won't Start</h2>
   <ul>
     <li>Confirm all required animals have been added and have valid weights.</li>
-    <li>Check that cage assignments are valid (no animal on R16 — master solenoid).</li>
+    <li>Check that cage assignments are valid (no animal on the reserved relay R16).</li>
     <li>Ensure the schedule start time is in the future.</li>
     <li>Verify volumes are positive and within safe limits.</li>
   </ul>

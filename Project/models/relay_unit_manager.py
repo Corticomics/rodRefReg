@@ -1,4 +1,5 @@
 from models.relay_unit import RelayUnit
+from utils.topology import is_independent
 
 
 class RelayUnitManager:
@@ -86,8 +87,14 @@ class RelayUnitManager:
             self.relay_units[cage_id] = relay_unit
             print(f"[Solenoid Mode] Initialized cage {cage_id} → relay {relay_id}")
 
+        # Named for what the relay does on this device: the master valve on
+        # the shared manifold, nothing on the independent topology.
+        if is_independent(self.settings):
+            role = f"relay {master_id} reserved; no master valve"
+        else:
+            role = f"master on relay {master_id}"
         print(
-            f"[RelayUnitManager] Solenoid mode initialized: {len(self.relay_units)} cages (master on relay {master_id})"
+            f"[RelayUnitManager] Solenoid mode initialized: {len(self.relay_units)} cages ({role})"
         )
 
     def _initialize_pump_mode(self):

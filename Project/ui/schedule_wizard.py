@@ -14,8 +14,9 @@ Architecture:
 - Step 4: Review & Save
 
 Hardware Constraints:
-- One relay in the stack (global_master_relay_id, default 16) is reserved for
-  the master solenoid: 15 cages on one HAT, 31 on two, 16 × num_hats − 1 in general
+- One relay in the stack (global_master_relay_id, default 16) is reserved: the
+  master solenoid on the shared manifold, unused on the independent topology.
+  15 cages on one HAT, 31 on two, 16 × num_hats − 1 in general
 - Cage ids and relay ids are different number spaces (cage 16 drives relay 17
   on a second HAT); validation compares relay to relay via relay_for_cage()
 
@@ -47,6 +48,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.topology import reserved_relay_reason
 
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
 from .components.wizard import WizardContainer, WizardStep
@@ -98,7 +100,7 @@ def create_step_header(icon: str, title: str, description: str) -> QWidget:
 # Conservative pulse-delivery timing model (see solenoid_flow_strategy): roughly
 # 0.026 mL per 20 ms pulse, and each pulse cycle — valve open + settle + sensor
 # window + inter-pulse gap — takes ~0.52 s, plus per-cage prime/stabilise and the
-# inter-cage stagger. Deliveries run one cage at a time (single master solenoid),
+# inter-cage stagger. Deliveries run one cage at a time (one delivery worker),
 # so the minimum staggered window is the SUM across animals. Constants are
 # deliberately conservative; tune against on-device timing if needed.
 _ML_PER_PULSE = 0.026
@@ -170,6 +172,11 @@ def get_available_cages(system_controller) -> Tuple[int, int, Set[int]]:
     except Exception as e:
         print(f"[Wizard] Error getting hardware limits: {e}")
         return 15, 16, set(range(1, 16))
+
+
+def _settings_of(system_controller) -> dict:
+    """The device settings, or {} without a controller (the wizard's defaults)."""
+    return getattr(system_controller, 'settings', None) or {}
 
 
 def relay_for_cage(system_controller, cage_id: int) -> Optional[int]:
@@ -279,7 +286,7 @@ def build_schedule_from_config(
     if len(animals) > max_cages:
         raise ValueError(
             f"Schedule has {len(animals)} animals but only {max_cages} cages available. "
-            f"Relay {master_relay} is reserved for master solenoid."
+            f"Relay {master_relay} is {reserved_relay_reason(_settings_of(system_controller))}."
         )
 
     valid_cage_list = sorted(valid_cages)
@@ -303,7 +310,8 @@ def build_schedule_from_config(
         if relay_for_cage(system_controller, cage_id) == master_relay:
             raise ValueError(
                 f"Animal {animal_id} cannot be assigned to cage {cage_id}: it is wired "
-                f"to relay {master_relay}, which is reserved for the master solenoid"
+                f"to relay {master_relay}, which is "
+                f"{reserved_relay_reason(_settings_of(system_controller))}"
             )
         if cage_id not in valid_cages:
             raise ValueError(
@@ -482,7 +490,8 @@ class Step2SelectAnimals(QWidget):
 
         self._limit_label = QLabel(
             f"Maximum {self._max_cages} animals can be selected "
-            f"(Relay {self._master_relay} is reserved for master solenoid)"
+            f"(Relay {self._master_relay} is "
+            f"{reserved_relay_reason(_settings_of(self._system_controller))})"
         )
         self._limit_label.setStyleSheet("color: #92400E; font-size: 11px;")
         self._limit_label.setWordWrap(True)
@@ -575,7 +584,8 @@ class Step2SelectAnimals(QWidget):
                 self,
                 "Selection Limit Exceeded",
                 f"Maximum {self._max_cages} animals can be selected.\n\n"
-                f"Relay {self._master_relay} is reserved for the master solenoid "
+                f"Relay {self._master_relay} is "
+                f"{reserved_relay_reason(_settings_of(self._system_controller))} "
                 f"and cannot be assigned to animals.\n\n"
                 f"Please deselect {excess} animal(s).",
             )

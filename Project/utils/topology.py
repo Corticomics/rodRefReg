@@ -92,3 +92,18 @@ def build_solenoid_controller(relay_handler, settings, cage_map):
         return IndependentSolenoidController(relay_handler, cage_map)
     master_id = int((settings or {}).get('global_master_relay_id', DEFAULT_MASTER_RELAY_ID))
     return SolenoidController(relay_handler, master_id, cage_map)
+
+
+# --- wording --------------------------------------------------------------------
+
+
+def reserved_relay_reason(settings) -> str:
+    """Why ``global_master_relay_id`` takes no cage, worded for the device.
+
+    On the shared manifold it drives the master valve. On the independent
+    topology nothing is wired to it, but it stays reserved, so both rigs
+    number their cages the same way.
+    """
+    if is_independent(settings):
+        return "reserved and unused on this device (no master valve)"
+    return "reserved for the master solenoid"
