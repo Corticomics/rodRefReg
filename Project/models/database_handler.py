@@ -2036,12 +2036,16 @@ class DatabaseHandler:
             print(f"Error getting valve calibration: {e}")
             return None
 
-    def get_all_valve_calibrations(self):
+    def get_all_valve_calibrations(self, *, raise_errors=False):
         """
         Get calibration data for all valves.
 
         Returns:
             dict mapping cage_id to calibration data
+
+        A database error returns {} unless ``raise_errors`` is set: the
+        schedule start gate must tell "nothing calibrated" from "could not
+        read" (utils.calibration_gate).
         """
         try:
             with self.connect() as conn:
@@ -2081,6 +2085,8 @@ class DatabaseHandler:
 
         except sqlite3.Error as e:
             print(f"Error getting valve calibrations: {e}")
+            if raise_errors:
+                raise
             return {}
 
     def get_valve_calibration_history(self, cage_id, limit=10):

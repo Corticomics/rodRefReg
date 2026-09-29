@@ -433,9 +433,11 @@ class RelayWorker(QObject):
         Tell the operator, once per run, which cages this run waters with a
         calibration measured under the other valve topology.
 
-        The strategy still uses those calibrations (refusing would leave an
-        animal without water); this is the prompt to recalibrate. Never
-        raises: a reporting failure must not abort the run's hardware setup.
+        The Run button refuses such a start (utils.calibration_gate), so this
+        is a defence in depth; the strategy then still uses those
+        calibrations (refusing mid-run would leave an animal without water).
+        Never raises: a reporting failure must not abort the run's hardware
+        setup.
         """
         try:
             stale_of = getattr(self.strategy, 'stale_calibrations', None)

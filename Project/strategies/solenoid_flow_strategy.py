@@ -350,11 +350,12 @@ class SolenoidFlowStrategy:
         Warn, once per cage, when its calibration was measured under the
         other valve topology.
 
-        The calibration is still used. Refusing, or swapping in the empirical
-        default, would change what the animal receives in the middle of a
-        schedule; the operator is told to recalibrate instead (Settings shows
-        the row as Stale). Printed like the [CAL SNAPSHOT] lines, so it lands
-        in the Terminal tab.
+        A schedule watering such a cage does not start (the calibration gate
+        at Run, utils.calibration_gate), so reaching this is a defence in
+        depth. The calibration is then still used: refusing, or swapping in
+        the empirical default, would change what the animal receives in the
+        middle of a schedule. Printed like the [CAL SNAPSHOT] lines, so it
+        lands in the Terminal tab.
         """
         if cage_id in self._stale_calibrations:
             return
