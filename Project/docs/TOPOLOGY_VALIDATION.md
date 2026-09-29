@@ -42,7 +42,7 @@ These are the bench figures the criteria are graded against. They come from the 
 | # | Criterion | Test | Pass (independent rig) | Graded by |
 |---|---|---|---|---|
 | **C1** | Pulse calibration | Every cage that will carry an animal: 250 pulses × 3 runs at 30 ms / 1000 ms through the wizard | CV of the three run means ≤ 1.5 % (manifold 1.0 %); first→last run drift ≤ 3 %; q ≤ 40 µL | Wizard figures, recorded by hand (§3.2) |
-| **C2** | Precision | 0.3 / 0.6 / 0.7 / 1.0 mL, n = 10 each, via a real instant schedule, each weighed | CV ≤ 5.0 % **and** SD ≤ SD_manifold × 1.371 at the same dose (CLSI EP15-A3 upper verification limit for n = 10) | `topology_compare.py` |
+| **C2** | Precision | 0.3 / 0.6 / 0.7 / 1.0 mL, n = 10 each, via a real instant schedule, each weighed | CV ≤ 5.0 % **and** not significantly less precise than the manifold at the same dose: pooled within-cage variance ratio within the one-sided F bound at a family-wise 5 % (about 2.2 × the manifold's SD for four doses at ten rows a side) | `topology_compare.py` |
 | **C3** | Planner parity | Every weighed instant delivery, from the ledger | `pulses_fired` equals the count the recorded rounding policy gives for the dose asked for, and that policy is the one the set requires (nearest for C2–C4). A `mismatch` is a code regression, never a hardware finding | `topology_compare.py --policy nearest` (`gravimetric_check.py list` shows it per row) |
 | **C4** | Trueness / shortfall | Per dose, under nearest rounding | \|mean weighed − pulses × q\| ≤ q/2. The manifold rig's own shortfall is reported beside it as the baseline, not graded: with neither needle nor manifold, ≈ 0 is the expected and informative result for the independent rig | `topology_compare.py` |
 | **C5** | Daily total | Simulated 0.6 mL and 1.0 mL mouse-days in the staggered chunks the schedule uses, ≥ 3 consecutive days, production rounding policy | Each day's weighed total within ± 5 % of the prescribed day | `gravimetric_check.py daily` + the day's weighing (§3.5) |
@@ -51,9 +51,11 @@ These are the bench figures the criteria are graded against. They come from the 
 | **C8** | Syringe fill level (independent-specific) | 0.6 mL × 10 with the syringe full, half full, and ≤ 2 mL | Mean shift between fill levels ≤ q/2. A larger shift means a fill-level term is needed before animals go on (none exists in the delivery path today) | `topology_compare.py` on one readings file per fill level (`gravimetric_check.py --csv`) |
 | **C9** | Operational (the only animal criterion) | Every cage that will carry an animal passes C1 and the 0.6 mL × 10 set; the full dose grid and C6–C8 on ≥ 3 representative cages; then one animal per cage on ≥ 3 cages for ≥ 14 days | Daily weights and per-animal delivered totals within ± 5 % of the prescribed day; partial / failed / `sensor_failure` row rate no higher than the manifold rig's | Animal records + ledger |
 
-**Equivalence.** "As precise as the manifold rig" means, at each dose: SD_independent ≤ SD_manifold × 1.371 (n = 10), the CLSI EP15-A3 upper verification limit. `topology_compare.py` grades it once it has ten weighed rows per dose from each rig, and reports the difference between the rigs' mean weighed volumes and between their shortfalls for information. Trueness is judged per rig, never rig against rig: each against its own pulses × q (C4) and against the prescribed day (C5). The rigs' means differ by design: their mL/pulse differ (0.6 mL is 18 pulses on both, but 0.593 mL of plan on one and 0.615 mL on the other), and the manifold's needle keeps about half a pulse per dose.
+**Equivalence.** "As precise as the manifold rig" means, at each dose, that the independent rig's repeatability is not significantly worse than the manifold's: s²_independent / s²_manifold ≤ F(1 − 0.05/k; df_independent, df_manifold), a one-sided F test at a family-wise 5 % over the k doses compared (Bonferroni). s² is the pooled within-cage variance, so cages whose mL/pulse differ (and therefore plan different volumes for the same dose) do not inflate it. A rig exactly as precise as the manifold passes 95 % of the time; at ten rows a side the bound is 1.78 × the manifold's SD for one dose and 2.24 × for four. C2's absolute 5 % CV cap applies on top. `topology_compare.py` grades it once each rig has a cage with ten weighed rows at the dose, and reports the difference between the rigs' mean weighed volumes and between their shortfalls for information. Trueness is judged per rig, never rig against rig: each against its own pulses × q (C4) and against the prescribed day (C5). The rigs' means differ by design: their mL/pulse differ (0.6 mL is 18 pulses on both, but 0.593 mL of plan on one and 0.615 mL on the other), and the manifold's needle keeps about half a pulse per dose.
 
 > **Revised 2026-09-29, before any validation data was collected.** The first version also required the two rigs' mean weighed doses to agree within 2.5 % of the dose. That contradicted principle 1 and this document's own expected result: the manifold's shortfall of about half a pulse is 2.7–5.5 % of a 0.3–0.6 mL dose, and the pulse-size difference alone is 3.7 % at 0.6 mL, so an independent rig behaving exactly as expected would have failed. The precision limit and every other threshold are unchanged.
+>
+> **Revised again 2026-09-29, still before any data.** The precision rule was SD_independent ≤ SD_manifold × 1.371, CLSI EP15-A3's upper verification limit. That limit verifies a rig against a *claimed* SD taken as known; here the manifold's SD is itself a ten-row estimate, so a rig exactly as precise as the manifold would have failed about 18 % of doses and 55 % of four-dose runs. The rule is now the two-sample F test above, at a family-wise 5 %, on pooled within-cage variances.
 
 **Exit.** Every criterion passes on every animal-carrying channel across the three-day window, and the 14-day observation shows no weight excursions. After that both rigs simply keep running the same releases; the topology setting is a permanent configuration, not a flag to remove.
 
@@ -110,9 +112,9 @@ scp pi-independent:~/rrr/shared/data/gravimetric_checks.csv independent.csv
 python3 Project/tools/topology_compare.py manifold.csv independent.csv --policy nearest --json report.json
 ```
 
-The report groups completed instant deliveries by topology, cage and the dose asked for. Each cell shows n, mean, SD, CV, q, the plan, the shortfall, the bias against the dose and the planner verdicts, with C2 / C3 / C4 marks; the manifold's cells show its figures as the baseline (`ref`) and are graded on C3 only. Per dose it then grades the independent rig's SD against the limit from the manifold's SD, with the mean and shortfall differences for information. Rows that did not complete, staggered chunks and rows without a recorded dose are counted and left out.
+The report groups completed instant deliveries by topology, cage and the dose asked for. Each cell shows n, mean, SD, CV, q, the plan, the shortfall, the bias against the dose and the planner verdicts, with C2 / C3 / C4 marks; the manifold's cells show its figures as the baseline (`ref`) and are graded on C3 only. Per dose it then compares the rigs' pooled within-cage SDs (ratio and F bound), with the mean and shortfall differences for information. The planner column shows the verdicts and, in brackets, the rounding policy the rows were recorded with. Rows that did not complete, staggered chunks and rows without a recorded dose are counted and left out.
 
-Exit status 0 means every graded criterion passed. 1 means a criterion failed, or the run is INCOMPLETE: a dose one rig ran that the other did not, or ran fewer than ten times. 2 means an input file could not be used. A report with nothing graded is not a pass. Keep `report.json` with the run.
+Exit status 0 means every graded criterion passed. 1 means a criterion failed, or the run is INCOMPLETE: a dose that either rig ran has no cage with ten gradable readings on the other, or the manifold file contributed no gradable rows at all. 2 means an input file could not be used. A report with nothing graded is not a pass. Grading one rig on its own (C7, C8) needs `--reference none`; without it, a run with no manifold rows is INCOMPLETE rather than a pass. Keep `report.json` with the run.
 
 ### 3.5 C5–C8 — days, idle, drift, fill level
 
@@ -126,12 +128,13 @@ Switch **"Round doses up"** to the production setting first.
 - **C6** — leave the rig idle ≥ 12 h, then a 48 h weekend; the first delivery after each idle is weighed with the next nine. Find the rows with a date-time bound, e.g. `gravimetric_check.py list --since 2026-10-06T08:00`.
 - **C7** — the 0.6 mL × 10 set again on days 3 and 7 without recalibrating. Grade one day at a time out of the same readings file, and compare each day's mean with day 1 (± 3 %):
   ```bash
-  python3 Project/tools/topology_compare.py independent.csv --since 2026-10-07 --until 2026-10-07
+  python3 Project/tools/topology_compare.py independent.csv --reference none --since 2026-10-07 --until 2026-10-07
   ```
   Grading the whole file at once would pool the days and hide a drift.
 - **C8** — the 0.6 mL × 10 set with the syringe full, half full and near empty, the same day. Weigh each fill level into its own readings file (`--csv` goes before the command, for `list` and `weigh` alike), grade each file, and compare the means (≤ q/2):
   ```bash
   ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py --csv ~/rrr/shared/data/c8_full.csv weigh 1301 --net 0.6012
+  python3 Project/tools/topology_compare.py c8_full.csv --reference none
   ```
 
 ### 3.6 C9 — animals
@@ -148,8 +151,10 @@ Only after C1–C8 pass on the cages concerned, and per the lab's welfare protoc
 
 | Observation | Meaning | Next step |
 |---|---|---|
-| `mismatch` in the planner column | The pulse count is not what the recorded rounding policy gives for the dose asked for (or, with `--policy`, the policy was not the required one) | Code regression, or the "Round doses up" setting was on during a C1–C4 set: check the setting, then stop, record the row id and report it. Not a hardware finding |
-| `RESULT: INCOMPLETE` | A dose ran on one rig but not, or fewer than ten times, on the other | Run the missing set on the other rig; the comparison is not a pass until every dose has run on both |
+| `mismatch` in the planner column | The pulse count is not what the recorded rounding policy gives for the dose asked for | Code regression: stop, record the row id and report it. Not a hardware finding |
+| C3 FAIL with the planner column all `ok` and `[up]` in brackets | The set ran with "Round doses up" on, but `--policy nearest` requires nearest rounding (the failure line says so) | Turn the setting off and repeat the set; the rows are correct for the policy they ran under |
+| `precision_vs_reference` FAIL | The independent rig's pooled within-cage SD is larger than chance allows next to the manifold's (the failure line gives the ratio and the bound) | Look at the per-cage rows: one noisy cage points at that valve or line (re-prime, re-run C1); every cage wide points at the rig's plumbing or the balance |
+| `RESULT: INCOMPLETE` | A dose ran on one rig but not, or without ten readings in a cage, on the other; or the manifold file had no gradable rows | Run the missing set on the other rig; the comparison is not a pass until every dose has run on both. For one rig on its own, use `--reference none` |
 | C4 shortfall ≈ 0 on the independent rig, ≈ q/2 on the manifold rig | Expected: the needle and manifold retain water, a syringe-to-spout line does not | Report both; it is the reason the manifold rig runs with "Round doses up" and the independent rig may not need to |
 | C2 CV over 5 % on one cage only | That valve or line | Re-prime, re-run C1 for that cage, repeat; replace the valve if it persists |
 | C2 CV over 5 % on every cage | Systematic: balance, weighing technique, timing profile | Check the balance with a reference mass; confirm 30 ms / 1000 ms in the calibration table |

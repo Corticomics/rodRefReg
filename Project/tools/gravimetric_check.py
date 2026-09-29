@@ -276,8 +276,8 @@ def fetch_deliveries(
     """Rows of dispensing_history as dicts, newest first.
 
     Every OPTIONAL_COLUMNS name is present (None where the database predates
-    it), plus ``delivery_mode`` from the schedule ('instant' / 'staggered',
-    None when unknown).
+    it), plus ``delivery_mode`` ('instant' / 'staggered'): the row's own,
+    else its schedule's, else None.
     """
     present = _columns(conn, 'dispensing_history')
     if 'history_id' not in present:
@@ -296,10 +296,20 @@ def fetch_deliveries(
     ]
     for column in OPTIONAL_COLUMNS:
         select.append(f"dh.{column}" if column in present else f"NULL AS {column}")
+    # The row's own mode (v1.21.0) wins: a schedule can be deleted while its
+    # rows stay, and a staggered chunk must never be judged like an instant
+    # dose. Older rows fall back to the schedule's mode when it still exists.
     join = ""
-    if 'delivery_mode' in _columns(conn, 'schedules'):
-        select.append("s.delivery_mode AS delivery_mode")
+    on_row = 'delivery_mode' in present
+    on_schedule = 'delivery_mode' in _columns(conn, 'schedules')
+    if on_schedule:
         join = " LEFT JOIN schedules s ON s.schedule_id = dh.schedule_id"
+    if on_row and on_schedule:
+        select.append("COALESCE(dh.delivery_mode, s.delivery_mode) AS delivery_mode")
+    elif on_row:
+        select.append("dh.delivery_mode AS delivery_mode")
+    elif on_schedule:
+        select.append("s.delivery_mode AS delivery_mode")
     else:
         select.append("NULL AS delivery_mode")
     where, params = [], []

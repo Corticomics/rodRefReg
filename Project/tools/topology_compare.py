@@ -16,10 +16,16 @@ against the beaker criteria in docs/TOPOLOGY_VALIDATION.md:
 C2 and C4 are graded for every topology except the reference (the manifold
 rig by default), whose figures are printed as the baseline; C3 is graded
 for every topology. Per dose, each other topology's precision is then
-graded against the reference's:
+compared with the reference's:
 
-    precision      SD_topology <= SD_reference x sqrt(chi2(0.95, n-1)/(n-1))
-                   (CLSI EP15-A3 upper verification limit; 1.371 at n = 10)
+    precision      s2_topology / s2_reference <= F(1 - alpha/k; df_topology, df_reference)
+
+where s2 is the pooled within-cage variance (so cages with different
+mL/pulse do not inflate it) and the bound is a one-sided F test at a
+family-wise alpha (--alpha, 5 %) over the k doses compared (Bonferroni).
+A rig exactly as precise as the reference passes it 95 % of the time. At
+ten rows a side and one dose the bound is 1.78 x the reference SD; at four
+doses, about 2.2 x. C2's absolute 5 % cap still applies on top.
 
 The difference between the rigs' mean weighed volumes and between their
 shortfalls is reported for information, not graded: each rig's trueness is
@@ -27,20 +33,23 @@ judged against its own pulses x mL/pulse (C4), because the two rigs' pulse
 sizes and the manifold's needle differ by design.
 
     python3 tools/topology_compare.py manifold.csv independent.csv --policy nearest
-    python3 tools/topology_compare.py c7.csv --since 2026-10-05 --until 2026-10-05
+    python3 tools/topology_compare.py c7.csv --reference none --since 2026-10-05 --until 2026-10-05
 
 Exit status: 0 when every graded criterion passed, 1 when one failed or the
-comparison is incomplete (a dose present for a topology but missing, or
-short of --min-n rows, on the reference), 2 on a usage or input error.
-Groups with fewer than --min-n rows are listed but not graded, and a report
-with nothing graded is not a pass. Rows that did not complete, staggered
-chunks, and rows without a recorded dose are counted and left out.
+comparison is INCOMPLETE, 2 on a usage or input error. The comparison is
+incomplete when the reference has no gradable rows (pass --reference none
+to grade one rig alone), or when a dose either rig ran has no cage with
+--min-n rows on the other side. Groups with fewer than --min-n rows are
+listed but not graded, and a report with nothing graded is not a pass.
+Rows that did not complete, staggered chunks, and rows without a recorded
+dose are counted and left out.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import functools
 import json
 import math
 import os
@@ -52,55 +61,76 @@ from datetime import date, datetime, timedelta
 DEFAULT_REFERENCE = 'shared_manifold'
 LEGACY_TOPOLOGY = 'not_recorded'
 POLICIES = ('nearest', 'up')
-
-# 95th percentile of chi-square by degrees of freedom (n - 1), the factor
-# CLSI EP15-A3 uses for the upper verification limit of a claimed SD.
-CHI2_95 = {
-    1: 3.841,
-    2: 5.991,
-    3: 7.815,
-    4: 9.488,
-    5: 11.070,
-    6: 12.592,
-    7: 14.067,
-    8: 15.507,
-    9: 16.919,
-    10: 18.307,
-    11: 19.675,
-    12: 21.026,
-    13: 22.362,
-    14: 23.685,
-    15: 24.996,
-    16: 26.296,
-    17: 27.587,
-    18: 28.869,
-    19: 30.144,
-    20: 31.410,
-    21: 32.671,
-    22: 33.924,
-    23: 35.172,
-    24: 36.415,
-    25: 37.652,
-    26: 38.885,
-    27: 40.113,
-    28: 41.337,
-    29: 42.557,
-    30: 43.773,
-}
+DEFAULT_ALPHA = 0.05
 
 
-def chi2_95(df: int) -> float:
-    """chi-square 95th percentile; Wilson-Hilferty beyond the table."""
-    if df in CHI2_95:
-        return CHI2_95[df]
-    z = 1.6449
-    return df * (1 - 2 / (9 * df) + z * math.sqrt(2 / (9 * df))) ** 3
+# --- the F distribution (stdlib only) --------------------------------------------
 
 
-def uvl_factor(n: int) -> float:
-    """Multiply a reference SD by this to get the upper verification limit at n."""
-    df = n - 1
-    return math.sqrt(chi2_95(df) / df)
+def _betacf(a: float, b: float, x: float) -> float:
+    """Continued fraction for the incomplete beta function (modified Lentz)."""
+    tiny, eps = 1e-300, 3e-15
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c, d = 1.0, 1.0 - qab * x / qap
+    d = 1.0 / (d if abs(d) > tiny else tiny)
+    h = d
+    for m in range(1, 400):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        d = 1.0 / (d if abs(d) > tiny else tiny)
+        c = 1.0 + aa / c
+        c = c if abs(c) > tiny else tiny
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        d = 1.0 / (d if abs(d) > tiny else tiny)
+        c = 1.0 + aa / c
+        c = c if abs(c) > tiny else tiny
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < eps:
+            break
+    return h
+
+
+def _betai(a: float, b: float, x: float) -> float:
+    """Regularized incomplete beta function I_x(a, b)."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    log_front = (
+        math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log1p(-x)
+    )
+    front = math.exp(log_front)
+    if x < (a + 1.0) / (a + b + 2.0):
+        return front * _betacf(a, b, x) / a
+    return 1.0 - front * _betacf(b, a, 1.0 - x) / b
+
+
+def f_cdf(f: float, d1: float, d2: float) -> float:
+    """P(F <= f) for the F distribution with (d1, d2) degrees of freedom."""
+    if f <= 0.0:
+        return 0.0
+    return _betai(d1 / 2.0, d2 / 2.0, d1 * f / (d1 * f + d2))
+
+
+@functools.lru_cache(maxsize=None)
+def f_quantile(p: float, d1: float, d2: float) -> float:
+    """The p-quantile of F(d1, d2), by bisection on f_cdf."""
+    if not 0.0 < p < 1.0:
+        raise ValueError("p must be strictly between 0 and 1")
+    lo, hi = 0.0, 1.0
+    while f_cdf(hi, d1, d2) < p:
+        hi *= 2.0
+    for _ in range(200):
+        mid = (lo + hi) / 2.0
+        if f_cdf(mid, d1, d2) < p:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
 
 
 # --- reading -------------------------------------------------------------------
@@ -227,18 +257,29 @@ def grade_group(rows, *, cv_max, min_n, policy, is_reference) -> dict:
     verdict_counts = defaultdict(int)
     for r in rows:
         verdict_counts[r['planner'] or 'none'] += 1
-    policies = sorted({r['dose_rounding'] for r in rows if r['dose_rounding']})
+    policy_counts = defaultdict(int)
+    for r in rows:
+        policy_counts[r['dose_rounding'] or 'not recorded'] += 1
     wrong_policy = sum(
         1 for r in rows if policy and r['dose_rounding'] and r['dose_rounding'] != policy
     )
     unjudged = verdict_counts.get('none', 0)
+    mismatches = verdict_counts.get('mismatch', 0)
 
     graded = n >= min_n
-    verdicts = {}
+    verdicts, why = {}, {}
     if graded:
-        verdicts['C3_planner'] = (
-            verdict_counts.get('mismatch', 0) == 0 and wrong_policy == 0 and unjudged < n
-        )
+        verdicts['C3_planner'] = mismatches == 0 and wrong_policy == 0 and unjudged < n
+        if not verdicts['C3_planner']:
+            reasons = []
+            if mismatches:
+                reasons.append(f"{mismatches} row(s) fired the wrong pulse count for the dose")
+            if wrong_policy:
+                used = ', '.join(p for p in sorted(policy_counts) if p != policy)
+                reasons.append(f"{wrong_policy} row(s) rounded '{used}', '{policy}' required")
+            if unjudged >= n:
+                reasons.append("no row could be judged")
+            why['C3_planner'] = '; '.join(reasons)
         if not is_reference:
             verdicts['C2_precision'] = cv is not None and cv <= cv_max
             if shortfall is not None and q:
@@ -258,61 +299,91 @@ def grade_group(rows, *, cv_max, min_n, policy, is_reference) -> dict:
         'shortfall_ml': shortfall,
         'bias_vs_dose_pct': bias_pct,
         'planner': dict(sorted(verdict_counts.items())),
-        'policies': policies,
+        'policies': dict(sorted(policy_counts.items())),
         'rows_with_other_policy': wrong_policy,
         'verdicts': verdicts,
+        'why': why,
     }
 
 
-def grade_equivalence(pooled, *, reference, min_n) -> list:
-    """Per dose: each non-reference topology's precision against the reference."""
+def pooled_within_cage(groups):
+    """(pooled variance, degrees of freedom, mean, mean shortfall) over cage groups.
+
+    The pooled within-cage variance, sum((n_i - 1) s_i^2) / sum(n_i - 1),
+    measures repeatability without the spread between cages whose plans
+    differ (each cage has its own mL/pulse).
+    """
+    df = sum(g['n'] - 1 for g in groups)
+    variance = sum((g['n'] - 1) * g['sd_ml'] ** 2 for g in groups) / df
+    total = sum(g['n'] for g in groups)
+    mean = sum(g['n'] * g['mean_ml'] for g in groups) / total
+    shortfalls = [(g['n'], g['shortfall_ml']) for g in groups if g['shortfall_ml'] is not None]
+    shortfall = (
+        sum(n * s for n, s in shortfalls) / sum(n for n, _ in shortfalls) if shortfalls else None
+    )
+    return variance, df, mean, shortfall
+
+
+def grade_precision(detail, *, reference, min_n, alpha) -> list:
+    """Each other topology's pooled within-cage precision against the reference's.
+
+    Every dose either side ran is compared; a dose with no cage of min_n
+    rows on either side is an INCOMPLETE entry, never a skip.
+    """
+    usable = defaultdict(list)  # (topology, dose) -> cage groups with n >= min_n
+    doses = defaultdict(set)  # topology -> doses it ran at all
+    for group in detail:
+        key = dose_key(group['dose_ml'])
+        doses[group['topology']].add(key)
+        if group['n'] >= min_n and group['sd_ml'] is not None:
+            usable[(group['topology'], key)].append(group)
     results = []
-    by_dose = defaultdict(dict)
-    for group in pooled:
-        by_dose[dose_key(group['dose_ml'])][group['topology']] = group
-    for _dose, per_topology in sorted(by_dose.items()):
-        ref = per_topology.get(reference)
-        for topology, group in sorted(per_topology.items()):
-            if topology == reference or group['n'] < min_n:
-                continue
+    for topology in sorted(t for t in doses if t != reference):
+        compared = sorted(doses[topology] | doses.get(reference, set()))
+        k = len(compared)
+        for key in compared:
+            ours, theirs = usable.get((topology, key)), usable.get((reference, key))
             entry = {
-                'dose_ml': group['dose_ml'],
+                'dose_ml': float(key) if key != '?' else None,
                 'topology': topology,
                 'reference': reference,
-                'n': group['n'],
-                'n_reference': ref['n'] if ref else 0,
                 'graded': False,
+                'doses_compared': k,
             }
-            if (
-                ref
-                and ref['n'] >= min_n
-                and ref['sd_ml'] is not None
-                and group['sd_ml'] is not None
-            ):
-                factor = uvl_factor(group['n'])
-                uvl = ref['sd_ml'] * factor
-                entry.update(
-                    {
-                        'graded': True,
-                        'sd_ml': group['sd_ml'],
-                        'sd_reference_ml': ref['sd_ml'],
-                        'uvl_factor': factor,
-                        'uvl_ml': uvl,
-                        'mean_diff_ml': group['mean_ml'] - ref['mean_ml'],
-                        'shortfall_diff_ml': (
-                            group['shortfall_ml'] - ref['shortfall_ml']
-                            if group['shortfall_ml'] is not None
-                            and ref['shortfall_ml'] is not None
-                            else None
-                        ),
-                        'verdicts': {'precision_vs_reference': group['sd_ml'] <= uvl},
-                    }
-                )
+            if not ours or not theirs:
+                short = []
+                if not ours:
+                    short.append(f"{topology} has no cage with {min_n} rows")
+                if not theirs:
+                    short.append(f"{reference} has no cage with {min_n} rows")
+                entry['incomplete'] = '; '.join(short)
+                results.append(entry)
+                continue
+            var_t, df_t, mean_t, short_t = pooled_within_cage(ours)
+            var_r, df_r, mean_r, short_r = pooled_within_cage(theirs)
+            f_crit = f_quantile(1.0 - alpha / k, df_t, df_r)
+            entry.update(
+                {
+                    'graded': True,
+                    'sd_ml': math.sqrt(var_t),
+                    'sd_reference_ml': math.sqrt(var_r),
+                    'df': df_t,
+                    'df_reference': df_r,
+                    'alpha_per_dose': alpha / k,
+                    'bound_factor': math.sqrt(f_crit),
+                    'ratio': math.sqrt(var_t / var_r) if var_r > 0 else math.inf,
+                    'mean_diff_ml': mean_t - mean_r,
+                    'shortfall_diff_ml': (
+                        short_t - short_r if short_t is not None and short_r is not None else None
+                    ),
+                    'verdicts': {'precision_vs_reference': var_t <= var_r * f_crit},
+                }
+            )
             results.append(entry)
     return results
 
 
-def compare(rows, *, reference, cv_max, min_n, policy=None, excluded=None) -> dict:
+def compare(rows, *, reference, cv_max, min_n, policy=None, alpha=DEFAULT_ALPHA, excluded=None):
     groups = defaultdict(list)
     pooled = defaultdict(list)
     for r in rows:
@@ -326,7 +397,7 @@ def compare(rows, *, reference, cv_max, min_n, policy=None, excluded=None) -> di
             cv_max=cv_max,
             min_n=min_n,
             policy=policy,
-            is_reference=(topology == reference),
+            is_reference=(reference is not None and topology == reference),
         )
 
     detail = [grade(groups[k]) for k in sorted(groups)]
@@ -335,31 +406,46 @@ def compare(rows, *, reference, cv_max, min_n, policy=None, excluded=None) -> di
         group = grade(pooled[key])
         group['cage_id'] = 'all'
         summary.append(group)
-    reference_present = any(g['topology'] == reference for g in summary)
-    equivalence = grade_equivalence(summary, reference=reference, min_n=min_n)
 
-    failed, incomplete, graded = [], [], 0
+    topologies = {g['topology'] for g in detail}
+    others = sorted(t for t in topologies if t != reference)
+    reference_present = reference is not None and reference in topologies
+    precision = []
+    incomplete = []
+    if reference is not None and others:
+        if not reference_present:
+            incomplete.append(
+                f"no gradable rows from the reference topology {reference}; the comparison "
+                "between rigs cannot be made (grade one rig alone with --reference none)"
+            )
+        else:
+            precision = grade_precision(detail, reference=reference, min_n=min_n, alpha=alpha)
+
+    failed, graded = [], 0
     for group in detail + summary:
         for name, ok in group['verdicts'].items():
             graded += 1
             if not ok:
-                failed.append(
+                line = (
                     f"{group['topology']} cage {group['cage_id']} "
                     f"{dose_key(group['dose_ml'])} mL: {name}"
                 )
-    for entry in equivalence:
+                if group['why'].get(name):
+                    line += f" ({group['why'][name]})"
+                failed.append(line)
+    for entry in precision:
         if not entry['graded']:
-            if reference_present:
-                incomplete.append(
-                    f"{entry['topology']} at {dose_key(entry['dose_ml'])} mL: no precision "
-                    f"comparison (reference n = {entry['n_reference']}, need {min_n})"
-                )
+            incomplete.append(
+                f"{entry['topology']} at {dose_key(entry['dose_ml'])} mL: no precision "
+                f"comparison ({entry['incomplete']})"
+            )
             continue
         for name, ok in entry['verdicts'].items():
             graded += 1
             if not ok:
                 failed.append(
-                    f"{entry['topology']} vs {reference} at {dose_key(entry['dose_ml'])} mL: {name}"
+                    f"{entry['topology']} vs {reference} at {dose_key(entry['dose_ml'])} mL: "
+                    f"{name} (SD ratio {entry['ratio']:.2f} > bound {entry['bound_factor']:.2f})"
                 )
     return {
         'rows': len(rows),
@@ -367,16 +453,18 @@ def compare(rows, *, reference, cv_max, min_n, policy=None, excluded=None) -> di
         'reference': reference,
         'reference_present': reference_present,
         'policy': policy,
+        'alpha': alpha,
         'cv_max_pct': cv_max,
         'min_n': min_n,
         'by_cage': detail,
         'pooled': summary,
-        'equivalence': equivalence,
+        'precision': precision,
         'graded': graded,
         'failed': failed,
         'incomplete': incomplete,
         # "Passed" needs something graded and nothing missing: a file of three
-        # readings, or a dose the reference never ran, is not a clean bill.
+        # readings, a dose one rig never ran, or a reference with no gradable
+        # rows is not a clean bill.
         'passed': graded > 0 and not failed and not incomplete,
     }
 
@@ -403,9 +491,16 @@ def _mark(group, name):
     return 'ok' if verdicts[name] else 'FAIL'
 
 
+def _planner_text(group) -> str:
+    verdicts = ' '.join(f"{k}={v}" for k, v in group['planner'].items())
+    policies = '/'.join(p for p in group['policies'] if p != 'not recorded')
+    return f"{verdicts} [{policies}]" if policies else verdicts
+
+
 def print_report(report) -> None:
+    reference = report['reference'] or 'none (one rig at a time)'
     say(
-        f"{report['rows']} weighed deliveries graded; reference topology {report['reference']}; "
+        f"{report['rows']} weighed deliveries graded; reference topology {reference}; "
         f"CV cap {report['cv_max_pct']:g} %; rounding policy required: "
         f"{report['policy'] or 'the one each row recorded'}; groups graded from n = {report['min_n']}"
     )
@@ -420,46 +515,47 @@ def print_report(report) -> None:
         say(title)
         say(
             f"{'topology':16} {'cage':>4} {'dose':>6} {'n':>3} {'mean':>7} {'sd':>7} {'cv%':>5} "
-            f"{'q':>8} {'plan':>7} {'short':>8} {'bias%':>6} {'planner':22} {'C2':4} {'C3':4} {'C4':4}"
+            f"{'q':>8} {'plan':>7} {'short':>8} {'bias%':>6} {'planner':26} {'C2':4} {'C3':4} {'C4':4}"
         )
         for g in groups:
-            planner = ' '.join(f"{k}={v}" for k, v in g['planner'].items())
             say(
                 f"{g['topology']:16} {str(g['cage_id']):>4} {dose_key(g['dose_ml']):>6} {g['n']:>3} "
                 f"{_fmt(g['mean_ml']):>7} {_fmt(g['sd_ml']):>7} {_fmt(g['cv_pct'], 1):>5} "
                 f"{_fmt(g['q_ml'], 6):>8} {_fmt(g['mean_expected_ml']):>7} "
                 f"{_fmt(g['shortfall_ml']):>8} {_fmt(g['bias_vs_dose_pct'], 1):>6} "
-                f"{planner:22} {_mark(g, 'C2_precision'):4} {_mark(g, 'C3_planner'):4} "
+                f"{_planner_text(g):26} {_mark(g, 'C2_precision'):4} {_mark(g, 'C3_planner'):4} "
                 f"{_mark(g, 'C4_trueness'):4}"
                 + ("" if g['graded'] else "  (not graded: n too small)")
             )
     say("")
-    say(f"Precision against the reference ({report['reference']}), per dose")
-    if not report['reference_present']:
+    if report['reference'] is None:
+        say("Precision between rigs: not graded (--reference none grades each rig on its own)")
+    else:
         say(
-            f"  not graded: no rows from the reference topology {report['reference']} in the input"
+            f"Precision against the reference ({report['reference']}), pooled within cages; "
+            f"one-sided F test, family-wise alpha {report['alpha']:g}"
         )
-    elif not report['equivalence']:
-        say("  no other topology with enough rows to compare")
-    for e in report['equivalence'] if report['reference_present'] else []:
+        if not report['precision'] and not report['incomplete']:
+            say("  no other topology in the input to compare")
+    for e in report['precision']:
         if not e['graded']:
             say(
-                f"  {e['topology']} at {dose_key(e['dose_ml'])} mL: INCOMPLETE "
-                f"(reference n = {e['n_reference']}, need {report['min_n']})"
+                f"  {e['topology']} at {dose_key(e['dose_ml'])} mL: INCOMPLETE ({e['incomplete']})"
             )
             continue
         ok = e['verdicts']['precision_vs_reference']
+        diff = "-" if e['shortfall_diff_ml'] is None else f"{e['shortfall_diff_ml']:+.4f} mL"
         say(
-            f"  {e['topology']} at {dose_key(e['dose_ml'])} mL: SD {_fmt(e['sd_ml'])} vs UVL "
-            f"{_fmt(e['uvl_ml'])} (= {_fmt(e['sd_reference_ml'])} x {e['uvl_factor']:.3f}) "
+            f"  {e['topology']} at {dose_key(e['dose_ml'])} mL: SD {_fmt(e['sd_ml'])} "
+            f"vs {_fmt(e['sd_reference_ml'])} (ratio {e['ratio']:.2f}, bound "
+            f"{e['bound_factor']:.2f} at df {e['df']}/{e['df_reference']}) "
             f"{'ok' if ok else 'FAIL'}; for information: mean diff {e['mean_diff_ml']:+.4f} mL, "
-            f"shortfall diff "
-            + ("-" if e['shortfall_diff_ml'] is None else f"{e['shortfall_diff_ml']:+.4f} mL")
+            f"shortfall diff {diff}"
         )
     say("")
     if report['passed']:
         say(f"RESULT: every graded criterion passed ({report['graded']} graded)")
-    elif not report['graded']:
+    elif not report['graded'] and not report['incomplete']:
         say(f"RESULT: nothing graded; every group needs at least {report['min_n']} readings")
     else:
         say("RESULT: FAILED" if report['failed'] else "RESULT: INCOMPLETE")
@@ -467,13 +563,19 @@ def print_report(report) -> None:
             say(f"  - {line}")
 
 
+def _reference_arg(text: str):
+    return None if text.strip().lower() == 'none' else text.strip()
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('csv', nargs='+', help="gravimetric_checks.csv file(s)")
     parser.add_argument(
         '--reference',
+        type=_reference_arg,
         default=DEFAULT_REFERENCE,
-        help=f"topology the others are compared to (default {DEFAULT_REFERENCE})",
+        help=f"topology the others are compared to (default {DEFAULT_REFERENCE}); "
+        "'none' grades each rig on its own (C7, C8)",
     )
     parser.add_argument(
         '--policy',
@@ -481,6 +583,12 @@ def main(argv=None) -> int:
         help="require every graded row to have been rounded with this policy (C3)",
     )
     parser.add_argument('--cv-max', type=float, default=5.0, help="C2 cap in %% (default 5)")
+    parser.add_argument(
+        '--alpha',
+        type=float,
+        default=DEFAULT_ALPHA,
+        help="family-wise alpha of the precision comparison (default 0.05)",
+    )
     parser.add_argument(
         '--min-n',
         type=int,
@@ -498,6 +606,9 @@ def main(argv=None) -> int:
     if args.min_n < 2:
         print("ERROR: --min-n must be at least 2 (an SD needs two rows)", file=sys.stderr)
         return 2
+    if not 0.0 < args.alpha < 1.0:
+        print("ERROR: --alpha must be between 0 and 1", file=sys.stderr)
+        return 2
     try:
         rows, excluded = load_rows(args.csv, since=args.since, until=args.until)
     except (OSError, InputError) as exc:
@@ -514,12 +625,13 @@ def main(argv=None) -> int:
         cv_max=args.cv_max,
         min_n=args.min_n,
         policy=args.policy,
+        alpha=args.alpha,
         excluded=excluded,
     )
     print_report(report)
     if args.json:
         with open(args.json, 'w', encoding='utf-8') as handle:
-            json.dump(report, handle, indent=2)
+            json.dump(report, handle, indent=2, default=str)
         print(f"report written to {args.json}", flush=True)
     return 0 if report['passed'] else 1
 

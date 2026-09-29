@@ -242,6 +242,16 @@ def test_list_flags_a_wrong_pulse_count_and_ignores_non_planner_rows(
     assert 'carry' in staggered
 
 
+def test_a_carried_chunk_stays_carry_after_its_schedule_is_deleted(
+    gravimetric, database_handler, capsys
+):
+    """The row keeps its own mode (v1.21.0); the schedule can be deleted."""
+    _log(database_handler, schedule_id=99, dose=0.2, pulses=6, delivery_mode='staggered')
+    assert gravimetric.main(['list']) == 0
+    (row,) = _rows_of(capsys.readouterr().out)
+    assert 'carry' in row and 'mismatch' not in row
+
+
 def test_list_filters(gravimetric, database_handler, capsys):
     _log(database_handler, status='failed', volume_delivered=0, pulses=0)
     _log(database_handler, relay_unit_id=5, timestamp='2026-09-29T08:00:00')
@@ -429,11 +439,18 @@ def test_readings_saved_back_from_a_spreadsheet(
 
 
 @pytest.mark.parametrize(
-    "n,factor",
-    [(2, 1.960), (10, 1.371), (31, 1.208), (41, 1.181)],  # 41: beyond the table, Wilson-Hilferty
+    "p,d1,d2,expected",
+    [
+        (0.95, 9, 9, 3.178893),
+        (0.95, 1, 1, 161.4476),
+        (0.95, 10, 20, 2.347878),
+        (0.99, 9, 9, 5.351129),
+        (0.975, 9, 9, 4.025994),
+        (0.95, 5, 10, 3.325835),
+    ],
 )
-def test_uvl_factor_matches_ep15(compare_tool, n, factor):
-    assert compare_tool.uvl_factor(n) == pytest.approx(factor, abs=0.002)
+def test_f_quantile_matches_the_tables(compare_tool, p, d1, d2, expected):
+    assert compare_tool.f_quantile(p, d1, d2) == pytest.approx(expected, rel=1e-5)
 
 
 def _write_checks(gravimetric, path, topology, cage, dose, q, shortfall, offsets, **kw):
@@ -445,7 +462,7 @@ def _write_checks(gravimetric, path, topology, cage, dose, q, shortfall, offsets
         plan = pulses * q
         rows.append(
             {
-                'history_id': f"{cage}{i:03d}",
+                'history_id': f"{topology[:3]}{cage}{i:03d}{dose}",
                 'weighed_at': '2026-10-01T10:00:00',
                 'net_g': (plan + shortfall + offset) * 0.99799,
                 'temp_c': 21.0,
@@ -471,6 +488,10 @@ def _write_checks(gravimetric, path, topology, cage, dose, q, shortfall, offsets
     gravimetric.write_checks(str(path), existing + rows)
 
 
+def _failures(out):
+    return [ln[4:] for ln in out.splitlines() if ln.startswith('  - ')]
+
+
 def test_two_rigs_with_different_pulse_sizes_are_compared_at_the_same_dose(
     gravimetric, compare_tool, tmp_path, capsys
 ):
@@ -481,22 +502,27 @@ def test_two_rigs_with_different_pulse_sizes_are_compared_at_the_same_dose(
     _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS)
 
     report_path = tmp_path / 'report.json'
-    assert compare_tool.main([str(manifold), str(independent), '--policy', 'nearest',
-                              '--json', str(report_path)]) == 0
+    argv = [str(manifold), str(independent), '--policy', 'nearest', '--json', str(report_path)]
+    assert compare_tool.main(argv) == 0
     out = capsys.readouterr().out
     assert 'every graded criterion passed' in out and 'INCOMPLETE' not in out
 
     report = json.loads(report_path.read_text())
-    (equivalence,) = report['equivalence']
-    assert equivalence['graded'] is True and equivalence['dose_ml'] == pytest.approx(0.6)
-    assert equivalence['uvl_factor'] == pytest.approx(1.371, abs=0.002)
-    assert equivalence['verdicts'] == {'precision_vs_reference': True}
+    (precision,) = report['precision']
+    assert precision['graded'] is True and precision['dose_ml'] == pytest.approx(0.6)
+    # One dose, ten rows a side: sqrt(F(0.95; 9, 9)).
+    assert precision['bound_factor'] == pytest.approx(1.783, abs=0.001)
+    assert precision['ratio'] == pytest.approx(1.0)
+    assert precision['verdicts'] == {'precision_vs_reference': True}
     # Reported, not graded: the pulse sizes alone put the plans 0.022 mL apart.
-    assert equivalence['mean_diff_ml'] == pytest.approx(18 * (FREE_Q - NEEDLE_Q) + 0.016)
-    assert equivalence['shortfall_diff_ml'] == pytest.approx(0.016)
+    assert precision['mean_diff_ml'] == pytest.approx(18 * (FREE_Q - NEEDLE_Q) + 0.016)
+    assert precision['shortfall_diff_ml'] == pytest.approx(0.016)
     pooled = {g['topology']: g for g in report['pooled']}
     assert pooled['independent']['verdicts'] == {
-        'C2_precision': True, 'C3_planner': True, 'C4_trueness': True}
+        'C2_precision': True,
+        'C3_planner': True,
+        'C4_trueness': True,
+    }
     assert pooled['shared_manifold']['verdicts'] == {'C3_planner': True}, "reference: baseline"
 
 
@@ -510,14 +536,16 @@ def test_the_reference_is_a_baseline_not_a_candidate(gravimetric, compare_tool, 
 
     assert compare_tool.main([str(manifold), str(independent)]) == 0
     out = capsys.readouterr().out
-    manifold_line = next(ln for ln in out.splitlines() if ln.startswith('shared_manifold') and ' all ' in ln)
+    manifold_line = next(
+        ln for ln in out.splitlines() if ln.startswith('shared_manifold') and ' all ' in ln
+    )
     assert manifold_line.split()[-3:] == ['ref', 'ok', 'ref']
 
 
-def test_failures_are_named(gravimetric, compare_tool, tmp_path, capsys):
+def test_failures_are_named_with_their_reason(gravimetric, compare_tool, tmp_path, capsys):
     manifold, independent = tmp_path / "manifold.csv", tmp_path / "independent.csv"
     _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, NEEDLE_Q, -0.016, OFFSETS)
-    wide = [o * 12 for o in OFFSETS]  # SD about 0.041 mL: CV about 7 %, over 1.371 x the manifold's
+    wide = [o * 12 for o in OFFSETS]  # SD 12 x the manifold's: CV about 7 %
     _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.030, wide)
     rows = _checks(independent)
     rows[4]['planner'] = 'mismatch'
@@ -525,27 +553,40 @@ def test_failures_are_named(gravimetric, compare_tool, tmp_path, capsys):
 
     assert compare_tool.main([str(manifold), str(independent)]) == 1
     out = capsys.readouterr().out
-    failures = [ln for ln in out.splitlines() if ln.startswith('  - ')]
+    failures = _failures(out)
     assert 'RESULT: FAILED' in out
-    for name in ('C2_precision', 'C3_planner', 'C4_trueness'):
-        assert f"  - independent cage 7 0.600 mL: {name}" in failures
-    assert "  - independent vs shared_manifold at 0.600 mL: precision_vs_reference" in failures
-    assert not any(ln.startswith('  - shared_manifold') for ln in failures)
+    for name in ('C2_precision', 'C4_trueness'):
+        assert f"independent cage 7 0.600 mL: {name}" in failures
+    assert (
+        "independent cage 7 0.600 mL: C3_planner "
+        "(1 row(s) fired the wrong pulse count for the dose)" in failures
+    )
+    assert any(
+        f.startswith("independent vs shared_manifold at 0.600 mL: precision_vs_reference "
+                     "(SD ratio 12.00 > bound 1.78)")
+        for f in failures
+    )
+    assert not any(f.startswith('shared_manifold') for f in failures)
 
 
-def test_a_required_policy_is_enforced(gravimetric, compare_tool, tmp_path, capsys):
+def test_a_required_policy_is_enforced_and_explained(gravimetric, compare_tool, tmp_path, capsys):
     # 0.6 mL at the needle q is 18.22 pulses: 18 at nearest, 19 rounded up.
     independent = tmp_path / "independent.csv"
     _write_checks(
         gravimetric, independent, 'independent', 7, 0.6, NEEDLE_Q, 0.0, OFFSETS, policy='up', pulses=19
     )
-    assert compare_tool.main([str(independent)]) == 0  # consistent with its own policy
-    capsys.readouterr()
-    assert compare_tool.main([str(independent), '--policy', 'nearest']) == 1
-    assert 'independent cage 7 0.600 mL: C3_planner' in capsys.readouterr().out
+    argv = [str(independent), '--reference', 'none']
+    assert compare_tool.main(argv) == 0  # consistent with its own policy
+    out = capsys.readouterr().out
+    assert 'ok=10 [up]' in out, "the planner column shows the policy the rows used"
+    assert compare_tool.main(argv + ['--policy', 'nearest']) == 1
+    assert (
+        "independent cage 7 0.600 mL: C3_planner (10 row(s) rounded 'up', 'nearest' required)"
+        in _failures(capsys.readouterr().out)
+    )
 
 
-def test_a_dose_the_reference_never_ran_is_incomplete(gravimetric, compare_tool, tmp_path, capsys):
+def test_a_dose_either_rig_did_not_run_is_incomplete(gravimetric, compare_tool, tmp_path, capsys):
     manifold, independent = tmp_path / "manifold.csv", tmp_path / "independent.csv"
     _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.3, NEEDLE_Q, -0.016, OFFSETS)
     _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS)
@@ -553,16 +594,102 @@ def test_a_dose_the_reference_never_ran_is_incomplete(gravimetric, compare_tool,
     assert compare_tool.main([str(manifold), str(independent)]) == 1
     out = capsys.readouterr().out
     assert 'RESULT: INCOMPLETE' in out
-    assert 'independent at 0.600 mL: no precision comparison (reference n = 0, need 10)' in out
+    failures = _failures(out)
+    assert (
+        "independent at 0.300 mL: no precision comparison (independent has no cage with 10 rows)"
+        in failures
+    )
+    assert (
+        "independent at 0.600 mL: no precision comparison (shared_manifold has no cage with 10 rows)"
+        in failures
+    )
 
 
-def test_one_rig_alone_is_graded_and_says_nothing_was_compared(
+def test_the_rig_under_validation_short_of_a_dose_is_incomplete(
     gravimetric, compare_tool, tmp_path, capsys
 ):
+    """The review's case A: nine good rows and one partial on the independent rig."""
+    manifold, independent = tmp_path / "manifold.csv", tmp_path / "independent.csv"
+    _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, NEEDLE_Q, -0.016, OFFSETS)
+    _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS[:9])
+    _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, -0.2, OFFSETS[9:],
+                  status='partial')
+
+    assert compare_tool.main([str(manifold), str(independent), '--policy', 'nearest']) == 1
+    out = capsys.readouterr().out
+    assert 'RESULT: INCOMPLETE' in out
+    assert "independent has no cage with 10 rows" in out
+
+
+def test_a_reference_with_no_gradable_rows_is_incomplete(gravimetric, compare_tool, tmp_path, capsys):
+    """The review's case C: a manifold file whose rows all lack a recorded dose."""
+    manifold, independent = tmp_path / "manifold.csv", tmp_path / "independent.csv"
+    _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, NEEDLE_Q, -0.016, OFFSETS)
+    rows = _checks(manifold)
+    for row in rows:
+        row['target_ml'] = ''
+    gravimetric.write_checks(str(manifold), rows)
+    _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS)
+
+    assert compare_tool.main([str(manifold), str(independent)]) == 1
+    out = capsys.readouterr().out
+    assert 'RESULT: INCOMPLETE' in out
+    assert "no gradable rows from the reference topology shared_manifold" in out
+
+
+def test_one_rig_alone_needs_to_say_so(gravimetric, compare_tool, tmp_path, capsys):
     independent = tmp_path / "independent.csv"
     _write_checks(gravimetric, independent, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS)
-    assert compare_tool.main([str(independent)]) == 0
-    assert 'not graded: no rows from the reference topology shared_manifold' in capsys.readouterr().out
+    assert compare_tool.main([str(independent)]) == 1
+    assert 'RESULT: INCOMPLETE' in capsys.readouterr().out
+    assert compare_tool.main([str(independent), '--reference', 'none']) == 0
+    out = capsys.readouterr().out
+    assert 'Precision between rigs: not graded' in out
+    assert 'every graded criterion passed' in out
+
+
+def test_precision_is_pooled_within_cages(gravimetric, compare_tool, tmp_path, capsys):
+    """Two cages whose mL/pulse differ plan different volumes for the same dose;
+    pooling their raw readings would add that spread to the rig's SD."""
+    manifold, independent = tmp_path / "manifold.csv", tmp_path / "independent.csv"
+    _write_checks(gravimetric, manifold, 'shared_manifold', 3, 0.6, NEEDLE_Q, 0.0, OFFSETS)
+    _write_checks(gravimetric, independent, 'independent', 7, 0.6, 0.0330, 0.0, OFFSETS)
+    _write_checks(gravimetric, independent, 'independent', 8, 0.6, 0.0355, 0.0, OFFSETS)
+
+    report_path = tmp_path / 'report.json'
+    assert compare_tool.main([str(manifold), str(independent), '--json', str(report_path)]) == 0
+    (precision,) = json.loads(report_path.read_text())['precision']
+    assert precision['df'] == 18 and precision['df_reference'] == 9
+    assert precision['ratio'] == pytest.approx(1.0), "the 0.045 mL between the cages' plans is not noise"
+
+
+def test_an_equally_precise_rig_passes_at_the_family_wise_rate(compare_tool):
+    """The first re-declared rule (EP15's 1.371 against the manifold's own ten-row
+    SD) failed an equally precise rig in about 55 % of four-dose runs."""
+    import random  # noqa: PLC0415
+
+    rng = random.Random(20260929)
+    doses = (0.3, 0.6, 0.7, 1.0)
+
+    def run(sd_ratio):
+        rows = []
+        for topology, q, scale in (('shared_manifold', NEEDLE_Q, 1.0), ('independent', FREE_Q, sd_ratio)):
+            for dose in doses:
+                pulses = int(dose / q + 0.5)
+                for i in range(10):
+                    measured = pulses * q + rng.gauss(0.0, 0.035 * dose * scale)
+                    rows.append({
+                        'history_id': f"{topology}{dose}{i}", 'topology': topology, 'cage_id': 1,
+                        'target_ml': dose, 'measured_ml': measured, 'expected_ml': pulses * q,
+                        'q': q, 'pulses': pulses, 'planner': 'ok', 'dose_rounding': 'nearest',
+                    })
+        report = compare_tool.compare(rows, reference='shared_manifold', cv_max=100.0, min_n=10)
+        return all(e['verdicts']['precision_vs_reference'] for e in report['precision'])
+
+    equal = sum(run(1.0) for _ in range(600)) / 600
+    worse = sum(run(3.0) for _ in range(200)) / 200
+    assert 0.92 <= equal <= 0.98, equal
+    assert worse < 0.05, worse
 
 
 def test_rows_that_are_not_single_shot_doses_are_left_out(
@@ -579,7 +706,7 @@ def test_rows_that_are_not_single_shot_doses_are_left_out(
     rows[-1]['target_ml'] = ''  # cage 6: a row with no recorded dose
     gravimetric.write_checks(str(path), rows)
 
-    assert compare_tool.main([str(path)]) == 0
+    assert compare_tool.main([str(path), '--reference', 'none']) == 0
     out = capsys.readouterr().out
     assert 'left out: 2 did not complete, 1 no recorded dose, 3 staggered chunk' in out
     assert ' 8 ' not in ' '.join(ln for ln in out.splitlines() if ln.startswith('independent'))
@@ -598,8 +725,8 @@ def test_one_day_can_be_graded_out_of_a_cumulative_file(gravimetric, compare_too
                   delivered_at='2026-10-03T09:00:00')
 
     report_path = tmp_path / 'day3.json'
-    compare_tool.main([str(path), '--since', '2026-10-03', '--until', '2026-10-03',
-                       '--json', str(report_path)])
+    compare_tool.main([str(path), '--reference', 'none', '--since', '2026-10-03',
+                       '--until', '2026-10-03', '--json', str(report_path)])
     (cell,) = [g for g in json.loads(report_path.read_text())['by_cage']]
     assert cell['n'] == 10
     assert cell['mean_ml'] == pytest.approx(18 * FREE_Q - 0.031)
@@ -608,10 +735,10 @@ def test_one_day_can_be_graded_out_of_a_cumulative_file(gravimetric, compare_too
 def test_nothing_graded_is_not_a_pass(gravimetric, compare_tool, tmp_path, capsys):
     few = tmp_path / "few.csv"
     _write_checks(gravimetric, few, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS[:3])
-    assert compare_tool.main([str(few)]) == 1
+    assert compare_tool.main([str(few), '--reference', 'none']) == 1
     out = capsys.readouterr().out
     assert 'not graded: n too small' in out and 'nothing graded' in out
-    assert compare_tool.main([str(few), '--min-n', '3']) == 0
+    assert compare_tool.main([str(few), '--reference', 'none', '--min-n', '3']) == 0
 
 
 def test_compare_rejects_unusable_input(gravimetric, compare_tool, tmp_path, capsys):
@@ -620,11 +747,12 @@ def test_compare_rejects_unusable_input(gravimetric, compare_tool, tmp_path, cap
     assert compare_tool.main([str(empty)]) == 2
     assert 'no gradable weighed deliveries' in capsys.readouterr().err
     assert compare_tool.main([str(empty), '--min-n', '1']) == 2
+    assert compare_tool.main([str(empty), '--alpha', '1.5']) == 2
 
     bom = tmp_path / "bom.csv"
     _write_checks(gravimetric, bom, 'independent', 7, 0.6, FREE_Q, 0.0, OFFSETS)
     bom.write_bytes(b'\xef\xbb\xbf' + bom.read_bytes())
-    assert compare_tool.main([str(bom)]) == 0
+    assert compare_tool.main([str(bom), '--reference', 'none']) == 0
     capsys.readouterr()
 
     cp1252 = tmp_path / "cp1252.csv"
