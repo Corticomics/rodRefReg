@@ -1,7 +1,7 @@
 # Valve Calibration Guide - RRR System
 ## Per-Valve Empirical Calibration for Precision Water Delivery
 
-> **User-facing entry point:** `Settings → Calibration → Run Calibration Wizard` (`ui/CalibrationWizard.py`). For a step-by-step walkthrough use [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). This document is the technical reference behind the wizard.
+> **User-facing entry point:** `Settings → Calibration`, then **Calibrate** on a cage's row or **Calibrate All Uncalibrated** (`ui/CalibrationWizard.py`). For a step-by-step walkthrough use [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). This document is the technical reference behind the wizard.
 
 ---
 
@@ -124,66 +124,31 @@ Now captures:
 # 4. Tare scale with empty beaker
 ```
 
-#### 2. Run Calibration Tool
-```bash
-cd ~/rodRefReg/Project
-python tools/valve_calibration_tool.py --cage 15 --interactive
+#### 2. Run the Calibration Wizard
+Open **Settings → Calibration** and click **Calibrate** on the cage's row. The
+wizard (`ui/CalibrationWizard.py`) walks through a pre-flight checklist, takes
+the number of pulses, the pulse width and the inter-pulse interval, fires the
+pulse train into the beaker, asks for the weighed volume, and shows the
+result:
+
 ```
-
-**Interactive Mode Prompts:**
-```
-VALVE CALIBRATION - Cage 15 (Relay 15)
-======================================
-Pulse width: 20ms
-Number of pulses: 250
-
-PRE-FLIGHT CHECKLIST:
-  1. Verify fluid reservoir is FULL
-  2. Place empty beaker under cage 15 output
-  3. Tare your lab scale with empty beaker
-  4. Ensure system has been running >30min (stable temp)
-
-Press ENTER when ready to begin calibration...
-
-Executing 250 pulses...
-(This will take ~8.3 minutes)
-  Progress: 50/250 (20.0%) - Elapsed: 95.3s
-  Progress: 100/250 (40.0%) - Elapsed: 190.1s
-  Progress: 150/250 (60.0%) - Elapsed: 285.8s
-  Progress: 200/250 (80.0%) - Elapsed: 380.2s
-  Progress: 250/250 (100.0%) - Elapsed: 475.6s
-Completed 250 pulses in 476.2s
-
-MEASUREMENT:
-  1. Remove beaker from under cage output
-  2. Weigh beaker on lab scale
-  3. For water: weight in grams ≈ volume in mL
-
-Enter measured volume (mL): 18.750
-
-======================================================================
-CALIBRATION RESULTS
-======================================================================
-Total volume measured:  18.7500 mL
-Number of pulses:       250
-Volume per pulse:       0.075000 mL/pulse
-Estimated CV:           0.27%
-
+Total Volume:       18.7500 mL
+Number of Pulses:   250
+Volume per pulse:   0.075000 mL/pulse
+Estimated CV:       0.27%
 Quality: EXCELLENT
-
-Save this calibration to database? (yes/no): yes
-Calibration saved to database (ID: 1)
-Calibration complete and saved.
-  Cage 15: 0.075000 mL/pulse
 ```
+
+**Save & Finish** writes the row through
+`DatabaseHandler.save_valve_calibration`. Step-by-step:
+[CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). (A standalone
+command-line calibration tool used to be documented here; it was removed in
+v1.21.0 because it could not start.)
 
 #### 3. Verify Calibration
-```bash
-# Check database
-sqlite3 rrr_database.db "SELECT * FROM valve_calibration WHERE cage_id=15;"
-```
-
-**Expected Output:**
+In **Settings → Calibration** the cage's row shows **[OK]**, the mL/pulse, the
+CV and the date. The stored `valve_calibration` row (schema in
+[DATABASE.md](DATABASE.md)) looks like:
 ```
 calibration_id|cage_id|relay_id|pulse_width_ms|volume_per_pulse_ml|stddev_ml|coefficient_of_variation_pct|num_samples|calibration_date|calibrated_by|notes|inter_pulse_interval_ms
 1|15|15|20|0.075|0.000212|0.27|250|2025-11-04T14:30:15.123456|1|Wizard calibration: 250 pulses @ 20ms + 500ms rest|500
@@ -383,12 +348,9 @@ else:
 4. **Temperature drift** → Allow 30min warm-up
 5. **Scale precision** → Use lab-grade scale (±0.001g minimum)
 
-**Diagnostic Test:**
-```bash
-# Run calibration 3 times consecutively
-python tools/valve_calibration_tool.py --cage 15 --num-pulses 100 --interactive
-# Compare results - should be within 5%
-```
+**Diagnostic Test:** calibrate the cage three times in a row with **Number of
+Pulses** at 100 and compare the three mL/pulse figures; they should agree
+within 5 %.
 
 ### Issue: Sensor Measurement ≠ Calibration
 
@@ -412,34 +374,32 @@ Adaptive correction: sensor=0.045mL, cal=0.075mL, using=0.060mL (dev=40%)
 ### Issue: System Still Using Old Global Calibration
 
 **Check:**
+1. In **Settings → Calibration** the cage's row shows **[OK]** with the new
+   mL/pulse and date.
+2. Calibrations are loaded when a schedule starts; a running schedule keeps
+   the calibration it started with. Stop it and start it again.
+3. At schedule start the app's **Terminal** tab lists the calibration each
+   cage will use:
+   ```
+   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+   ```
+   A cage with no line has no calibration and runs on the default. (Once the
+   window is up the app sends its output to the Terminal tab, not to the
+   system journal, so `journalctl` does not show these lines.)
+
+### Issue: The Wizard Cannot Drive the Valve
+
+**Symptom:** the pulse run starts but the valve does not click.
 ```bash
-# 1. Verify database entry exists
-sqlite3 rrr_database.db "SELECT * FROM valve_calibration WHERE cage_id=15;"
-
-# 2. Check logs for calibration lookup
-grep "Using per-valve calibration" /path/to/logs/system.log
-
-# 3. Restart application to reload database
+# The relay HAT must be on the I²C bus
+ls /dev/i2c-*          # should show /dev/i2c-1
+sudo i2cdetect -y 1    # the HAT should appear at its address
 ```
-
-### Issue: Calibration Tool Fails
-
-**Error: "Solenoid controller not found"**
-```bash
-# Ensure relay hat is connected
-ls /dev/i2c-*
-# Should show /dev/i2c-1
-
-# Test relay manually
-python -c "import SM16relind; SM16relind.set(0, 1, 1)"
-```
-
-**Error: "Database locked"**
-```bash
-# Close any open connections
-killall python3
-# Retry calibration
-```
+Then run the relay bring-up test in
+[HARDWARE_SETUP.md §9](HARDWARE_SETUP.md#9-first-power-on-and-bring-up-test).
+While a schedule runs or the priming tab has valves open, the calibration
+buttons are greyed out and the wizard refuses to start ("Hardware busy"); stop
+the other operation first.
 
 ---
 
@@ -450,7 +410,7 @@ killall python3
 **Status:** Currently using hardcoded defaults (0.026 mL/pulse)
 
 **Action:**
-1. Calibrate all valves using tool
+1. Calibrate every valve (**Settings → Calibration → Calibrate All Uncalibrated**)
 2. System automatically switches to per-valve calibration
 
 ### Scenario 2: Existing System with Global Calibration
@@ -467,10 +427,7 @@ killall python3
 **Status:** Your situation - 0.026 mL hardcoded, actual ~0.075 mL
 
 **Action:**
-1. **IMMEDIATE:** Calibrate cage 15 (your test cage)
-```bash
-python tools/valve_calibration_tool.py --cage 15 --num-pulses 250 --interactive
-```
+1. **IMMEDIATE:** Calibrate cage 15 (your test cage) in the wizard at 250 pulses.
 
 2. **SHORT-TERM (this week):** Calibrate all active cages
 
@@ -483,21 +440,29 @@ python tools/valve_calibration_tool.py --cage 15 --num-pulses 250 --interactive
 ### Database Methods
 
 ```python
+import os
+
 from models.database_handler import DatabaseHandler
 
-db = DatabaseHandler('rrr_database.db')
+# Name the device database explicitly. It lives in ~/rrr/shared/data (the
+# launcher's RRR_DATA); DatabaseHandler() in a shell without RRR_DATA
+# resolves to a path next to the code and creates an EMPTY database there.
+db = DatabaseHandler(db_path=os.path.expanduser('~/rrr/shared/data/rrr_database.db'))
 
-# Save calibration
+# Save calibration. The cage's row is replaced, so always pass the
+# inter-pulse interval: leaving it out stores NULL, which resets that
+# cage's timing profile to the legacy 100 ms cadence.
 cal_id = db.save_valve_calibration(
     cage_id=15,
     relay_id=15,
-    pulse_width_ms=20,
-    volume_per_pulse_ml=0.075,
-    stddev_ml=0.000212,
-    cv_pct=0.27,
+    pulse_width_ms=30,
+    volume_per_pulse_ml=0.032936,
+    stddev_ml=0.000330,
+    cv_pct=1.0,
     num_samples=250,
     calibrated_by=1,  # trainer ID
-    notes="Initial calibration"
+    notes="Initial calibration",
+    inter_pulse_interval_ms=1000,
 )
 
 # Load calibration
@@ -515,26 +480,12 @@ for entry in history:
     print(f"{entry['calibration_date']}: {entry['volume_per_pulse_ml']:.6f} mL/pulse")
 ```
 
-### Command-Line Tool
+### Command-line calibration
 
-```bash
-# Interactive mode (recommended)
-python tools/valve_calibration_tool.py --cage 15 --interactive
-
-# Automated mode (for scripting)
-python tools/valve_calibration_tool.py \\
-    --cage 15 \\
-    --num-pulses 250 \\
-    --pulse-width-ms 20 \\
-    --measured-ml 18.750 \\
-    --trainer-id 1
-
-# Custom pulse count
-python tools/valve_calibration_tool.py --cage 15 --num-pulses 300 --interactive
-
-# Quick test (100 pulses)
-python tools/valve_calibration_tool.py --cage 15 --num-pulses 100 --interactive
-```
+There is none. `tools/valve_calibration_tool.py` was removed in v1.21.0: it
+imported a module that no longer existed and could not start. Calibrate from
+the app; for scripted access to stored calibrations use the database methods
+above.
 
 ---
 
@@ -542,18 +493,15 @@ python tools/valve_calibration_tool.py --cage 15 --num-pulses 100 --interactive
 
 **What Changed:**
 1. Database schema for per-valve calibration storage
-2. Calibration tool using a 200–300 pulse gravimetric method
+2. A calibration wizard using a 200–300 pulse gravimetric method
 3. Sensor integration fixed to capture the full flow curve (not just the tail)
 4. Adaptive correction that blends sensor and calibration values
 5. Per-valve lookup in the delivery strategy
 6. Drift detection via calibration history
 
 **What to Do Next:**
-1. **Calibrate your valve (cage 15):**
-   ```bash
-   python tools/valve_calibration_tool.py --cage 15 --interactive
-   ```
-   
+1. **Calibrate your valve (cage 15)** in Settings → Calibration.
+
 2. **Run test schedule** to verify accuracy
 
 3. **Calibrate remaining valves** in active use

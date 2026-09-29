@@ -4,11 +4,11 @@ Per-valve calibration corrects for manufacturing variance between solenoid valve
 
 Since v1.16.0 a calibration also stores the **pulse timing profile** it was measured at — the pulse width and the valve-closed rest between pulses — and deliveries replay that same profile. Calibrate at the timing you intend to run; see [Pulse timing profile](#pulse-timing-profile) below.
 
-The **recommended path is the in-app Calibration Wizard**. A CLI tool is available for headless use.
+Calibration runs in the in-app **Calibration Wizard**, one cage at a time. The standalone command-line tool that earlier versions of this guide described was removed in v1.21.0: it could not start.
 
 ---
 
-## Option A — In-App Wizard (recommended, ~10 min per valve)
+## Calibrate a valve (~10 min per valve)
 
 ### Step 1: Prepare (2 min)
 1. Place an empty pre-tared beaker under the target cage outlet.
@@ -17,14 +17,13 @@ The **recommended path is the in-app Calibration Wizard**. A CLI tool is availab
 4. Open **Settings → Priming** and prime the lines if they contain air.
 
 ### Step 2: Run the Wizard
-1. Open **Settings → Calibration** and click **Run Calibration Wizard**.
-2. Select the cage(s) to calibrate (cage names from the Cages tab are shown).
-3. On the configuration page, set the number of pulses, the **pulse width**, and the **inter-pulse interval**. The page shows the estimated run time and flags a hot duty cycle.
-4. Follow the on-screen prompts — the wizard executes the pulse train automatically. Progress updates live, and the run can be stopped by closing the wizard.
+1. Open **Settings → Calibration**. The table has one row per cage in the device's cage map, with the names set in the Cages tab. Click **Calibrate** on the cage's row (**Recalibrate** if it already has one); the wizard opens for that cage.
+2. Work through the **Pre-Flight Checklist**, then set the **Calibration Parameters**: the number of pulses, the **pulse width**, and the **inter-pulse interval**. The page shows the estimated run time and flags a hot duty cycle.
+3. Click **Next**: the wizard fires the pulse train automatically. Progress updates live, and closing the wizard stops the run.
 
 ### Step 3: Measure & Save
-1. When prompted, enter the measured volume (in mL) from your lab scale.
-2. The wizard computes the new `mL/pulse` factor and saves it to the DB.
+1. Weigh the beaker and enter the **Measured Volume** in mL (1 g of water ≈ 1 mL).
+2. The wizard shows the volume per pulse, the estimated CV and a quality rating. **Save & Finish** stores it; the cage's row in the table then shows **[OK]**, the mL/pulse and the date.
 
 ### Step 4: Verify
 Run a small test schedule (e.g. 0.5 mL) and confirm the delivered volume is within ±5 %.
@@ -68,29 +67,6 @@ Water leaves the valve in whole pulses, so a dose can only ever land within one 
 
 ---
 
-## Option B — CLI Tool (headless or advanced)
-
-### Step 1: Prepare (same as Option A)
-
-### Step 2: Run Calibration
-```bash
-cd ~/rodent-refreshment-regulator/Project
-python tools/valve_calibration_tool.py --cage 15 --interactive
-```
-
-### Step 3: Measure & Save
-```
-# Tool executes 250 pulses (~8 min) then prompts:
-Enter measured volume (mL): 18.750
-# Tool calculates: 18.750 / 250 = 0.075 mL/pulse
-Save this calibration to database? yes
-```
-
-### Step 4: Verify
-Run a small test schedule (0.5 mL) and confirm output is within ±5 %.
-
----
-
 ## Expected Results
 
 | Stage | Target (mL) | Actual Before (mL) | Actual After (mL) | Error |
@@ -102,14 +78,7 @@ Run a small test schedule (0.5 mL) and confirm output is within ±5 %.
 
 ## Calibrate All Valves
 
-**In-app**: The Calibration Wizard supports multi-cage selection — pick all cages at once and the wizard sequences them with confirmation prompts.
-
-**CLI**:
-```bash
-for cage in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-  python tools/valve_calibration_tool.py --cage "$cage" --interactive
-done
-```
+**Settings → Calibration → Calibrate All Uncalibrated** lists every cage in the device's cage map that has no calibration yet (15 cages on one HAT, 31 on two) and opens the wizard for each in turn.
 
 ---
 
@@ -129,10 +98,7 @@ Estimated CV:           8.5%
 Quality: POOR
 ```
 
-**Fix:** Increase pulses to 300:
-```bash
-python tools/valve_calibration_tool.py --cage 15 --num-pulses 300 --interactive
-```
+**Fix:** recalibrate the cage with **Number of Pulses** set to 300.
 
 ---
 
@@ -148,11 +114,13 @@ python tools/valve_calibration_tool.py --cage 15 --num-pulses 300 --interactive
 
 ## Troubleshooting
 
-### "Tool says cage not found"
+### "The valve does not click during calibration"
 ```bash
-# Check relay connections
-ls /dev/i2c-*  # Should show /dev/i2c-1
+# Check the relay HAT is on the I²C bus
+ls /dev/i2c-*          # should show /dev/i2c-1
+sudo i2cdetect -y 1    # the HAT should appear at its address
 ```
+Then run the relay bring-up test in [HARDWARE_SETUP.md §9](HARDWARE_SETUP.md#9-first-power-on-and-bring-up-test).
 
 ### "Volume seems wrong"
 ```bash
@@ -162,13 +130,13 @@ ls /dev/i2c-*  # Should show /dev/i2c-1
 ```
 
 ### "Still over-delivering after calibration"
-```bash
-# 1. Verify database has entry
-sqlite3 rrr_database.db "SELECT * FROM valve_calibration WHERE cage_id=15;"
-
-# 2. Restart application
-# 3. Check logs for "Using per-valve calibration"
-```
+1. In **Settings → Calibration**, the cage's row should show **[OK]** with the new mL/pulse and today's date.
+2. Calibrations are read when a schedule starts. A schedule that was already running keeps the calibration it started with: stop it and start it again.
+3. At schedule start the app prints the calibration every cage will use in its **Terminal** tab, one line per calibrated cage:
+   ```
+   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+   ```
+   A cage missing from those lines has no calibration and runs on the default. These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
 
 ---
 

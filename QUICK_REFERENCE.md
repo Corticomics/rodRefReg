@@ -38,7 +38,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Stop water delivery | Stop Program |
 | Monitor a live run | Execution Monitor tab appears next to Terminal during a run |
 | Test relays | Settings → Delivery → Test Relay → select relay → Run Test |
-| Calibrate pumps/valves | Settings → Calibration → Run Calibration Wizard |
+| Calibrate valves | Settings → Calibration → **Calibrate** on the cage's row (or **Calibrate All Uncalibrated**) |
 | Prime tubing | Settings → Priming → Run priming sequence |
 | Set up notifications | Settings → General → Slack credentials → Save |
 

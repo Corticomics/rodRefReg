@@ -26,18 +26,22 @@ under "valve_calibration".
 
 ## The flow (UI side)
 
-1. Operator opens the calibration wizard from the Settings tab or from
-   the Cages visualization.
+1. Operator opens the calibration wizard from **Settings → Calibration**
+   (the Cages tab has no calibration entry point).
    Entry point: [`Project/ui/CalibrationWizard.py`](Project/ui/CalibrationWizard.py).
-2. Selects a cage, sets `pulse_width_ms` and `num_samples`.
-3. Wizard primes the line (see priming below).
-4. Wizard fires N pulses, integrating volume per pulse from the flow
-   sensor between pulses.
-5. Wizard computes mean / stddev / CV, shows the operator a preview.
-6. On accept, writes via
+2. The operator opens it per cage (the row's **Calibrate** button, or
+   **Calibrate All Uncalibrated**), works through the pre-flight checklist
+   and sets the number of pulses, `pulse_width_ms` and the inter-pulse
+   interval. Prime the line first in the priming tab (see below).
+3. Wizard fires N pulses into a beaker.
+4. The operator weighs the output and enters the measured volume
+   (gravimetric; the production rig runs without a flow sensor).
+5. Wizard computes mL/pulse and an estimated CV, shows a quality rating.
+6. **Save & Finish** calls `DatabaseHandler.save_valve_calibration(...)`
+   directly ([`Project/models/database_handler.py`](Project/models/database_handler.py)).
    [`Project/utils/pulse_calibration.py`](Project/utils/pulse_calibration.py)
-   → `DatabaseHandler.save_valve_calibration(...)`
-   ([`database_handler.py:1558`](Project/models/database_handler.py#L1558)).
+   is not involved: it only holds the global default profile used for a
+   cage with no row.
 
 The write is atomic — both `valve_calibration` (upsert by `cage_id`) and
 `valve_calibration_history` (insert) happen in one transaction.
@@ -104,6 +108,7 @@ audit, so re-calibrating doesn't lose history.
   must match the recorded calibration. If you need a different width,
   start a new calibration session for that cage and accept a new
   history row.
-- Don't bypass `pulse_calibration.py` and write directly to the table.
-  The util enforces a basic sanity check (CV < threshold, num_samples
-  > 0) before committing.
+- Don't write `valve_calibration` rows by hand. Go through
+  `DatabaseHandler.save_valve_calibration`, which also appends the history
+  row in the same transaction. The standalone CLI that used to do this was
+  removed in v1.21.0 (it could not start); the wizard is the only writer.

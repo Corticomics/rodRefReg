@@ -93,7 +93,7 @@ table of contents you need to bookmark.
 | [HARDWARE_SETUP.md](Project/docs/HARDWARE_SETUP.md) | Building a device from parts: Pi, relay HAT, valves, power, common ground, tubing, wall mount. Read this first for any new install. |
 | [16-RELAYS Vendor Manual (PDF)](Project/docs/16-RELAYS-UsersGuide_d5e24457-bdd9-4e16-a307-7f90bbd668bb.pdf) | Authoritative reference for the Sequent Microsystems relay HAT (jumpers, stack levels, I²C addresses). |
 | [QUICK_REFERENCE.md](QUICK_REFERENCE.md) | Day-to-day operator cheatsheet (animals, schedules, cages, shortcuts). |
-| [CALIBRATION_QUICK_START.md](Project/docs/CALIBRATION_QUICK_START.md) | Calibrating a valve in 10 minutes via the in-app wizard or the CLI tool. |
+| [CALIBRATION_QUICK_START.md](Project/docs/CALIBRATION_QUICK_START.md) | Calibrating a valve in about 10 minutes with the in-app wizard. |
 | [VALVE_CALIBRATION_GUIDE.md](Project/docs/VALVE_CALIBRATION_GUIDE.md) | Technical reference behind the calibration wizard (algorithm, schema, API). |
 | [PRIMING_FEATURE_DOCUMENTATION.md](Project/docs/PRIMING_FEATURE_DOCUMENTATION.md) | Priming control architecture and safety interlocks. |
 | [TOPOLOGY_VALIDATION.md](Project/docs/TOPOLOGY_VALIDATION.md) | Proving an independent (one syringe per animal) rig against the manifold rig: pre-declared criteria C1–C9, bench recipe, and the tools that grade the weighings. |
@@ -221,12 +221,12 @@ You can create a new schedule at any time. Stop the current program, create your
 
 ### How do I calibrate the system for accurate water delivery?
 
-Go to **Settings → Calibration** and click **Run Calibration Wizard**. The wizard guides you through:
+Go to **Settings → Calibration**. The table lists every cage, with the custom names you set in the Cages tab. Click **Calibrate** on a cage's row, or **Calibrate All Uncalibrated** to go through every cage that has no calibration yet. For each cage the wizard:
 
-1. Selecting which cages to calibrate (uses the same custom names you set in the Cages tab)
-2. Priming the tubing via the **Priming** sub-tab if you haven't already
-3. Dispensing a measured pulse per cage and recording the actual volume
-4. Saving per-cage calibration factors automatically
+1. Walks you through a pre-flight checklist (prime the tubing in the **Priming** sub-tab first if it holds air)
+2. Fires a fixed number of pulses into a beaker at the pulse width and interval you set
+3. Asks for the volume you weighed
+4. Saves that cage's mL per pulse, which every later delivery to the cage uses
 
 Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used independently any time you swap tubing or refill the reservoir.
 
