@@ -378,12 +378,14 @@ Adaptive correction: sensor=0.045mL, cal=0.075mL, using=0.060mL (dev=40%)
    mL/pulse and date.
 2. Calibrations are loaded when a schedule starts; a running schedule keeps
    the calibration it started with. Stop it and start it again.
-3. The log lists the calibration each cage uses at schedule start:
-   ```bash
-   journalctl --user -u rrr.service | grep "CAL SNAPSHOT"
-   # [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+3. At schedule start the app's **Terminal** tab lists the calibration each
+   cage will use:
    ```
-   A cage with no line has no calibration and runs on the default.
+   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+   ```
+   A cage with no line has no calibration and runs on the default. (Once the
+   window is up the app sends its output to the Terminal tab, not to the
+   system journal, so `journalctl` does not show these lines.)
 
 ### Issue: The Wizard Cannot Drive the Valve
 

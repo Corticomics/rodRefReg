@@ -132,12 +132,11 @@ Then run the relay bring-up test in [HARDWARE_SETUP.md §9](HARDWARE_SETUP.md#9-
 ### "Still over-delivering after calibration"
 1. In **Settings → Calibration**, the cage's row should show **[OK]** with the new mL/pulse and today's date.
 2. Calibrations are read when a schedule starts. A schedule that was already running keeps the calibration it started with: stop it and start it again.
-3. At schedule start the app logs the calibration every cage will use. On the device:
-   ```bash
-   journalctl --user -u rrr.service | grep "CAL SNAPSHOT"
-   # [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+3. At schedule start the app prints the calibration every cage will use in its **Terminal** tab, one line per calibrated cage:
    ```
-   A cage missing from those lines has no calibration and runs on the default.
+   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+   ```
+   A cage missing from those lines has no calibration and runs on the default. These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
 
 ---
 
