@@ -428,7 +428,9 @@ def _fake_proc(tmp_path, entries):
         if argv is not None:
             (entry / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
         if cwd is not None:
-            (entry / "cwd").symlink_to(cwd)
+            # os.readlink returns the target text verbatim, which is how the
+            # kernel's ' (deleted)' suffix reaches the scan.
+            (entry / "cwd").symlink_to(str(cwd))
     return proc
 
 
@@ -438,6 +440,7 @@ def test_the_process_scan_finds_the_app_and_nothing_else(tmp_path):
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     venv_python = "/home/pi/rrr/shared/venv/bin/python3"
+    removed = tmp_path / "releases" / "1.20.0" / "Project"  # pruned, never re-created
     proc = _fake_proc(
         tmp_path,
         {
@@ -446,10 +449,16 @@ def test_the_process_scan_finds_the_app_and_nothing_else(tmp_path):
             103: (["python3", str(project / "main.py")], elsewhere),  # absolute path
             104: (None, project),  # gone mid-scan / unreadable
             105: (["python3", "-m", "pytest"], project),  # not the app
+            106: (["nano", "main.py"], project),  # an editor open on main.py
+            107: (["less", str(project / "main.py")], elsewhere),  # a pager
+            # The release was replaced under the running app (installer re-run):
+            108: ([venv_python, "main.py"], f"{project} (deleted)"),
+            # ...or pruned: the path is gone, but it still names a Project tree.
+            109: ([venv_python, "main.py"], f"{removed} (deleted)"),
             os.getpid(): ([venv_python, "main.py"], project),  # never ourselves
         },
     )
-    assert module._app_processes(str(proc)) == [101, 103]
+    assert module._app_processes(str(proc)) == [101, 103, 108, 109]
     assert module._app_processes(str(tmp_path / "no-proc")) is None
 
 

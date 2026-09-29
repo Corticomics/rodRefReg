@@ -92,15 +92,27 @@ def _is_rrr_project(directory: str) -> bool:
     )
 
 
+# How /proc/<pid>/cwd reads when the directory was removed under the process.
+_DELETED_SUFFIX = ' (deleted)'
+
+
 def _app_processes(proc_root: str = '/proc') -> list[int] | None:
     """
     PIDs of running RRR app processes, or None when there is no /proc.
 
     The launcher (scripts/runtime/launch.sh) changes into the release's
     Project directory and runs ``python3 main.py``, whether the desktop
-    icon or the systemd unit started it, so the app is a process with a
-    ``main.py`` argument that resolves into an RRR Project tree. Processes
-    that cannot be read (another user's, or gone mid-scan) are skipped.
+    icon or the systemd unit started it, so the app is a Python process with
+    a ``main.py`` argument that resolves into an RRR Project tree (an editor
+    or pager open on main.py is not). Processes that cannot be read
+    (another user's, or gone mid-scan) are skipped.
+
+    When the release directory was replaced under a running app (an
+    installer re-run at the same version), the kernel shows its working
+    directory as '<path> (deleted)'. The original path is checked instead,
+    and if it no longer holds a Project tree but still names one, the
+    process is counted anyway: reading a running app as stopped is the
+    dangerous mistake.
     """
     if not os.path.isdir(proc_root):
         return None
@@ -116,10 +128,16 @@ def _app_processes(proc_root: str = '/proc') -> list[int] | None:
             cwd = os.readlink(os.path.join(base, 'cwd'))
         except OSError:
             continue
+        if not argv or not os.path.basename(argv[0]).lower().startswith('python'):
+            continue
+        deleted = cwd.endswith(_DELETED_SUFFIX)
+        if deleted:
+            cwd = cwd[: -len(_DELETED_SUFFIX)]
         for arg in argv[1:]:
-            if os.path.basename(arg) == 'main.py' and _is_rrr_project(
-                os.path.dirname(os.path.join(cwd, arg))
-            ):
+            if os.path.basename(arg) != 'main.py':
+                continue
+            project = os.path.dirname(os.path.join(cwd, arg))
+            if _is_rrr_project(project) or (deleted and os.path.basename(project) == 'Project'):
                 found.append(int(entry))
                 break
     return sorted(found)
