@@ -422,19 +422,20 @@ no default of its own.
 
 > **Independent setup (one syringe and one valve per animal, no manifold, no
 > master).** From v1.20.0 the device's valve topology can be set to
-> `independent`; a Settings control follows in a later release. On the
-> device, with the app stopped:
+> `independent`; a Settings control follows in a later release. Close the
+> app (its window, or `systemctl --user stop rrr.service` where it runs as
+> the user service), then on the device:
 >
 > ```bash
-> systemctl --user stop rrr.service
 > cd ~/rrr/current/Project
 > ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py independent --yes
 > ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py   # prints: current valve_topology: independent
-> systemctl --user start rrr.service
 > ```
 >
-> The tool prints the database it is acting on and refuses to create one;
-> the app's log then says `Valve topology: independent` on every start.
+> and start the app again. The tool prints the database it is acting on,
+> never creates one, and refuses to write while it can see the app running
+> (a running app would save its old value back over the new one). On the
+> independent topology the Priming tab shows no master-valve controls.
 > Deliveries pulse the cage valve only, with no manifold prime, and relay
 > 16 is never driven. It is, however, still **reserved** in this release —
 > an independent rig gets 15 animal channels on the first HAT (and 16 on

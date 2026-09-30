@@ -1,13 +1,15 @@
 """Show or set a device's valve topology.
 
-On an installed device (the app runs as the user unit ``rrr.service``):
+On an installed device, with the app closed (its window, or
+``systemctl --user stop rrr.service`` where it runs as the user service):
 
-    systemctl --user stop rrr.service
     cd ~/rrr/current/Project
     ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py                    # show
     ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py independent --yes  # set
     ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py shared_manifold
-    systemctl --user start rrr.service
+
+then start the app again (its desktop icon, or ``systemctl --user start
+rrr.service``).
 
 The device database lives under ``RRR_DATA`` (the launcher exports
 ``~/rrr/shared/data``). This tool uses that directory when the variable is
@@ -16,10 +18,14 @@ refuses to run — pass ``--data-dir`` to point it elsewhere. It never creates
 a database: if there is none at the resolved path it stops and says so.
 
 Writes go through SystemController.save_settings, so the value is stored
-with the same typing and in the same table the app reads at start-up. Stop
+with the same typing and in the same table the app reads at start-up. Close
 the app first: a running app writes its whole in-memory settings back on
-every auto-save and would overwrite the value. The topology is read when
-the hardware is set up, so the app must be restarted afterwards.
+every auto-save and would overwrite the value. The tool refuses to write
+while it can see the app: the rrr.service user unit active, or an RRR
+``main.py`` process found through /proc (the desktop icon starts the app
+outside the service, so asking systemd alone is not enough). The topology
+is read when the hardware is set up, so the app must be restarted
+afterwards.
 
 ``independent`` means one syringe and one solenoid per animal and no master
 valve: the app will never drive the master relay. On a rig that still has a
@@ -79,15 +85,71 @@ def _resolve_data_dir(explicit: str | None) -> str | None:
     return root
 
 
-def _app_running() -> tuple[bool | None, str]:
+def _is_rrr_project(directory: str) -> bool:
+    """Whether ``directory`` is an RRR ``Project`` tree (a release or a clone)."""
+    return os.path.isfile(os.path.join(directory, 'version.py')) and os.path.isfile(
+        os.path.join(directory, 'gpio', 'relay_worker.py')
+    )
+
+
+# How /proc/<pid>/cwd reads when the directory was removed under the process.
+_DELETED_SUFFIX = ' (deleted)'
+
+
+def _app_processes(proc_root: str = '/proc') -> list[int] | None:
+    """
+    PIDs of running RRR app processes, or None when there is no /proc.
+
+    The launcher (scripts/runtime/launch.sh) changes into the release's
+    Project directory and runs ``python3 main.py``, whether the desktop
+    icon or the systemd unit started it, so the app is a Python process with
+    a ``main.py`` argument that resolves into an RRR Project tree (an editor
+    or pager open on main.py is not). Processes that cannot be read
+    (another user's, or gone mid-scan) are skipped.
+
+    When the release directory was replaced under a running app (an
+    installer re-run at the same version), the kernel shows its working
+    directory as '<path> (deleted)'. The original path is checked instead,
+    and if it no longer holds a Project tree but still names one, the
+    process is counted anyway: reading a running app as stopped is the
+    dangerous mistake.
+    """
+    if not os.path.isdir(proc_root):
+        return None
+    found = []
+    me = str(os.getpid())
+    for entry in os.listdir(proc_root):
+        if not entry.isdigit() or entry == me:
+            continue
+        base = os.path.join(proc_root, entry)
+        try:
+            with open(os.path.join(base, 'cmdline'), 'rb') as handle:
+                argv = [arg.decode(errors='replace') for arg in handle.read().split(b'\0') if arg]
+            cwd = os.readlink(os.path.join(base, 'cwd'))
+        except OSError:
+            continue
+        if not argv or not os.path.basename(argv[0]).lower().startswith('python'):
+            continue
+        deleted = cwd.endswith(_DELETED_SUFFIX)
+        if deleted:
+            cwd = cwd[: -len(_DELETED_SUFFIX)]
+        for arg in argv[1:]:
+            if os.path.basename(arg) != 'main.py':
+                continue
+            project = os.path.dirname(os.path.join(cwd, arg))
+            if _is_rrr_project(project) or (deleted and os.path.basename(project) == 'Project'):
+                found.append(int(entry))
+                break
+    return sorted(found)
+
+
+def _unit_state() -> tuple[bool | None, str]:
     """
     Is the app's user service active? Returns (state, detail).
 
     ``state`` is True when it is running, False when systemd says it is
     not, and None when that could not be determined — no systemctl, a
     shell without a session bus ("Failed to connect to bus"), a timeout.
-    An unknown state must not be read as "stopped": a running app writes
-    its whole settings back on its next auto-save.
     """
     try:
         result = subprocess.run(
@@ -105,6 +167,28 @@ def _app_running() -> tuple[bool | None, str]:
     if result.returncode in (3, 4):
         return False, detail
     return None, detail or f"systemctl exited {result.returncode}"
+
+
+def _app_running() -> tuple[bool | None, str]:
+    """
+    Is the app running, however it was started? Returns (state, detail).
+
+    True when the user unit is active or an RRR app process is found;
+    False when /proc was scanned and holds none (systemd's answer, which
+    only covers the service, cannot turn that into "running"); None only
+    when there is no /proc and systemd could not answer. An unknown state
+    must not be read as "stopped": a running app writes its whole settings
+    back on its next auto-save.
+    """
+    unit, unit_detail = _unit_state()
+    if unit:
+        return True, f"{SERVICE} is active"
+    pids = _app_processes()
+    if pids:
+        return True, "RRR app process running (pid " + ", ".join(map(str, pids)) + ")"
+    if pids is None:
+        return unit, unit_detail
+    return False, unit_detail or "no RRR app process"
 
 
 def _controller():
@@ -168,14 +252,15 @@ def main(argv=None) -> int:
         running, detail = _app_running()
         if running:
             return _fail(
-                f"{SERVICE} is running and would overwrite the value on its next auto-save. "
-                f"Stop it first (systemctl --user stop {SERVICE}) or pass --force."
+                f"the app is running ({detail}) and would overwrite the value when it next "
+                "saves its settings. Close it first (its window, or "
+                f"systemctl --user stop {SERVICE} if it runs as the service), or pass --force."
             )
         if running is None:
             return _fail(
-                f"could not determine whether {SERVICE} is running ({detail}). "
-                "Run this from the device's own login session, or pass --force if you "
-                "are sure the app is stopped."
+                f"could not determine whether the app is running ({detail}). "
+                "Run this on the device itself, or pass --force if you are sure the app "
+                "is closed."
             )
 
     controller = _controller()
@@ -192,7 +277,10 @@ def main(argv=None) -> int:
     if stored != args.topology:
         return _fail(f"{SETTING_KEY} did not persist (read back {stored!r}).")
     _say(f"{SETTING_KEY} set to: {stored} — {describe(stored)}")
-    _say(f"Start the app for the change to take effect (systemctl --user start {SERVICE}).")
+    _say(
+        "Start the app for the change to take effect (its desktop icon, or "
+        f"systemctl --user start {SERVICE})."
+    )
     return 0
 
 
