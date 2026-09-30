@@ -57,8 +57,11 @@ The procedure below is designed to mitigate each one. Do not deviate.
 
 ## 2. Bill of Materials
 
-Quantities are for a single 15-cage device (1 HAT × 16 relays = 1 master + 15
-animal channels). Scale up for stacked HATs.
+Quantities are for a single 15-cage device: 1 HAT × 16 relays gives 15 animal
+channels plus relay 16, which is the master valve on the shared-manifold rig
+and is left unwired on the independent rig (one syringe and one valve per
+animal; see [§7.2](#72-why-the-master-valve-is-on-channel-16)). Scale up for
+stacked HATs; each further HAT adds 16 animal channels.
 
 ### 2.1 Compute and control
 
@@ -79,15 +82,17 @@ currently under evaluation.
 
 | Item | Qty | Notes |
 |---|---|---|
-| 12 V DC (or 24 V DC) normally-closed solenoid valve, ≤ 2 A holding current, with female 2.1 × 5.5 mm DC barrel-jack pigtail or equivalent leads | 16 per HAT (1 master + 15 animal) | **TBD — exact model pending lab confirmation.** Confirm voltage matches your PSU. Normally-closed (NC) is required so a power loss closes the valve. |
+| 12 V DC (or 24 V DC) normally-closed solenoid valve, ≤ 2 A holding current, with female 2.1 × 5.5 mm DC barrel-jack pigtail or equivalent leads | Shared manifold: 16 per HAT (1 master + 15 animal). Independent: 15 on the first HAT, 16 on each further HAT (no master) | **TBD — exact model pending lab confirmation.** Confirm voltage matches your PSU. Normally-closed (NC) is required so a power loss closes the valve. |
 
-> **Why 16, not 15?** The master valve is wired in series upstream of the
-> animal valves and provides a single shutoff point. Relay channel **16** is
-> the master and channels 1–15 are the animal channels — that is the
-> application's default (`global_master_relay_id = 16` in
-> [`Project/controllers/system_controller.py`](../controllers/system_controller.py),
+> **Why 16, not 15? (shared-manifold rig)** The master valve is wired in
+> series upstream of the animal valves and provides a single shutoff point.
+> Relay channel **16** is the master and channels 1–15 are the animal
+> channels — that is the application's default (`global_master_relay_id = 16`
+> in [`Project/controllers/system_controller.py`](../controllers/system_controller.py),
 > stored per device in the `system_settings` table). Wire to match the
-> setting, never the other way round.
+> setting, never the other way round. On an independent rig (one syringe and
+> one valve per animal) there is no master: buy 15 valves for the first HAT
+> and leave relay 16 unwired (see [§7.2](#72-why-the-master-valve-is-on-channel-16)).
 
 ### 2.3 DC power and distribution
 
@@ -95,7 +100,7 @@ currently under evaluation.
 |---|---|---|
 | 12 V DC regulated power supply, ≥ 10 A continuous (or 24 V DC if your valves require it) | 1 | **TBD — confirmed amperage pending valve selection.** See [§6.2 Power Budget](#62-power-budget) for the calculation. |
 | 1-input × 8-output DC power splitter, 2.1 × 5.5 mm barrel jacks (e.g., Amazon B01H4VEB6G or equivalent) | 2 | One splits PSU → 8 valves; with 16 valves you need two splitters in parallel from the PSU. Verify the splitter's wire gauge supports your total current. |
-| Male 2.1 × 5.5 mm DC barrel-jack connectors with screw terminals (e.g., DAYKIT B01J1WZENK or equivalent) | 16 | One per valve. The valve's two leads land in these connectors. |
+| Male 2.1 × 5.5 mm DC barrel-jack connectors with screw terminals (e.g., DAYKIT B01J1WZENK or equivalent) | 16 (15 on an independent rig) | One per valve. The valve's two leads land in these connectors. |
 | 22 AWG hookup wire, stranded, two colors (red for +12 V, black for ground) | ~5 m each | **Measure your run lengths in [§3](#3-plan-the-installation-before-cutting-wire) before cutting.** |
 | Wago lever-nut connectors or equivalent (optional) | as needed | Cleaner than wire nuts for branching the splitter output. |
 
@@ -123,7 +128,7 @@ full before buying parts.
 | Item | Qty | Notes |
 |---|---|---|
 | Food-grade silicone or Tygon tubing | enough for 16 runs | **TBD — confirm inner diameter, outer diameter, material, and length per cage.** Match the tubing ID to your valve's barb fitting. |
-| Water reservoir (10 mL per cage mount provided as STL) | 1+ | See [10ml_Water_Reservoir_Mount_x4.stl](STL%20Files/10ml_Water_Reservoir_Mount_x4.stl). |
+| Water reservoir (10 mL per cage mount provided as STL): one shared reservoir on the shared-manifold rig; one syringe per animal on the independent rig | Shared: 1+. Independent: 1 per animal | See [10ml_Water_Reservoir_Mount_x4.stl](STL%20Files/10ml_Water_Reservoir_Mount_x4.stl). |
 | Inline barbed fittings, tubing cutter, tube clamps | as needed | |
 
 ---
@@ -149,9 +154,11 @@ twenty-minute layout exercise saves hours of rework and a spool of wasted wire.
 5. **Sketch the layout** (paper is fine). The sketch should show: PSU
    location, splitter location, ground-bus location, every wire run, and every
    tubing run. Photograph the sketch — you will reference it during wiring.
-6. **Decide your master-valve location.** The master sits between the
-   reservoir and the splitter feeding the animal valves. Wire it to relay
-   channel 16 (the application default — see [§7.2](#72-why-the-master-valve-is-on-channel-16)).
+6. **Shared-manifold rig: decide your master-valve location.** The master sits
+   between the reservoir and the manifold feeding the animal valves. Wire it to
+   relay channel 16 (the application default — see [§7.2](#72-why-the-master-valve-is-on-channel-16)).
+   **Independent rig:** there is no master valve and no manifold. Mark each
+   animal's syringe location instead, and plan relay 16 as unwired.
 
 ---
 
@@ -389,7 +396,8 @@ a wiring error on valve 1 is a five-minute fix; catching it after wiring all
 ### 7.1 Per-valve wiring
 
 For each valve, in order from relay channel 1 through channel 15 (animal
-channels) and then channel 16 (master):
+channels) and then, on the shared-manifold rig only, channel 16 (master). On
+the independent rig leave channel 16 unwired:
 
 1. **Identify the relay channel's NO and COM terminals** on the HAT's
    pluggable terminal block. NO is "normally open" (the side the valve sees
@@ -409,9 +417,12 @@ channels) and then channel 16 (master):
 
 ### 7.2 Why the master valve is on channel 16
 
-The master is software-treated as a global shutoff. The application opens it
-before any animal valve and closes it after the last one in any delivery
-cycle. Channel 16 is the default master: `global_master_relay_id = 16` in
+On the shared-manifold topology (the default) the master is software-treated
+as a global shutoff: the application opens it before any animal valve and
+closes it after the last one in every delivery and calibration run, and in
+the Priming tab a cage valve opens only while the master is open. On the
+independent topology (below) RRR never drives it. Channel 16 is the default
+master: `global_master_relay_id = 16` in
 [`Project/controllers/system_controller.py`](../controllers/system_controller.py),
 stored per device in the `system_settings` table. The cage map skips that one
 relay, so a single HAT gives 15 animal channels (1–15); a second HAT adds 16
@@ -421,10 +432,19 @@ before you rewire: `SolenoidController` takes the id from the setting and has
 no default of its own.
 
 > **Independent setup (one syringe and one valve per animal, no manifold, no
-> master).** From v1.20.0 the device's valve topology can be set to
-> `independent`; a Settings control follows in a later release. Close the
-> app (its window, or `systemctl --user stop rrr.service` where it runs as
-> the user service), then on the device:
+> master).** From v1.21.0 the valve topology is chosen in RRR: log in, open
+> **Settings → Delivery → Valve Topology** (in *Solenoid Mode Settings*, shown
+> while Hardware Mode is *Solenoid*), click **Independent (one syringe and one
+> valve per animal)** and confirm. The choice is greyed out, and refused with
+> *Cannot Change Topology*, while a schedule, a priming session or a
+> calibration is running. The Terminal tab records the change as a
+> `[TOPOLOGY] Valve topology changed in Settings: …` line with the user's name.
+> Schedules and calibrations started afterwards use the new topology at once;
+> Priming cannot open a valve until RRR is closed and reopened, so close and
+> reopen RRR before priming.
+>
+> With the app closed (its window, or `systemctl --user stop rrr.service`
+> where it runs as the user service), the command-line tool does the same:
 >
 > ```bash
 > cd ~/rrr/current/Project
@@ -432,33 +452,37 @@ no default of its own.
 > ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py   # prints: current valve_topology: independent
 > ```
 >
-> and start the app again. The tool prints the database it is acting on,
-> never creates one, and refuses to write while it can see the app running
-> (a running app would save its old value back over the new one). On the
-> independent topology the Priming tab shows no master-valve controls.
+> and then start the app again. The tool prints the database it is acting
+> on, never creates one, and refuses to write while it can see the app
+> running (a running app would save its old value back over the new one).
+> On the independent topology the Priming tab shows no master-valve controls.
 > Deliveries pulse the cage valve only, with no manifold prime, and relay
 > 16 is never driven. It is, however, still **reserved** in this release —
 > an independent rig gets 15 animal channels on the first HAT (and 16 on
 > each additional HAT, since only relay 16 is reserved), and channel 16
 > should stay unwired until a later release lifts the reservation.
 >
-> On a release before v1.20.0, or before the setting is applied, the
+> On a release before v1.21.0, or before the setting is applied, the
 > shared-manifold code energises relay 16 for the **whole** of every
 > delivery (a 200 ms prime, then held open across every pulse — seconds to
 > tens of seconds depending on the interval), for the whole of a calibration
 > run, and in the priming tab from Open Master until Close Master. So on a
 > rig without a master valve, leave channel 16 unwired. Every other step in
-> this guide applies unchanged: one relay per animal valve, one reservoir
-> per animal.
+> this guide applies, following its notes for the independent rig: one relay
+> per animal valve, one syringe per animal.
 >
 > Never set `independent` on a rig that has a master valve: the master would
 > never open and every delivery would be logged as a full dose while the
 > animal received nothing.
 >
 > After switching, calibrate every animal channel in **Settings →
-> Calibration**. A calibration measured on the manifold shows **Stale** there,
-> and a schedule that uses it says so in the Terminal tab; it is still used
-> until the cage is recalibrated.
+> Calibration**. A calibration measured under the other topology shows
+> **Stale** there (one saved before v1.21.0 counts as shared manifold). In
+> solenoid pulse mode (the default) **Run** refuses a schedule that waters a
+> cage with no usable calibration measured under this device's valve
+> topology (*Valve calibration needed*), so a Stale cage cannot be watered
+> until it is recalibrated. **Calibrate All Uncalibrated** takes the Stale
+> and Invalid cages as well as the uncalibrated ones.
 
 ### 7.3 Verify before powering
 
@@ -480,11 +504,15 @@ With the DC supply **still unplugged from the wall**:
 
 General guidance:
 
-1. Mount the reservoir(s) above the highest valve. Gravity feed simplifies
-   priming and prevents the master valve from running dry.
-2. Cut tubing in two stages: reservoir → master valve → splitter manifold →
-   each animal valve → each cage spout. Use the layout sketch from
-   [§3](#3-plan-the-installation-before-cutting-wire).
+1. **Shared-manifold rig:** mount the reservoir(s) above the highest valve.
+   Gravity feed simplifies priming and prevents the master valve from running
+   dry. **Independent rig:** mount each animal's syringe above its valve and
+   note its fill level (whether the level changes the dose is still being
+   measured; see [TOPOLOGY_VALIDATION.md](TOPOLOGY_VALIDATION.md) C8).
+2. Cut tubing per fluid path, using the layout sketch from
+   [§3](#3-plan-the-installation-before-cutting-wire). **Shared manifold:**
+   reservoir → master valve → manifold → each animal valve → each cage spout.
+   **Independent:** each syringe → its animal valve → its cage spout.
 3. Use barbed fittings sized for your tubing's inner diameter. Push the
    tubing fully onto the barb; secure with a small zip tie or clamp if your
    delivery pressure exceeds gravity-fed.
@@ -492,6 +520,9 @@ General guidance:
    RRR application. See [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md).
 5. Inspect every joint for leaks after priming. A drip on a powered HAT will
    end your day.
+6. **Independent rig:** check every syringe line daily; a primed line holds
+   about three days, so prime again any line left idle over a long weekend
+   before its animal depends on it.
 
 ---
 
@@ -509,9 +540,11 @@ Verify each item; do not power on until all are checked.
       jumpers set, RS-485 jumpers OFF.
 - [ ] [§6.3](#63-common-ground-bus) common ground bus continuity verified
       with multimeter; no short between ground and 12 V.
-- [ ] [§7](#7-valve-wiring) all 16 valves wired, labelled, insulated.
-- [ ] [§8](#8-tubing-and-reservoir) tubing routed, reservoir mounted, but
-      reservoir **empty** for first bring-up.
+- [ ] [§7](#7-valve-wiring) every valve wired, labelled, insulated: 16 per HAT
+      on the shared-manifold rig (15 animal + master on relay 16); on the
+      independent rig 15 on the first HAT with relay 16 left unwired.
+- [ ] [§8](#8-tubing-and-reservoir) tubing routed, reservoir (or every
+      syringe) mounted, but **empty** for first bring-up.
 - [ ] Two people present: one at the wall plug, one watching the boards.
 
 ### 9.2 Power-on sequence
@@ -538,7 +571,9 @@ unexpected LEDs, or anything getting warm.
    - Produce an audible click from the valve
    - Light extinguishes and valve clicks back when relay is released
 
-5. If all 16 relays click cleanly, fill the reservoir and proceed to
+5. If every wired relay clicks its valve cleanly (on the independent rig
+   relay 16 has no valve: its LED lights and nothing else happens), fill the
+   reservoir (or the syringes) and proceed to
    [§10](#10-software-install-and-verification).
 
 ---
@@ -559,12 +594,20 @@ and headless operation are in the [project README](../../README.md).
 After install:
 
 1. **Launch the application** from the desktop icon or `~/.local/bin/rrr`.
-2. **Open Settings → Priming** and run the priming sequence to fill the
-   tubing. See [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md).
-3. **Calibrate every valve.** See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md).
-   This step is mandatory: uncalibrated valves can deliver multiples of the
-   target volume.
-4. **Run a 0.5 mL test schedule** on a single cage and weigh the output to
+2. **Set the valve topology** to match the plumbing: log in, open
+   **Settings → Delivery → Valve Topology** and choose **Shared manifold
+   (master valve)** (the default) or **Independent (one syringe and one valve
+   per animal)**. Do this before priming and calibrating: each calibration
+   records the topology it was measured under, and one from the other topology
+   shows **Stale**. After a change, close and reopen RRR before priming.
+3. **Open Settings → Priming** and prime every line. See
+   [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md).
+4. **Calibrate every valve.** See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md).
+   This step is mandatory: in solenoid pulse mode (the default) **Run**
+   refuses a schedule that waters a cage with no usable calibration measured
+   under this device's valve topology (*Valve calibration needed*), because
+   RRR cannot know how much water a pulse gives without one.
+5. **Run a 0.5 mL test schedule** on a single cage and weigh the output to
    confirm calibration accuracy is within ±5 %.
 
 ---
@@ -579,9 +622,10 @@ After install:
 | Relay LEDs flicker rapidly at idle | Wiring short between +12 V and ground somewhere; disconnect mains immediately and trace with a multimeter on continuity. |
 | Pi reboots when valves activate | PSU undersized or the Pi is sharing power with the valve rail. Pi 5 must be on its own 27 W USB-C PSU; valves on their own 12 V supply. |
 | Sensor noise / erratic flow readings | Likely ground loop. Check [§6.3.2 caveat 1](#632-alternative-energized-power-strip-as-ground-bus-current-practice-not-recommended-long-term). |
-| Delivered volume is 2–3× target | Valves need per-valve calibration. Run [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). |
-| Terminal tab shows `[VALVE ERROR] cage N: … did not reach its relay; delivery stopped`, and the ledger shows `failed` / `partial` rows | A relay write did not reach its HAT: a HAT that was not found at start-up, a relay on a HAT that is missing, or an I²C error. From v1.21.0 the delivery stops there instead of counting the pulse. Only pulses whose valve opened are credited, and the retry 30 s later asks for the rest. Check `i2cdetect -y 1` and run the bring-up test in [§9](#9-first-power-on-and-bring-up-test). RRR sets the HATs up only when it starts, so after fixing a HAT that was missing, **close and reopen RRR**; until then every delivery to it keeps failing. If deliveries keep failing, the schedule stops ("Deliveries kept failing: check the relay HAT … and the flow sensor"). |
-| `[VALVE CRITICAL] … may still be OPEN`, **Emergency Stop Failed** or **Relays Not Confirmed Off** | A close, or the all-relays-off command, did not reach a HAT, so that valve may still be open. **Disconnect the valve power supply first**, then check the HAT and its I²C connection as above. |
+| **Run** shows *Valve calibration needed* or *Cage not on this device* and the schedule does not start | A cage the schedule waters has no calibration, one marked **Invalid** (volume per pulse or pulse width missing, zero or invalid), or one marked **Stale** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold); or the schedule names a cage this device does not have. Calibrate the listed cages in **Settings → Calibration** (or edit the schedule), then press **Run** again. See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). |
+| Delivered volume is well off target | The cage's calibration no longer matches its valve or line (a valve, tubing, needle or supply change, or air in the line): prime the line, recalibrate that cage per [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md), and weigh a test dose. With **Enable Pulse Mode** off (RRR turns it back on each time it starts), deliveries use no calibration: the valve is timed from an expected flow rate, or closed on the flow sensor's reading when one is fitted. |
+| Terminal tab shows `[VALVE ERROR] cage N: … did not reach its relay; delivery stopped`, and the ledger shows `failed` / `partial` rows | A relay write did not reach its HAT: a HAT that was not found at start-up, a relay on a HAT that is missing, or an I²C error. From v1.21.0 the delivery stops there instead of counting the pulse. Only pulses whose valve opened are credited (a pulse whose close got through only on a retry is credited with the time its valve stayed open), and the retry 30 s later asks for the rest. A pulse that fails for any other reason also ends the delivery (`[VALVE ERROR] cage N: pulse K failed: …`). Check `i2cdetect -y 1` and run the bring-up test in [§9](#9-first-power-on-and-bring-up-test). RRR sets the HATs up only when it starts, so after fixing a HAT that was missing, **close and reopen RRR**; until then every delivery to it keeps failing. If deliveries keep failing, the schedule stops ("Deliveries kept failing: check the relay HAT … and the flow sensor"). |
+| `[VALVE CRITICAL] … OPEN` (for pump relays, `… ON`), **Emergency Stop Failed** or **Relays Not Confirmed Off** | A close, or the all-relays-off command, did not reach a HAT, or a valve's relay has not answered since the run started, so that valve may still be open. **Disconnect the valve power supply first**, then check the relay HAT and its I²C connection as above. **Settings → Priming → CLOSE ALL RELAYS** retries every relay. When a later close gets through, the Terminal tab shows `[VALVE OK] The cage N valve closed after all; …`. |
 | Water leaking onto HAT | Power off immediately. Dry fully (24 h, no heat). Inspect for corrosion on terminals before re-powering. |
 
 ---
