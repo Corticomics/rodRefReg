@@ -329,3 +329,58 @@ def test_the_report_marks_an_invalid_calibration_and_a_missing_cv(
     lines = out.read_text().splitlines()
     assert lines[2].startswith("2,Invalid,0.000000,")
     assert lines[4].startswith("4,Calibrated,0.034164,—,")
+
+
+@pytest.mark.parametrize(
+    ("mode", "says"),
+    [
+        ({"hardware_mode": "solenoid", "use_pulse_delivery": True}, "will not start"),
+        ({"hardware_mode": "pump"}, "The current delivery mode does not use it"),
+        ({"hardware_mode": "solenoid", "use_pulse_delivery": False}, "does not use it"),
+    ],
+)
+def test_the_invalid_and_stale_tooltips_say_what_run_will_do(
+    qapp, database_handler, system_controller, mode, says
+):
+    """Run refuses such a cage only in solenoid pulse delivery; in pump or
+    continuous mode the calibration is not used, and the tooltip said a
+    schedule would not start when it would."""
+    system_controller.settings.update(num_hats=1, valve_topology="shared_manifold", **mode)
+    _save(database_handler, 2, volume=0.0)
+    _save(database_handler, 4, topology="independent")
+    tab = _settings_tab(system_controller, database_handler)
+
+    for row in (1, 3):  # cage 2 Invalid, cage 4 Stale
+        assert says in tab.calibration_table.item(row, 1).toolTip()
+
+
+def test_the_report_quotes_notes_and_leaves_missing_ones_empty(
+    qapp, database_handler, system_controller, tmp_path, monkeypatch
+):
+    """Notes were written between bare quotes: a quote or comma in them
+    shifted the columns, and a missing note was written as "None"."""
+    import csv  # noqa: PLC0415
+
+    from PyQt5.QtWidgets import QFileDialog  # noqa: PLC0415
+
+    system_controller.settings['num_hats'] = 1
+    _save(database_handler, 3)
+    _save(database_handler, 5)
+    with database_handler.connect() as conn:
+        conn.execute(
+            "UPDATE valve_calibration SET notes = ? WHERE cage_id = 3", ('a "quoted", note',)
+        )
+        conn.execute("UPDATE valve_calibration SET notes = NULL WHERE cage_id = 5")
+        conn.commit()
+    tab = _settings_tab(system_controller, database_handler)
+    out = tmp_path / "report.csv"
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), ""))
+    )
+
+    tab._export_calibration_report()
+
+    rows = list(csv.reader(out.read_text(encoding="utf-8").splitlines()))
+    assert {len(row) for row in rows} == {10}, "every row has the header's ten columns"
+    assert rows[3][8] == 'a "quoted", note' and rows[3][9] == "shared_manifold"
+    assert rows[5][8] == "", "a missing note is empty, not 'None'"

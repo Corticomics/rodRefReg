@@ -1,3 +1,4 @@
+import csv
 import json
 from datetime import datetime
 
@@ -26,7 +27,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from utils import updater
-from utils.calibration_gate import calibration_is_usable
+from utils.calibration_gate import calibration_is_usable, gate_applies
 from utils.operation_lock import CALIBRATION, get_operation_lock
 from utils.topology import (
     DEFAULT_MASTER_RELAY_ID,
@@ -1141,6 +1142,14 @@ class SettingsTab(QWidget):
 
             stale = bool(cal) and calibration_is_stale(cal, self.settings)
             invalid = bool(cal) and not calibration_is_usable(cal)
+            # What Run does about it: only solenoid pulse delivery plans from
+            # a valve calibration (see utils.calibration_gate).
+            consequence = (
+                "A schedule watering this cage will not start until it is recalibrated."
+                if gate_applies(self.settings)
+                else "The current delivery mode does not use it, but pulse delivery would "
+                "refuse it until it is recalibrated."
+            )
             if cal:
                 # Calibrated - show data. A calibration measured under the
                 # other valve topology, or one without a usable volume or
@@ -1151,8 +1160,7 @@ class SettingsTab(QWidget):
                     status_item.setForeground(QColor(200, 0, 0))
                     status_item.setToolTip(
                         "The stored volume per pulse or pulse width is missing, zero or "
-                        "invalid. A schedule watering this cage will not start until it "
-                        "is recalibrated."
+                        f"invalid. {consequence}"
                     )
                 elif stale:
                     device = topology_from(self.settings)
@@ -1162,8 +1170,7 @@ class SettingsTab(QWidget):
                         f"Measured on {calibration_label(cal)}: "
                         f"{describe(calibration_topology(cal))}. "
                         f"This device runs {device}: {describe(device)}. "
-                        "A schedule watering this cage will not start until it is "
-                        "recalibrated."
+                        f"{consequence}"
                     )
                 else:
                     status_item = QTableWidgetItem("[OK]")
@@ -1556,10 +1563,23 @@ class SettingsTab(QWidget):
 
             calibrations = self.database_handler.get_all_valve_calibrations()
 
-            with open(file_path, 'w') as f:
-                f.write(
-                    "Cage,Status,Volume_per_Pulse_mL,CV_Percent,Num_Samples,"
-                    "Pulse_Width_ms,Inter_Pulse_Interval_ms,Calibration_Date,Notes,Topology\n"
+            # csv.writer quotes a field only when it needs it, so a comma or a
+            # quote in the notes cannot shift the columns.
+            with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(
+                    [
+                        "Cage",
+                        "Status",
+                        "Volume_per_Pulse_mL",
+                        "CV_Percent",
+                        "Num_Samples",
+                        "Pulse_Width_ms",
+                        "Inter_Pulse_Interval_ms",
+                        "Calibration_Date",
+                        "Notes",
+                        "Topology",
+                    ]
                 )
 
                 for cage_id in sorted(self._cage_map()):
@@ -1575,16 +1595,22 @@ class SettingsTab(QWidget):
                             status = "Stale"
                         else:
                             status = "Calibrated"
-                        f.write(
-                            f"{cage_id},{status},"
-                            f"{_format_number(cal.get('volume_per_pulse_ml'), '{:.6f}')},"
-                            f"{_format_number(cal.get('coefficient_of_variation_pct'), '{:.2f}')},"
-                            f"{cal['num_samples']},{cal['pulse_width_ms']},"
-                            f"\"{interval_text}\",{cal['calibration_date']},"
-                            f"\"{cal.get('notes', '')}\",{calibration_label(cal)}\n"
+                        writer.writerow(
+                            [
+                                cage_id,
+                                status,
+                                _format_number(cal.get('volume_per_pulse_ml'), '{:.6f}'),
+                                _format_number(cal.get('coefficient_of_variation_pct'), '{:.2f}'),
+                                cal.get('num_samples'),
+                                cal.get('pulse_width_ms'),
+                                interval_text,
+                                cal.get('calibration_date') or '',
+                                cal.get('notes') or '',
+                                calibration_label(cal),
+                            ]
                         )
                     else:
-                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—,—,—,—\n")
+                        writer.writerow([cage_id, "Not Calibrated"] + ["—"] * 8)
 
             self.print_to_terminal(f"Calibration report exported to {file_path}")
             QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")
