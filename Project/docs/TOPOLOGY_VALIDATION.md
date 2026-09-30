@@ -9,7 +9,7 @@ RRR runs two valve topologies from one codebase ([HARDWARE_SETUP.md §7.2](HARDW
 
 Before an animal goes on an independent rig, this document is how the lab shows it delivers water **as precisely as the manifold rig**. It pre-declares the criteria (nothing is decided after seeing the numbers), gives the bench recipe, and names the tools that grade the result. Criteria C1–C8 are beaker tests; only C9 involves an animal.
 
-**Both rigs run the same tagged release** (v1.21.0 or later, which records the context of every delivery). The only difference between them is one setting, set with `tools/set_valve_topology.py`. Never put a `-beta` tag on a device for this: the updater ignores pre-releases and the device is stranded.
+**Both rigs run the same tagged release** (v1.21.0 or later, which records the context of every delivery). The only difference between them is one setting, **Settings → Delivery → Valve Topology** (§3.1). Never put a `-beta` tag on a device for this: the updater ignores pre-releases and the device is stranded.
 
 ---
 
@@ -67,13 +67,7 @@ These are the bench figures the criteria are graded against. They come from the 
 
 1. Build and wire per [HARDWARE_SETUP.md](HARDWARE_SETUP.md): one relay per valve, relay 16 **unwired** (it stays reserved on this release).
 2. Install the same release as the manifold rig. The version is in the main window's title bar (and in `~/rrr/current/Project/version.py`).
-3. Quit the app (close its window; where it runs as the user service, `systemctl --user stop rrr.service`), set the topology, read it back, then start the app again:
-   ```bash
-   cd ~/rrr/current/Project
-   ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py independent --yes
-   ~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py     # current valve_topology: independent — ...
-   ```
-   The app must be closed while the tool writes: a running app saves its whole settings back and would overwrite the value. On the independent rig the priming tab then shows no master valve controls.
+3. Set the topology: log in, open **Settings → Delivery → Valve Topology**, click **Independent (one syringe and one valve per animal)** and confirm. The change is refused while a schedule, a priming session or a calibration runs. The Terminal tab logs `[TOPOLOGY] Valve topology changed in Settings: shared_manifold -> independent (by <user>)`. Priming cannot open a valve until RRR is closed and reopened, so close and reopen it now; after the restart the priming tab shows no master valve controls. With the app closed, `~/rrr/shared/venv/bin/python3 tools/set_valve_topology.py independent --yes` (run from `~/rrr/current/Project`) does the same; it refuses to write while it can see the app running.
 4. Prime each line from **Settings → Priming** (on the independent rig there is no master step: select the cage, **Open Selected**, **Close Selected**). Check the lines every day; a primed syringe line has been seen to hold about three days.
 5. Fill each syringe to a known level and note it (C8 uses the level).
 
@@ -84,7 +78,7 @@ For every cage that will carry an animal, in **Settings → Calibration** click 
 | cage | run 1 | run 2 | run 3 | CV of the three (%) | drift run 1→3 (%) | q saved (µL) |
 |---|---|---|---|---|---|---|
 
-CV ≤ 1.5 %, drift ≤ 3 %, q ≤ 40 µL. The **last** saved run is the calibration in force; do not recalibrate that cage again until its dose sets are done.
+CV ≤ 1.5 %, drift ≤ 3 %, q ≤ 40 µL. The **last** saved run is the calibration in force; do not recalibrate that cage again until its dose sets are done. In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*), so a cage's C2–C4 schedules cannot start until its C1 run is saved. On a rig switched from the manifold, the old calibrations show **Stale** in **Settings → Calibration** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold) and count as none.
 
 ### 3.3 C2–C4 — weighed doses
 
@@ -160,7 +154,7 @@ Only after C1–C8 pass on the cages concerned, and per the lab's welfare protoc
 | C2 CV over 5 % on one cage only | That valve or line | Re-prime, re-run C1 for that cage, repeat; replace the valve if it persists |
 | C2 CV over 5 % on every cage | Systematic: balance, weighing technique, timing profile | Check the balance with a reference mass; confirm 30 ms / 1000 ms in the calibration table |
 | C8 mean shift > q/2 between fill levels | Head pressure from the syringe column matters | A fill-level term must be built before animals go on; until then keep the syringe in the band that passed |
-| `calibration_id` blank in the CSV | The cage was uncalibrated: the delivery ran on the empirical default | Calibrate (C1) and discard the rows |
+| `calibration_id` blank in the CSV (row from v1.21.0 or later) | The delivery used no calibration row. Run refuses a pulse-mode schedule on an uncalibrated cage, so either **Enable Pulse Mode** was off (continuous delivery uses no calibration; RRR turns Pulse Mode back on at every start), or the pulse delivery could not read the cage's calibration and ran on the empirical default of about 0.026 mL/pulse (no `[CAL RESOLVE] cage=N` line for it in the Terminal tab) | Discard the rows. Check **Enable Pulse Mode** is on (**Settings → Delivery**) and the cage shows [OK] in **Settings → Calibration** (C1); look in the Terminal tab for a database error, then repeat the set |
 | `topology` or the dose blank | Rows written by a release before v1.21.0 | Update both rigs; the tools list and weigh such rows but leave them out of the grading |
 
 ---
@@ -173,6 +167,6 @@ For every validation run: the release version, the topology and `q` per cage, th
 
 ## 6. Rollback
 
-- To take a rig off the independent topology: `tools/set_valve_topology.py shared_manifold` with the app closed, then start it again.
-- Before rolling a rig **back to a release older than v1.20.0**, set the topology back to `shared_manifold` first: the older release ignores the setting and would drive relay 16 on every delivery.
+- To take a rig off the independent topology, once its master valve and manifold are plumbed back in: **Settings → Delivery → Valve Topology → Shared manifold (master valve)**, then close and reopen RRR before priming, and recalibrate every cage (the independent calibrations show **Stale**, and in solenoid pulse mode, the default, **Run** refuses them). With the app closed, `tools/set_valve_topology.py shared_manifold` does the same.
+- Before rolling a rig **back to a release older than v1.21.0**, set the topology back to `shared_manifold` first: the older release ignores the setting and would drive relay 16 on every delivery.
 - The validation data is in the device's data directory (`~/rrr/shared/data`), which releases and rollbacks never touch.

@@ -65,9 +65,9 @@ Project/gpio/
                          ├── delegates to
                          ↓
 ┌─────────────────────────────────────────────────────────┐
-│         SolenoidController                              │
-│  • Hardware abstraction layer                           │
-│  • Master + cage relay coordination                     │
+│  SolenoidController / IndependentSolenoidController     │
+│  • Built by build_solenoid_controller (utils/topology)  │
+│  • Master + cage relays (no master when independent)    │
 └────────────────────────┬────────────────────────────────┘
                          │
                          ├── uses
@@ -107,8 +107,15 @@ Hardware controllers are only created when first needed:
 ```python
 def _get_solenoid_controller(self):
     if self._solenoid_controller is None:
-        # Initialize hardware only on first use
-        self._solenoid_controller = SolenoidController(...)
+        # Initialize hardware only on first use, for the topology this panel
+        # was built for: SolenoidController (shared manifold) or
+        # IndependentSolenoidController (no master valve)
+        relay_handler = self._get_relay_handler()
+        cage_map = self._build_cage_map()
+        built_for = INDEPENDENT if self._independent else SHARED_MANIFOLD
+        self._solenoid_controller = build_solenoid_controller(
+            relay_handler, {**self.settings, SETTING_KEY: built_for}, cage_map
+        )
     return self._solenoid_controller
 ```
 
@@ -239,7 +246,7 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 #### 1. **Access Priming Control**
 - Navigate to: **Settings** → **Priming**
 
-#### 2. **Prime Tubes (Standard Procedure)**
+#### 2. **Prime Tubes on the Shared-Manifold Topology** (master valve; for the independent topology see 2b)
 
 **Step 1: Open Master Solenoid**
 1. Click **"Open Master"** button
@@ -259,7 +266,11 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 **Step 4: Close Master**
 1. Click **"Close Master"** button
 2. Verify status shows: **"Status: CLOSED"** (gray)
-3. All cages automatically closed for safety
+3. The cages this panel opened are closed first, then the master. If a cage
+   valve does not confirm closed, a *Hardware Error* names it; the master is
+   still closed to cut its supply, and the priming session stays open until
+   that valve is closed (**Close Selected**, or **CLOSE ALL RELAYS**). Cut the
+   valve power if water still flows.
 
 #### 2b. **Prime Tubes on the Independent Topology** (v1.21.0)
 
@@ -291,7 +302,8 @@ be left open across it.
 
 #### 3. **Emergency Stop**
 - Click **"CLOSE ALL RELAYS"** at any time
-- Immediately closes master + all cages
+- Switches every relay on every HAT off: the master, where there is one, and every cage valve
+- If a HAT does not confirm the command, **Emergency Stop Failed** appears instead of *All relays have been closed*: disconnect the valve power supply, then check the relay HAT and its I²C connection
 - Use if unexpected behavior occurs
 
 ### Safety Features
@@ -302,9 +314,9 @@ be left open across it.
    - On the independent topology there is no master; the lock follows the
      cage valves instead
 
-2. **Auto-Close on Master Close**
-   - Closing master automatically closes all cages
-   - Ensures consistent state
+2. **Close Master closes the cages first** (shared-manifold topology)
+   - Closing the master first closes every cage this panel opened, one by one
+   - A cage valve that does not confirm closed is named in a *Hardware Error*; the master is still closed to cut its supply, and the priming session stays open until that valve is closed: use **Close Selected** or **CLOSE ALL RELAYS**, and cut the valve power if water still flows
 
 3. **Emergency Stop**
    - Direct hardware call (bypasses software layers)
@@ -355,6 +367,7 @@ PrimingControlWidget(settings: Dict, print_callback=None)
 | Method | Description |
 |--------|-------------|
 | `cleanup()` | Cleanup resources, close all relays (call on destroy) |
+| `refresh_topology_state()` | Re-apply the Open button states after Settings changes the valve topology (Open stays greyed until restart) |
 
 #### Signals
 
@@ -368,62 +381,23 @@ PrimingControlWidget(settings: Dict, print_callback=None)
 
 ### Unit Testing
 
-**Test File**: `tests/ui/test_priming_control.py`
+**Test files** (unit, no hardware; run with `pytest`):
 
-```python
-def test_model_state_management():
-    """Test RelayControlModel state tracking."""
-    model = RelayControlModel()
-    
-    # Test master state
-    assert not model.is_master_open
-    model.set_master_open(True)
-    assert model.is_master_open
-    
-    # Test cage state
-    model.set_cage_open(1, True)
-    assert model.is_cage_open(1)
-    assert 1 in model.get_open_cages()
+- `Project/tests/unit/test_operation_gating.py`: priming takes and releases the hardware lock, and is refused, with its Open buttons greyed out, while a schedule holds it
+- `Project/tests/unit/test_relay_write_failures.py`: an unconfirmed CLOSE ALL RELAYS says to cut the power; Close Master closes the master even when a cage did not close
+- `Project/tests/unit/test_settings_tab_valve_topology.py`: after a topology change in Settings, neither a shared nor an independent panel opens a valve until restart
+- `Project/tests/unit/test_topology_construction_sites.py`: the panel builds the shared or the independent controller for its topology
 
-def test_safety_interlock():
-    """Test that cages cannot open when master is closed."""
-    # Mock hardware
-    widget = PrimingControlWidget({}, lambda x: None)
-    
-    # Try to open cage without master
-    # Should show warning dialog
-    # Cage should remain closed
-```
-
-### Integration Testing
-
-**Test File**: `tests/integration/test_priming_hardware.py`
-
-```python
-def test_hardware_priming_sequence():
-    """Test complete priming sequence with real hardware."""
-    widget = PrimingControlWidget(settings, logger)
-    
-    # 1. Open master
-    widget._on_open_master_clicked()
-    assert widget._model.is_master_open
-    
-    # 2. Open cage
-    widget._on_open_cage_clicked()
-    # Verify actual relay state via hardware readback
-    
-    # 3. Close sequence
-    widget._on_close_master_clicked()
-    assert not widget._model.is_master_open
-    assert len(widget._model.get_open_cages()) == 0
-```
+There is no hardware integration test; use the manual checklist below on a rig.
 
 ### Manual Testing Checklist
 
-- [ ] Master opens/closes correctly
+- [ ] Master opens/closes correctly (shared manifold)
 - [ ] Cage selector populates with correct relays
-- [ ] Safety interlock prevents cage opening when master closed
-- [ ] Emergency stop closes all relays
+- [ ] Safety interlock prevents cage opening when master closed (shared manifold)
+- [ ] Independent topology: no Master Solenoid Control group, a cage opens directly, and the daily syringe-line reminder shows
+- [ ] After a topology change in Settings, Open Master and Open Selected stay greyed out until RRR is closed and reopened; Close and CLOSE ALL RELAYS still work
+- [ ] Emergency stop closes all relays; with the relay HAT disconnected (power the Pi and the valve supply off to disconnect it, then start RRR) it shows **Emergency Stop Failed**
 - [ ] Activity log shows timestamped messages
 - [ ] Button states update correctly
 - [ ] Multiple cage relays can be controlled sequentially
@@ -464,12 +438,14 @@ appear on the independent topology, which has no master valve.)
 
 #### 3. **Cage selector is empty**
 
-**Cause**: No cage relay mapping configured
+**Cause**: The cage map could not be built: `num_hats` gives no relays, or the
+stored `cage_relays` cannot be read (the Terminal tab then shows
+`Error populating cage selector: …`). An empty `cage_relays` is not the cause:
+RRR fills in the default map.
 
 **Solutions**:
-- Go to Hardware tab → verify `cage_relays` setting
-- Run `system_controller.ensure_solenoid_defaults()` to auto-generate mapping
-- Check `settings.json` for `cage_relays` key
+- Close and reopen RRR (the cage list is built when the panel is created)
+- Check the `cage_relays` and `num_hats` rows in the `system_settings` table (settings live in the database since v1.5.0; `settings.json` is only read once, for migration)
 
 #### 4. **Relays not responding**
 
