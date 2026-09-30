@@ -987,6 +987,9 @@ class RelayWorker(QObject):
                     delivery_data['_dispensed_ml'] = (
                         float(delivery_data.get('_dispensed_ml', 0.0)) + actual_volume
                     )
+                    # A pump trigger count planned for the whole dose would
+                    # fire it again; the retry plans from its capped volume.
+                    delivery_data.pop('triggers', None)
                 self.failed_deliveries[animal_id] = failed_count + 1
                 _log('partial' if actual_volume > 0 else 'failed')
             if actual_volume > 0:
@@ -1157,7 +1160,9 @@ class RelayWorker(QObject):
                     fired = getattr(self.relay_handler, 'last_trigger_counts', {}).get(
                         relay_unit_id, 0
                     )
-                    per_trigger_ml = self.volume_calculator.pump_volume_ul / 1000.0
+                    # In the unit a full run is credited in (the volume asked
+                    # for), so the calibration factor is honoured.
+                    per_trigger_ml = water_volume / required_triggers if required_triggers else 0.0
                     self.progress.emit(
                         f"Relay unit {relay_unit_id} stopped after {fired} of "
                         f"{required_triggers} triggers: a relay did not switch"

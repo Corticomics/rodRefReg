@@ -471,8 +471,18 @@ def test_a_confirmed_emergency_stop_is_unchanged(priming, fake_relay_handler):
     assert shown == [("information", "Emergency Stop")]
 
 
-def test_close_master_keeps_it_open_when_the_cages_did_not_close(priming, fake_relay_handler):
-    panel, shown = priming
+def test_close_master_closes_the_master_even_when_a_cage_did_not_close(
+    priming, fake_relay_handler, monkeypatch
+):
+    """The master is upstream of the manifold: closing it is what cuts the
+    supply to a cage valve left open. (This PR first kept the master open
+    here; the review showed that leaves water flowing.)"""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    panel, _shown = priming
+    texts = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: texts.append(a[2])))
     panel._on_open_master_clicked()
     panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
     panel._on_open_cage_clicked()
@@ -480,9 +490,42 @@ def test_close_master_keeps_it_open_when_the_cages_did_not_close(priming, fake_r
 
     panel._on_close_master_clicked()
 
-    assert shown[-1] == ("warning", "Hardware Error")
-    assert panel._model.is_master_open, "the master stays open with a cage unconfirmed"
-    assert fake_relay_handler.energized() == {MASTER, CAGE}
+    assert fake_relay_handler.energized() == {CAGE}, "the master closed; the cage did not"
+    assert panel._model.is_master_open is False
+    assert panel._model.is_cage_open(CAGE), "the panel still shows the cage open"
+    assert "Cage valve(s) 1 did not confirm closed" in texts[-1]
+    assert "The master was closed to cut their supply." in texts[-1]
+    assert get_operation_lock().is_busy(), "the session goes on while a valve may be open"
+
+    fake_relay_handler.fail_on()  # the fault clears; the operator closes the cage
+    panel._on_close_cage_clicked()
+
+    assert fake_relay_handler.energized() == set()
+    assert get_operation_lock().is_busy() is False, "everything closed: the session ends"
+
+
+def test_close_master_says_so_when_the_master_did_not_close_either(
+    priming, fake_relay_handler, monkeypatch
+):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    panel, _shown = priming
+    texts = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: texts.append(a[2])))
+    panel._on_open_master_clicked()
+    panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
+    panel._on_open_cage_clicked()
+    real = fake_relay_handler.set_relays
+    monkeypatch.setattr(
+        fake_relay_handler, "set_relays", lambda ids, state: bool(state) and real(ids, state)
+    )
+
+    panel._on_close_master_clicked()
+
+    assert "The master did not close either." in texts[-1]
+    assert panel._model.is_master_open
+    assert get_operation_lock().is_busy()
 
 
 # --- review follow-ups ----------------------------------------------------------------------
@@ -569,7 +612,9 @@ def test_a_sensor_pulse_retries_a_lost_close_at_once_and_ends_the_delivery(
     assert "[VALVE CRITICAL]" not in capsys.readouterr().out
 
 
-def test_a_sensor_pulse_that_never_closes_raises_the_alarm(fake_relay_handler, monkeypatch, capsys):
+def test_a_sensor_pulse_that_never_closes_raises_the_alarm(
+    fake_relay_handler, monkeypatch, capsys
+):
     strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
     real = fake_relay_handler.set_relays
 
@@ -673,7 +718,9 @@ def test_calibration_says_so_when_the_final_close_never_gets_through(
     assert "[VALVE CRITICAL]" in capsys.readouterr().out, "reaches System Messages"
 
 
-def test_close_master_is_not_refused_by_a_missing_second_hat(fresh_lock, monkeypatch, fake_relay_handler):
+def test_close_master_is_not_refused_by_a_missing_second_hat(
+    fresh_lock, monkeypatch, fake_relay_handler
+):
     """The review's case: close_all_cages wrote every cage relay, including a
     missing second HAT's, and refused although the one open cage had closed."""
     from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
@@ -684,7 +731,9 @@ def test_close_master_is_not_refused_by_a_missing_second_hat(fresh_lock, monkeyp
     monkeypatch.setattr("models.relay_unit_manager.RelayUnitManager", MagicMock())
     for kind in ("warning", "critical", "information"):
         monkeypatch.setattr(QMessageBox, kind, staticmethod(lambda *a, **k: QMessageBox.Ok))
-    panel = PrimingControlWidget({"num_hats": 2, "global_master_relay_id": MASTER}, lambda *_: None)
+    panel = PrimingControlWidget(
+        {"num_hats": 2, "global_master_relay_id": MASTER}, lambda *_: None
+    )
     panel._on_open_master_clicked()
     panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
     panel._on_open_cage_clicked()
@@ -695,3 +744,284 @@ def test_close_master_is_not_refused_by_a_missing_second_hat(fresh_lock, monkeyp
     assert panel._model.is_master_open is False
     assert get_operation_lock().is_busy() is False
     assert fake_relay_handler.energized() == set()
+
+
+# --- review round 2 -------------------------------------------------------------------------
+
+
+def _fail_on_writes(hat, ordinals):
+    """Make the given ON writes to ``hat`` (1-based, counted over every ON
+    attempt) raise, as an I2C error burst does."""
+    real_set, attempts = hat.set, []
+
+    def flaky(relay, state):
+        if state:
+            attempts.append(relay)
+            if len(attempts) in ordinals:
+                raise OSError(121, "Remote I/O error")
+        real_set(relay, state)
+
+    hat.set = flaky
+
+
+def _pump_worker(monkeypatch, *, calibration_factor=1.0, window_target=None):
+    """A RelayWorker in pump mode over the real RelayHandler, PumpController
+    and PumpStrategy, with one relay unit (4) on a fake HAT."""
+    from controllers.pump_controller import PumpController  # noqa: PLC0415
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+    from models.relay_unit import RelayUnit  # noqa: PLC0415
+    from PyQt5.QtCore import QMutex, QObject  # noqa: PLC0415
+    from strategies.pump_strategy import PumpStrategy  # noqa: PLC0415
+    from utils.volume_calculator import VolumeCalculator  # noqa: PLC0415
+
+    handler, hats = _relay_handler(monkeypatch, 1)
+    handler.relay_units = {4: RelayUnit(unit_id=4, relay_ids=(3,))}
+    monkeypatch.setattr("gpio.gpio_handler.time.sleep", lambda _s: None)
+    settings = {"pump_volume_ul": 50, "calibration_factor": calibration_factor, "min_triggers": 1}
+    calculator = VolumeCalculator(
+        SimpleNamespace(
+            settings=settings, settings_updated=SimpleNamespace(connect=lambda _s: None)
+        )
+    )
+    worker = RelayWorker.__new__(RelayWorker)
+    QObject.__init__(worker)
+    worker.mutex = QMutex()
+    worker.settings = {"valve_topology": "shared_manifold"}
+    worker.delivered_volumes, worker.failed_deliveries, worker.issued_targets = {}, {}, {}
+    worker.schedule_id, worker.hardware_mode = 7, "pump"
+    worker.mode = "staggered" if window_target else "instant"
+    worker._is_running, worker.stagger_interval, worker.notification_handler = True, 0, None
+    worker.database_handler = MagicMock()
+    worker.relay_handler, worker.volume_calculator = handler, calculator
+    worker.strategy = PumpStrategy(PumpController(handler, MagicMock()), calculator)
+    worker._cancel_requested = SimpleNamespace(is_set=lambda: False)
+    if window_target:
+        worker.animal_windows = {1: {"target_volume": window_target, "relay_unit": 4}}
+    worker.progress.connect(lambda _m: None)
+    worker.volume_updated.connect(lambda *_a: None)
+    worker.retries = []
+    monkeypatch.setattr(
+        RelayWorker, "schedule_retry", lambda self, data: self.retries.append(data), raising=False
+    )
+    return worker, hats[0]
+
+
+def _pump_delivery(volume, **extra):
+    return {
+        "animal_id": 1,
+        "relay_unit_id": 4,
+        "water_volume": volume,
+        "instant_time": datetime(2026, 10, 1, 9, 0),
+        "schedule_id": 7,
+        **extra,
+    }
+
+
+def _triggers_fired(hat):
+    return sum(1 for _relay, state in hat.writes if state == 1)
+
+
+def _ledger(worker):
+    rows = [c.args[0] for c in worker.database_handler.log_delivery.call_args_list]
+    return [(r["status"], round(r["volume_actual_ml"], 6), r["pulses_fired"]) for r in rows]
+
+
+def test_a_staggered_pump_retry_fires_only_the_rest(monkeypatch):
+    """The review's case: the delivery carries the trigger count planned for
+    the whole dose; the retry fired all 10 again on top of the 3 that had
+    run (13 triggers, 0.65 mL against 0.5)."""
+    worker, hat = _pump_worker(monkeypatch, window_target=0.5)
+    _fail_on_writes(hat, {4})
+    data = _pump_delivery(0.5, triggers=10)
+
+    worker._handle_delivery(data)
+    assert worker.retries == [data]
+    assert asyncio.run(worker.execute_delivery(data)) is True
+
+    assert _triggers_fired(hat) == 10
+    assert worker.delivered_volumes[1] == pytest.approx(0.5)
+    assert _ledger(worker) == [("partial", 0.15, 3), ("completed", 0.35, 7)]
+
+
+def test_a_pump_retry_that_stops_part_way_is_credited_too(monkeypatch):
+    """The review's case: the retry runs through PumpStrategy, which reported
+    0 mL and the commanded trigger count when a relay stopped it."""
+    worker, hat = _pump_worker(monkeypatch)
+    _fail_on_writes(hat, {4, 9})  # attempt 1 stops after 3, attempt 2 after 4 more
+    data = _pump_delivery(0.5)
+
+    worker._handle_delivery(data)
+    assert asyncio.run(worker.execute_delivery(data)) is False
+    assert asyncio.run(worker.execute_delivery(data)) is True
+
+    assert _triggers_fired(hat) == 10
+    assert worker.delivered_volumes[1] == pytest.approx(0.5)
+    assert _ledger(worker) == [("partial", 0.15, 3), ("partial", 0.2, 4), ("completed", 0.15, 3)]
+
+
+def test_partial_pump_credit_honours_the_calibration_factor(monkeypatch):
+    """At factor 0.5 a trigger stands for 100 uL: 1.0 mL is 10 triggers. The
+    partial credit used 50 uL, so the retry over-dosed (13 triggers)."""
+    worker, hat = _pump_worker(monkeypatch, calibration_factor=0.5)
+    _fail_on_writes(hat, {6})
+    data = _pump_delivery(1.0)
+
+    worker._handle_delivery(data)
+    assert worker.delivered_volumes[1] == pytest.approx(0.5), "5 of 10 triggers"
+    assert asyncio.run(worker.execute_delivery(data)) is True
+
+    assert _triggers_fired(hat) == 10
+    assert worker.delivered_volumes[1] == pytest.approx(1.0)
+
+
+def test_a_failed_dispense_is_not_credited_with_an_earlier_run_s_triggers(monkeypatch):
+    """The controller's count is per call: a dispense that never reached the
+    relays must not read the last run's triggers as its own."""
+    from controllers.pump_controller import PumpController  # noqa: PLC0415
+
+    handler, _hats = _relay_handler(monkeypatch, 1)
+    from models.relay_unit import RelayUnit  # noqa: PLC0415
+
+    handler.relay_units = {4: RelayUnit(unit_id=4, relay_ids=(3,))}
+    monkeypatch.setattr("gpio.gpio_handler.time.sleep", lambda _s: None)
+    pump = PumpController(handler, MagicMock())
+    assert asyncio.run(pump.dispense_water(4, 0.25, 5)) is True
+    assert pump.triggers_fired() == 5
+    assert asyncio.run(pump.dispense_water(99, 0.25, 5)) is False, "no such unit"
+    assert pump.triggers_fired() == 0
+
+
+def test_a_pump_relay_that_does_not_switch_off_is_retried_then_alarmed(monkeypatch, capsys):
+    from models.relay_unit import RelayUnit  # noqa: PLC0415
+
+    handler, hats = _relay_handler(monkeypatch, 1)
+    handler.relay_units = {1: RelayUnit(unit_id=1, relay_ids=(3,))}
+    real_set, offs = hats[0].set, []
+
+    def lose_first_off(relay, state):
+        if not state:
+            offs.append(relay)
+            if len(offs) == 1:
+                raise OSError(121, "Remote I/O error")
+        real_set(relay, state)
+
+    hats[0].set = lose_first_off
+    assert handler.trigger_relays([1], {"1": 2}, 0) == ["Relay Unit 1 triggered 2 times"]
+    assert "[VALVE CRITICAL]" not in capsys.readouterr().out, "the second attempt got through"
+
+    hats[0].set = real_set
+    hats[0].fail_off = True
+    assert handler.trigger_relays([1], {"1": 2}, 0) == []
+    assert handler.last_trigger_counts == {1: 1}
+    assert (
+        "[VALVE CRITICAL] relay unit 1: relay(s) 3 did not switch off" in capsys.readouterr().out
+    )
+
+
+def test_a_pump_relay_that_never_switched_on_raises_no_alarm(monkeypatch, capsys):
+    from models.relay_unit import RelayUnit  # noqa: PLC0415
+
+    handler, hats = _relay_handler(monkeypatch, 1)
+    handler.relay_units = {1: RelayUnit(unit_id=1, relay_ids=(3,))}
+    hats[0].fail = True
+    assert handler.trigger_relays([1], {"1": 2}, 0) == []
+    assert "[VALVE CRITICAL]" not in capsys.readouterr().out
+
+
+def test_a_sensor_pulse_left_open_for_the_window_banks_what_the_sensor_saw(
+    fake_relay_handler, monkeypatch, capsys
+):
+    """All three immediate closes are lost and the late one gets through: the
+    valve was open for the whole measurement window, about ten pulse widths.
+    The sensor saturates far below a pulse's flow, so its reading (and the
+    adaptive correction, which falls back to one calibrated pulse) cannot
+    show that water: the banked figure scales the pulse by the open time."""
+    strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
+    real, closes = fake_relay_handler.set_relays, []
+
+    def lose_three_closes(relay_ids, state):
+        if not state:
+            closes.append(1)
+            if len(closes) <= 3:
+                return False
+        return real(relay_ids, state)
+
+    monkeypatch.setattr(fake_relay_handler, "set_relays", lose_three_closes)
+    clock = iter(range(10_000))
+    monkeypatch.setattr(
+        asyncio, "get_event_loop", lambda: SimpleNamespace(time=lambda: next(clock) * 0.01)
+    )
+    strategy._sensor.read_one.side_effect = lambda: (3000.0, 25.0)  # uL/min, saturated
+
+    with pytest.raises(ValveCommandError) as failure:
+        asyncio.run(strategy._execute_single_pulse(CAGE))
+
+    assert len(closes) == 4, "three immediate attempts, then the late one"
+    assert fake_relay_handler.energized() == set()
+    assert failure.value.delivered_ml > 10 * Q, "the open time, not one pulse, is banked"
+    assert "[VALVE CRITICAL]" not in capsys.readouterr().out
+
+
+def test_a_sensor_pulse_closed_on_an_immediate_retry_banks_the_corrected_pulse(
+    fake_relay_handler, monkeypatch
+):
+    fake_relay_handler.fail_on(nth=2)
+    strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
+    with pytest.raises(ValveCommandError) as failure:
+        asyncio.run(strategy._execute_single_pulse(CAGE))
+    assert failure.value.delivered_ml == pytest.approx(Q), "one calibrated pulse, as before"
+
+
+def test_continuous_mode_raises_no_alarm_for_a_cage_valve_that_never_opened(
+    fake_relay_handler, monkeypatch, capsys
+):
+    """A cage on a dead HAT: its open and its close both fail, but it was
+    never energised, so 'may still be OPEN' would be untrue."""
+    fake_relay_handler.fail_on(relay=CAGE)
+    strategy = _strategy(
+        SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch, pulse=False
+    )
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=0.6))
+    assert result.success is False
+    assert "[VALVE CRITICAL]" not in capsys.readouterr().out
+    assert fake_relay_handler.energized() == set()
+
+
+def _continuous_sensor_strategy(fake, monkeypatch):
+    strategy = _strategy(SolenoidController(fake, MASTER, CAGE_MAP), monkeypatch, pulse=False)
+    strategy._sensor = MagicMock()
+    strategy._sensor.clear_queue.return_value = 0
+    strategy._sensor.ensure_streaming.return_value = True
+    strategy._sensor_available = True
+    return strategy
+
+
+def test_the_sensor_continuous_path_closes_the_master_when_the_cage_does_not_open(
+    fake_relay_handler, monkeypatch, capsys
+):
+    fake_relay_handler.fail_on(relay=CAGE)
+    strategy = _continuous_sensor_strategy(fake_relay_handler, monkeypatch)
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=0.6))
+    assert result.success is False
+    assert fake_relay_handler.trace[-2:] == [((MASTER,), 1), ((MASTER,), 0)], "opened, then closed"
+    assert fake_relay_handler.energized() == set()
+    assert "[VALVE CRITICAL]" not in capsys.readouterr().out, "the cage never opened"
+
+
+def test_the_sensor_continuous_path_alarms_when_the_opened_master_does_not_close(
+    fake_relay_handler, monkeypatch, capsys
+):
+    real = fake_relay_handler.set_relays
+
+    def cage_dead_master_stuck(relay_ids, state):
+        if tuple(relay_ids) == (CAGE,) or (tuple(relay_ids) == (MASTER,) and not state):
+            return False
+        return real(relay_ids, state)
+
+    monkeypatch.setattr(fake_relay_handler, "set_relays", cage_dead_master_stuck)
+    strategy = _continuous_sensor_strategy(fake_relay_handler, monkeypatch)
+    result = asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=0.6))
+    assert result.success is False
+    out = capsys.readouterr().out
+    assert "[VALVE CRITICAL] cage 1: the master valve close" in out
+    assert "the cage valve close" not in out

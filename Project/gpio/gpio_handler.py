@@ -293,8 +293,9 @@ class RelayHandler:
                 # unit: the trigger did not happen and must not be counted.
                 switched_on = [self._set_relay_states([r], 1) for r in relay_unit.relay_ids]
                 if not all(switched_on):
-                    for relay_id in relay_unit.relay_ids:
-                        self._set_relay_states([relay_id], 0)
+                    # Only a relay that did switch on can be left on.
+                    went_on = [r for r, ok in zip(relay_unit.relay_ids, switched_on) if ok]
+                    self._switch_unit_off(relay_unit, trigger, confirm=went_on)
                     logging.error(
                         f"Relay unit {relay_unit.unit_id}: trigger {trigger + 1} did not "
                         "switch on; stopping"
@@ -306,12 +307,7 @@ class RelayHandler:
                 time.sleep(stagger)
 
                 # Deactivate relays
-                switched_off = [self._set_relay_states([r], 0) for r in relay_unit.relay_ids]
-                if not all(switched_off):
-                    logging.error(
-                        f"Relay unit {relay_unit.unit_id}: trigger {trigger + 1} did not "
-                        "switch off; the relay may still be ON"
-                    )
+                if not self._switch_unit_off(relay_unit, trigger, confirm=relay_unit.relay_ids):
                     return False
 
                 # Wait between triggers
@@ -323,6 +319,31 @@ class RelayHandler:
         except Exception as e:
             logging.error(f"Trigger execution error: {str(e)}")
             return False
+
+    def _switch_unit_off(self, relay_unit, trigger, confirm):
+        """Switch a unit's relays off, trying a lost write again at once.
+
+        False, with a [VALVE CRITICAL] line, when a relay in ``confirm``
+        (those known to be on) did not switch off: the pump may still be
+        running.
+        """
+        stuck = [
+            relay_id
+            for relay_id in relay_unit.relay_ids
+            if not (self._set_relay_states([relay_id], 0) or self._set_relay_states([relay_id], 0))
+            and relay_id in confirm
+        ]
+        if not stuck:
+            return True
+        message = (
+            f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: relay(s) "
+            f"{', '.join(str(r) for r in stuck)} did not switch off at trigger {trigger + 1}; "
+            "they may still be ON. Check the rig; Settings > Priming > CLOSE ALL RELAYS "
+            "retries every relay."
+        )
+        print(message, flush=True)
+        logging.error(message)
+        return False
 
     def _set_relay_states(self, relay_ids, state):
         """Set the state of specified relay IDs with I2C coordination.
