@@ -1061,8 +1061,8 @@ class SettingsTab(QWidget):
         help_text = QLabel(
             "<b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
             "Requires lab scale (±0.001g). CV% <5% = production ready. "
-            "<b>Stale</b> = measured under the other valve topology; deliveries still "
-            "use it, so recalibrate that cage."
+            "<b>Stale</b> = measured under the other valve topology; a schedule "
+            "watering that cage will not start until it is recalibrated."
         )
         help_text.setWordWrap(True)
         help_text.setObjectName("HelpText")
@@ -1127,8 +1127,8 @@ class SettingsTab(QWidget):
             stale = bool(cal) and calibration_is_stale(cal, self.settings)
             if cal:
                 # Calibrated - show data. A calibration measured under the
-                # other valve topology is still used by deliveries, so it is
-                # flagged, not hidden.
+                # other valve topology is flagged, not hidden: a schedule
+                # watering this cage will not start until it is recalibrated.
                 if stale:
                     device = topology_from(self.settings)
                     status_item = QTableWidgetItem("Stale")
@@ -1137,7 +1137,8 @@ class SettingsTab(QWidget):
                         f"Measured on {calibration_label(cal)}: "
                         f"{describe(calibration_topology(cal))}. "
                         f"This device runs {device}: {describe(device)}. "
-                        "Deliveries still use this calibration - recalibrate this cage."
+                        "A schedule watering this cage will not start until it is "
+                        "recalibrated."
                     )
                 else:
                     status_item = QTableWidgetItem("[OK]")
@@ -1446,7 +1447,8 @@ class SettingsTab(QWidget):
             return
 
         # Cages with no calibration, then cages whose calibration was measured
-        # under the other valve topology (still used, but stale).
+        # under the other valve topology (stale: schedules watering it will
+        # not start).
         calibrations = self.database_handler.get_all_valve_calibrations()
         cages = sorted(self._cage_map())
         uncalibrated = [c for c in cages if c not in calibrations]

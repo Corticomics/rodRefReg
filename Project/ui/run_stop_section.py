@@ -10,6 +10,13 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.calibration_gate import (
+    calibration_problems,
+    format_problems,
+    gate_applies,
+    refusal_title,
+    run_cage_ids,
+)
 from utils.operation_lock import SCHEDULE, get_operation_lock
 
 from .schedule_drop_area import ScheduleDropArea
@@ -374,6 +381,7 @@ class RunStopSection(QWidget):
                 )
                 return
 
+            future_deliveries = None  # instant mode fills it below
             if mode == "Staggered":
                 if not schedule.start_time or not schedule.end_time:
                     self._reset_run_button()
@@ -522,6 +530,9 @@ class RunStopSection(QWidget):
                 )
                 return
 
+            if not self._passes_calibration_gate(schedule, mode, future_deliveries):
+                return
+
             # Update button states (already set job_in_progress in run_program)
             self.update_button_states()
 
@@ -539,12 +550,61 @@ class RunStopSection(QWidget):
             self._reset_run_button()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
+    def _passes_calibration_gate(self, schedule, mode, future_deliveries):
+        """
+        Refuse the start when a cage this run waters has no calibration it
+        can use: none (the strategy would guess the volume per pulse), one
+        measured under the other valve topology, or one without a usable
+        volume or pulse width. See utils.calibration_gate.
+
+        Runs on the GUI thread before any worker exists; on a refusal the
+        Run button, the job flag and the operation lock are reset first, so
+        the operator can go straight to Settings > Calibration.
+        """
+        settings = getattr(self.system_controller, 'settings', None) or {}
+        if not gate_applies(settings):
+            return True
+        cages = run_cage_ids(mode, schedule.relay_unit_assignments, future_deliveries)
+        try:
+            calibrations = self.database_handler.get_all_valve_calibrations(raise_errors=True)
+        except Exception as exc:
+            print(f"[RUN] Calibration gate could not read the calibrations: {exc}")
+            self._reset_run_button()
+            QMessageBox.warning(
+                self,
+                "Can't check valve calibrations",
+                "This schedule was not started. RRR could not read the valve calibrations "
+                "from its database, so it cannot confirm every cage is calibrated.\n\n"
+                "Press Run to try again; if this keeps happening, the Terminal tab shows "
+                "the database error.",
+            )
+            return False
+        problems = calibration_problems(cages, calibrations, settings)
+        if not problems:
+            return True
+        print(
+            "[RUN] Calibration gate refused the start: "
+            + ", ".join(f"cage {p.cage_id} {p.reason}" for p in problems)
+        )
+        self._reset_run_button()
+        QMessageBox.warning(self, refusal_title(problems), format_problems(problems, settings))
+        return False
+
     def _reset_run_button(self):
-        """Reset run button to initial state after error or cancellation."""
+        """Reset run button to initial state after error or cancellation.
+
+        Also takes down the Execution Monitor that run_program opened in its
+        loading state, as reset_ui does: a start that never happened must
+        not leave "Loading…" on screen with the GUI believing a schedule
+        runs.
+        """
         self.job_in_progress = False
         get_operation_lock().release(SCHEDULE)
         self.run_button.setText("Run")
         self.update_button_states()
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
+            parent_gui.hide_execution_monitor()
 
     def _execute_program(self, schedule, mode, window_start, window_end):
         """
