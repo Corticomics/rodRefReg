@@ -28,18 +28,19 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Task | How To Do It |
 |------|--------------|
 | Rename a cage | Cages tab → click cage tile → enter custom name → Save |
-| View relay layout | Cages tab — shows the full HAT board with master vs. animal relays |
+| View relay layout | Cages tab — shows the full HAT board: relay 16 is the MASTER SOLENOID on a shared-manifold rig and RESERVED (unused) on an independent rig |
 
 ### System Operations
 
 | Task | How To Do It |
 |------|--------------|
-| Start water delivery | Drag schedule card onto Run/Stop drop area → Run Program |
-| Stop water delivery | Stop Program |
+| Start water delivery | Drag schedule card onto Run/Stop drop area → **Run**. In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*): calibrate the listed cages first |
+| Stop water delivery | **Stop**. If it shows *Relays Not Confirmed Off*, disconnect the valve power supply, then check the relay HAT and its I²C connection |
 | Monitor a live run | Execution Monitor tab appears next to Terminal during a run |
-| Test relays | Settings → Delivery → Test Relay → select relay → Run Test |
+| Test a valve | Settings → Priming → select the cage → **Open Selected**, then **Close Selected** (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
 | Calibrate valves | Settings → Calibration → **Calibrate** on the cage's row (or **Calibrate All Uncalibrated**) |
-| Prime tubing | Settings → Priming → Run priming sequence |
+| Prime tubing | Settings → Priming → select cage → **Open Selected** → **Close Selected** once water flows (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
+| Change valve topology | Settings → Delivery → Valve Topology (logged in; refused while a schedule, priming or calibration runs). Priming cannot open a valve until RRR is closed and reopened; then recalibrate the cages marked Stale |
 | Set up notifications | Settings → General → Slack credentials → Save |
 
 ## Troubleshooting Guide
@@ -48,15 +49,15 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 | Problem | Solution |
 |---------|----------|
-| No water delivered | • Check if program is running<br>• Ensure time window is correct<br>• Check water reservoir level<br>• Verify pump connections |
-| Uneven water delivery | • Calibrate pumps<br>• Check for air bubbles in tubing<br>• Run 200 test triggers to prime pumps |
+| No water delivered | • Check if the schedule is running (Run may have refused it: *Valve calibration needed* lists the cages to calibrate)<br>• Ensure time window is correct<br>• Look in the Terminal tab for `[VALVE ERROR]`: a valve command did not reach its relay HAT and the delivery stopped<br>• Check the water reservoir level, or on an independent rig that animal's syringe and line<br>• Verify pump connections (pump mode) |
+| Uneven water delivery | • Check for air bubbles in tubing: prime the line (Settings → Priming)<br>• Solenoid rig: recalibrate that cage (Settings → Calibration → **Recalibrate** on its row)<br>• Pump mode: calibrate the pumps and run 200 test triggers to prime them |
 | Leaking connections | • Check tube fittings<br>• Replace damaged tubing<br>• Ensure correct tube diameter (2mm) |
 
 ### Software Issues
 
 | Problem | Solution |
 |---------|----------|
-| Application won't start | • Restart your Raspberry Pi<br>• Run `./start_rrr.sh` from terminal to see error messages |
+| Application won't start | • Restart your Raspberry Pi<br>• Run `~/.local/bin/rrr` from a terminal to see error messages (where RRR runs as the user service: `journalctl --user -u rrr.service -n 50`) |
 | Can't save settings | • Log in with a user account (not guest mode)<br>• Check file permissions |
 | Slack notifications not working | • Verify internet connection<br>• Check Slack credentials<br>• Ensure channel ID is correct |
 
@@ -64,7 +65,8 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 | Problem | Solution |
 |---------|----------|
-| Relay HAT not detected | • Check physical connections<br>• Verify DIP switch settings<br>• Restart the system |
+| Relay HAT not detected | • Check physical connections and `sudo i2cdetect -y 1`<br>• Verify the stack-level jumpers<br>• After fixing it, close and reopen RRR: until then every valve delivery to a missing HAT fails with `[VALVE ERROR]` |
+| `[VALVE CRITICAL] … OPEN`, *Emergency Stop Failed* or *Relays Not Confirmed Off* | • Disconnect the valve power supply first<br>• Then check the relay HAT and its I²C connection; Settings → Priming → CLOSE ALL RELAYS retries every relay<br>• `[VALVE OK] … closed after all` means a later close got through and that alarm is cleared |
 | Pump not triggering | • Test the relay<br>• Check power connections<br>• Verify common ground connection |
 | System freezes during operation | • Check for overheating<br>• Ensure power supply is adequate<br>• Reduce number of simultaneous triggers |
 
@@ -72,18 +74,17 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+R` | Run program |
-| `Ctrl+S` | Stop program |
-| `Ctrl+H` | Open help |
-| `Ctrl+L` | Show logs |
+| `Ctrl+F` or `F3` | Help tab: jump to the search bar |
 | `Ctrl+Tab` | Switch between tabs |
-| `Esc` | Close popup dialogs |
+| `Esc` | Close popup dialogs; in the Help tab clear the search; in the Cages tab cancel a rename |
+
+Run and Stop have no keyboard shortcut: use the **Run** and **Stop** buttons.
 
 ## Daily Checklist
 
 ### Morning Setup
-- [ ] Check water reservoir level and refill if needed
-- [ ] Inspect tubing for leaks or blockages
+- [ ] Check water reservoir level (on an independent rig, every animal's syringe) and refill if needed
+- [ ] Inspect tubing for leaks or blockages; on an independent rig check every syringe line daily; a primed line holds about three days, so prime again any line left idle over a long weekend
 - [ ] Update animal weights
 - [ ] Verify schedule for the day
 - [ ] Start the program

@@ -135,7 +135,7 @@ The **Schedule Wizard** walks you through schedule creation in 4 steps:
 2. **Step 1 — Type**: Choose between:
    - **Instant Delivery**: All animals receive their volume at the same time; conflicting times are auto-queued
    - **Staggered Delivery**: The total volume is divided uniformly across the selected time window
-3. **Step 2 — Animals**: Multi-select the animals/cages to include (limited by your hardware — typically 15 cages per HAT)
+3. **Step 2 — Animals**: Multi-select the animals/cages to include (limited by your hardware: 15 cages on the first HAT, because relay 16 is the master valve or, on an independent rig, reserved and unwired; 16 on each further HAT)
 4. **Step 3 — Parameters**: Set per-animal volume, time window, and schedule name
 5. **Step 4 — Review**: Confirm the configuration and click **Save Schedule**
 
@@ -150,15 +150,15 @@ The new schedule appears as a card in the **Schedules** hub.
 #### Starting Water Delivery
 
 1. In the **Schedules** hub, drag a schedule card onto the **Run/Stop** drop area on the right
-2. Click **Run Program**
+2. Click **Run**. In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology: it shows *Valve calibration needed* with the cages to calibrate, and the schedule does not start
 3. The **Execution Monitor** tab appears next to the Terminal and shows live per-cage progress
 4. Monitor the terminal output or the Execution Monitor cards for real-time updates
 
 
 #### Stopping the Program
 
-1. Click **Stop Program** to halt water delivery
-2. The system will stop immediately
+1. Click **Stop** to halt water delivery
+2. RRR closes every relay. If a relay HAT does not confirm, it shows **Relays Not Confirmed Off**: a valve may still be open, so disconnect the valve power supply, then check the relay HAT and its I²C connection
 
 #### Unattended Operation
 
@@ -195,7 +195,7 @@ The RRR system is designed to run continuously even when you disconnect your dis
 1. **Check System Status**: Open the RRR application and verify it's running/Ran correctly
 2. **Update Animal Weights**: Record new animal weights in the Animals tab
 3. **Inspect Water Lines**: Check for any leaks or blockages
-4. **Water Reservoir**: Ensure the water reservoir has sufficient clean water
+4. **Water Reservoir**: Ensure the water reservoir has sufficient clean water. On an independent rig (one syringe per animal), check every syringe line daily; a primed line holds about three days, so prime again (Settings → Priming) any line left idle over a long weekend
 
 
 5. **Check Delivery Log**: Review the delivery history in the terminal
@@ -206,14 +206,15 @@ The RRR system is designed to run continuously even when you disconnect your dis
 
 ### What if the system isn't delivering water?
 
-1. Check that the **Run Program** button has been clicked
+1. Check that **Run** has been clicked and the schedule started: if Run showed *Valve calibration needed* or *Cage not on this device*, calibrate the listed cages in **Settings → Calibration** (or edit the schedule) and press **Run** again
 2. Verify that your time window settings are correct (is a future time if start time has passed but end time not, the system will NOT start)
 3. Inspect the water tubes for air bubbles or blockages (make sure to prime the tubes and pumpos prior to first use)
 4. Check that the water reservoir has enough water
+5. Look in the Terminal tab for `[VALVE ERROR]`: a valve command did not reach its relay HAT (or a pulse failed) and that delivery stopped. Check the HAT (`sudo i2cdetect -y 1`); after fixing a HAT that was missing when RRR started, close and reopen RRR
 
 ### How do I know how much water each animal received?
 
-The system keeps a log of all water deliveries. You can view this in the terminal window or export the data for your records from the database table called "logs".
+You can watch each delivery in the Terminal tab. Every delivery is also written to the `dispensing_history` table (the delivery ledger): the dose asked for, the volume dispensed and its status. On the device, `cd ~/rrr/current/Project && ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since YYYY-MM-DD` prints each day's totals per cage.
 
 ### What if I need to change a schedule mid-experiment?
 
@@ -221,14 +222,14 @@ You can create a new schedule at any time. Stop the current program, create your
 
 ### How do I calibrate the system for accurate water delivery?
 
-Go to **Settings → Calibration**. The table lists every cage, with the custom names you set in the Cages tab. Click **Calibrate** on a cage's row, or **Calibrate All Uncalibrated** to go through every cage that has no calibration yet. For each cage the wizard:
+Go to **Settings → Calibration**. The table lists every cage, with the custom names you set in the Cages tab. Click **Calibrate** on a cage's row, or **Calibrate All Uncalibrated** to go through every cage that has no calibration yet, one marked **Invalid** (its volume per pulse or pulse width is missing, zero or invalid), or one marked **Stale** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold). Set the valve topology (**Settings → Delivery → Valve Topology**) before calibrating. For each cage the wizard:
 
 1. Walks you through a pre-flight checklist (prime the tubing in the **Priming** sub-tab first if it holds air)
 2. Fires a fixed number of pulses into a beaker at the pulse width and interval you set
 3. Asks for the volume you weighed
-4. Saves that cage's mL per pulse, which every later delivery to the cage uses
+4. Saves that cage's mL per pulse, with the valve topology it was measured under; every later delivery to the cage uses it. In solenoid pulse mode (the default), **Run** refuses a schedule that waters a cage with no calibration, an Invalid one or a Stale one
 
-Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used independently any time you swap tubing or refill the reservoir.
+Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used on its own any time you swap tubing, refill the reservoir or, on an independent rig, refill or replace a syringe. It is refused while a schedule or a calibration is running, and after a valve topology change Priming cannot open a valve until RRR is closed and reopened.
 
 ### How do I resolve "i2c-1 not found" or other I²C errors?
 
@@ -261,10 +262,11 @@ Different Raspberry Pi models expose different *internal* I²C bus numbers (Pi 5
 
 ### How can I run a Python script against the RRR install?
 
-The application uses a virtual environment at `~/rodRefReg/.venv`. Always call its Python directly — do **not** rely on the system `python3`, which (on Bookworm) is intentionally locked down by PEP 668:
+The application uses a virtual environment at `~/rrr/shared/venv`, and the running release lives in `~/rrr/current`. Always call that Python directly — do **not** rely on the system `python3`, which (on Bookworm) is intentionally locked down by PEP 668:
 
 ```bash
-~/rodRefReg/.venv/bin/python3 Project/tests/test_relay_hat.py
+cd ~/rrr/current/Project
+~/rrr/shared/venv/bin/python3 tests/test_relay_hat.py
 ```
 
 ## Getting Help
