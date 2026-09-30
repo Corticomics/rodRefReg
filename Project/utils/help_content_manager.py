@@ -220,7 +220,7 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Access Control</h2>
   <p>The app starts in <strong>guest mode</strong>.  The <strong>Settings</strong> tab is
-  disabled until you log in on the <strong>Profile</strong> tab; the <strong>Help</strong>
+  hidden until you log in on the <strong>Profile</strong> tab; the <strong>Help</strong>
   tab (this documentation) stays available to everyone.  In guest mode the Animals tab
   shows all animals; after login it shows only your own animals (or all animals in Super
   Mode).</p>
@@ -229,9 +229,13 @@ def _build_content() -> Dict[str, HelpContent]:
   <ol>
     <li>Open the <strong>Profile</strong> tab and log in.</li>
     <li>Go to <strong>Settings → Delivery</strong> and confirm the hardware mode matches
-    your physical setup (<code>solenoid</code> or <code>pump</code>).</li>
+    your physical setup (<code>solenoid</code> or <code>pump</code>).  In solenoid mode, also
+    confirm <strong>Valve Topology</strong> matches how the rig is plumbed: shared manifold
+    (master valve) or independent (one syringe and one valve per animal).</li>
     <li>Add animals in the <strong>Animals</strong> tab.</li>
-    <li>Calibrate valves in <strong>Settings → Calibration</strong>.</li>
+    <li>Calibrate the valve of every cage you will water in <strong>Settings → Calibration</strong>.
+    In solenoid pulse mode (the default), Run refuses a schedule while any of its cages is
+    <em>Not Calibrated</em>, <em>Invalid</em> or <em>Stale</em>.</li>
     <li>Create a schedule via the <strong>Wizard</strong> tab or the <strong>Schedules</strong>
     tab.</li>
     <li>Press <strong>Run</strong> in the Run/Stop section and watch the
@@ -277,6 +281,11 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>Go to <strong>Settings → Delivery</strong> and set the <strong>Hardware Mode</strong>
   to match your physical hardware: <code>solenoid</code> (default) or <code>pump</code>.
   See the <em>Hardware Modes</em> topic for details.</p>
+  <p>In solenoid mode, set <strong>Valve Topology</strong> (same tab) to match the plumbing:
+  <em>Shared manifold (master valve)</em>, the default, or <em>Independent (one syringe and
+  one valve per animal)</em>.  Do this before you calibrate: each calibration records the
+  topology it was measured under.  Both controls are greyed out while a schedule, a priming
+  session or a calibration is running.</p>
 
   <div class='help-warning'>
     <strong>Warning:</strong> The mode must match what is physically installed.  A mismatch
@@ -299,7 +308,11 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>Open <strong>Settings → Calibration</strong>.  Click <strong>Calibrate</strong> for
   each cage (or <em>Calibrate All Uncalibrated</em> for a batch run).  Follow the on-screen
   wizard — you will need a lab scale accurate to ±0.001 g.  Calibration data is saved to
-  the database and used for all future deliveries.</p>
+  the database, with the valve topology it was measured under, and used for all future
+  deliveries.  In solenoid pulse mode (the default), Run refuses a schedule while any cage it
+  waters is <em>Not Calibrated</em>, <em>Invalid</em> (volume per pulse or pulse width missing,
+  zero or invalid) or <em>Stale</em> (measured under the other valve topology).
+  <em>Calibrate All Uncalibrated</em> also takes the Invalid and Stale cages.</p>
 
   <h2>5 — Test Run</h2>
   <ul>
@@ -377,13 +390,20 @@ def _build_content() -> Dict[str, HelpContent]:
     the execution window.</li>
     <li>Click <strong>Run</strong>.  The <strong>Execution Monitor</strong> tab
     automatically appears in the left pane with a progress card for each animal.</li>
+    <li>In solenoid pulse mode (the default), a schedule does not start while a cage it waters
+    has no usable valve calibration: a <em>Valve calibration needed</em> dialog names the
+    cages.  Calibrate them in <strong>Settings → Calibration</strong>, then press
+    <strong>Run</strong> again.</li>
     <li>Monitor the <strong>System Messages</strong> terminal for real-time status.</li>
     <li>After completion, cards show final status for ~10 seconds, then the tab hides.</li>
   </ol>
 
   <h2>5 — Stop If Needed</h2>
   <p>Press <strong>Stop</strong> at any time to immediately halt all water delivery.
-  All relay units are deactivated and the event is logged in System Messages.</p>
+  All relay units are deactivated and the event is logged in System Messages.  If a relay
+  HAT does not confirm OFF, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may
+  still be open: disconnect the valve power supply, then check the relay HAT and its I²C
+  connection.</p>
 
   <div class='help-tip'>
     <strong>Tip:</strong> Switch to <strong>Super Mode</strong> (Settings → General →
@@ -582,7 +602,8 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Cages and relays</h2>
   <div class='help-note'>
     <strong>Important:</strong> a <strong>cage</strong> maps directly to a
-    <strong>relay</strong> on the hat — cage 1 is relay 1, cage 2 is relay 2, and so on.
+    <strong>relay</strong> on the hat — cage 1 is relay 1, cage 2 is relay 2, and so on up to cage 15 on relay 15.  Relay 16 is
+    reserved, so on a second relay HAT cage 16 is relay 17 and cage 31 is relay 32.
     The cage you assign to an animal is the <strong>relay / solenoid valve that opens</strong>
     to deliver its water.  You can rename cages on the <strong>Cages</strong> tab, but the
     number always maps to that physical relay position.
@@ -610,6 +631,13 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Running a schedule</h2>
   <p>Drag a schedule card into the <strong>Schedule Queue</strong> in the Run/Stop section
   (right pane), then press <strong>Run</strong>.</p>
+  <p>In solenoid pulse mode (the default), before anything is delivered Run checks the valve
+  calibration of every cage the schedule waters.  A cage that is not calibrated, has an
+  unusable calibration (<em>Invalid</em>), or was calibrated under the other valve topology
+  (<em>Stale</em>) stops the start with a <em>Valve calibration needed</em> dialog naming the
+  cages.  A cage this device does not have is listed as <em>Not a cage on this device</em>
+  (the dialog is titled <em>Cage not on this device</em> when that is the only problem).
+  Nothing is delivered: fix the cages and press <strong>Run</strong> again.</p>
 
   <div class='help-note'>
     <strong>Note:</strong> The Wizard enforces hardware limits and cage assignments at each
@@ -633,6 +661,7 @@ def _build_content() -> Dict[str, HelpContent]:
             ],
             related_topics=[
                 "Schedule Wizard",
+                "Valve Calibration",
                 "Safety Features",
                 "Execution Monitor",
                 "Adding & Managing Animals",
@@ -671,7 +700,8 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><strong>Instant mode</strong>: delivery datetime and volume per animal.</li>
   </ul>
   <p>The wizard validates that start is before end, volumes are positive, and no two animals
-  share the same cage.</p>
+  share the same cage.  It does not check valve calibrations: in solenoid pulse mode (the
+  default), <strong>Run</strong> does, when you start the schedule.</p>
 
   <h2>Step 4 — Review and Save</h2>
   <p>A summary shows the schedule type, name, and per-animal cage/time/volume settings.
@@ -728,7 +758,9 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Loading State</h2>
   <p>When you press Run, the tab becomes visible immediately with a "Loading…" message
   while database queries complete.  Cards are then populated progressively to keep the
-  UI responsive.</p>
+  UI responsive.  If Run then refuses the schedule (for example a <em>Valve calibration
+  needed</em> dialog), nothing is delivered: the view switches back to the Terminal tab and
+  the Execution Monitor hides again.</p>
 
   <h2>Auto-Hide Behaviour</h2>
   <p>When the schedule completes (or is stopped), the view switches back to the Terminal
@@ -792,27 +824,57 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Stop Button</h2>
   <p>The <strong>Stop</strong> button in the Run/Stop section immediately halts all
-  hardware activity.  All relay outputs are driven to off.  Use it whenever an
-  unexpected situation arises.</p>
+  hardware activity.  All relay outputs are driven to off.  If a relay HAT does not confirm the
+  command, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may still be open:
+  disconnect the valve power supply, then check the relay HAT and its I²C connection.  Use
+  Stop whenever an unexpected situation arises.</p>
 
   <h2>System Messages Alerts</h2>
   <p>Every error, warning, and key event is timestamped and logged to the
   <strong>System Messages</strong> terminal.  Review this log after any abnormal run.</p>
 
+  <h2>Relay Command Checks</h2>
+  <ul>
+    <li>Every valve command is checked.  In solenoid pulse mode, a close that does not reach
+    its relay is tried again at once and after short waits.  A delivery stops when a valve
+    command still does not switch its relay, or a pulse fails for any other reason, and System
+    Messages shows <code>[VALVE ERROR] cage N: … delivery stopped after …</code> with the
+    pulses and mL delivered.  Only pulses whose valve opened are counted; a pulse whose close
+    got through late is counted with the extra water from the time its valve stayed open.  The
+    retry 30 seconds later asks only for the rest of the dose.</li>
+    <li><code>[VALVE CRITICAL] … OPEN</code> means a valve close did not get through, or the
+    valve's relay is not answering, so the valve may be open.  Check the rig and press
+    <strong>CLOSE ALL RELAYS</strong> in Settings → Priming, which retries every relay.  If a
+    later close gets through, <code>[VALVE OK]</code> says the alarm is cleared.  In pump mode
+    the same alarm names the relay unit and says its relays may still be ON.</li>
+    <li>A relay HAT that was not found when RRR started stays unusable until RRR is closed and
+    reopened.</li>
+  </ul>
+
+  <h2>Calibration Check at Run</h2>
+  <p>In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no
+  usable calibration measured under this device's valve topology (<em>Valve calibration
+  needed</em>).  See <em>Valve Calibration</em>.</p>
+
   <h2>Slack Notifications (Optional)</h2>
   <p>Configure a Slack Bot Token and Channel ID in <strong>Settings → General →
   Slack Integration</strong>.  When configured, critical system events are sent as
-  Slack messages, allowing remote monitoring.</p>
+  Slack messages, allowing remote monitoring.  Each field is saved when you leave it and is
+  used from the next message, without restarting RRR.  The <em>Status</em> line below the
+  fields shows whether the last message was sent and what to fix if it was not.</p>
 
   <h2>Priming Safety Interlocks</h2>
   <p>In the Priming panel on a shared-manifold rig, individual cage relays cannot be
   opened unless the master solenoid is open first.  An independent rig has no master, so a
   cage valve opens directly.  The <em>Close All Relays</em> emergency button closes every
-  relay immediately.</p>
+  relay immediately.  If a relay HAT does not confirm, it shows <em>Emergency Stop Failed</em>:
+  a valve may still be open, so disconnect the valve power supply, then check the relay HAT
+  and its I²C connection.</p>
 
   <div class='help-warning'>
-    <strong>Warning:</strong> If the Stop button does not respond, disconnect power from
-    the relay HAT immediately.  Note any System Messages errors and consult
+    <strong>Warning:</strong> If the Stop button does not respond, or a <em>Relays Not
+    Confirmed Off</em> or <em>Emergency Stop Failed</em> dialog appears, disconnect the valve
+    power supply (or the relay HAT's power) immediately.  Note any System Messages errors and consult
     Troubleshooting.
   </div>
 </div>
@@ -854,10 +916,14 @@ def _build_content() -> Dict[str, HelpContent]:
   <ol>
     <li>Mount the relay HAT securely on the host computer (Raspberry Pi or compatible
     board).</li>
-    <li>Wire each cage's valve or pump to its assigned relay terminal (R1–R15).  Refer to
-    the <strong>Cages</strong> tab for the relay-to-cage mapping.</li>
+    <li>Wire each cage's valve or pump to its assigned relay terminal (R1–R15 on the first
+    HAT; R17–R32 on a second HAT, which carries cages 16–31).  Refer to the
+    <strong>Cages</strong> tab for the relay-to-cage mapping.</li>
     <li>Shared-manifold rig: connect the master solenoid to relay R16 (solenoid mode).
     Independent rig (one syringe and one valve per animal): leave R16 unwired.</li>
+    <li>Solenoid mode: in <strong>Settings → Delivery → Valve Topology</strong>, choose the
+    topology that matches this wiring before you calibrate: each calibration records the
+    topology it was measured under.</li>
     <li>If using a Teensy flow-sensor bridge, connect it via USB.  Configure the serial
     port in <strong>Settings → Delivery</strong>.</li>
     <li>Power on hardware and verify all relay indicator lights are off (safe state).</li>
@@ -868,7 +934,10 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Use the <strong>Priming</strong> panel (Settings → Priming) to manually open and
     close individual relays and confirm water flows through each cage line.</li>
     <li>Check the Calibration table (Settings → Calibration) — uncalibrated cages show
-    a red "Not Calibrated" status.  Calibrate before running experiments.</li>
+    a red "Not Calibrated" status, cages whose stored calibration is unusable show a red
+    "Invalid", and cages calibrated under the other valve topology show an amber "Stale".
+    In solenoid pulse mode (the default), Run refuses a schedule while any cage it waters
+    shows one of these.</li>
   </ul>
 
   <h2>Daily Checks</h2>
@@ -926,7 +995,11 @@ def _build_content() -> Dict[str, HelpContent]:
   <h1>Hardware Modes</h1>
   <p>RRR supports two delivery hardware modes.  The mode is set in
   <strong>Settings → Delivery → Delivery Hardware Mode</strong> and must exactly match
-  what is physically installed.  Changing the mode while a schedule is running is blocked.</p>
+  what is physically installed.  The Hardware Mode box is greyed out, and a change is
+  refused, while a schedule, a priming session or a calibration is running.  Restoring a
+  settings backup (<strong>Settings → General → Backup and Restore</strong>) never changes the
+  hardware mode or the valve topology; the restore message says so when the backup's
+  differ.</p>
 
   <h2>Solenoid Mode (Default)</h2>
   <p>In solenoid mode, each cage has a single solenoid valve wired to one relay (R1–R15).
@@ -935,13 +1008,33 @@ def _build_content() -> Dict[str, HelpContent]:
   leaves R16 unwired.  Volume is measured in
   real time by a Teensy-based flow sensor via USB serial.</p>
   <ul>
-    <li>One relay per cage — scalable to 15 cages per HAT.</li>
+    <li>One relay per cage — 15 cages on the first HAT, 16 on each further HAT (31 on two).</li>
     <li>Real-time volumetric feedback from the flow sensor.</li>
     <li>Predictive valve close to minimize overshoot.</li>
-    <li>Requires flow-sensor calibration per cage before first use.</li>
+    <li>Requires a valve calibration for each cage (Settings → Calibration); in solenoid pulse
+    mode (the default), Run refuses a schedule whose cages are not calibrated for this valve
+    topology.</li>
     <li>Can operate without the flow sensor if <em>Allow schedules without flow sensor</em>
     is enabled (falls back to calibration values).</li>
   </ul>
+
+  <h2>Valve Topology (Solenoid Mode)</h2>
+  <p>Set in <strong>Settings → Delivery → Valve Topology</strong> (in Solenoid Mode Settings).
+  It must match how the rig is plumbed:</p>
+  <ul>
+    <li><strong>Shared manifold (master valve)</strong> (default) — RRR opens the master valve
+    on relay 16 and holds it open around every delivery and calibration; in Priming you open
+    it with <strong>Open Master</strong>.</li>
+    <li><strong>Independent (one syringe and one valve per animal)</strong> — RRR never drives
+    relay 16; each delivery, calibration and priming action opens only the animal's own
+    valve.  If the rig still has a master valve, no water reaches any animal.</li>
+  </ul>
+  <p>You must be logged in to change it.  RRR asks for confirmation and refuses the change
+  while a schedule, a priming session or a calibration is running.  Schedules and calibrations
+  started afterwards use the new topology.  Cages calibrated under the other topology show
+  <strong>Stale</strong> in Settings → Calibration; in solenoid pulse mode (the default) a
+  schedule that waters them will not start until they are recalibrated.  Priming cannot open a valve until
+  RRR is closed and reopened.</p>
 
   <h2>Pump Mode (Legacy)</h2>
   <p>In pump mode, each relay unit controls a peristaltic pump using timed pulses.
@@ -999,24 +1092,44 @@ def _build_content() -> Dict[str, HelpContent]:
 <div class='help-section'>
   <h1>Valve Calibration</h1>
   <p>Calibration establishes the exact volume delivered per relay pulse for each cage
-  valve.  Without calibration, deliveries use default values that may be inaccurate.</p>
+  valve.  In solenoid pulse mode (the default), Run refuses a schedule while any cage it
+  waters has no usable calibration for this device's valve topology, and the dialog names
+  those cages.  Pump mode, and solenoid mode with <em>Enable Pulse Mode</em> turned off
+  (Settings → Delivery), do not use these calibrations; each time it starts, RRR returns to
+  solenoid mode with <em>Enable Pulse Mode</em> on.</p>
 
   <h2>Calibration Table (Settings → Calibration)</h2>
-  <p>The table shows all 15 cage slots with the following columns:</p>
+  <p>The table has one row per cage on this device (15 with one relay HAT, 31 with two;
+  relay 16 is reserved and has no row), with the following columns:</p>
   <ul>
     <li><strong>Cage</strong> — cage number and custom name.</li>
-    <li><strong>Status</strong> — Calibrated (green) or Not Calibrated (red).</li>
+    <li><strong>Status</strong> — <em>[OK]</em> (green): calibrated under this device's valve
+    topology; <em>Stale</em> (amber): measured under the other valve topology (hover for where
+    it was measured); <em>Invalid</em> (red): the stored volume per pulse or pulse width is
+    missing, zero or invalid; <em>Not Calibrated</em> (red).  Hover over Stale or Invalid to
+    see what Run will do about it.</li>
     <li><strong>mL/Pulse</strong> — measured volume delivered per relay activation.</li>
     <li><strong>CV%</strong> — coefficient of variation (lower is better; &lt;5% is
-    production-ready, &lt;1% is excellent).</li>
+    production-ready, &lt;1% is excellent).  A dash means none was stored.</li>
     <li><strong>Date</strong> — date of last calibration.</li>
     <li><strong>Action</strong> — <em>Calibrate</em> or <em>Recalibrate</em> button.</li>
   </ul>
 
+  <h2>Stale Calibrations</h2>
+  <p>Each calibration records the valve topology it was measured under (the wizard shows it as
+  <em>Valve Topology</em>).  When a row's topology differs from the one set in
+  <strong>Settings → Delivery → Valve Topology</strong>, its Status shows <em>Stale</em> and its
+  <em>Recalibrate</em> button is highlighted.  A calibration saved before v1.21.0 has no
+  topology and counts as shared manifold (its tooltip says <em>legacy</em>), so on an
+  independent rig every older calibration shows Stale.  In solenoid pulse mode (the default),
+  a schedule watering a Stale cage will not start until the cage is recalibrated.  The same
+  goes for an <em>Invalid</em> row, whose Recalibrate button is highlighted too.</p>
+
   <h2>Running the Calibration Wizard</h2>
   <ol>
-    <li>Click <strong>Calibrate</strong> next to a cage (or <em>Calibrate All
-    Uncalibrated</em> for a batch).</li>
+    <li>Click <strong>Calibrate</strong> (or <strong>Recalibrate</strong>) next to a cage, or
+    <em>Calibrate All Uncalibrated</em> for a batch of every cage that is Not Calibrated,
+    Invalid or Stale.</li>
     <li>Follow the on-screen wizard — it will fire a characterization sequence (250 pulses
     by default).</li>
     <li>Weigh the collected water on a lab scale (accuracy ±0.001 g required).</li>
@@ -1024,6 +1137,11 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Confirm to save.  The calibration is immediately active for all future
     deliveries.</li>
   </ol>
+  <p>If a valve does not open or close during the pulses (its relay did not switch), the
+  wizard stops with a <em>Calibration Failed</em> message and closes without saving.  Discard
+  the collected water and calibrate the cage again once the relay HAT is fixed.  A
+  <code>[VALVE CRITICAL]</code> line in System Messages means a valve may still be open:
+  check the rig and press <strong>CLOSE ALL RELAYS</strong> in Settings → Priming.</p>
 
   <h2>When to Recalibrate</h2>
   <ul>
@@ -1031,16 +1149,18 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>If measured delivery volumes drift from targets during an experiment.</li>
     <li>Routinely as part of weekly maintenance.</li>
     <li>After switching hardware modes.</li>
+    <li>After changing the valve topology (the cage's Status shows <em>Stale</em>).</li>
   </ul>
 
   <h2>Exporting Calibration Data</h2>
   <p>Click <strong>Export Report</strong> to save calibration data for all cages to a
-  CSV file for lab records.</p>
+  CSV file for lab records.  Each row gives the cage's status (Calibrated, Stale, Invalid or
+  Not Calibrated) and the valve topology it was measured under.</p>
 
   <div class='help-note'>
     <strong>Note:</strong> You must be logged in to calibrate.  Calibration actions are
-    logged to the database with your trainer ID.  Calibration cannot run while a schedule
-    is executing.
+    logged to the database with your trainer ID.  Calibration cannot start while a schedule
+    or a priming session is running; the Calibrate buttons are greyed out until it ends.
   </div>
 </div>
 """,
@@ -1114,13 +1234,29 @@ def _build_content() -> Dict[str, HelpContent]:
   <ul>
     <li>Shared-manifold rig: individual cage relays cannot be opened unless the master
     solenoid is open, and closing the master automatically closes any open cage relays
-    first.</li>
+    first.  The hardware lock is held from <strong>Open Master</strong> until
+    <strong>Close Master</strong>; until then Run and the calibration buttons are greyed
+    out.</li>
     <li>Independent rig: the hardware lock is held from the first cage valve opened until
     the last one is closed; until then Run and the calibration buttons are greyed out, and
     nothing is queued.</li>
     <li><em>Close All Relays</em> bypasses normal sequencing for rapid emergency
     shutdown.</li>
   </ul>
+
+  <h2>After a Valve Topology Change</h2>
+  <p>The Priming panel is built for the topology RRR started with.  After the topology is
+  changed in <strong>Settings → Delivery → Valve Topology</strong>, the Open buttons are greyed
+  out (<em>Restart RRR to prime with the new valve topology</em>) until RRR is closed and
+  reopened.  Closing valves and <strong>CLOSE ALL RELAYS</strong> still work.</p>
+
+  <h2>If a Valve Does Not Confirm</h2>
+  <p>If a cage valve does not confirm closed, the panel names it and priming stays active
+  until that valve is closed: use <strong>CLOSE ALL RELAYS</strong>, and cut the valve power
+  if water still flows.  If CLOSE ALL RELAYS shows <em>Emergency Stop Failed</em>, a relay HAT
+  did not confirm and a valve may still be open: disconnect the valve power supply, then
+  check the relay HAT and its I²C connection.</p>
+
   <p>All priming actions are logged to the <strong>System Messages</strong> terminal with
   timestamps.</p>
 
@@ -1232,14 +1368,17 @@ def _build_content() -> Dict[str, HelpContent]:
   <strong>System Messages</strong> terminal first — it records all errors with
   timestamps.</p>
 
-  <h2>App Starts in Guest Mode / Settings Tab Disabled</h2>
-  <p>This is normal.  Log in on the <strong>Profile</strong> tab.  Settings and Help
-  become accessible after a successful login.</p>
+  <h2>App Starts in Guest Mode / Settings Tab Hidden</h2>
+  <p>This is normal.  Log in on the <strong>Profile</strong> tab.  The Settings tab appears
+  after a successful login; Help is available to everyone.</p>
 
   <h2>Wrong Hardware Mode</h2>
   <p>If deliveries are erratic or the hardware does not respond, verify that the mode in
-  <strong>Settings → Delivery</strong> matches your physical hardware.  Change the mode
-  only when no schedule is running.  Reconnect and restart the app if needed.</p>
+  <strong>Settings → Delivery</strong> matches your physical hardware.  The Hardware Mode
+  box is greyed out while a schedule, a priming session or a calibration is running; wait
+  for it to finish.  In solenoid mode also check <strong>Settings → Delivery → Valve
+  Topology</strong>: on a rig with a master valve, <em>Independent</em> means no water reaches
+  any animal.  Reconnect and restart the app if needed.</p>
 
   <h2>Valve / Pump Delivers Wrong Volume</h2>
   <ul>
@@ -1266,24 +1405,55 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Schedule Errors or Won't Start</h2>
   <ul>
+    <li><em>Valve calibration needed</em>: a cage the schedule waters is Not Calibrated,
+    Invalid (an unusable calibration), or Stale (calibrated under the other valve topology).
+    The dialog names the cages; calibrate them in <strong>Settings → Calibration</strong> and
+    press Run again.  This check runs in solenoid pulse mode (the default).</li>
+    <li><em>Cage not on this device</em>: the schedule uses a cage this device does not have
+    (for example cage 16 or higher with one relay HAT).  Edit the schedule.</li>
+    <li><em>Can't check valve calibrations</em>: RRR could not read its database.  Press Run
+    again; if it repeats, the Terminal tab shows the database error.</li>
+    <li>Run greyed out or <em>Hardware busy</em>: a priming session or a calibration is using
+    the valves.  Finish it first (Close Master on a shared-manifold rig, close every cage valve
+    on an independent rig).</li>
+    <li><em>Expired Schedule</em>: the whole window, or every instant delivery time, has
+    passed; create a schedule with future times.  If only the start has passed, RRR offers to
+    run the rest.</li>
     <li>Confirm all required animals have been added and have valid weights.</li>
     <li>Check that cage assignments are valid (no animal on the reserved relay R16).</li>
-    <li>Ensure the schedule start time is in the future.</li>
     <li>Verify volumes are positive and within safe limits.</li>
+  </ul>
+
+  <h2>[VALVE ERROR], [VALVE CRITICAL] or Relay HAT Missing</h2>
+  <ul>
+    <li><code>[VALVE ERROR] cage N: … delivery stopped</code> — a valve command did not switch
+    its relay (or a pulse failed for another reason, which the line gives), so the delivery
+    stopped; the line gives the pulses and mL delivered.  Check the relay HAT's power and I²C
+    cable.</li>
+    <li><code>Relay HAT(s) missing</code> or <code>no initialised relay HAT</code> — a HAT was
+    not found when RRR started.  Fix the connection, then close and reopen RRR.</li>
+    <li><code>[VALVE CRITICAL] … OPEN</code> — a close did not get through, or the valve's
+    relay is not answering.  Check the rig and press <strong>CLOSE ALL RELAYS</strong>
+    (Settings → Priming).</li>
+    <li><em>Relays Not Confirmed Off</em> or <em>Emergency Stop Failed</em> — disconnect the
+    valve power supply now, then check the relay HAT and its I²C connection.</li>
   </ul>
 
   <h2>Slack Notifications Not Arriving</h2>
   <ul>
     <li>Go to <strong>Settings → General → Slack Integration</strong> and verify the
-    Bot Token and Channel ID.</li>
+    Bot Token and Channel ID.  The <em>Status</em> line below them shows whether the last
+    message was sent and what to fix.  A corrected value is saved when you leave the field
+    and used from the next message; no restart is needed.</li>
     <li>Confirm internet connectivity on the host machine.</li>
   </ul>
 
   <h2>Emergency — Schedule Running and Won't Respond</h2>
   <ol>
     <li>Press <strong>Stop</strong> in the Run/Stop section.</li>
-    <li>If Stop does not respond within a few seconds, disconnect power from the relay
-    HAT.</li>
+    <li>If Stop does not respond within a few seconds, or a <em>Relays Not Confirmed
+    Off</em> dialog appears, disconnect the valve power supply (or the relay HAT's
+    power).</li>
     <li>Restart the application.  Review the System Messages terminal for the error that
     caused the hang.</li>
   </ol>
