@@ -63,6 +63,7 @@ def _self(hardware_mode, *, animal_windows=None):
     ns._prepare_delivery = MethodType(RelayWorker._prepare_delivery, ns)
     ns._quantize_to_pulses = MethodType(RelayWorker._quantize_to_pulses, ns)
     ns._finalize_delivery = MethodType(RelayWorker._finalize_delivery, ns)
+    ns._ledger_context = MethodType(RelayWorker._ledger_context, ns)
     return ns
 
 
