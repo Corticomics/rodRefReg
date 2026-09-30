@@ -395,6 +395,14 @@ class CalibrationWizard(QDialog):
         self.next_btn.setText("Next: Configure →")
         self.next_btn.setEnabled(True)
 
+    def _topology_text(self) -> str:
+        """The device's valve topology, as the calibration will record it."""
+        from utils.topology import describe, topology_from  # noqa: PLC0415
+
+        settings = getattr(self.system_controller, 'settings', None) or {}
+        topology = topology_from(settings)
+        return f"{topology} ({describe(topology)})"
+
     def _show_configuration(self):
         """Step 2: Configure calibration parameters"""
         self.step_label.setText("Step 2 of 5: Configuration")
@@ -442,6 +450,12 @@ class CalibrationWizard(QDialog):
         # Estimated time
         self.time_estimate = QLabel()
         config_layout.addRow("Estimated Time:", self.time_estimate)
+
+        # The topology this calibration will be recorded under: a calibration
+        # measured on one valve topology is reported as stale on the other.
+        self.topology_label = QLabel(self._topology_text())
+        self.topology_label.setWordWrap(True)
+        config_layout.addRow("Valve Topology:", self.topology_label)
 
         for spin in (self.num_pulses_spin, self.pulse_width_spin, self.interval_spin):
             spin.valueChanged.connect(self._update_time_estimate)
@@ -757,6 +771,7 @@ class CalibrationWizard(QDialog):
                 f"{self.inter_pulse_interval_ms} ms rest</b>"
             ),
         )
+        results_layout.addRow("Valve Topology:", QLabel(self._topology_text()))
         vpp = QLabel(f"Volume per Pulse: {volume_per_pulse:.6f} mL")
         vpp.setProperty("variant", "success")
         results_layout.addRow("", vpp)
@@ -936,12 +951,15 @@ class CalibrationWizard(QDialog):
 
             # Step 3: Save to database
             self.log("Saving to database...")
-            from utils.topology import cage_map_from  # noqa: PLC0415
+            from utils.topology import cage_map_from, topology_from  # noqa: PLC0415
 
             # The relay this cage is wired to (cage 16 on a second HAT is
             # relay 17), so the stored row says which valve was measured.
             settings = getattr(self.system_controller, 'settings', None) or {}
             relay_id = cage_map_from(settings).get(int(self.cage_id), self.cage_id)
+            # ...and the valve topology it was measured under: the same
+            # settings the pulses ran under. Always written, like the
+            # interval: the row is replaced per cage.
             notes = (
                 f"Wizard calibration: {self.num_pulses} pulses @ "
                 f"{self.pulse_width_ms}ms + {self.inter_pulse_interval_ms}ms rest"
@@ -960,6 +978,7 @@ class CalibrationWizard(QDialog):
                 # Always written: the row is replaced per cage, so omitting the
                 # interval here would silently reset a stored profile to legacy.
                 inter_pulse_interval_ms=int(self.inter_pulse_interval_ms),
+                topology=topology_from(settings),
             )
 
             if not cal_id:

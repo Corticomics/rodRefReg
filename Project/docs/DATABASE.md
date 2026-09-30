@@ -154,6 +154,8 @@ erDiagram
         int  num_samples
         text calibration_date
         int  calibrated_by       FK
+        int  inter_pulse_interval_ms
+        text topology
     }
     VALVE_CALIBRATION_HISTORY {
         int  history_id          PK
@@ -164,6 +166,8 @@ erDiagram
         int  num_samples
         text calibration_date
         int  calibrated_by       FK
+        int  inter_pulse_interval_ms
+        text topology
     }
     CAGE_NAMES {
         int  cage_id     PK
@@ -404,6 +408,10 @@ CREATE TABLE IF NOT EXISTS valve_calibration (
     calibration_date            TEXT    NOT NULL,
     calibrated_by               INTEGER,
     notes                       TEXT,
+    inter_pulse_interval_ms     INTEGER,            -- v1.16.0; NULL = legacy 100 ms rest
+    topology                    TEXT DEFAULT NULL,  -- v1.21.0; 'shared_manifold' | 'independent'
+                                                    -- NULL = measured before it was recorded
+                                                    --        (the shared manifold)
     FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
 );
 
@@ -419,6 +427,10 @@ CREATE TABLE IF NOT EXISTS valve_calibration_history (
     calibration_date            TEXT    NOT NULL,
     calibrated_by               INTEGER,
     notes                       TEXT,
+    inter_pulse_interval_ms     INTEGER,            -- v1.16.0; NULL = legacy 100 ms rest
+    topology                    TEXT DEFAULT NULL,  -- v1.21.0; 'shared_manifold' | 'independent'
+                                                    -- NULL = measured before it was recorded
+                                                    --        (the shared manifold)
     FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
 );
 ```
@@ -464,6 +476,7 @@ in the handler; every `INSERT` names its columns).
 | `dispensing_history.cycle_index` | If the table pre-dates the column, add it with `DEFAULT NULL`. | pre-v1.5 |
 | `animals.sex` | Add a nullable `sex TEXT CHECK(sex IN ('male','female'))` if absent. | pre-v1.5 |
 | `valve_calibration.inter_pulse_interval_ms`, `valve_calibration_history.inter_pulse_interval_ms` | The valve-closed rest the calibration was measured at; NULL = legacy 100 ms cadence. | v1.16.0 |
+| `valve_calibration.topology`, `valve_calibration_history.topology` | The valve topology the calibration was measured under; NULL = measured before it was recorded, which reads as the shared manifold. A calibration from the other topology is reported as Stale (and still used). | v1.21.0 |
 | `dispensing_history.volume_actual_ml`, `.pulses_fired`, `.volume_per_pulse_ml` | What the hardware reports it actually dispensed; NULL = unknown. | v1.17.0 |
 | `dispensing_history.topology`, `.calibration_id`, `.pulse_width_ms`, `.inter_pulse_interval_ms`, `.duration_s`, `.app_version`, `.volume_requested_ml`, `.dose_rounding`, `.delivery_mode` | The context the delivery ran under (valve topology, calibration row, timing profile, wall-clock duration, app version, schedule mode), and the volume asked for before whole-pulse rounding with the rounding policy applied. | v1.21.0 |
 
@@ -539,8 +552,8 @@ All methods are synchronous (with one broken exception flagged in §7).
 
 | Method | Purpose |
 |---|---|
-| `save_valve_calibration(...)` | Dual-write: append to `valve_calibration_history`, then `INSERT OR REPLACE` into `valve_calibration`. |
-| `get_valve_calibration(cage_id)` / `get_all_valve_calibrations()` | Current calibrations. |
+| `save_valve_calibration(..., inter_pulse_interval_ms=None, topology=None)` | Dual-write: append to `valve_calibration_history`, then `INSERT OR REPLACE` into `valve_calibration`. The row is replaced, so callers always pass the interval and the topology. |
+| `get_valve_calibration(cage_id)` / `get_all_valve_calibrations()` | Current calibrations, including `calibration_id`, `inter_pulse_interval_ms` and `topology`. |
 | `get_valve_calibration_history(cage_id, limit=10)` | Audit trail, newest first. |
 
 ### Cross-cutting

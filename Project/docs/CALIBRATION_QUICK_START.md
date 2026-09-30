@@ -78,7 +78,7 @@ Water leaves the valve in whole pulses, so a dose can only ever land within one 
 
 ## Calibrate All Valves
 
-**Settings → Calibration → Calibrate All Uncalibrated** lists every cage in the device's cage map that has no calibration yet (15 cages on one HAT, 31 on two) and opens the wizard for each in turn.
+**Settings → Calibration → Calibrate All Uncalibrated** lists every cage in the device's cage map that has no calibration yet (15 cages on one HAT, 31 on two), then every cage whose calibration was measured under the other valve topology (**Stale**), and opens the wizard for each in turn. Cancelling a wizard stops the batch; a summary then says how many were done and which were not.
 
 ---
 
@@ -109,6 +109,7 @@ Quality: POOR
 3. **Full Reservoir:** Pressure affects volume
 4. **Measure Water as-is:** 1g ≈ 1mL (at room temp)
 5. **Recalibrate:** Every 3 months or after valve replacement
+6. **After a topology switch:** recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table; deliveries still use it until you do
 
 ---
 
@@ -134,7 +135,7 @@ Then run the relay bring-up test in [HARDWARE_SETUP.md §9](HARDWARE_SETUP.md#9-
 2. Calibrations are read when a schedule starts. A schedule that was already running keeps the calibration it started with: stop it and start it again.
 3. At schedule start the app prints the calibration every cage will use in its **Terminal** tab, one line per calibrated cage:
    ```
-   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse
+   [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
    A cage missing from those lines has no calibration and runs on the default. These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
 

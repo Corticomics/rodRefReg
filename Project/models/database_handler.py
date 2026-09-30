@@ -263,6 +263,7 @@ class DatabaseHandler:
                         calibrated_by INTEGER,
                         notes TEXT,
                         inter_pulse_interval_ms INTEGER,
+                        topology TEXT DEFAULT NULL,
                         FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -282,6 +283,7 @@ class DatabaseHandler:
                         calibrated_by INTEGER,
                         notes TEXT,
                         inter_pulse_interval_ms INTEGER,
+                        topology TEXT DEFAULT NULL,
                         FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
                     )
                 ''')
@@ -311,28 +313,23 @@ class DatabaseHandler:
                         ADD COLUMN sex TEXT CHECK(sex IN ('male', 'female')) DEFAULT NULL
                     ''')
 
-                # Add inter_pulse_interval_ms to valve_calibration if it doesn't
-                # exist (CREATE TABLE IF NOT EXISTS does not upgrade an existing
-                # table; the PRAGMA guard keeps this migration idempotent).
-                # NULL means "legacy timing" (no stored inter-pulse rest).
-                cursor.execute("PRAGMA table_info(valve_calibration)")
-                columns = [col[1] for col in cursor.fetchall()]
-
-                if 'inter_pulse_interval_ms' not in columns:
-                    cursor.execute('''
-                        ALTER TABLE valve_calibration
-                        ADD COLUMN inter_pulse_interval_ms INTEGER DEFAULT NULL
-                    ''')
-
-                # Same idempotent migration for valve_calibration_history
-                cursor.execute("PRAGMA table_info(valve_calibration_history)")
-                columns = [col[1] for col in cursor.fetchall()]
-
-                if 'inter_pulse_interval_ms' not in columns:
-                    cursor.execute('''
-                        ALTER TABLE valve_calibration_history
-                        ADD COLUMN inter_pulse_interval_ms INTEGER DEFAULT NULL
-                    ''')
+                # Columns added to the calibration tables after they shipped
+                # (CREATE TABLE IF NOT EXISTS does not upgrade an existing
+                # table; the PRAGMA guard keeps these migrations idempotent):
+                # - inter_pulse_interval_ms (v1.16.0): NULL = legacy timing.
+                # - topology (v1.21.0): the valve topology the calibration was
+                #   measured under. NULL = measured before it was recorded,
+                #   which on every device that existed then means the shared
+                #   manifold (utils.topology.calibration_topology).
+                for table in ('valve_calibration', 'valve_calibration_history'):
+                    cursor.execute(f"PRAGMA table_info({table})")
+                    columns = {col[1] for col in cursor.fetchall()}
+                    for column, decl in (
+                        ('inter_pulse_interval_ms', 'INTEGER DEFAULT NULL'),
+                        ('topology', 'TEXT DEFAULT NULL'),
+                    ):
+                        if column not in columns:
+                            cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {decl}')
 
                 conn.commit()
                 print("Database schema created/updated successfully.")
@@ -1901,6 +1898,7 @@ class DatabaseHandler:
         calibrated_by=None,
         notes=None,
         inter_pulse_interval_ms=None,
+        topology=None,
     ):
         """
         Save valve calibration data (per-valve empirical calibration).
@@ -1917,6 +1915,10 @@ class DatabaseHandler:
             notes: Optional notes
             inter_pulse_interval_ms: Rest between pulses used for calibration
                 (None = legacy timing)
+            topology: The valve topology the calibration was measured under
+                ('shared_manifold' or 'independent'; None = not recorded,
+                read as the shared manifold). The row is replaced per cage,
+                so callers must always pass it, as they must the interval.
 
         Returns:
             calibration_id if successful, None otherwise
@@ -1932,8 +1934,9 @@ class DatabaseHandler:
                     INSERT INTO valve_calibration_history
                     (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
                      stddev_ml, coefficient_of_variation_pct, num_samples,
-                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms,
+                     topology)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         cage_id,
@@ -1947,6 +1950,7 @@ class DatabaseHandler:
                         calibrated_by,
                         notes,
                         inter_pulse_interval_ms,
+                        topology,
                     ),
                 )
 
@@ -1956,8 +1960,9 @@ class DatabaseHandler:
                     INSERT OR REPLACE INTO valve_calibration
                     (cage_id, relay_id, pulse_width_ms, volume_per_pulse_ml,
                      stddev_ml, coefficient_of_variation_pct, num_samples,
-                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     calibration_date, calibrated_by, notes, inter_pulse_interval_ms,
+                     topology)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                     (
                         cage_id,
@@ -1971,6 +1976,7 @@ class DatabaseHandler:
                         calibrated_by,
                         notes,
                         inter_pulse_interval_ms,
+                        topology,
                     ),
                 )
 
@@ -2005,7 +2011,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms
+                           inter_pulse_interval_ms, topology
                     FROM valve_calibration
                     WHERE cage_id = ?
                 ''',
@@ -2027,6 +2033,7 @@ class DatabaseHandler:
                         'calibrated_by': row[9],
                         'notes': row[10],
                         'inter_pulse_interval_ms': row[11],
+                        'topology': row[12],
                     }
                 return None
 
@@ -2049,7 +2056,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms, calibration_id
+                           inter_pulse_interval_ms, calibration_id, topology
                     FROM valve_calibration
                     ORDER BY cage_id
                 ''')
@@ -2071,6 +2078,8 @@ class DatabaseHandler:
                         # The row the delivery strategy cites in
                         # dispensing_history; same key as get_valve_calibration.
                         'calibration_id': row[11],
+                        # NULL = measured before the topology was recorded.
+                        'topology': row[12],
                     }
 
                 return calibrations
@@ -2090,7 +2099,7 @@ class DatabaseHandler:
                            volume_per_pulse_ml, stddev_ml,
                            coefficient_of_variation_pct, num_samples,
                            calibration_date, calibrated_by, notes,
-                           inter_pulse_interval_ms
+                           inter_pulse_interval_ms, topology
                     FROM valve_calibration_history
                     WHERE cage_id = ?
                     ORDER BY calibration_date DESC
@@ -2115,6 +2124,7 @@ class DatabaseHandler:
                             'calibrated_by': row[9],
                             'notes': row[10],
                             'inter_pulse_interval_ms': row[11],
+                            'topology': row[12],
                         }
                     )
 

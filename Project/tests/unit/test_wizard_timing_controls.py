@@ -256,3 +256,31 @@ def test_duty_cycle_advisory_is_shown_above_threshold_only(qapp):
     assert "Duty cycle" in wizard.duty_warning.text()
     assert wizard.next_btn.isEnabled() is True
     wizard.close()
+
+
+@pytest.mark.parametrize(
+    "topology,recorded",
+    [("shared_manifold", "shared_manifold"), ("independent", "independent"), (None, "shared_manifold")],
+)
+def test_save_records_the_topology_it_was_measured_under(qapp, fake_relays, topology, recorded):
+    """The row is replaced per cage, so the tag is always written (v1.21.0)."""
+    db = MagicMock()
+    db.save_valve_calibration.return_value = 9
+    settings = dict(_SETTINGS) if topology is None else dict(_SETTINGS, valve_topology=topology)
+
+    wizard = _make_wizard(db=db, settings=settings)
+    wizard.num_pulses = 250
+    wizard.pulse_width_ms = 30
+    wizard.inter_pulse_interval_ms = 1000
+    wizard.calibration_result = {'volume_per_pulse_ml': 0.033, 'stddev_ml': 0.001, 'cv_pct': 1.0}
+    wizard._save_and_finish()
+
+    assert db.save_valve_calibration.call_args.kwargs['topology'] == recorded
+    wizard.close()
+
+
+def test_the_configuration_page_names_the_topology_it_will_record(qapp):
+    wizard = _make_wizard(settings=dict(_SETTINGS, valve_topology="independent"))
+    wizard._show_configuration()
+    assert wizard.topology_label.text().startswith("independent (one syringe")
+    wizard.close()
