@@ -14,6 +14,7 @@ from utils.calibration_gate import (
     calibration_problems,
     format_problems,
     gate_applies,
+    refusal_title,
     run_cage_ids,
 )
 from utils.operation_lock import SCHEDULE, get_operation_lock
@@ -586,7 +587,7 @@ class RunStopSection(QWidget):
             + ", ".join(f"cage {p.cage_id} {p.reason}" for p in problems)
         )
         self._reset_run_button()
-        QMessageBox.warning(self, "Valve calibration needed", format_problems(problems, settings))
+        QMessageBox.warning(self, refusal_title(problems), format_problems(problems, settings))
         return False
 
     def _reset_run_button(self):

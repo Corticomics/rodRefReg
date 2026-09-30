@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from utils.calibration_gate import (
+    NOT_A_CAGE,
     STALE,
     UNCALIBRATED,
     UNUSABLE,
@@ -25,6 +26,7 @@ from utils.calibration_gate import (
     calibration_problems,
     format_problems,
     gate_applies,
+    refusal_title,
     run_cage_ids,
 )
 
@@ -132,7 +134,32 @@ def test_what_does_not_disqualify_a_calibration():
 
 
 def test_an_id_that_is_not_a_number_fails_closed():
-    assert calibration_problems({"x"}, {}, SHARED) == [CageProblem("x", UNCALIBRATED)]
+    assert calibration_problems({"x", None}, {}, SHARED) == [
+        CageProblem(None, NOT_A_CAGE),
+        CageProblem("x", NOT_A_CAGE),
+    ]
+
+
+def test_a_cage_outside_the_device_s_cage_map_is_not_a_cage_here():
+    """A schedule made on two HATs, run on one: cage 20 has no valve to open
+    and no row in Settings to calibrate, whether or not an old calibration
+    for it is still stored."""
+    rows = {20: _row(20), 3: _row(3)}
+    assert calibration_problems({3, 20, 21}, rows, dict(SHARED, num_hats=1)) == [
+        CageProblem(20, NOT_A_CAGE),
+        CageProblem(21, NOT_A_CAGE),
+    ]
+    assert calibration_problems({3, 20}, rows, dict(SHARED, num_hats=2)) == []
+    stored = dict(SHARED, cage_relays={"3": 3})
+    assert calibration_problems({3, 4}, {3: _row(3), 4: _row(4)}, stored) == [
+        CageProblem(4, NOT_A_CAGE)
+    ]
+
+
+def test_an_unreadable_cage_map_does_not_stop_the_calibration_check():
+    broken = dict(SHARED, num_hats="two")
+    assert calibration_problems({3}, {}, broken) == [CageProblem(3, UNCALIBRATED)]
+    assert calibration_problems({3}, {3: _row(3)}, broken) == []
 
 
 def test_pump_mode_is_never_refused():
@@ -154,9 +181,27 @@ def test_the_dialog_names_every_cage_and_the_fix():
     assert "3 cage(s)" in text
     assert "Not calibrated: cage 3, cage 7" in text
     assert "this device uses independent" in text
-    assert "cage 12 (measured on shared_manifold (legacy))" in text
-    assert "unusable" not in text, "empty groups are left out"
-    assert "Settings > Calibration" in text
+    assert "cage 12, measured on shared_manifold (legacy)" in text
+    assert "))" not in text, "no nested parentheses"
+    assert "unusable" not in text and "Not a cage" not in text, "empty groups are left out"
+    assert "Calibrate those cages in Settings > Calibration" in text
+    assert "guess" not in text, "a stale calibration is measured, not guessed"
+    assert refusal_title(problems) == "Valve calibration needed"
+
+
+def test_the_dialog_for_a_cage_the_device_does_not_have_says_to_edit_the_schedule():
+    only = [CageProblem(20, NOT_A_CAGE)]
+    text = format_problems(only, SHARED)
+    assert refusal_title(only) == "Cage not on this device"
+    assert "Not a cage on this device: cage 20" in text
+    assert "edit the schedule" in text
+    assert "Calibrate those cages" not in text, "there is nothing to calibrate"
+
+    mixed = [CageProblem(20, NOT_A_CAGE), CageProblem(5, UNUSABLE)]
+    text = format_problems(mixed, SHARED)
+    assert refusal_title(mixed) == "Valve calibration needed"
+    assert "missing, zero or invalid): cage 5" in text
+    assert "Calibrate those cages" in text and "edit the schedule" in text
 
 
 # --- reading the calibrations ------------------------------------------------------------------
@@ -287,7 +332,7 @@ def test_a_stale_calibration_refuses_the_run(run_path, database_handler, system_
     run_path.run(_staggered([3]))
     assert run_path.started == []
     ((title, text),) = run_path.shown
-    assert "cage 3 (measured on shared_manifold (legacy))" in text
+    assert "cage 3, measured on shared_manifold (legacy)" in text
 
 
 def test_pump_mode_runs_without_valve_calibrations(run_path, system_controller):
@@ -366,3 +411,15 @@ def test_a_refused_start_takes_down_the_loading_monitor(run_path, database_handl
 
     assert run_path.started == []
     assert hidden == [1]
+
+
+def test_a_schedule_on_a_cage_the_device_does_not_have_is_refused_by_name(
+    run_path, database_handler
+):
+    _calibrate(database_handler, 3)
+    section = run_path.run(_staggered([3, 20]))  # one HAT: cages 1-15
+    assert run_path.started == []
+    ((title, text),) = run_path.shown
+    assert title == "Cage not on this device"
+    assert "Not a cage on this device: cage 20" in text
+    assert section.run_button.text() == "Run"

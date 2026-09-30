@@ -17,8 +17,14 @@ from __future__ import annotations
 import math
 from typing import Iterable, List, NamedTuple
 
-from utils.topology import calibration_is_stale, calibration_label, topology_from
+from utils.topology import (
+    cage_map_from,
+    calibration_is_stale,
+    calibration_label,
+    topology_from,
+)
 
+NOT_A_CAGE = 'not a cage on this device'
 UNCALIBRATED = 'uncalibrated'
 STALE = 'stale'
 UNUSABLE = 'unusable'
@@ -82,15 +88,23 @@ def calibration_problems(cage_ids: Iterable, calibrations, settings) -> List[Cag
     pulse and pulse width, and was measured under the device's topology
     (an untagged, pre-v1.21.0 row counts as the shared manifold). The
     pulse width need not match the settings: a delivery replays the
-    cage's own. An id that is not a number fails as uncalibrated.
+    cage's own. An id that is not a number, or not in the device's cage
+    map, is not a cage here: the delivery could not open a valve for it,
+    and Settings has no row to calibrate.
     """
     if not gate_applies(settings):
         return []
+    try:
+        device_cages = set(cage_map_from(settings))
+    except (TypeError, ValueError):
+        device_cages = None  # unreadable map: judge on the calibrations alone
     problems = []
     for raw in sorted(cage_ids, key=_order):
         cage = _as_cage_id(raw)
         row = calibrations.get(cage) if cage is not None else None
-        if row is None:
+        if cage is None or (device_cages is not None and cage not in device_cages):
+            problems.append(CageProblem(raw, NOT_A_CAGE))
+        elif row is None:
             problems.append(CageProblem(raw, UNCALIBRATED))
         elif not (
             _positive(row.get('volume_per_pulse_ml'), float)
@@ -102,21 +116,30 @@ def calibration_problems(cage_ids: Iterable, calibrations, settings) -> List[Cag
     return problems
 
 
+def refusal_title(problems) -> str:
+    """The refusal dialog's title: what the operator has to do about it."""
+    if all(problem.reason == NOT_A_CAGE for problem in problems):
+        return "Cage not on this device"
+    return "Valve calibration needed"
+
+
 def format_problems(problems, settings) -> str:
     """The refusal dialog's text: one line for each kind of problem found."""
-    by_reason = {UNCALIBRATED: [], STALE: [], UNUSABLE: []}
+    by_reason = {NOT_A_CAGE: [], UNCALIBRATED: [], STALE: [], UNUSABLE: []}
     for problem in problems:
         by_reason[problem.reason].append(problem)
     lines = [
-        f"This schedule was not started. {len(problems)} cage(s) it waters do not have "
-        "a valve calibration RRR can use:",
+        f"This schedule was not started, because of {len(problems)} cage(s) it waters:",
         "",
     ]
+    if by_reason[NOT_A_CAGE]:
+        cages = ', '.join(f"cage {p.cage_id}" for p in by_reason[NOT_A_CAGE])
+        lines.append(f"Not a cage on this device: {cages}")
     if by_reason[UNCALIBRATED]:
         cages = ', '.join(f"cage {p.cage_id}" for p in by_reason[UNCALIBRATED])
         lines.append(f"Not calibrated: {cages}")
     if by_reason[STALE]:
-        cages = ', '.join(f"cage {p.cage_id} (measured on {p.detail})" for p in by_reason[STALE])
+        cages = '; '.join(f"cage {p.cage_id}, measured on {p.detail}" for p in by_reason[STALE])
         lines.append(
             "Calibrated under the other valve topology (this device uses "
             f"{topology_from(settings)}): {cages}"
@@ -124,13 +147,23 @@ def format_problems(problems, settings) -> str:
     if by_reason[UNUSABLE]:
         cages = ', '.join(f"cage {p.cage_id}" for p in by_reason[UNUSABLE])
         lines.append(
-            f"Calibration unusable (volume per pulse or pulse width missing or zero): {cages}"
+            "Calibration unusable (volume per pulse or pulse width missing, zero or "
+            f"invalid): {cages}"
         )
-    lines += [
-        "",
-        "Without a calibration it can use, RRR would have to guess how much water each "
-        "pulse gives, and these animals could get much more or less water than scheduled.",
-        "",
-        "Calibrate each cage listed in Settings > Calibration, then press Run again.",
-    ]
+    if by_reason[UNCALIBRATED] or by_reason[STALE] or by_reason[UNUSABLE]:
+        lines += [
+            "",
+            "Without a calibration measured on this device's valve topology, RRR cannot "
+            "know how much water each pulse gives, and these animals could get much more "
+            "or less water than scheduled.",
+            "",
+            "Calibrate those cages in Settings > Calibration (the button on each cage's "
+            "row), then press Run again.",
+        ]
+    if by_reason[NOT_A_CAGE]:
+        lines += [
+            "",
+            "A cage this device does not have cannot be watered or calibrated: edit the "
+            "schedule so its animals are on cages shown in Settings > Calibration.",
+        ]
     return '\n'.join(lines)
