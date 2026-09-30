@@ -29,6 +29,25 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
+def dialogs(qapp, monkeypatch):
+    """Every message box, recorded as (kind, title) instead of shown: offscreen,
+    a modal box nobody closes would hang the run. Tests stub their own on top."""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    shown = []
+
+    def _box(kind, answer):
+        return staticmethod(
+            lambda *a, **k: shown.append((kind, a[1] if len(a) > 1 else None)) or answer
+        )
+
+    for kind in ("information", "warning", "critical"):
+        monkeypatch.setattr(QMessageBox, kind, _box(kind, QMessageBox.Ok))
+    monkeypatch.setattr(QMessageBox, "question", _box("question", QMessageBox.No))
+    return shown
+
+
+@pytest.fixture(autouse=True)
 def _reset_lock(qapp):
     import utils.operation_lock as ol  # noqa: PLC0415
 
@@ -85,7 +104,9 @@ def test_export_lists_every_cage_in_the_map(
     system_controller.settings['num_hats'] = 2
     tab = _settings_tab(system_controller, database_handler)
     out = tmp_path / "report.csv"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), "")))
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), ""))
+    )
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
 
     tab._export_calibration_report()
@@ -117,13 +138,17 @@ def test_an_unreadable_stored_cage_map_does_not_take_the_tab_down(
 
     questions = []
     monkeypatch.setattr(
-        QMessageBox, "question", staticmethod(lambda *a, **k: questions.append(a) or QMessageBox.No)
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: questions.append(a) or QMessageBox.No),
     )
     tab._calibrate_all_uncalibrated()
     assert len(questions) == 1 and "Found 15 uncalibrated" in questions[0][2]
 
     out = tmp_path / "report.csv"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), "")))
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), ""))
+    )
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
     tab._export_calibration_report()
     assert len(out.read_text().splitlines()) == 1 + 15
@@ -157,3 +182,150 @@ def test_changing_the_hat_count_refreshes_the_calibration_table(monkeypatch):
     assert settings['num_hats'] == 2 and settings['cage_relays'] == {}
     gui.projects_section.cages_tab.refresh.assert_called_once()
     gui.settings_tab.refresh_calibration_table.assert_called_once()
+
+
+# --- rows the Run gate would refuse (#170) ------------------------------------------------
+
+
+def _save(database_handler, cage, volume=0.034164, cv=1.0, topology="shared_manifold"):
+    assert database_handler.save_valve_calibration(
+        cage_id=cage,
+        relay_id=cage,
+        pulse_width_ms=30,
+        volume_per_pulse_ml=volume,
+        stddev_ml=0.001,
+        cv_pct=1.0 if cv is None else cv,
+        num_samples=250,
+        inter_pulse_interval_ms=1000,
+        topology=topology,
+    )
+    if cv is None:
+        # The app's own save always writes a CV; older rows or a hand edit
+        # may not have one.
+        with database_handler.connect() as conn:
+            conn.execute(
+                "UPDATE valve_calibration SET coefficient_of_variation_pct = NULL "
+                "WHERE cage_id = ?",
+                (cage,),
+            )
+            conn.commit()
+
+
+def _statuses(tab):
+    """{cage: status text} for every row of the calibration table."""
+    return {
+        int(tab.calibration_table.item(row, 0).toolTip().split()[1]): tab.calibration_table.item(
+            row, 1
+        ).text()
+        for row in range(tab.calibration_table.rowCount())
+    }
+
+
+def test_a_calibration_run_would_refuse_is_shown_as_invalid(
+    qapp, database_handler, system_controller
+):
+    """A zero or negative volume per pulse used to show as [OK] while Run
+    refused the cage as unusable."""
+    system_controller.settings['num_hats'] = 1
+    _save(database_handler, 3, volume=0.0)
+    tab = _settings_tab(system_controller, database_handler)
+
+    status = tab.calibration_table.item(2, 1)
+    assert status.text() == "Invalid"
+    assert "will not start until it is recalibrated" in status.toolTip()
+    assert tab.calibration_table.cellWidget(2, 5).property("variant") == "primary"
+
+
+def test_a_missing_cv_does_not_take_the_table_down(qapp, database_handler, system_controller):
+    """The CV column may be NULL; formatting it used to raise, which left the
+    calibration table half built."""
+    system_controller.settings['num_hats'] = 1
+    _save(database_handler, 4, cv=None)
+    tab = _settings_tab(system_controller, database_handler)
+
+    assert tab.calibration_table.rowCount() == 15
+    assert tab.calibration_table.item(3, 1).text() == "[OK]"
+    assert tab.calibration_table.item(3, 3).text() == "—"
+    assert tab.calibration_table.item(14, 1).text() == "Not Calibrated", "the rows after it too"
+
+
+def test_settings_and_run_agree_on_which_cages_need_calibrating(
+    qapp, database_handler, system_controller
+):
+    """Every row that is not [OK] is a cage Run refuses, and the other way round."""
+    from utils.calibration_gate import calibration_problems  # noqa: PLC0415
+
+    settings = system_controller.settings
+    settings.update(
+        num_hats=1,
+        hardware_mode="solenoid",
+        use_pulse_delivery=True,
+        valve_topology="shared_manifold",
+    )
+    _save(database_handler, 1)
+    _save(database_handler, 2, volume=0.0)
+    _save(database_handler, 3, volume=-0.01)
+    _save(database_handler, 4, topology="independent")
+    tab = _settings_tab(system_controller, database_handler)
+
+    shown = _statuses(tab)
+    refused = {
+        p.cage_id
+        for p in calibration_problems(
+            range(1, 16), database_handler.get_all_valve_calibrations(), settings
+        )
+    }
+    assert {cage for cage, status in shown.items() if status != "[OK]"} == refused
+    assert (shown[1], shown[2], shown[3], shown[4], shown[5]) == (
+        "[OK]",
+        "Invalid",
+        "Invalid",
+        "Stale",
+        "Not Calibrated",
+    )
+
+
+def test_calibrate_all_includes_an_invalid_calibration(
+    qapp, database_handler, system_controller, monkeypatch, dialogs
+):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    system_controller.settings['num_hats'] = 1
+    for cage in range(1, 16):
+        _save(database_handler, cage, volume=0.0 if cage == 7 else 0.034164)
+    tab = _settings_tab(system_controller, database_handler)
+    questions = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: questions.append(a) or QMessageBox.No),
+    )
+
+    tab._calibrate_all_uncalibrated()
+
+    assert ("information", "All Calibrated") not in dialogs
+    assert len(questions) == 1
+    assert "1 with an unusable calibration (Invalid):\n[7]" in questions[0][2]
+
+
+def test_the_report_marks_an_invalid_calibration_and_a_missing_cv(
+    qapp, database_handler, system_controller, tmp_path, monkeypatch, dialogs
+):
+    from PyQt5.QtWidgets import QFileDialog, QMessageBox  # noqa: PLC0415
+
+    system_controller.settings['num_hats'] = 1
+    _save(database_handler, 2, volume=0.0)
+    _save(database_handler, 4, cv=None)
+    tab = _settings_tab(system_controller, database_handler)
+    out = tmp_path / "report.csv"
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(out), ""))
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    tab._export_calibration_report()
+
+    assert [kind for kind, _title in dialogs if kind == "critical"] == [], "the export failed"
+    lines = out.read_text().splitlines()
+    assert lines[2].startswith("2,Invalid,0.000000,")
+    assert lines[4].startswith("4,Calibrated,0.034164,—,")
