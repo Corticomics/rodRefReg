@@ -1,9 +1,11 @@
 """Process-wide hardware operation lock.
 
 Exactly one hardware operation may be active at a time: running a **schedule**,
-**priming**, or **calibration**. All three open the *single shared master
-solenoid*, and schedule + calibration both consume the *single flow sensor*, so
-they cannot physically overlap. This is operation-level mutual exclusion,
+**priming**, or **calibration**. All three drive the same relay HAT(s), and
+priming and calibration each do it through their own RelayHandler, which
+switches every relay off when it is created. On the shared manifold all three
+also hold the one master valve. So they must not overlap on either valve
+topology. This is operation-level mutual exclusion,
 sitting ABOVE the per-transaction :class:`drivers.i2c_coordinator.I2CCoordinator`
 (which only serialises ~50 ms I²C writes and force-releases — not enough to keep
 two long operations apart).

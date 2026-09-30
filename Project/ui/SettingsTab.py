@@ -594,7 +594,8 @@ class SettingsTab(QWidget):
 
         note = QLabel(
             "Must match how this rig is plumbed. After a change, calibrations measured "
-            "under the other topology show as Stale, and Priming cannot open a valve "
+            "under the other topology show as Stale, and a schedule watering a Stale cage "
+            "will not start until that cage is recalibrated. Priming cannot open a valve "
             "until RRR is closed and reopened."
         )
         note.setObjectName("HelpText")
@@ -757,9 +758,9 @@ class SettingsTab(QWidget):
             self,
             "Change Valve Topology",
             f"Change the valve topology from {old} to {new}?\n\n{effect}\n\n"
-            "Calibrations measured under the other topology will show as Stale: "
-            "recalibrate those valves before running schedules. Priming cannot open "
-            "a valve until RRR is closed and reopened.",
+            "Calibrations measured under the other topology will show as Stale, and Run "
+            "refuses a schedule that waters a Stale cage until that cage is recalibrated. "
+            "Priming cannot open a valve until RRR is closed and reopened.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1086,7 +1087,8 @@ class SettingsTab(QWidget):
         from PyQt5.QtWidgets import QPushButton
 
         # One row per cage in the device's real cage map: 15 on one HAT, 31
-        # on two (relay 16 is the master and has no row).
+        # on two (relay 16 is reserved, the master on the shared manifold and
+        # unused on the independent topology, and has no row).
         cage_map = self._cage_map()
         self.calibration_table.setRowCount(len(cage_map))
 
@@ -1637,7 +1639,7 @@ class SettingsTab(QWidget):
         slack_layout.addRow("Channel ID:", self.slack_channel)
 
         # Phase 3 offline-resilience: status indicator + troubleshooting.
-        # The label is refreshed every 5 s by self._slack_status_timer
+        # The label is refreshed once a second by self._slack_status_timer
         # (started below) reading NotificationHandler.last_status.
         self.slack_status_label = QLabel()
         self.slack_status_label.setWordWrap(True)

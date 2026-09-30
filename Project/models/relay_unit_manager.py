@@ -24,7 +24,8 @@ class RelayUnitManager:
             settings (dict): System settings containing:
                 - hardware_mode: 'pump' or 'solenoid'
                 - num_hats: Number of Sequent Microsystems relay HATs
-                - global_master_relay_id: Master solenoid relay (solenoid mode only)
+                - global_master_relay_id: Reserved relay; the master solenoid on the
+                  shared manifold, unused on the independent topology (solenoid mode only)
                 - cage_relays: Dict mapping cage_id to relay_id (solenoid mode only)
                 - relay_pairs: List of relay pairs (pump mode only)
         """
@@ -39,8 +40,10 @@ class RelayUnitManager:
 
         Solenoid Mode (hardware_mode='solenoid'):
         - Each cage has ONE dedicated relay (e.g., cage 1 → relay 1)
-        - Master solenoid on separate relay (usually relay 16)
-        - Supports 1-15 cages per HAT (master excluded)
+        - One relay reserved (global_master_relay_id, usually 16): the master
+          solenoid on the shared manifold, unused on the independent topology
+        - 15 cages on the HAT holding the reserved relay, 16 on each further HAT
+          (31 on two HATs)
 
         Pump Mode (hardware_mode='pump'):
         - Each unit controls TWO relays (e.g., unit 1 → relays 1,2)
@@ -128,7 +131,8 @@ class RelayUnitManager:
 
         Args:
             num_hats (int): Number of relay HATs installed
-            master_id (int): Relay ID reserved for master solenoid
+            master_id (int): The reserved relay ID (the master solenoid on the shared
+                manifold, unused on the independent topology)
 
         Returns:
             dict: Mapping of cage_id (str) to relay_id (int)

@@ -7,14 +7,15 @@ Design Pattern: Value Object
 - Supports both solenoid mode (1:1 mapping) and legacy pump mode
 
 Architecture:
-- cage_id: Logical cage number (1-15 per HAT)
+- cage_id: Logical cage number (1-15 on one HAT, 1-31 on two; not the relay id)
 - relay_id: Physical relay number the cage is connected to
 - name: User-friendly name for identification
 - description: Optional notes about the cage/animal
 
 Reference:
 - Sequent Microsystems 16-relay HAT: R1-R16 terminals
-- Solenoid mode: R16 reserved for master solenoid, R1-R15 for cages
+- Solenoid mode: R16 reserved (the master solenoid on the shared manifold, unused
+  on the independent topology), R1-R15 for cages
 """
 
 from dataclasses import dataclass, field

@@ -17,7 +17,8 @@ the cage valves closed: trapped line pressure, an unsafe state.
 
 The fix this module encodes:
 
-  1. **Hardware safe FIRST.** Drop every relay (master + cages) before
+  1. **Hardware safe FIRST.** Drop every relay (cage valves, and the master where
+     the rig has one) before
      touching the worker thread at all. Even if teardown then hangs, the
      hardware is already safe.
   2. **Bounded waits only.** Never call ``thread.wait()`` without a
@@ -40,7 +41,8 @@ TERMINATE_TIMEOUT_MS = 1000
 
 
 def force_hardware_safe_state(handler) -> bool:
-    """Drop every relay (including the global master) immediately.
+    """Drop every relay on every HAT (cage valves, and the master where the rig
+    has one) immediately.
 
     Runs FIRST in the stop sequence, before any thread coordination.
     Idempotent. Logs but never raises — a failure here is the most
@@ -64,7 +66,10 @@ def force_hardware_safe_state(handler) -> bool:
             "open. Disconnect the valve power supply."
         )
         return False
-    print("[STOP] HARDWARE SAFE: all relays off (master + cages)")
+    print(
+        "[STOP] HARDWARE SAFE: all relays off (every cage valve, and the master valve "
+        "where the rig has one)"
+    )
     return True
 
 

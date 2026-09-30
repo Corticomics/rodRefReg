@@ -1371,8 +1371,9 @@ class RelayWorker(QObject):
                         f"for animal(s) {animals_exceeded_retries}"
                     )
                     self.progress.emit(
-                        "Deliveries kept failing: check the relay HAT (a [VALVE ERROR] "
-                        "line names it) and the flow sensor connection"
+                        "Deliveries kept failing: check the relay HAT (a [VALVE ERROR] line "
+                        "above names the cage whose valve did not switch; the Cages tab shows "
+                        "which HAT it is on) and the flow sensor connection"
                     )
 
                     # Log all incomplete deliveries as failed

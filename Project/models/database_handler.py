@@ -2299,10 +2299,12 @@ class DatabaseHandler:
 
         Args:
             num_hats: Number of relay HATs installed (default 1)
-            master_relay: The relay ID reserved for master solenoid (default 16)
+            master_relay: The reserved relay (default 16): the master solenoid on the
+                shared manifold, unused on the independent topology
 
         Design:
-        - Solenoid mode: 15 cages per HAT (cage 16 is master)
+        - Solenoid mode: the reserved relay takes no cage, so one HAT gives cages
+          1-15 and a second adds cages 16-31 on relays 17-32
         - Uses INSERT OR IGNORE to preserve existing user customizations
 
         Reference: SQLite INSERT OR IGNORE documentation
@@ -2354,7 +2356,8 @@ class DatabaseHandler:
 
         Args:
             num_hats: Number of relay HATs (for generating full list)
-            master_relay: Master relay to exclude
+            master_relay: The reserved relay to exclude (default 16; the master on the
+                shared manifold, unused on the independent topology)
 
         Returns:
             List of dicts: [{'cage_id': 1, 'relay_id': 1, 'name': 'Mouse A',

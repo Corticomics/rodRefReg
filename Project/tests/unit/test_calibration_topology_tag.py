@@ -229,6 +229,9 @@ def test_the_strategy_flags_a_stale_calibration_once(fake_relay_handler, capsys,
     assert out.count("[CAL TOPOLOGY] cage=1") == (1 if stale else 0)
     if stale:
         assert f"this device runs {device}" in out and "recalibrate cage 1" in out
+        # A run no longer starts on a stale cage (#170): the note must not
+        # say this run is using it.
+        assert "would still use it" in out and "using it anyway" not in out
     assert fake_relay_handler.trace == [], "building a strategy drives nothing"
 
 

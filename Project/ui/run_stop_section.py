@@ -293,7 +293,7 @@ class RunStopSection(QWidget):
             return
 
         # Hardware mutual-exclusion: only one of schedule/priming/calibration may
-        # run at a time (shared master valve + single flow sensor). Acquire here,
+        # run at a time (they drive the same relay HATs; see utils.operation_lock). Acquire here,
         # before any hardware work; release on every exit path (reset_ui /
         # _reset_run_button / stop_program force-release).
         lock = get_operation_lock()

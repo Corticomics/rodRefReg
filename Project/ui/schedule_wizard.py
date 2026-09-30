@@ -183,10 +183,11 @@ def relay_for_cage(system_controller, cage_id: int) -> Optional[int]:
     """
     The physical relay a cage id drives, or None if the cage does not exist.
 
-    Cage ids and relay ids are different number spaces: relay 16 is the
-    master, so cage 16 (on a second HAT) drives relay 17. The stored
+    Cage ids and relay ids are different number spaces: relay 16 is
+    reserved (the master on the shared manifold, unused on the independent
+    topology), so cage 16 (on a second HAT) drives relay 17. The stored
     ``cage_relays`` map wins when present; otherwise cages are numbered
-    sequentially over every relay except the master, exactly as the
+    sequentially over every relay except the reserved one, exactly as the
     delivery path builds its map.
     """
     settings = getattr(system_controller, 'settings', None) or {}
