@@ -12,7 +12,7 @@ Calibration runs in the in-app **Calibration Wizard**, one cage at a time. The s
 
 ### Step 1: Prepare (2 min)
 1. Place an empty pre-tared beaker under the target cage outlet.
-2. Verify the reservoir is full and pressurized.
+2. Verify the cage's water supply: the reservoir full on a shared-manifold rig; on an independent rig, the cage's own syringe filled to its normal running level (the wizard's pre-flight checklist asks for the one your rig uses).
 3. If the system was just started, let it warm up for ~30 min.
 4. Open **Settings → Priming** and prime the lines if they contain air.
 
@@ -78,7 +78,7 @@ Water leaves the valve in whole pulses, so a dose can only ever land within one 
 
 ## Calibrate All Valves
 
-**Settings → Calibration → Calibrate All Uncalibrated** lists every cage in the device's cage map that has no calibration yet (15 cages on one HAT, 31 on two), then every cage whose calibration was measured under the other valve topology (**Stale**), and opens the wizard for each in turn. Cancelling a wizard stops the batch; a summary then says how many were done and which were not.
+**Settings → Calibration → Calibrate All Uncalibrated** lists every cage in the device's cage map that has no calibration yet (15 cages on one HAT, 31 on two), then every cage whose stored volume per pulse or pulse width is missing, zero or invalid (**Invalid**), then every cage whose calibration was measured under the other valve topology (**Stale**), and opens the wizard for each in turn. Cancelling a wizard stops the batch; a summary then says how many were done and which were not.
 
 ---
 
@@ -106,10 +106,10 @@ Quality: POOR
 
 1. **Use Lab Scale:** ±0.001g precision minimum
 2. **Warm Up System:** 30 minutes before calibration
-3. **Full Reservoir:** Pressure affects volume
+3. **Supply Level:** Head pressure affects volume (the reservoir full on a shared manifold; each cage's syringe at its normal running level on an independent rig)
 4. **Measure Water as-is:** 1g ≈ 1mL (at room temp)
 5. **Recalibrate:** Every 3 months or after valve replacement
-6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table; deliveries still use it until you do
+6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table (one saved before v1.21.0 counts as shared manifold), and in solenoid pulse mode (the default) Run refuses any schedule that waters a Stale cage until it is recalibrated. **Calibrate All Uncalibrated** includes the Stale cages.
 
 ---
 
@@ -140,7 +140,21 @@ A relay did not switch partway through the run, so the water in the beaker no lo
    ```
    [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
-   A cage missing from those lines has no calibration and runs on the default. These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
+   Every cage the schedule waters has a line: since v1.21.0, in solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (see ["Valve calibration needed" when pressing Run](#valve-calibration-needed-when-pressing-run) below). These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
+
+### "Valve calibration needed" when pressing Run
+
+With solenoid hardware and **Enable Pulse Mode** on (the default), Run checks every cage the schedule waters before anything starts (for an instant schedule, the cages of the deliveries still ahead). It refuses the schedule and lists the cages when a cage:
+
+- has no calibration (**Not Calibrated** in Settings → Calibration),
+- has one measured under the other valve topology (**Stale**; one saved before v1.21.0 counts as shared manifold), or
+- has one whose volume per pulse or pulse width is missing, zero or invalid (**Invalid**).
+
+Calibrate those cages in **Settings → Calibration** (the highlighted button on each cage's row, or **Calibrate All Uncalibrated**), then press Run again. A calibration only has to match the topology: its pulse width may differ from the one in Settings, because a delivery replays the cage's own.
+
+A "**Not a cage on this device**" line (the dialog is titled **Cage not on this device** when that is the only problem) means the schedule waters a cage this device's cage map does not have. Edit the schedule so its animals are on cages listed in Settings → Calibration.
+
+"**Can't check valve calibrations**" means RRR could not read the valve calibrations from its database. Press Run again; if it repeats, the Terminal tab shows the database error.
 
 ---
 
