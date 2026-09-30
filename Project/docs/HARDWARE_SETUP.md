@@ -580,6 +580,8 @@ After install:
 | Pi reboots when valves activate | PSU undersized or the Pi is sharing power with the valve rail. Pi 5 must be on its own 27 W USB-C PSU; valves on their own 12 V supply. |
 | Sensor noise / erratic flow readings | Likely ground loop. Check [§6.3.2 caveat 1](#632-alternative-energized-power-strip-as-ground-bus-current-practice-not-recommended-long-term). |
 | Delivered volume is 2–3× target | Valves need per-valve calibration. Run [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md). |
+| Terminal tab shows `[VALVE ERROR] cage N: … did not reach its relay; delivery stopped`, and the ledger shows `failed` / `partial` rows | A relay write did not reach its HAT: a HAT that was not found at start-up, a relay on a HAT that is missing, or an I²C error. From v1.21.0 the delivery stops there instead of counting the pulse. Only pulses whose valve opened are credited, and the retry 30 s later asks for the rest. Check `i2cdetect -y 1` and run the bring-up test in [§9](#9-first-power-on-and-bring-up-test). RRR sets the HATs up only when it starts, so after fixing a HAT that was missing, **close and reopen RRR**; until then every delivery to it keeps failing. If deliveries keep failing, the schedule stops ("Deliveries kept failing: check the relay HAT … and the flow sensor"). |
+| `[VALVE CRITICAL] … may still be OPEN`, **Emergency Stop Failed** or **Relays Not Confirmed Off** | A close, or the all-relays-off command, did not reach a HAT, so that valve may still be open. **Disconnect the valve power supply first**, then check the HAT and its I²C connection as above. |
 | Water leaking onto HAT | Power off immediately. Dry fully (24 h, no heat). Inspect for corrosion on terminals before re-powering. |
 
 ---

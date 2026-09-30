@@ -1069,6 +1069,9 @@ class RelayWorker(QObject):
                     delivery_data['_dispensed_ml'] = (
                         float(delivery_data.get('_dispensed_ml', 0.0)) + actual_volume
                     )
+                    # A pump trigger count planned for the whole dose would
+                    # fire it again; the retry plans from its capped volume.
+                    delivery_data.pop('triggers', None)
                 self.failed_deliveries[animal_id] = failed_count + 1
                 _log('partial' if actual_volume > 0 else 'failed')
             if actual_volume > 0:
@@ -1233,6 +1236,25 @@ class RelayWorker(QObject):
                 relay_info = self.relay_handler.trigger_relays(
                     [relay_unit_id], triggers_dict, self.stagger_interval
                 )
+                if not relay_info:
+                    # A relay did not switch part-way: credit the triggers
+                    # that did fire, so the retry asks only for the rest.
+                    fired = getattr(self.relay_handler, 'last_trigger_counts', {}).get(
+                        relay_unit_id, 0
+                    )
+                    # In the unit a full run is credited in (the volume asked
+                    # for), so the calibration factor is honoured.
+                    per_trigger_ml = water_volume / required_triggers if required_triggers else 0.0
+                    self.progress.emit(
+                        f"Relay unit {relay_unit_id} stopped after {fired} of "
+                        f"{required_triggers} triggers: a relay did not switch"
+                    )
+                    return DeliveryResult(
+                        success=False,
+                        delivered_ml=fired * per_trigger_ml,
+                        pulses=fired,
+                        warning="pump mode: a relay did not switch; volume is the triggers fired",
+                    )
                 if relay_info:
                     success_msg = f"Successfully triggered relay unit {relay_unit_id} {required_triggers} times"
                     self.progress.emit(success_msg)
@@ -1347,7 +1369,8 @@ class RelayWorker(QObject):
                         f"for animal(s) {animals_exceeded_retries}"
                     )
                     self.progress.emit(
-                        "Possible sensor failure - please check flow sensor connection"
+                        "Deliveries kept failing: check the relay HAT (a [VALVE ERROR] "
+                        "line names it) and the flow sensor connection"
                     )
 
                     # Log all incomplete deliveries as failed
@@ -1356,7 +1379,7 @@ class RelayWorker(QObject):
 
                         self.progress.emit(
                             f"  Animal {animal_id}: INCOMPLETE - {info['delivered']:.3f}/{info['target']:.3f}mL "
-                            f"({info['remaining']:.3f}mL NOT delivered due to sensor failure)"
+                            f"({info['remaining']:.3f}mL NOT delivered: repeated delivery failures)"
                         )
 
                     self.stop()

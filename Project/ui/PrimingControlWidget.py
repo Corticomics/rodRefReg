@@ -464,13 +464,40 @@ class PrimingControlWidget(QWidget):
             if not controller:
                 return
 
-            # Close all cages first (safety)
-            if self._model.get_open_cages():
-                controller.close_all_cages()
-                self._model.close_all_cages()
+            # Close the cages this panel opened first (safety). One by one,
+            # so a missing second HAT does not fail the close of a cage on
+            # the first, and a cage that did not close is named.
+            unclosed = []
+            for cage in sorted(self._model.get_open_cages()):
+                if controller.close_cage(cage):
+                    self._model.set_cage_open(cage, False)
+                else:
+                    unclosed.append(cage)
 
-            if controller.close_master():
+            # The master closes even if a cage did not: on the shared
+            # manifold it is what cuts the supply to a cage valve left open.
+            master_closed = controller.close_master()
+            if master_closed:
                 self._model.master_closed()
+            if unclosed:
+                # A valve may still be open: the priming session (and the
+                # hardware lock) goes on until CLOSE ALL RELAYS.
+                cages = ", ".join(str(cage) for cage in unclosed)
+                supply = (
+                    "The master was closed to cut their supply."
+                    if master_closed
+                    else "The master did not close either."
+                )
+                self._log_error(f"Cage valve(s) {cages} did not confirm closed")
+                QMessageBox.warning(
+                    self,
+                    "Hardware Error",
+                    f"Cage valve(s) {cages} did not confirm closed (a relay did not "
+                    f"switch). {supply}\n\nUse CLOSE ALL RELAYS, and cut the valve power "
+                    "if water still flows.",
+                )
+                return
+            if master_closed:
                 # All valves closed — end the priming session, release the lock.
                 get_operation_lock().release(PRIMING)
                 self._log_success("Master solenoid CLOSED, all cages closed")
@@ -532,8 +559,13 @@ class PrimingControlWidget(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to open cage:\n{str(e)}")
 
     def _release_if_idle(self) -> None:
-        """Independent topology: the session ends when no cage valve is open."""
-        if self._independent and not self._model.get_open_cages():
+        """The session ends when no cage valve is open and, where there is a
+        master, it is closed. On the shared manifold that is normally Close
+        Master's job; this covers a cage that did not confirm closed then
+        and is closed afterwards."""
+        if self._model.get_open_cages():
+            return
+        if self._independent or not self._model.is_master_open:
             get_operation_lock().release(PRIMING)
 
     def _on_close_cage_clicked(self):
@@ -569,7 +601,7 @@ class PrimingControlWidget(QWidget):
                 return
 
             # Direct hardware call for fastest response
-            relay_handler.set_all_relays(0)
+            all_off = relay_handler.set_all_relays(0)
 
             # Reset model state
             self._model.reset()
@@ -578,6 +610,18 @@ class PrimingControlWidget(QWidget):
             # operation lock so a stuck/stale holder can't lock out the app.
             get_operation_lock().force_release()
 
+            if all_off is False:
+                # A HAT missing or not answering: its relays are in an
+                # unknown state, which only cutting the power settles.
+                self._log_error("⛔ EMERGENCY STOP - relays NOT confirmed off")
+                QMessageBox.critical(
+                    self,
+                    "Emergency Stop Failed",
+                    "Not every relay HAT confirmed the command, so a valve may still be "
+                    "OPEN.\n\nDisconnect the valve power supply now, then check the relay "
+                    "HAT and its I²C connection.",
+                )
+                return
             self._log_warning("⛔ EMERGENCY STOP - All relays closed")
             QMessageBox.information(self, "Emergency Stop", "All relays have been closed.")
 
@@ -714,7 +758,10 @@ class PrimingControlWidget(QWidget):
         try:
             # Close all relays on cleanup for safety
             if self._relay_handler:
-                self._relay_handler.set_all_relays(0)
+                if self._relay_handler.set_all_relays(0) is False:
+                    self._print_callback(
+                        "[X] Priming cleanup: relays NOT confirmed off; a valve may still be open"
+                    )
 
             self._model.reset()
             self._print_callback("Priming control widget cleaned up")

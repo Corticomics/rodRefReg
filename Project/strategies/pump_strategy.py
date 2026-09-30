@@ -76,14 +76,38 @@ class PumpStrategy:
         )
         # The pump path is open-loop: it commands a trigger count and has no
         # way to observe what came out. The commanded volume is the honest
-        # figure, and the warning says it is unmeasured.
+        # figure, and the warning says it is unmeasured. A run a relay
+        # stopped part-way is credited with the triggers that fired, so the
+        # retry asks only for the rest.
+        fired = int(triggers) if ok else self._triggers_fired(int(triggers))
         return DeliveryResult(
             success=bool(ok),
-            delivered_ml=volume_ml_for_command if ok else 0.0,
+            delivered_ml=fired * self._ml_per_trigger(),
             duration_s=time.monotonic() - started,
-            pulses=int(triggers),
+            pulses=fired,
             warning="pump mode: volume is commanded, not measured",
         )
+
+    def _triggers_fired(self, commanded: int) -> int:
+        """How many of the commanded triggers the controller says switched on."""
+        fired_of = getattr(self._pump_controller, 'triggers_fired', None)
+        if not callable(fired_of):
+            return 0
+        try:
+            return max(0, min(commanded, int(fired_of())))
+        except (TypeError, ValueError):
+            return 0
+
+    def _ml_per_trigger(self) -> float:
+        """The volume one trigger stands for, as calculate_triggers plans it:
+        the pump volume divided by the calibration factor."""
+        try:
+            factor = float(getattr(self._volume_calculator, 'calibration_factor', 1.0))
+        except (TypeError, ValueError):
+            factor = 1.0
+        if not factor > 0:
+            factor = 1.0
+        return self._volume_calculator.pump_volume_ul / factor / 1000.0
 
     async def clean(self, relay_unit_id: int, to_waste: bool = True) -> None:
         # Pump path currently has no specialized clean routine here.

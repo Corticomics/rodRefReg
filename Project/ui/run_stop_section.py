@@ -621,7 +621,12 @@ class RunStopSection(QWidget):
             self.reset_ui()
 
             if not success:
-                QMessageBox.warning(self, "Warning", "Failed to stop schedule completely")
+                QMessageBox.warning(
+                    self,
+                    "Warning",
+                    "The schedule stopped, but not everything shut down cleanly. "
+                    "Check the messages above and the Terminal tab.",
+                )
 
         except Exception as e:
             if hasattr(self, 'progress_dialog') and self.progress_dialog:

@@ -408,6 +408,11 @@ While a schedule runs or the priming tab has valves open, the calibration
 buttons are greyed out and the wizard refuses to start ("Hardware busy"); stop
 the other operation first.
 
+From v1.21.0 the wizard also stops when a relay does not switch partway through
+the run ("did not open at pulse N" or "did not close after pulse N"). The
+beaker then holds fewer pulses' water than the count says, so do not save a
+measurement from that run. Fix the HAT, then calibrate again.
+
 ---
 
 ## Migration Path (For Existing Systems)

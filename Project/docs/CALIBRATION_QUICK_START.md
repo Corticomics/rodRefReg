@@ -123,6 +123,9 @@ sudo i2cdetect -y 1    # the HAT should appear at its address
 ```
 Then run the relay bring-up test in [HARDWARE_SETUP.md §9](HARDWARE_SETUP.md#9-first-power-on-and-bring-up-test).
 
+### "Calibration Failed: … did not open at pulse N" (or "did not close")
+A relay did not switch partway through the run, so the water in the beaker no longer matches the pulse count. The wizard stops there. Do not save a measurement from that run: fix the relay HAT as above, then calibrate again. After "did not close", the valve may still be open, so check the rig before anything else.
+
 ### "Volume seems wrong"
 ```bash
 # 1. Check scale is tared

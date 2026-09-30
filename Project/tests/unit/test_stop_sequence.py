@@ -196,3 +196,56 @@ def test_dialog_closed_even_if_teardown_raises():
     except ValueError:
         pass
     dialog.close.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Relays the handler could not confirm off (v1.21.0)
+# ---------------------------------------------------------------------------
+#
+# RelayHandler.set_all_relays returns False when a HAT was missing or did
+# not take the command. Stop used to print "HARDWARE SAFE" regardless.
+
+
+def test_force_hardware_safe_state_reports_relays_not_confirmed_off(capsys):
+    handler = MagicMock()
+    handler.set_all_relays.return_value = False
+    assert stop_sequence.force_hardware_safe_state(handler) is False
+    out = capsys.readouterr().out
+    assert "not every relay HAT confirmed OFF" in out
+    assert "HARDWARE SAFE" not in out
+
+
+def test_an_unconfirmed_stop_warns_after_teardown_and_returns_false():
+    order = []
+    handler = MagicMock()
+    handler.set_all_relays.side_effect = lambda *_a: order.append("relays_off") or False
+    thread = MagicMock()
+    thread.isRunning.return_value = True
+    thread.wait.side_effect = lambda *_a: order.append("thread_wait") or True
+
+    result = stop_sequence.execute_stop_sequence(
+        handler, MagicMock(), thread, _make_signals(),
+        on_unsafe=lambda: order.append("warn"),
+    )
+
+    assert result is False
+    assert order[0] == "relays_off", "the relays are still dropped first"
+    assert order[-1] == "warn", "the operator is told once the worker is down"
+
+
+def test_a_confirmed_stop_does_not_warn():
+    handler = MagicMock()
+    handler.set_all_relays.return_value = True
+    warn = MagicMock()
+    assert stop_sequence.execute_stop_sequence(
+        handler, None, None, _make_signals(), on_unsafe=warn
+    ) is True
+    warn.assert_not_called()
+
+
+def test_no_handler_is_not_an_unconfirmed_stop():
+    warn = MagicMock()
+    assert stop_sequence.execute_stop_sequence(
+        None, None, None, _make_signals(), on_unsafe=warn
+    ) is True
+    warn.assert_not_called()
