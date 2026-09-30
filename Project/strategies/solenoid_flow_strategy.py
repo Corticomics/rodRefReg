@@ -108,6 +108,11 @@ class SolenoidFlowStrategy:
         # threading.Event is used because the write crosses threads.
         # See the v1.8.0 incident write-up in utils/stop_sequence.py.
         self._cancel_event = threading.Event()
+        # Valves whose open reached their relay and whose close has not been
+        # confirmed since ('master', 'cage <n>'). Only those can be left
+        # open, so only those raise the [VALVE CRITICAL] alarm: a dead HAT
+        # fails the open and the close alike, and its valve never moved.
+        self._maybe_open = set()
         # Per-run calibration snapshot
         # (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml, inter_pulse_interval_ms, topology}})
         self._cal_snapshot: Dict[int, Dict[int, Dict[str, object]]] = {}
@@ -515,6 +520,36 @@ class SolenoidFlowStrategy:
         self._ledger_pulses += 1
         self._ledger_volume_per_pulse_ml = float(volume_per_pulse_ml)
 
+    # A close that did not reach its relay is tried again twice at once, then
+    # after short waits: a lost I2C write is usually transient, and every
+    # moment the valve stays open is extra water.
+    CLOSE_RETRY_DELAYS_S = (0.0, 0.0, 0.02, 0.05, 0.1)
+
+    @staticmethod
+    def _valve_key(command, args):
+        """('open' | 'close', 'master' | 'cage <n>') for a valve command, else (None, None)."""
+        verb, _, part = getattr(command, '__name__', '').partition('_')
+        if verb not in ('open', 'close'):
+            return None, None
+        if part == 'master':
+            return verb, 'master'
+        if part == 'cage' and args:
+            try:
+                return verb, f"cage {int(args[0])}"
+            except (TypeError, ValueError):
+                return verb, f"cage {args[0]}"
+        return None, None
+
+    def _track(self, command, args) -> None:
+        """Record a valve command that reached its relay."""
+        verb, key = self._valve_key(command, args)
+        if key is None:
+            return
+        if verb == 'open':
+            self._maybe_open.add(key)
+        else:
+            self._maybe_open.discard(key)
+
     def _valve(self, command, *args) -> None:
         """Run a valve command; raise ValveCommandError unless its relay switched."""
         name = f"{getattr(command, '__name__', 'valve command')}({', '.join(map(str, args))})"
@@ -524,17 +559,64 @@ class SolenoidFlowStrategy:
             raise ValveCommandError(f"{name} failed: {exc}") from exc
         if not switched:
             raise ValveCommandError(f"{name} did not reach its relay")
+        self._track(command, args)
 
     def _closed(self, command, *args) -> bool:
         """Run a closing command for safety; whether its relay switched. Never raises."""
         try:
-            return bool(command(*args))
+            switched = bool(command(*args))
         except Exception as exc:
             self._logger.error(f"{getattr(command, '__name__', 'close')}{args} raised: {exc}")
             return False
+        if switched:
+            self._track(command, args)
+        return switched
+
+    async def _retry_close(self, command, *args):
+        """Try a close that did not reach its relay again (CLOSE_RETRY_DELAYS_S).
+
+        Returns when the attempt that got through started, on the loop's
+        clock, or None if none did.
+        """
+        for delay in self.CLOSE_RETRY_DELAYS_S:
+            if delay:
+                await asyncio.sleep(delay)
+            started = asyncio.get_event_loop().time()
+            if self._closed(command, *args):
+                return started
+        return None
+
+    @staticmethod
+    def _pulse_by_open_time(pulse_ml, opened_at, close_asked_at, closed_at, pulse_s):
+        """The water a pulse gave when its close got through late.
+
+        The calibrated pulse was measured with the valve open from the open
+        command to the close command. A close that got through late (a lost
+        write tried again, or one that failed slowly, as an I2C timeout
+        does) kept the valve open until the attempt that got through, so the
+        pulse is scaled by that on-time over its normal one, both measured
+        on this pulse from the open command. Flow is taken as steady while
+        the valve is open: an estimate, and never less than one pulse.
+        """
+        normal_s = max(close_asked_at - opened_at, pulse_s)
+        if normal_s <= 0:
+            return pulse_ml
+        extra_s = max(0.0, closed_at - close_asked_at)
+        return pulse_ml * (normal_s + extra_s) / normal_s
 
     def _alarm_unclosed(self, cage_id: int, which: str) -> None:
-        """Say loudly that a close did not reach its relay: that valve may still be open."""
+        """Say loudly that a close did not reach its relay: that valve may still be open.
+
+        Only for a valve whose open reached its relay: one that never opened
+        cannot be left open, and a dead HAT fails the close of every valve.
+        """
+        key = 'master' if which == 'master' else f"cage {cage_id}"
+        if key not in self._maybe_open:
+            self._logger.warning(
+                f"cage {cage_id}: the {which} valve close did not reach its relay, but its "
+                "open never did either, so it cannot be open"
+            )
+            return
         message = (
             f"[VALVE CRITICAL] cage {cage_id}: the {which} valve close did not reach its relay; "
             "the valve may still be OPEN. Check the rig; Settings > Priming > CLOSE ALL RELAYS "
@@ -588,7 +670,6 @@ class SolenoidFlowStrategy:
                 f"valve open time: {valve_open_s:.2f}s for {target_volume_ml:.3f}mL"
             )
 
-            cage_opened = False
             try:
                 # Prime manifold (no master, nothing to prime, on the
                 # independent topology)
@@ -598,7 +679,6 @@ class SolenoidFlowStrategy:
 
                 # Deliver
                 self._valve(self._valves.open_cage, cage_id)
-                cage_opened = True
                 await asyncio.sleep(valve_open_s)
                 # The timed dose is in the cage whether or not the close
                 # reached its relay, so a failed close is retried and
@@ -619,8 +699,8 @@ class SolenoidFlowStrategy:
 
             except Exception as e:
                 self._logger.error(f"[CALIBRATION-ONLY] Delivery failed: {e}")
-                # Only a valve that opened can be left open.
-                if not self._closed(self._valves.close_cage, cage_id) and cage_opened:
+                # The alarm is raised only for a valve that had opened.
+                if not self._closed(self._valves.close_cage, cage_id):
                     self._alarm_unclosed(cage_id, 'cage')
                 if not self._closed(self._valves.close_master):
                     self._alarm_unclosed(cage_id, 'master')
@@ -641,12 +721,14 @@ class SolenoidFlowStrategy:
         await asyncio.sleep(0)  # yield once
         if self._has_master:
             try:
-                self._valves.open_master()
+                self._valve(self._valves.open_master)
                 await asyncio.sleep(self._prime_ms / 1000.0)
-                self._valves.close_master()
+                self._valve(self._valves.close_master)
                 await asyncio.sleep(0.05)
             except Exception:
                 # Hardware or mapping issue – fail fast
+                if not self._closed(self._valves.close_master):
+                    self._alarm_unclosed(cage_id, 'master')
                 return False
 
         # Delivery
@@ -660,7 +742,6 @@ class SolenoidFlowStrategy:
         no_flow_threshold_ml_min = float(self._settings.get('no_flow_threshold_ml_min', 0.05))
         no_flow_timeout_s = float(self._settings.get('no_flow_timeout_s', 3.5))
         no_flow_accum_s = 0.0
-        opened = []  # valves whose open reached its relay: only those can be left open
 
         # Note: Flow sensor should be started once during initialization, not per-delivery
         # Starting/stopping repeatedly causes I²C conflicts with relay HATs on shared bus
@@ -724,10 +805,8 @@ class SolenoidFlowStrategy:
             await asyncio.sleep(max(0.0, quiet_ms) / 1000.0)
             if self._has_master:
                 self._valve(self._valves.open_master)
-                opened.append('master')
             self._logger.debug(f"Opening cage {cage_id} solenoid...")
             self._valve(self._valves.open_cage, cage_id)
-            opened.append('cage')
             self._logger.info(f"Solenoids opened successfully for cage {cage_id}")
 
             # CRITICAL: Rescjume reads IMMEDIATELY after valve switching completes!
@@ -744,9 +823,9 @@ class SolenoidFlowStrategy:
             self._logger.error(f"Failed to open solenoids for cage {cage_id}: {e}")
             # Close both valves whatever happened, and say so when the close
             # of one that had opened does not get through.
-            if not self._closed(self._valves.close_cage, cage_id) and 'cage' in opened:
+            if not self._closed(self._valves.close_cage, cage_id):
                 self._alarm_unclosed(cage_id, 'cage')
-            if not self._closed(self._valves.close_master) and 'master' in opened:
+            if not self._closed(self._valves.close_master):
                 self._alarm_unclosed(cage_id, 'master')
             return False
 
@@ -1193,38 +1272,49 @@ class SolenoidFlowStrategy:
                 f"[CALIBRATION-ONLY PULSE] cage={cage_id}, pulse={cage_pw_ms}ms ({pulse_duration_s:.3f}s)"
             )
 
-            opened = False
+            opened_at = asyncio.get_event_loop().time()
             try:
                 print(f"[VALVE] Opening cage {cage_id}...")
                 self._valve(self._valves.open_cage, cage_id)
-                opened = True
-                print(f"[VALVE] Cage {cage_id} OPEN, sleeping {pulse_duration_s:.3f}s")
-
-                await asyncio.sleep(pulse_duration_s)
-
-                print(f"[VALVE] Closing cage {cage_id}...")
-                self._valve(self._valves.close_cage, cage_id)
-                print(f"[VALVE] Cage {cage_id} CLOSED, settling {settling_ms}ms")
-
-                await asyncio.sleep(settling_ms / 1000.0)  # Settling time
-
-                print(f"[CALIBRATION-ONLY PULSE] Complete, returning {expected_vol_ml:.4f}mL")
             except Exception as e:
+                # The valve did not open: no water, and the delivery stops.
+                # Close it for safety; with its open lost it cannot be open.
                 self._logger.error(f"Pulse execution error (calibration-only): {e}")
                 print(f"[VALVE ERROR] Exception during pulse: {e}")
-                import traceback
+                self._closed(self._valves.close_cage, cage_id)
+                raise ValveCommandError(f"pulse failed: {e}", delivered_ml=0.0) from e
+            print(f"[VALVE] Cage {cage_id} OPEN, sleeping {pulse_duration_s:.3f}s")
 
-                print(f"[VALVE ERROR] Traceback:\n{traceback.format_exc()}")
-                if not self._closed(self._valves.close_cage, cage_id) and opened:
-                    self._alarm_unclosed(cage_id, 'cage')
-                # Never counted as a pulse: a valve that did not open put no
-                # water in the cage; one that opened did, and the delivery
-                # stops here either way.
-                raise ValveCommandError(
-                    f"pulse failed: {e}", delivered_ml=expected_vol_ml if opened else 0.0
-                ) from e
+            close_asked_at = opened_at
+            try:
+                await asyncio.sleep(pulse_duration_s)
 
-            return expected_vol_ml  # Return calibrated volume
+                close_asked_at = asyncio.get_event_loop().time()
+                print(f"[VALVE] Closing cage {cage_id}...")
+                if self._closed(self._valves.close_cage, cage_id):
+                    print(f"[VALVE] Cage {cage_id} CLOSED, settling {settling_ms}ms")
+                    await asyncio.sleep(settling_ms / 1000.0)  # Settling time
+                    print(f"[CALIBRATION-ONLY PULSE] Complete, returning {expected_vol_ml:.4f}mL")
+                    return expected_vol_ml  # Return calibrated volume
+                problem = f"close_cage({cage_id}) did not reach its relay"
+            except Exception as e:
+                problem = f"pulse failed: {e}"
+
+            # The close did not get through (or the pulse broke off with the
+            # valve open). Try again, credit the pulse with the time its valve
+            # stayed open, and end the delivery: its water is in the cage.
+            self._logger.error(f"Pulse execution error (calibration-only): {problem}")
+            print(f"[VALVE ERROR] cage {cage_id}: {problem}; closing again")
+            closed_at = await self._retry_close(self._valves.close_cage, cage_id)
+            if closed_at is None:
+                self._alarm_unclosed(cage_id, 'cage')
+                closed_at = asyncio.get_event_loop().time()  # still open: what flowed so far
+            raise ValveCommandError(
+                problem,
+                delivered_ml=self._pulse_by_open_time(
+                    expected_vol_ml, opened_at, close_asked_at, closed_at, pulse_duration_s
+                ),
+            )
 
         # FULL PATH: Sensor available - measure actual flow
         # Step 2: Clear sensor queue for fresh data
@@ -1249,9 +1339,11 @@ class SolenoidFlowStrategy:
 
         # A valve that did not open put no water in the cage, whatever the
         # adaptive correction below would otherwise assume from the flow.
+        opened_at = start_time
         self._valve(self._valves.open_cage, cage_id)
         valve_open_time = start_time
-        closed, reclosed = [], []
+        close = {}  # 'asked', 'first_ok', 'closed_at': when the close got through
+        close_task = None
 
         try:
             # Step 4: Execute pulse while collecting samples
@@ -1262,15 +1354,14 @@ class SolenoidFlowStrategy:
             # Schedule precise close independent of sampling cadence
             async def _close_after():
                 await asyncio.sleep(pulse_duration_s)
-                ok = self._closed(self._valves.close_cage, cage_id)
-                closed.append(ok)
-                # Every moment the valve stays open is extra water: try again
-                # at once, twice. The delivery still ends after this pulse.
-                for _attempt in range(2):
-                    if ok:
-                        break
-                    ok = self._closed(self._valves.close_cage, cage_id)
-                    reclosed.append(ok)
+                close['asked'] = asyncio.get_event_loop().time()
+                close['first_ok'] = self._closed(self._valves.close_cage, cage_id)
+                if close['first_ok']:
+                    close['closed_at'] = close['asked']
+                else:
+                    # Every moment the valve stays open is extra water: try
+                    # again now. The delivery still ends after this pulse.
+                    close['closed_at'] = await self._retry_close(self._valves.close_cage, cage_id)
 
             close_task = asyncio.create_task(_close_after())
 
@@ -1305,13 +1396,22 @@ class SolenoidFlowStrategy:
                         samples.append({'time_s': elapsed, 'flow_ml_min': flow_ml_min})
                 except Exception as e:
                     self._logger.debug(f"Sample read error during settling: {e}")
-
-            await asyncio.sleep(sample_period_s)
+                # Inside the loop: it used to sit after it, so settling spun
+                # the CPU reading the sensor for the whole window.
+                await asyncio.sleep(sample_period_s)
 
         except Exception as e:
             self._logger.error(f"Pulse execution error: {e}")
             # Ensure valve is closed
-            closed.append(self._closed(self._valves.close_cage, cage_id))
+            if close_task is not None:
+                try:
+                    await close_task
+                except Exception:
+                    pass
+            if 'first_ok' not in close:
+                close['asked'] = asyncio.get_event_loop().time()
+                close['first_ok'] = self._closed(self._valves.close_cage, cage_id)
+                close['closed_at'] = close['asked'] if close['first_ok'] else None
 
         # Step 7: Integrate flow to get volume (trapezoidal rule)
         delivered_ml = 0.0
@@ -1422,23 +1522,33 @@ class SolenoidFlowStrategy:
             f"(calibration: {expected_vol_ml:.4f}mL, {len(samples)} samples)"
         )
 
-        if not closed or not all(closed):
-            # The close did not reach its relay (or never ran): the pulse's
-            # water is in the cage, and the delivery ends with it banked, as
-            # in calibration-only mode.
-            if not (reclosed and reclosed[-1]):
-                # No immediate attempt got through, so the valve stayed open
-                # for the whole measurement window. Try once more, and bank
-                # the calibrated pulse scaled by the time the valve was open:
-                # the sensor saturates far below a pulse's flow, so neither
-                # its reading nor the corrected figure shows the extra water.
-                if not self._closed(self._valves.close_cage, cage_id):
+        if not close.get('first_ok'):
+            # The close did not reach its relay at once (or never ran): the
+            # pulse's water is in the cage, and the delivery ends with it
+            # banked, as in calibration-only mode.
+            closed_at = close.get('closed_at')
+            if closed_at is None:
+                # Nothing got through, so the valve stayed open for the whole
+                # measurement window. Try once more.
+                late = asyncio.get_event_loop().time()
+                if self._closed(self._valves.close_cage, cage_id):
+                    closed_at = late
+                else:
                     self._alarm_unclosed(cage_id, 'cage')
-                open_s = asyncio.get_event_loop().time() - valve_open_time
-                by_open_time_ml = expected_vol_ml * open_s / max(pulse_duration_s, 1e-3)
-                delivered_ml = max(delivered_ml, integrated_ml, by_open_time_ml)
+                    closed_at = asyncio.get_event_loop().time()  # what flowed so far
+            # Credit the calibrated pulse scaled by the time its valve was
+            # open: the sensor saturates far below a pulse's flow, so neither
+            # its reading nor the corrected figure shows the extra water.
+            by_open_time_ml = self._pulse_by_open_time(
+                expected_vol_ml,
+                opened_at,
+                close.get('asked', opened_at),
+                closed_at,
+                pulse_duration_s,
+            )
             raise ValveCommandError(
-                f"close_cage({cage_id}) did not reach its relay", delivered_ml=delivered_ml
+                f"close_cage({cage_id}) did not reach its relay",
+                delivered_ml=max(delivered_ml, integrated_ml, by_open_time_ml),
             )
 
         return delivered_ml
