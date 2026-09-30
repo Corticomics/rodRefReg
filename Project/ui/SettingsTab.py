@@ -1886,9 +1886,11 @@ class SettingsTab(QWidget):
                 if not all(key in backup_settings for key in required_keys):
                     raise ValueError("Invalid backup file format")
 
-                # The valve topology changes only through its guarded control
-                # in the Delivery tab, never from a backup file.
+                # The valve topology and the hardware mode change only through
+                # their guarded controls in the Delivery tab, never from a
+                # backup file: those refuse while anything drives the hardware.
                 backup_topology = backup_settings.pop(SETTING_KEY, None)
+                backup_mode = backup_settings.pop('hardware_mode', None)
                 self.settings.update(backup_settings)
                 self.load_settings()
                 message = "Settings restored successfully"
@@ -1898,6 +1900,13 @@ class SettingsTab(QWidget):
                         f"\n\nThe backup's valve topology ({backup_topology}) was not applied: "
                         f"this device stays on {current}. Change it in Settings > Delivery > "
                         "Valve Topology if the rig was re-plumbed."
+                    )
+                mode = self.settings.get('hardware_mode', 'solenoid')
+                if backup_mode is not None and str(backup_mode).strip().lower() != mode:
+                    message += (
+                        f"\n\nThe backup's hardware mode ({backup_mode}) was not applied: "
+                        f"this device stays in {mode} mode. Change it in Settings > Delivery > "
+                        "Delivery Hardware Mode if needed."
                     )
                 QMessageBox.information(self, "Success", message)
 

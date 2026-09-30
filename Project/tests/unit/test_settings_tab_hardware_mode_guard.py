@@ -125,3 +125,44 @@ def test_refused_while_the_run_stop_section_has_a_job(
     _switch_to_pump(tab)
     assert warnings == ["Cannot Change Mode"]
     _assert_still_solenoid(tab, system_controller, database_handler)
+
+
+def test_a_backup_file_cannot_switch_the_mode_behind_the_guard(
+    qapp, system_controller, database_handler, warnings, monkeypatch, tmp_path
+):
+    """The review's case: Restore from Backup wrote hardware_mode straight
+    into the settings the next run copies, with no guard and the combo still
+    showing Solenoid."""
+    import json  # noqa: PLC0415
+
+    from PyQt5.QtWidgets import QFileDialog, QMessageBox  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    backup = tmp_path / "backup.json"
+    # Widget values equal to the current ones: a changed widget would
+    # auto-save the combo's mode back over the backup's and hide the bug.
+    backup.write_text(
+        json.dumps(
+            {
+                "pump_volume_ul": 50,
+                "calibration_factor": 1.0,
+                "min_trigger_interval_ms": 600,
+                "hardware_mode": "pump",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(backup), ""))
+    )
+    shown = []
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda *a, **k: shown.append(a[2]))
+    )
+    tab = _tab(system_controller, database_handler)
+    assert get_operation_lock().try_acquire("schedule")
+
+    tab.restore_from_backup()
+
+    assert system_controller.settings["min_trigger_interval_ms"] == 600, "the rest applies"
+    _assert_still_solenoid(tab, system_controller, database_handler)
+    assert "hardware mode (pump) was not applied" in shown[-1]
