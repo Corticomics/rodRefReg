@@ -122,7 +122,7 @@ class SettingsTab(QWidget):
         # Refresh mode state in case login status changed
         if hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
-        self._apply_valve_topology_lock_state()
+        self._apply_hardware_settings_lock_state()
 
     def _on_subtab_changed(self, index: int):
         """Handle settings sub-tab changes."""
@@ -130,7 +130,7 @@ class SettingsTab(QWidget):
         if index == 3 and hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
         if self.tab_widget.widget(index) is self.hardware_pump_settings:
-            self._apply_valve_topology_lock_state()
+            self._apply_hardware_settings_lock_state()
 
     def refresh_calibration_table(self) -> None:
         """
@@ -528,27 +528,26 @@ class SettingsTab(QWidget):
         """
         Handle hardware mode change with safety check.
 
-        Best Practices:
-        - Prevent mode switching during active schedule
-        - Provide clear feedback to user
-        - Maintain system safety
+        Refused, and the combo put back, while a schedule, a priming session
+        or a calibration is running: the same check as the valve topology.
+        (It used to look for a ``run_stop_section.worker`` that does not
+        exist, so it never refused anything.)
         """
-        # Check if schedule is running
-        if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
-            if self.run_stop_section.worker and self.run_stop_section.worker.isRunning():
-                QMessageBox.warning(
-                    self,
-                    "Cannot Change Mode",
-                    "Cannot change hardware mode while a schedule is running.\n\n"
-                    "Please stop the current schedule first.",
-                )
-                # Revert to previous mode
-                old_mode = self.settings.get('hardware_mode', 'solenoid')
-                old_idx = self.hardware_mode_combo.findData(old_mode)
-                self.hardware_mode_combo.blockSignals(True)
-                self.hardware_mode_combo.setCurrentIndex(old_idx if old_idx >= 0 else 0)
-                self.hardware_mode_combo.blockSignals(False)
-                return
+        reason = self._hardware_change_blocked_reason()
+        if reason:
+            QMessageBox.warning(
+                self,
+                "Cannot Change Mode",
+                f"The hardware mode cannot change while {reason}.\n\n"
+                "Wait for it to finish, then try again.",
+            )
+            # Revert to previous mode
+            old_mode = self.settings.get('hardware_mode', 'solenoid')
+            old_idx = self.hardware_mode_combo.findData(old_mode)
+            self.hardware_mode_combo.blockSignals(True)
+            self.hardware_mode_combo.setCurrentIndex(old_idx if old_idx >= 0 else 0)
+            self.hardware_mode_combo.blockSignals(False)
+            return
 
         self._update_hardware_ui_visibility()
         self.print_to_terminal(f"Hardware mode changed to: {mode}")
@@ -606,8 +605,8 @@ class SettingsTab(QWidget):
         # buttonClicked fires for the operator's clicks (mouse or keyboard)
         # only, never for the setChecked that puts a refused change back.
         self.valve_topology_buttons.buttonClicked.connect(self._on_valve_topology_clicked)
-        get_operation_lock().state_changed.connect(self._apply_valve_topology_lock_state)
-        self._apply_valve_topology_lock_state()
+        get_operation_lock().state_changed.connect(self._apply_hardware_settings_lock_state)
+        self._apply_hardware_settings_lock_state()
         return group
 
     def _show_valve_topology(self, topology):
@@ -631,17 +630,23 @@ class SettingsTab(QWidget):
             return "a schedule is running"
         return None
 
-    def _apply_valve_topology_lock_state(self):
-        """Grey out the topology choice while a change would be refused.
+    def _apply_hardware_settings_lock_state(self):
+        """Grey out the hardware mode and the topology choice while a change
+        would be refused.
 
-        Purely visual: the handler checks again. The lock announces its own
+        Purely visual: the handlers check again. The lock announces its own
         changes; a running worker is re-checked whenever Settings or its
         Delivery sub-tab is shown.
         """
         reason = self._hardware_change_blocked_reason()
+        tip = f"Unavailable while {reason}" if reason else ""
+        combo = getattr(self, 'hardware_mode_combo', None)
+        if combo is not None:
+            combo.setEnabled(reason is None)
+            combo.setToolTip(tip)
         for value, radio in getattr(self, 'valve_topology_radios', {}).items():
             radio.setEnabled(reason is None)
-            radio.setToolTip(f"Unavailable while {reason}" if reason else describe(value))
+            radio.setToolTip(tip or describe(value))
 
     def _on_valve_topology_clicked(self, button):
         for value, radio in self.valve_topology_radios.items():
@@ -1866,9 +1871,11 @@ class SettingsTab(QWidget):
                 if not all(key in backup_settings for key in required_keys):
                     raise ValueError("Invalid backup file format")
 
-                # The valve topology changes only through its guarded control
-                # in the Delivery tab, never from a backup file.
+                # The valve topology and the hardware mode change only through
+                # their guarded controls in the Delivery tab, never from a
+                # backup file: those refuse while anything drives the hardware.
                 backup_topology = backup_settings.pop(SETTING_KEY, None)
+                backup_mode = backup_settings.pop('hardware_mode', None)
                 self.settings.update(backup_settings)
                 self.load_settings()
                 message = "Settings restored successfully"
@@ -1878,6 +1885,13 @@ class SettingsTab(QWidget):
                         f"\n\nThe backup's valve topology ({backup_topology}) was not applied: "
                         f"this device stays on {current}. Change it in Settings > Delivery > "
                         "Valve Topology if the rig was re-plumbed."
+                    )
+                mode = self.settings.get('hardware_mode', 'solenoid')
+                if backup_mode is not None and str(backup_mode).strip().lower() != mode:
+                    message += (
+                        f"\n\nThe backup's hardware mode ({backup_mode}) was not applied: "
+                        f"this device stays in {mode} mode. Change it in Settings > Delivery > "
+                        "Delivery Hardware Mode if needed."
                     )
                 QMessageBox.information(self, "Success", message)
 
