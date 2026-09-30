@@ -568,11 +568,10 @@ class SolenoidFlowStrategy:
 
             except Exception as e:
                 self._logger.error(f"[CALIBRATION-ONLY] Delivery failed: {e}")
-                try:
-                    self._valves.close_cage(cage_id)
-                    self._valves.close_master()
-                except:
-                    pass
+                if not self._closed(self._valves.close_cage, cage_id):
+                    self._alarm_unclosed(cage_id, 'cage')
+                if not self._closed(self._valves.close_master):
+                    self._alarm_unclosed(cage_id, 'master')
                 return False
 
         # ================================================================
@@ -1051,7 +1050,8 @@ class SolenoidFlowStrategy:
                         self._record_pulse(e.delivered_ml, expected_vol_per_pulse)
                     message = (
                         f"[VALVE ERROR] cage {cage_id}: {e}; delivery stopped after "
-                        f"{pulse_count} pulse(s), {delivered_ml:.3f} mL"
+                        f"{pulse_count} pulse(s), {delivered_ml:.3f} mL. Check the relay "
+                        "HAT; one that was not found at start-up needs RRR restarted."
                     )
                     self._logger.error(message)
                     print(message, flush=True)
@@ -1194,7 +1194,7 @@ class SolenoidFlowStrategy:
         # A valve that did not open put no water in the cage, whatever the
         # adaptive correction below would otherwise assume from the flow.
         self._valve(self._valves.open_cage, cage_id)
-        closed = []
+        closed, reclosed = [], []
 
         try:
             # Step 4: Execute pulse while collecting samples
@@ -1205,7 +1205,12 @@ class SolenoidFlowStrategy:
             # Schedule precise close independent of sampling cadence
             async def _close_after():
                 await asyncio.sleep(pulse_duration_s)
-                closed.append(self._closed(self._valves.close_cage, cage_id))
+                ok = self._closed(self._valves.close_cage, cage_id)
+                closed.append(ok)
+                if not ok:
+                    # Every moment the valve stays open is extra water: try
+                    # again at once. The delivery still ends after this pulse.
+                    reclosed.append(self._closed(self._valves.close_cage, cage_id))
 
             close_task = asyncio.create_task(_close_after())
 
@@ -1357,9 +1362,12 @@ class SolenoidFlowStrategy:
 
         if not closed or not all(closed):
             # The close did not reach its relay (or never ran): the pulse's
-            # water is in the cage and the valve may still be open. Try once
-            # more, then end the delivery with this pulse banked.
-            if not self._closed(self._valves.close_cage, cage_id):
+            # water is in the cage, and the delivery ends with it banked, as
+            # in calibration-only mode. Unless the immediate second attempt
+            # got through, try once more and raise the alarm if it fails.
+            if not (reclosed and all(reclosed)) and not self._closed(
+                self._valves.close_cage, cage_id
+            ):
                 self._alarm_unclosed(cage_id, 'cage')
             raise ValveCommandError(
                 f"close_cage({cage_id}) did not reach its relay", delivered_ml=delivered_ml

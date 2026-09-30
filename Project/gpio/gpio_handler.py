@@ -130,8 +130,14 @@ class RelayHandler:
           - Instantiate with stack index 0..num_hats-1 (per Sequent docs).
         Custom module (custom_SM16relind):
           - Supports bus_id; iterate detected I2C buses and stacks.
+
+        ``relay_hats`` keeps one slot per configured stack, None where the
+        HAT did not initialise. Relays are routed by stack (relay 17 is
+        stack 1, relay 1), so a missing HAT must leave its slot empty: a
+        compacted list would send stack 0's relays to stack 1, another
+        animal's valve, and report the write as made.
         """
-        self.relay_hats = []
+        self.relay_hats = [None] * self._expected_hats()
 
         success = False
 
@@ -144,7 +150,7 @@ class RelayHandler:
                     try:
                         hat = SM16relind(stack=stack, bus_id=bus)
                         hat.set_all(0)
-                        self.relay_hats.append(hat)
+                        self.relay_hats[stack] = hat
                         print(f"Initialized relay hat stack={stack} on I2C bus {bus}")
                         success = True
                     except Exception as e:
@@ -163,7 +169,7 @@ class RelayHandler:
                     raise AttributeError("SM16relind class not found in module")
                 hat = ctor(stack)
                 hat.set_all(0)
-                self.relay_hats.append(hat)
+                self.relay_hats[stack] = hat
                 print(f"Initialized relay hat stack={stack}")
                 success = True
             except Exception as e:
@@ -187,15 +193,16 @@ class RelayHandler:
         """
 
         def _hardware_set_all_operation():
-            ok = bool(self.relay_hats) and len(self.relay_hats) >= self._expected_hats()
+            hats = self._initialized_hats()
+            ok = bool(hats) and len(hats) >= self._expected_hats()
             if not ok:
                 message = (
-                    f"Relay HAT(s) missing: {len(self.relay_hats)} of {self.num_hats} "
+                    f"Relay HAT(s) missing: {len(hats)} of {self.num_hats} "
                     "initialised; the missing ones were not switched"
                 )
                 print(message)
                 logging.error(message)
-            for hat in self.relay_hats:
+            for hat in hats:
                 try:
                     hat.set_all(0 if state == 0 else 65535)  # 65535 = all relays ON
                 except Exception as e:
@@ -205,6 +212,10 @@ class RelayHandler:
             return ok
 
         return self._run_coordinated(_hardware_set_all_operation, "set_all")
+
+    def _initialized_hats(self):
+        """The HATs that answered at start-up, in stack order."""
+        return [hat for hat in self.relay_hats if hat is not None]
 
     def _expected_hats(self):
         """How many HATs the device is configured for (at least one)."""
@@ -227,10 +238,16 @@ class RelayHandler:
         return bool(operation())
 
     def trigger_relays(self, selected_units, num_triggers, stagger):
-        """Triggers the specified relay units with verification"""
-        relay_info = []
+        """Triggers the specified relay units with verification.
 
-        if not self.relay_hats:
+        A unit that did not complete every trigger is left out of the
+        returned list; ``last_trigger_counts`` then says, per unit id, how
+        many triggers fired before a relay did not switch.
+        """
+        relay_info = []
+        self.last_trigger_counts = {}
+
+        if not self._initialized_hats():
             logging.error("Trigger requested but no relay hats are initialized")
             return []
 
@@ -250,6 +267,7 @@ class RelayHandler:
                 continue
 
             success = self._execute_triggers(relay_unit, unit_triggers, stagger)
+            self.last_trigger_counts[unit_id] = self._fired
 
             if success:
                 relay_info.append(f"Relay Unit {unit_id} triggered {unit_triggers} times")
@@ -257,7 +275,12 @@ class RelayHandler:
         return relay_info
 
     def _execute_triggers(self, relay_unit, num_triggers, stagger):
-        """Execute the specified number of triggers for a relay unit"""
+        """Execute the specified number of triggers for a relay unit.
+
+        ``self._fired`` counts the triggers that switched on (their water
+        was pumped), so a caller can credit them when a later one fails.
+        """
+        self._fired = 0
         try:
             for trigger in range(num_triggers):
                 # Log trigger attempt
@@ -277,6 +300,7 @@ class RelayHandler:
                         "switch on; stopping"
                     )
                     return False
+                self._fired += 1
 
                 # Wait for activation duration
                 time.sleep(stagger)
@@ -313,17 +337,18 @@ class RelayHandler:
             ok = True
             for relay_id in relay_ids:
                 hat_index, relay_num = divmod(relay_id - 1, 16)
-                if not 0 <= hat_index < len(self.relay_hats):
+                hat = self.relay_hats[hat_index] if 0 <= hat_index < len(self.relay_hats) else None
+                if hat is None:
                     message = (
                         f"Relay {relay_id} not switched: no initialised relay HAT for it "
-                        f"({len(self.relay_hats)} of {self.num_hats} initialised)"
+                        f"({len(self._initialized_hats())} of {self.num_hats} initialised)"
                     )
                     print(message)
                     logging.error(message)
                     ok = False
                     continue
                 try:
-                    self.relay_hats[hat_index].set(relay_num + 1, state)
+                    hat.set(relay_num + 1, state)
                 except Exception as e:
                     print(f"Error setting relay {relay_id} to state {state}: {e}")
                     logging.error(f"Relay state change error: {str(e)}")

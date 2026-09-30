@@ -431,16 +431,21 @@ class PrimingControlWidget(QWidget):
             if not controller:
                 return
 
-            # Close all cages first (safety)
-            if self._model.get_open_cages():
-                if not controller.close_all_cages():
-                    QMessageBox.warning(
-                        self,
-                        "Hardware Error",
-                        "The open cage valves did not confirm closed (a relay did not "
-                        "switch), so the master stays open.\n\nUse CLOSE ALL RELAYS.",
-                    )
-                    return
+            # Close the cages this panel opened first (safety). One by one,
+            # so a missing second HAT does not fail the close of a cage on
+            # the first, and a cage that did not close is named.
+            open_cages = sorted(self._model.get_open_cages())
+            unclosed = [cage for cage in open_cages if not controller.close_cage(cage)]
+            if unclosed:
+                cages = ", ".join(str(cage) for cage in unclosed)
+                QMessageBox.warning(
+                    self,
+                    "Hardware Error",
+                    f"Cage valve(s) {cages} did not confirm closed (a relay did not "
+                    "switch), so the master stays open.\n\nUse CLOSE ALL RELAYS.",
+                )
+                return
+            if open_cages:
                 self._model.close_all_cages()
 
             if controller.close_master():

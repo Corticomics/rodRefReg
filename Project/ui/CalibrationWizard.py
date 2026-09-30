@@ -181,13 +181,18 @@ class _CalibrationPulseWorker(QObject):
             master_closed = solenoid.close_master()
             valves_closed = bool(cage_closed) and bool(master_closed)
 
+            closed_note = (
+                " All valves closed"
+                if valves_closed
+                else " WARNING: a valve close did not reach its relay; trying again"
+            )
             if stopped:
                 self.log.emit(f"Calibration cancelled after {pulse_count} pulses")
-                self.log.emit(" All valves closed")
+                self.log.emit(closed_note)
             else:
                 success = True
                 self.log.emit(f" Completed {pulse_count} pulses")
-                self.log.emit(" All valves closed")
+                self.log.emit(closed_note)
 
         except Exception as e:
             error = str(e)
@@ -196,17 +201,32 @@ class _CalibrationPulseWorker(QObject):
             # (The old inline loop did NOT close valves on exception — this
             # backstop is a deliberate safety improvement.)
             if solenoid is not None and not valves_closed:
-                unconfirmed = "close did not reach its relay; it may still be OPEN"
+                still_open = []
                 try:
                     if not solenoid.close_cage(self._cage_id):
-                        self.log.emit(f"WARNING: the cage valve {unconfirmed}")
+                        still_open.append("cage")
                 except Exception as close_error:
                     self.log.emit(f"WARNING: failed to close cage valve: {close_error}")
+                    still_open.append("cage")
                 try:
                     if not solenoid.close_master():
-                        self.log.emit(f"WARNING: the master valve {unconfirmed}")
+                        still_open.append("master")
                 except Exception as close_error:
                     self.log.emit(f"WARNING: failed to close master valve: {close_error}")
+                    still_open.append("master")
+                if still_open:
+                    # The wizard's log closes with the dialog: say it where
+                    # it stays (System Messages) and in the run's result.
+                    which = " and ".join(still_open)
+                    alarm = (
+                        f"[VALVE CRITICAL] calibration of cage {self._cage_id}: the {which} "
+                        "valve close did not reach its relay; the valve may still be OPEN. "
+                        "Check the rig; Settings > Priming > CLOSE ALL RELAYS retries every relay."
+                    )
+                    self.log.emit(alarm)
+                    print(alarm, flush=True)
+                    success = False
+                    error = f"{error}\n\n{alarm}" if error else alarm
             self.finished.emit(success, error)
 
 

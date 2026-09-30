@@ -536,7 +536,7 @@ def _show_stopping_dialog():
         from PyQt5.QtWidgets import QProgressDialog  # noqa: PLC0415
 
         dialog = QProgressDialog(
-            "Stopping schedule…\nRelays switched off; closing the worker.",
+            "Stopping schedule…\nSwitching the relays off and closing the worker.",
             None,
             0,
             0,
