@@ -105,5 +105,5 @@ def reserved_relay_reason(settings) -> str:
     number their cages the same way.
     """
     if is_independent(settings):
-        return "reserved and unused on this device (no master valve)"
+        return "reserved and unused on this device"
     return "reserved for the master solenoid"

@@ -1116,7 +1116,8 @@ def _build_content() -> Dict[str, HelpContent]:
     solenoid is open, and closing the master automatically closes any open cage relays
     first.</li>
     <li>Independent rig: the hardware lock is held from the first cage valve opened until
-    the last one is closed; schedules and calibration wait until then.</li>
+    the last one is closed; until then Run and the calibration buttons are greyed out, and
+    nothing is queued.</li>
     <li><em>Close All Relays</em> bypasses normal sequencing for rapid emergency
     shutdown.</li>
   </ul>

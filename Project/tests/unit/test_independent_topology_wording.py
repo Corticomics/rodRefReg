@@ -108,6 +108,7 @@ def test_the_selection_limit_banner_and_dialog_follow_the_topology(qapp, monkeyp
 
     step = _step2(INDEPENDENT)
     assert "reserved and unused on this device" in step._limit_label.text()
+    assert "))" not in step._limit_label.text(), "no nested parentheses"
     assert "master solenoid" not in step._limit_label.text()
 
     shown = []
@@ -213,3 +214,4 @@ def test_the_help_describes_relay_16_and_priming_for_both_rigs():
     priming = help_.get_content("Priming")
     assert "Shared-manifold rig:" in priming and "Independent rig" in priming
     assert "about three days" in priming
+    assert "nothing is queued" in priming, "Run is greyed out, not queued, during priming"
