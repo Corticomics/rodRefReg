@@ -281,6 +281,10 @@ class RelayHandler:
         was pumped), so a caller can credit them when a later one fails.
         """
         self._fired = 0
+        # Relays this call saw switch off, with no switch-on since. Any other
+        # relay's state is unknown (it may have been left on before), so an
+        # off write that fails for it raises the alarm.
+        known_off = set()
         try:
             for trigger in range(num_triggers):
                 # Log trigger attempt
@@ -293,22 +297,24 @@ class RelayHandler:
                 # unit: the trigger did not happen and must not be counted.
                 switched_on = [self._set_relay_states([r], 1) for r in relay_unit.relay_ids]
                 if not all(switched_on):
-                    # Only a relay that did switch on can be left on.
                     went_on = [r for r, ok in zip(relay_unit.relay_ids, switched_on) if ok]
-                    self._switch_unit_off(relay_unit, trigger, confirm=went_on)
+                    known_off.difference_update(went_on)
+                    self._switch_unit_off(relay_unit, trigger, went_on, known_off)
                     logging.error(
                         f"Relay unit {relay_unit.unit_id}: trigger {trigger + 1} did not "
                         "switch on; stopping"
                     )
                     return False
+                known_off.difference_update(relay_unit.relay_ids)
                 self._fired += 1
 
                 # Wait for activation duration
                 time.sleep(stagger)
 
                 # Deactivate relays
-                if not self._switch_unit_off(relay_unit, trigger, confirm=relay_unit.relay_ids):
+                if not self._switch_unit_off(relay_unit, trigger, relay_unit.relay_ids, known_off):
                     return False
+                known_off.update(relay_unit.relay_ids)
 
                 # Wait between triggers
                 if trigger < num_triggers - 1:  # Don't wait after last trigger
@@ -320,28 +326,42 @@ class RelayHandler:
             logging.error(f"Trigger execution error: {str(e)}")
             return False
 
-    def _switch_unit_off(self, relay_unit, trigger, confirm):
+    def _switch_unit_off(self, relay_unit, trigger, known_on, known_off):
         """Switch a unit's relays off, trying a lost write again at once.
 
-        False, with a [VALVE CRITICAL] line, when a relay in ``confirm``
-        (those known to be on) did not switch off: the pump may still be
-        running.
+        False, with a [VALVE CRITICAL] line, when a relay did not switch off
+        and was not already seen off in this run of triggers: one known to
+        be on, or one whose state is unknown, may still be running the pump.
         """
         stuck = [
             relay_id
             for relay_id in relay_unit.relay_ids
             if not (self._set_relay_states([relay_id], 0) or self._set_relay_states([relay_id], 0))
-            and relay_id in confirm
+            and relay_id not in known_off
         ]
         if not stuck:
             return True
+        on = [r for r in stuck if r in known_on]
+        unknown = [r for r in stuck if r not in known_on]
+        parts = []
+        if on:
+            parts.append(
+                f"relay(s) {', '.join(map(str, on))} did not switch off at trigger "
+                f"{trigger + 1}; they may still be ON"
+            )
+        if unknown:
+            parts.append(
+                f"relay(s) {', '.join(map(str, unknown))} are not answering, so they cannot "
+                "be confirmed off; they may be ON"
+            )
         message = (
-            f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: relay(s) "
-            f"{', '.join(str(r) for r in stuck)} did not switch off at trigger {trigger + 1}; "
-            "they may still be ON. Check the rig; Settings > Priming > CLOSE ALL RELAYS "
-            "retries every relay."
+            f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: {'; '.join(parts)}. Check the "
+            "rig; Settings > Priming > CLOSE ALL RELAYS retries every relay."
         )
-        print(message, flush=True)
+        try:
+            print(message, flush=True)
+        except Exception:
+            pass
         logging.error(message)
         return False
 
