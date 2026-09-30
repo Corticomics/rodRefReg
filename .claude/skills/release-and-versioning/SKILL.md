@@ -61,11 +61,11 @@ So if your prompt says "branch, commit, push, PR, bump version", bump.
 
 ```
 1. branch off main with <type>/<slug>
-2. make changes, commit conventionally
+2. make changes, commit conventionally; bump Project/version.py in the same PR if it is release-bound
 3. push branch, open PR
 4. merge PR through GitHub UI
 5. on local main: git pull --ff-only
-6. bump Project/version.py     ← if this PR is release-bound
+6. confirm Project/version.py on main holds the new version
 7. git tag v<new_version>       ← still local; reversible
 8. git push origin v<new_version>   ← POINT OF NO RETURN
 ```

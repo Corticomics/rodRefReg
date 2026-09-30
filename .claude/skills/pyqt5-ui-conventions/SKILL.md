@@ -38,7 +38,7 @@ RodentRefreshmentGUI (QTabWidget)
 │   ├── WizardTab            (wraps ScheduleCreationWizard)
 │   └── CagesVisualizationTab (relay-board layout + inline cage naming)
 ├── SettingsTab          ─── QTabWidget
-│   ├── Delivery (Hardware/Pump)
+│   ├── Delivery            (hardware mode + valve topology, both guarded; solenoid/pump settings)
 │   ├── Calibration         (per-cage; opens CalibrationWizard)
 │   ├── Priming             (embeds PrimingControlWidget)
 │   ├── General

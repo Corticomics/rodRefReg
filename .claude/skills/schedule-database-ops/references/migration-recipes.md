@@ -22,7 +22,7 @@ cursor.execute('''
 
 SQLite can't conditionally `ADD COLUMN`, so probe with `PRAGMA table_info`
 first. Reference implementation: the `sex` column added to `animals` at
-[`database_handler.py:260-269`](Project/models/database_handler.py#L260-L269).
+[`database_handler.py:306-314`](Project/models/database_handler.py#L306-L314); the calibration-table columns (`inter_pulse_interval_ms`, `topology`) at [`:316-332`](Project/models/database_handler.py#L316-L332) show the same guard over several columns and tables.
 
 ```python
 cursor.execute("PRAGMA table_info(animals)")

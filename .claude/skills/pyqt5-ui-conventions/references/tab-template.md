@@ -16,7 +16,13 @@ Settings sub-tabs are the cheapest UI to add — they reuse the existing
 3. If the tab has widgets the user can edit, connect them to
    `_auto_save_settings` in `_connect_auto_save_handlers()`. The auto-save
    reads every widget at once, so you only add the connection, not the
-   read logic.
+   read logic. Exception: a setting that changes which hardware is driven
+   gets a guarded handler that asks `_hardware_change_blocked_reason()`
+   first (a schedule, priming session or calibration) and puts the control
+   back when refused. `hardware_mode`'s `_on_hardware_mode_changed` then
+   calls `_auto_save_settings`. `valve_topology` stays off the auto-save path:
+   `_on_valve_topology_chosen` confirms, saves on its own and reads the value
+   back. `restore_from_backup` drops both keys from a backup file.
 4. Add new keys to the `updated_settings` dict in `_auto_save_settings`
    if you introduce new persistable values; they must be listed in
    `SystemController` as managed keys (see schedule-database-ops skill).

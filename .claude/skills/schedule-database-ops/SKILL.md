@@ -15,7 +15,7 @@ falls back to `Project/rrr_database.db`. Path resolution is in
 
 **All database access goes through
 [`Project/models/database_handler.py`](Project/models/database_handler.py)
-`DatabaseHandler` (1989 LOC).** Never `import sqlite3` from UI, controller,
+`DatabaseHandler` (about 2,400 lines).** Never `import sqlite3` from UI, controller,
 or strategy code. Reasons:
 
 - `DatabaseHandler` owns connection lifecycle, schema versioning, FK
@@ -27,7 +27,7 @@ or strategy code. Reasons:
 
 ## Schema at a glance
 
-14 tables, FK-linked:
+15 tables, FK-linked:
 
 ```
 trainers ──< schedules ─┬─< schedule_animals >─── animals
@@ -54,10 +54,18 @@ Schedules have a `delivery_mode` column:
   volume + interval) and `schedule_staggered_windows` (per-window
   progress) and `cycle_tracking` (per-cycle progress).
 - `instant` → uses `schedule_instant_deliveries` (explicit
-  `delivery_datetime` rows, marked `completed BOOLEAN`).
+  `delivery_datetime` rows; the `completed` column is never set: past
+  deliveries are skipped at Run and each attempt is recorded in
+  `dispensing_history`).
 
-Both modes write to `dispensing_history` on every actual relay click —
-that's the audit log a researcher would query later.
+Both modes write one `dispensing_history` row per delivery attempt —
+`completed`, `partial` (some pulses got through before a failure) or
+`failed` — plus a `sensor_failure` row for the part of a staggered window's
+dose that was never delivered. Each attempt row carries the dose asked for
+(`volume_requested_ml`), what the hardware reports it dispensed
+(`volume_actual_ml`) and, since v1.21.0, the context it ran under
+(topology, calibration row, timing profile, schedule `delivery_mode`, app
+version). That's the audit log a researcher would query later.
 
 ## Settings persistence (Phase 2.5a)
 
@@ -80,7 +88,7 @@ must therefore be safe to re-run:
 - Every `CREATE TABLE` uses `IF NOT EXISTS`.
 - Adding a column on an existing install uses the `PRAGMA table_info` →
   `ALTER TABLE ADD COLUMN` pattern (see the `sex` column on `animals`
-  at [`database_handler.py:260-269`](Project/models/database_handler.py#L260-L269)).
+  at [`database_handler.py:306-314`](Project/models/database_handler.py#L306-L314); the calibration tables' `inter_pulse_interval_ms` / `topology` loop at `:316-332` shows the same guard over several columns).
 - Never drop a column. SQLite's `ALTER TABLE DROP COLUMN` is partial; for
   RRR we mark columns deprecated in comments and leave them.
 
@@ -97,8 +105,11 @@ ones, or extend an existing method by a kwarg.
 
 ## Don't do this
 
-- Don't open `sqlite3.connect(...)` outside `DatabaseHandler`.
-- Don't store secrets (`slack_token`, `slack_channel_id`) in
+- Don't open `sqlite3.connect(...)` outside `DatabaseHandler`. The one
+  exception is the bench tool `Project/tools/gravimetric_check.py`, which
+  opens the database read-only (`?mode=ro`, never created) so it can run
+  beside the app; a new bench tool must do the same.
+- Don't store secrets (`slack_token`, `channel_id`) in
   `system_settings`. Secrets live in `secrets.json` at `paths.secrets_path()`.
   See [`Project/utils/secrets.py`](Project/utils/secrets.py).
 - Don't commit the `.db` file. `.gitignore` excludes `*.db` and
@@ -112,7 +123,7 @@ ones, or extend an existing method by a kwarg.
 ## When testing
 
 Use the `database_handler` fixture
-([`conftest.py:36`](Project/tests/unit/conftest.py#L36)). It builds a
+([`conftest.py:100`](Project/tests/unit/conftest.py#L100)). It builds a
 fresh handler against `RRR_DATA = <tmp_path>/data` via `monkeypatch.setenv`,
 so every test gets a pristine SQLite file. The `system_controller` fixture
 layers `SystemController` on top.

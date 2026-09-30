@@ -18,6 +18,8 @@ git pull --ff-only origin main
 git checkout -b <type>/<short-kebab-slug>   # feat/, fix/, chore/, etc.
 # … edit code …
 pytest                                      # green or new-test-passes
+ruff check .                                # CI gates on both ruff checks,
+ruff format --check .                       # separately (tests.yml)
 ```
 
 ## 2. Conventional commit
@@ -38,7 +40,8 @@ git push -u origin <branch>
 # Open PR through GitHub UI or `gh pr create`
 ```
 
-Wait for CI to go green. Review. Squash-merge through the GitHub UI.
+Wait for CI to go green. Review. Merge through the GitHub UI (this repo
+uses merge commits: `Merge pull request #N …`).
 
 ## 4. Sync local main
 
@@ -51,19 +54,11 @@ This is the step where forgetting will tag the wrong commit. Don't skip it.
 
 ## 5. Bump the version
 
-Edit [`Project/version.py`](Project/version.py) to the new `__version__`
-string. Commit:
-
-```bash
-git add Project/version.py
-git commit -m "chore(version): bump to v<new>"
-git push origin main
-```
-
-(Or fold the bump into the release-bound PR itself, before merging — the
-recent RRR convention is to bump in the same PR that introduces the
-behavior change. Either works as long as `main` has the bumped value at
-the moment you tag.)
+Bump [`Project/version.py`](Project/version.py) inside the release-bound
+PR, before merging (v1.21.0 was bumped that way, in #149). If the merged
+PRs did not bump, open a `chore/bump-<version>` PR (as #140 did for
+v1.18.0). Never commit the bump straight to `main`. `main` must carry the
+bumped value at the moment you tag.
 
 ## 6. Tag locally (still reversible)
 

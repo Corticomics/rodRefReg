@@ -12,14 +12,14 @@ worker = MyWorker(...)              # QObject subclass
 thread = QThread()
 worker.moveToThread(thread)
 thread.started.connect(worker.run)
-worker.finished.connect(thread.quit)
+worker.finished.connect(thread.quit, Qt.DirectConnection)  # quit() is thread-safe; see main.py:335-345
 worker.finished.connect(worker.deleteLater)
 thread.finished.connect(thread.deleteLater)
 thread.start()
 ```
 
-Reference: [Project/main.py](Project/main.py) `setup_program()` around the
-`RelayWorker` construction (~L300-L395). [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py)
+Reference: [Project/main.py](Project/main.py) `run_program()` around the
+`RelayWorker` construction (~L320-L430). [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py)
 `RelayWorker(QObject)`.
 
 ## 2. Every cross-thread signal uses `Qt.QueuedConnection`
@@ -31,9 +31,9 @@ intermittent crashes. Always be explicit.
 Real call sites:
 
 ```python
-worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)   # main.py:L359
-worker.finished.connect(_on_finished, Qt.QueuedConnection)               # main.py:L376
-control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.py:L388
+worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)   # main.py:L399
+worker.finished.connect(_on_finished, Qt.QueuedConnection)               # main.py:L416
+control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.py:L429
 ```
 
 ## 3. No widget touch from the worker thread
@@ -48,27 +48,30 @@ by reading the slot body — does it call `setText`, `addItem`, `show`,
 Don't top-level-import `RPi.GPIO`, `sm_16relind`, or `pyserial` from a UI
 module. Import inside the method body so `test_gui_smoke.py` can construct
 the widget without hardware deps. Pattern from
-[Project/gpio/relay_worker.py:215](Project/gpio/relay_worker.py#L215):
+[Project/gpio/relay_worker.py:256](Project/gpio/relay_worker.py#L256) (`RelayWorker._initialize_hardware`):
 
 ```python
-def _do_dispense(self, ...):
-    from drivers.flow_sensor_factory import create_flow_sensor  # noqa: PLC0415
+def _initialize_hardware(self):
+    ...
+    from drivers.flow_sensor_factory import create_flow_sensor
     from drivers.uart_flow_sensor import TeensyUnavailableError
     ...
 ```
 
-## 5. Cleanup order: stop signal → wait → handler cleanup → quit
+## 5. Stop order: hardware off → cancel → signal → bounded wait
 
-`RelayHandler.cleanup()` must run **before** `QApplication.quit()`. The
-correct chain is:
+Stop goes through `utils.stop_sequence.execute_stop_sequence`:
 
-1. Emit `stop_requested` to the worker.
-2. `thread.quit()` and `thread.wait(timeout_ms)` to let the event loop drain.
-3. Call `relay_handler.cleanup()` to release I²C resources.
-4. `app.quit()`.
+1. `relay_handler.set_all_relays(0)` first. If it returns False, a HAT did
+   not confirm OFF: tell the operator to disconnect the valve power
+   (**Relays Not Confirmed Off**, shown once the teardown ends).
+2. Call `worker.request_cancel()` directly (thread-safe; the worker is
+   usually blocked in a delivery and cannot run a queued slot), then emit
+   `stop_requested` to the worker (QueuedConnection).
+3. `thread.wait(3000)`; on timeout `terminate()` and `wait(1000)`; then
+   abandon. Never an unbounded `wait()`.
 
-Reverse this order and you'll see `QObject::~QObject: Timers cannot be
-stopped from another thread` warnings on shutdown.
+`main.cleanup()` switches the relays off again when the worker finishes.
 
 ## 6. No `QMessageBox.exec_()` from worker-connected slots without `QueuedConnection`
 
