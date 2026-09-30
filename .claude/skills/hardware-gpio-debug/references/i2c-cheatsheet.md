@@ -7,10 +7,10 @@ Quick reference for the I²C topology RRR expects.
 | Device | Default address | Notes |
 |---|---|---|
 | Sequent Microsystems 16-relay HAT | `0x20–0x27` | Stack level selected via on-board jumpers JP1–JP3. Stack 0 = `0x20`. |
-| Sensirion SLF3S-0600F flow sensor | `0x08` | Legacy direct-I²C path; superseded by Teensy UART bridge but still supported as fallback (see [Project/drivers/flow_sensor.py](Project/drivers/flow_sensor.py)). |
+| Sensirion SLF3S-0600F flow sensor | `0x08` on the Teensy's own bus | Not on the Pi's bus: the Teensy 4.1 reads it and streams over USB serial (`/dev/teensy_flow`). The direct-I²C driver (`flow_sensor.py`) was deleted in v1.9.0. |
 
-If `i2cdetect -y 1` shows neither, the bus itself is the problem — not the
-device.
+If `i2cdetect -y 1` shows no relay HAT at `0x20–0x27`, check the bus and
+wiring before RRR: the flow sensor never appears here.
 
 ## Stack-level jumpers (16-RELAYS)
 
@@ -39,9 +39,15 @@ Authoritative reference: [Project/docs/16-RELAYS-UsersGuide_d5e24457-bdd9-4e16-a
 4. `sudo i2cdetect -y 1` — sudo bypass; if this works and the unprivileged
    call doesn't, it's group membership.
 
-## Two devices on one bus — clock conflict
+## Relay writes and the I²C coordinator
 
-RRR's flow-sensor + relay HAT share bus 1. `I2CCoordinator`
-([Project/drivers/i2c_coordinator.py](Project/drivers/i2c_coordinator.py)) holds
-a `threading.Lock` around every read/write. Bypassing it causes intermittent
-`OSError: [Errno 110]` under load. Always go through the coordinator.
+Only the relay HATs sit on the Pi's bus 1 (the flow sensor is behind the
+Teensy on USB serial). `RelayHandler._run_coordinated` sends each write
+through `I2CCoordinator.sync_exclusive_access('relay', …)`
+([Project/drivers/i2c_coordinator.py](Project/drivers/i2c_coordinator.py)):
+it claims the bus for the `'relay'` type under an `RLock`, runs the write
+outside the lock and waits 10 ms before releasing. It does not serialise two
+relay writers (a caller of the same type is let straight in). What keeps a
+schedule, priming and calibration apart is the operation lock
+(`utils/operation_lock.py`). Go through `RelayHandler`; don't write to the HAT
+around it.

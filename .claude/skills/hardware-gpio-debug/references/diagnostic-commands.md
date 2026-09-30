@@ -50,9 +50,13 @@ journalctl --user -u rrr.service -b | grep -E "SM16relind module not found|Faile
 - `Failed to initialize any relay hats` (after `Failed to initialize hat
   stack=N: …`) — the library loaded but no HAT answered.
 
-In either case `RelayHandler` has no hats and every relay write is a silent
-no-op that still reports success, so schedules run and log deliveries with
-no valve moving. Fix the cause and restart the app before trusting a run.
+In either case `RelayHandler` has no HAT for those stacks, and since v1.21.0
+every write to them is refused. In solenoid pulse mode (the default) the
+Terminal tab shows `Relay N not switched: no initialised relay HAT for it`
+and the delivery stops with `[VALVE ERROR] cage N: …; delivery stopped`; in
+any mode the ledger row is `failed` (or `partial` if some water got
+through). Fix the cause, then close and reopen RRR: the schedule path sets
+its HATs up when RRR starts.
 
 ## I²C bus reset (last resort)
 
