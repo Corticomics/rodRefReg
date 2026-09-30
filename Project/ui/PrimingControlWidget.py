@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from utils.operation_lock import PRIMING, get_operation_lock
-from utils.topology import is_independent
+from utils.topology import INDEPENDENT, SETTING_KEY, SHARED_MANIFOLD, is_independent
 
 
 class RelayControlModel(QObject):
@@ -351,9 +351,14 @@ class PrimingControlWidget(QWidget):
                 # The device's valve topology decides whether a master valve
                 # exists. On the independent topology the master group is
                 # hidden, the controller's master operations are no-ops and
-                # the cage buttons drive the valves directly.
+                # the cage buttons drive the valves directly. The topology is
+                # the one this panel was built for, not the live setting: a
+                # Close after a change in Settings must not build (and keep)
+                # a controller for the other topology, which Open would use
+                # once the change is undone.
+                built_for = INDEPENDENT if self._independent else SHARED_MANIFOLD
                 self._solenoid_controller = build_solenoid_controller(
-                    relay_handler, self.settings, cage_map
+                    relay_handler, {**self.settings, SETTING_KEY: built_for}, cage_map
                 )
 
             except Exception as e:
@@ -387,10 +392,38 @@ class PrimingControlWidget(QWidget):
         # Ensure keys are integers
         return {int(k): int(v) for k, v in cage_map.items()}
 
+    # ==================== Topology changed in Settings ====================
+
+    _RESTART_TOOLTIP = "Restart RRR to prime with the new valve topology"
+
+    def _topology_changed_since_start(self) -> bool:
+        """Whether the valve topology in Settings differs from the one this
+        panel was built for. The layout, the valve-state model and the lock
+        rules all follow the topology at construction, so opening a valve
+        under the other one waits for a restart. Closing never does."""
+        return is_independent(self.settings) != self._independent
+
+    def refresh_topology_state(self) -> None:
+        """Re-apply the Open states after Settings changes the topology."""
+        self._refresh_lock_state()
+
+    def _refused_until_restart(self) -> bool:
+        if not self._topology_changed_since_start():
+            return False
+        QMessageBox.information(
+            self,
+            "Restart required",
+            "The valve topology was changed in Settings. Close and reopen RRR "
+            "to prime with it.\n\nClosing valves and the emergency stop still work.",
+        )
+        return True
+
     # ==================== Event Handlers ====================
 
     def _on_open_master_clicked(self):
         """Handle master open button click."""
+        if self._refused_until_restart():
+            return
         # Hardware mutual-exclusion: priming holds the lock for the whole
         # session (master open → all closed), since the master valve is shared
         # with schedules and calibration. Acquire before opening anything.
@@ -450,6 +483,8 @@ class PrimingControlWidget(QWidget):
 
     def _on_open_cage_clicked(self):
         """Handle cage open button click."""
+        if self._refused_until_restart():
+            return
         try:
             if not self._model.is_master_open:
                 QMessageBox.warning(
@@ -570,7 +605,7 @@ class PrimingControlWidget(QWidget):
             self.master_status_label.setProperty("status", "closed")
             self.master_status_label.style().unpolish(self.master_status_label)
             self.master_status_label.style().polish(self.master_status_label)
-            self.master_open_btn.setEnabled(True)
+            self.master_open_btn.setEnabled(not self._topology_changed_since_start())
             self.master_close_btn.setEnabled(False)
 
         self._update_cage_button_states()
@@ -587,7 +622,15 @@ class PrimingControlWidget(QWidget):
         Close + Emergency are intentionally left to their normal logic so the
         operator can always shut valves. The Phase-1 guard still refuses on
         click regardless — this is purely the visual layer.
+
+        A topology change in Settings greys Open out until restart, whatever
+        the lock does, so it is checked first.
         """
+        if self._topology_changed_since_start():
+            for button in (self.master_open_btn, self.cage_open_btn):
+                button.setEnabled(False)
+                button.setToolTip(self._RESTART_TOOLTIP)
+            return
         lock = get_operation_lock()
         if lock.is_busy() and not lock.held_by(PRIMING):
             tip = f"Unavailable while {lock.active_label()} is in progress"
@@ -627,12 +670,14 @@ class PrimingControlWidget(QWidget):
         construction, so without this a cage-selector change during a
         schedule run would re-enable Open under an "Unavailable" tooltip.
         The shared path is unchanged: there an open master already means
-        PRIMING holds the lock.
+        PRIMING holds the lock. A topology change in Settings keeps Open
+        greyed until restart.
         """
         has_selection = self.cage_selector.count() > 0
         master_is_open = self._model.is_master_open
         lock = get_operation_lock()
         blocked = lock.is_busy() and not lock.held_by(PRIMING)
+        blocked = blocked or self._topology_changed_since_start()
 
         self.cage_open_btn.setEnabled(master_is_open and has_selection and not blocked)
         self.cage_close_btn.setEnabled(has_selection)

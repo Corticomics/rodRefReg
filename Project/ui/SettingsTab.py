@@ -6,6 +6,7 @@ from models.animal import Animal
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -18,17 +19,25 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
+from utils import updater
 from utils.operation_lock import CALIBRATION, get_operation_lock
 from utils.topology import (
+    DEFAULT_MASTER_RELAY_ID,
+    INDEPENDENT,
+    SETTING_KEY,
+    SHARED_MANIFOLD,
     calibration_is_stale,
     calibration_label,
     calibration_topology,
     describe,
+    is_known,
+    normalize,
     topology_from,
 )
 
@@ -113,12 +122,15 @@ class SettingsTab(QWidget):
         # Refresh mode state in case login status changed
         if hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
+        self._apply_valve_topology_lock_state()
 
     def _on_subtab_changed(self, index: int):
         """Handle settings sub-tab changes."""
         # If General tab is selected (index 3), refresh mode state
         if index == 3 and hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
+        if self.tab_widget.widget(index) is self.hardware_pump_settings:
+            self._apply_valve_topology_lock_state()
 
     def refresh_calibration_table(self) -> None:
         """
@@ -326,6 +338,8 @@ class SettingsTab(QWidget):
         solenoid_layout = QVBoxLayout()
         solenoid_layout.setContentsMargins(12, 12, 12, 12)
         solenoid_layout.setSpacing(12)
+
+        solenoid_layout.addWidget(self._create_valve_topology_group())
 
         # Flow Sensor Configuration
         sensor_group = QGroupBox("Flow Sensor (Teensy Bridge)")
@@ -550,6 +564,258 @@ class SettingsTab(QWidget):
         is_solenoid = self.hardware_mode_combo.currentData() == 'solenoid'
         self.solenoid_group.setVisible(is_solenoid)
         self.pump_group.setVisible(not is_solenoid)
+
+    # ==================== VALVE TOPOLOGY ====================
+
+    def _create_valve_topology_group(self):
+        """
+        The valve topology this device drives (see utils.topology).
+
+        Deliberately not on the auto-save path: a change is refused while
+        any hardware operation or schedule is active, confirmed by the
+        operator, saved on its own and read back from the database before
+        it is reported as done.
+        """
+        group = QGroupBox("Valve Topology")
+        group_layout = QVBoxLayout()
+        group_layout.setContentsMargins(12, 12, 12, 12)
+        group_layout.setSpacing(8)
+
+        self.valve_topology_buttons = QButtonGroup(group)
+        self.valve_topology_radios = {}
+        for value, label in (
+            (SHARED_MANIFOLD, "Shared manifold (master valve)"),
+            (INDEPENDENT, "Independent (one syringe and one valve per animal)"),
+        ):
+            radio = QRadioButton(label)
+            self.valve_topology_buttons.addButton(radio)
+            self.valve_topology_radios[value] = radio
+            group_layout.addWidget(radio)
+        self._show_valve_topology(topology_from(self.settings))
+
+        note = QLabel(
+            "Must match how this rig is plumbed. After a change, calibrations measured "
+            "under the other topology show as Stale, and Priming cannot open a valve "
+            "until RRR is closed and reopened."
+        )
+        note.setObjectName("HelpText")
+        note.setWordWrap(True)
+        group_layout.addWidget(note)
+        group.setLayout(group_layout)
+
+        # buttonClicked fires for the operator's clicks (mouse or keyboard)
+        # only, never for the setChecked that puts a refused change back.
+        self.valve_topology_buttons.buttonClicked.connect(self._on_valve_topology_clicked)
+        get_operation_lock().state_changed.connect(self._apply_valve_topology_lock_state)
+        self._apply_valve_topology_lock_state()
+        return group
+
+    def _show_valve_topology(self, topology):
+        """Check the radio for ``topology`` without running the change handler."""
+        radio = self.valve_topology_radios.get(topology)
+        if radio is not None:
+            radio.setChecked(True)
+
+    def _hardware_change_blocked_reason(self):
+        """
+        Why the valve hardware settings cannot change right now, or None.
+
+        Any holder of the operation lock counts (a schedule run, a priming
+        session or a calibration), and so does a delivery worker that is
+        still running or a job the Run/Stop section has not finished.
+        """
+        lock = get_operation_lock()
+        if lock.is_busy():
+            return f"{lock.active_label()} is in progress"
+        if updater.is_busy() or getattr(self.run_stop_section, 'job_in_progress', False):
+            return "a schedule is running"
+        return None
+
+    def _apply_valve_topology_lock_state(self):
+        """Grey out the topology choice while a change would be refused.
+
+        Purely visual: the handler checks again. The lock announces its own
+        changes; a running worker is re-checked whenever Settings or its
+        Delivery sub-tab is shown.
+        """
+        reason = self._hardware_change_blocked_reason()
+        for value, radio in getattr(self, 'valve_topology_radios', {}).items():
+            radio.setEnabled(reason is None)
+            radio.setToolTip(f"Unavailable while {reason}" if reason else describe(value))
+
+    def _on_valve_topology_clicked(self, button):
+        for value, radio in self.valve_topology_radios.items():
+            if radio is button:
+                self._on_valve_topology_chosen(value)
+                return
+
+    def _on_valve_topology_chosen(self, new):
+        """
+        Switch the device to the ``new`` topology if nothing is running and
+        the operator confirms. Returns True once the change is saved.
+
+        Schedules and calibrations read the topology when they start, so
+        they pick the change up from the next start. Priming built its
+        panel for the old one and stays locked until RRR restarts; RRR is
+        not restarted from here.
+        """
+        old = topology_from(self.settings)
+        if new == old:
+            return False
+        if not self.login_system or not self.login_system.is_logged_in():
+            self._show_valve_topology(old)
+            QMessageBox.warning(
+                self, "Access Denied", "You must be logged in to change the valve topology."
+            )
+            return False
+        if self._refuse_valve_topology_change(old):
+            return False
+        if not self._confirm_valve_topology(old, new):
+            self._show_valve_topology(old)
+            return False
+        # The confirmation is modal, but the event loop keeps running under
+        # it: a schedule, priming session or calibration may have started.
+        if self._refuse_valve_topology_change(old):
+            return False
+        outcome = self._save_valve_topology(old, new)
+        if outcome != 'saved':
+            self._show_valve_topology(old)
+            if outcome == 'unchanged':
+                self._announce_valve_topology(
+                    f"Valve topology NOT changed: {new} could not be saved; still {old}"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Topology Not Saved",
+                    f"The valve topology could not be saved, so this device stays on "
+                    f"{old}.\n\nThe Terminal tab shows the database error.",
+                )
+            else:
+                self._announce_valve_topology(
+                    f"Valve topology NOT confirmed: the database could not be read back "
+                    f"after saving {new}; running on {old} until restart"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Topology Not Confirmed",
+                    f"The database could not confirm the valve topology. RRR keeps running "
+                    f"on {old}, but the next start may load {new}.\n\n"
+                    "The Terminal tab shows the database error. Restart RRR and check "
+                    "Settings > Delivery > Valve Topology before running a schedule.",
+                )
+            return False
+
+        trainer = self.login_system.get_current_trainer() or {}
+        who = trainer.get('username') or 'unknown user'
+        self._announce_valve_topology(
+            f"Valve topology changed in Settings: {old} -> {new} (by {who}). "
+            "Schedules and calibrations started from now on use it; "
+            "Priming waits for a restart."
+        )
+        if hasattr(self, 'calibration_table'):
+            self._populate_calibration_table()  # the Stale badges follow the topology
+        priming = getattr(self, 'priming_widget', None)
+        if priming is not None:
+            priming.refresh_topology_state()
+        self._notify_valve_topology_changed(new)
+        return True
+
+    def _refuse_valve_topology_change(self, old):
+        reason = self._hardware_change_blocked_reason()
+        if reason is None:
+            return False
+        self._show_valve_topology(old)
+        QMessageBox.warning(
+            self,
+            "Cannot Change Topology",
+            f"The valve topology cannot change while {reason}.\n\n"
+            "Wait for it to finish, then try again.",
+        )
+        return True
+
+    def _confirm_valve_topology(self, old, new):
+        """Ask the operator; what can go wrong depends on the direction."""
+        master = self.settings.get('global_master_relay_id', DEFAULT_MASTER_RELAY_ID)
+        if new == INDEPENDENT:
+            effect = (
+                f"RRR will stop driving the master valve (relay {master}): every delivery, "
+                "calibration and priming session opens only the animal's own valve.\n\n"
+                "If this rig still has a master valve, NO WATER will reach any animal."
+            )
+        else:
+            effect = (
+                f"RRR will open the master valve (relay {master}) and hold it open around "
+                "every delivery, calibration and priming session.\n\n"
+                "Choose this only if a master valve feeds a shared manifold on this rig."
+            )
+        answer = QMessageBox.question(
+            self,
+            "Change Valve Topology",
+            f"Change the valve topology from {old} to {new}?\n\n{effect}\n\n"
+            "Calibrations measured under the other topology will show as Stale: "
+            "recalibrate those valves before running schedules. Priming cannot open "
+            "a valve until RRR is closed and reopened.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return answer == QMessageBox.Yes
+
+    def _save_valve_topology(self, old, new):
+        """
+        Persist the topology alone and read it back: 'saved', 'unchanged'
+        (the database confirms the old topology) or 'unknown'.
+
+        save_settings reports failures on a signal instead of raising, and a
+        failed row write still changes the in-memory value, so the database
+        is the judge. On a mismatch the old topology is put back in memory
+        and, as far as the database allows, on disk; 'unknown' means the
+        database confirmed neither, so the next start cannot be predicted.
+        """
+        self.system_controller.save_settings({SETTING_KEY: new})
+        if self._stored_valve_topology() == new:
+            return 'saved'
+        self.system_controller.save_settings({SETTING_KEY: old})
+        self.settings[SETTING_KEY] = old
+        return 'unchanged' if self._stored_valve_topology() == old else 'unknown'
+
+    def _stored_valve_topology(self):
+        """
+        The topology stored in the database, or None when it cannot be
+        confirmed. get_system_settings() answers {} when the database cannot
+        be read, so a missing row is not taken for the default topology.
+        """
+        try:
+            stored = self.database_handler.get_system_settings().get(SETTING_KEY)
+        except Exception as exc:
+            self.print_to_terminal(f"Could not read the valve topology back: {exc}")
+            return None
+        return normalize(stored) if is_known(stored) else None
+
+    def _announce_valve_topology(self, message):
+        """
+        To the Terminal tab and to the process's own stdout (the journal
+        under rrr.service), beside the [TOPOLOGY] line printed at start-up.
+        Once the GUI is up, sys.stdout feeds the Terminal tab only.
+        """
+        import sys
+
+        line = f"[TOPOLOGY] {message}"
+        self.print_to_terminal(line)
+        if sys.__stdout__ is not None:
+            try:
+                print(line, file=sys.__stdout__, flush=True)
+            except (OSError, ValueError):
+                pass
+
+    def _notify_valve_topology_changed(self, new):
+        QMessageBox.information(
+            self,
+            "Valve Topology Changed",
+            f"This device now runs the {new} topology.\n\n"
+            "Schedules and calibrations started from now on use it. Valves calibrated "
+            "under the other topology are marked Stale in the Calibration tab.\n\n"
+            "Priming cannot open a valve until RRR is closed and reopened.",
+        )
 
     def _auto_detect_teensy(self):
         """Auto-detect Teensy port using system controller"""
@@ -1291,6 +1557,8 @@ class SettingsTab(QWidget):
 
         # Connect widget signals to parent if needed
         priming_widget.status_message.connect(self.print_to_terminal)
+        # Kept so a valve topology change can lock its Open buttons.
+        self.priming_widget = priming_widget
 
         # Wrap in scroll area for proper overflow handling
         scroll = QScrollArea()
@@ -1598,9 +1866,20 @@ class SettingsTab(QWidget):
                 if not all(key in backup_settings for key in required_keys):
                     raise ValueError("Invalid backup file format")
 
+                # The valve topology changes only through its guarded control
+                # in the Delivery tab, never from a backup file.
+                backup_topology = backup_settings.pop(SETTING_KEY, None)
                 self.settings.update(backup_settings)
                 self.load_settings()
-                QMessageBox.information(self, "Success", "Settings restored successfully")
+                message = "Settings restored successfully"
+                current = topology_from(self.settings)
+                if backup_topology is not None and normalize(backup_topology) != current:
+                    message += (
+                        f"\n\nThe backup's valve topology ({backup_topology}) was not applied: "
+                        f"this device stays on {current}. Change it in Settings > Delivery > "
+                        "Valve Topology if the rig was re-plumbed."
+                    )
+                QMessageBox.information(self, "Success", message)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to restore backup: {str(e)}")

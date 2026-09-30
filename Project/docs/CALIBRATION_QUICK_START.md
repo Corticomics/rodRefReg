@@ -109,7 +109,7 @@ Quality: POOR
 3. **Full Reservoir:** Pressure affects volume
 4. **Measure Water as-is:** 1g ≈ 1mL (at room temp)
 5. **Recalibrate:** Every 3 months or after valve replacement
-6. **After a topology switch:** recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table; deliveries still use it until you do
+6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table; deliveries still use it until you do
 
 ---
 
