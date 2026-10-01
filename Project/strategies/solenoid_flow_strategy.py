@@ -569,6 +569,12 @@ class SolenoidFlowStrategy:
     def _valve(self, command, *args) -> None:
         """Run a valve command; raise ValveCommandError unless its relay switched."""
         name = f"{getattr(command, '__name__', 'valve command')}({', '.join(map(str, args))})"
+        verb, key = self._valve_key(command, args)
+        if verb == 'open' and key is not None:
+            # A write can take effect and still report a failure (an I2C
+            # error on the ACK as the coil energises): once an open has been
+            # tried, the valve is no longer known to be closed.
+            self._valve_state.pop(key, None)
         try:
             switched = command(*args)
         except Exception as exc:
@@ -624,7 +630,10 @@ class SolenoidFlowStrategy:
         extra_s = max(0.0, closed_at - close_asked_at)
         if extra_s <= 0 or pulse_s <= 0:
             return pulse_ml
-        flowing_s = max(pulse_s - cls.VALVE_DEAD_TIME_S, pulse_s / 2)
+        # A 1 ms floor only guards a width at the dead time itself (the UI
+        # allows 10 ms and up): a proportional floor would price the late
+        # close of a short pulse far below the valve's steady flow.
+        flowing_s = max(pulse_s - cls.VALVE_DEAD_TIME_S, 0.001)
         return pulse_ml + extra_s * pulse_ml / flowing_s
 
     def _alarm_unclosed(self, cage_id: int, which: str) -> None:
