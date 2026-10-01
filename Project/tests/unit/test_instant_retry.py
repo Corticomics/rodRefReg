@@ -13,6 +13,7 @@ rounding minus what this delivery already dispensed.
 from __future__ import annotations
 
 import asyncio
+import gc
 from datetime import datetime
 from unittest.mock import MagicMock
 
@@ -30,6 +31,13 @@ def _worker(monkeypatch, *, q=Q, round_up=False, pulses_per_attempt=()):
     from gpio.relay_worker import RelayWorker  # noqa: PLC0415
     from PyQt5.QtCore import QMutex, QObject  # noqa: PLC0415
 
+    # Each worker below sits in a reference cycle (worker -> strategy ->
+    # _deliver -> worker), so the previous test's worker is freed only by
+    # the cyclic collector, at an arbitrary moment. When that moment fell
+    # inside the next test, the new worker's C++ object was gone too
+    # ("wrapped C/C++ object of type RelayWorker has been deleted"), about
+    # one full-suite run in three. Collecting first makes it deterministic.
+    gc.collect()
     worker = RelayWorker.__new__(RelayWorker)
     QObject.__init__(worker)
     worker.mutex = QMutex()
