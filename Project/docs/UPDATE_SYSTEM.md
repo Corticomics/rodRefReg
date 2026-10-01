@@ -199,7 +199,8 @@ step 7 aborts with the old version fully intact):
 6. **Migrate data** — run pending forward-only migrations against `shared/rrr_database.db`
    inside a transaction; **back up the DB first** to `shared/backups/`.
 7. **Health check.** Launch the new release in a subprocess with a `--selftest` flag: import
-   modules, open the DB, init (mock) hardware. Must exit 0 within a timeout.
+   the core modules and open the DB (it does not touch the relay HATs). Must exit 0 within a
+   timeout.
 8. **Commit.** Atomically swap the `current` symlink → `restart` the systemd user service
    (`systemctl --user restart rrr`). If the app was launched manually, prompt the operator to
    restart instead.

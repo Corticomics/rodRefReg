@@ -22,9 +22,9 @@ Measured on `main` at the time of writing:
 | Size | **2245 LOC**, one class (`DatabaseHandler`), **52 methods** |
 | Tables | **15**: `animals`, `trainers`, `relay_units`, `schedules`, `schedule_animals`, `schedule_desired_outputs`, `schedule_instant_deliveries`, `schedule_staggered_windows`, `cycle_tracking`, `dispensing_history`, `logs`, `system_settings`, `valve_calibration`, `valve_calibration_history`, `cage_names` |
 | Connection model | `connect()` opens a **new** `sqlite3.connect(self.db_path)` per call, used as `with self.connect() as conn:`. No pool, no WAL, no `PRAGMA foreign_keys=ON`. |
-| Schema management | `create_tables()` runs on every `__init__` (idempotent `CREATE TABLE IF NOT EXISTS`). Schema changes are **ad-hoc** inline `ALTER TABLE … ADD COLUMN` wrapped in try/except (2 today: `dispensing_history`, `animals`). No `PRAGMA user_version`, no migration framework, no schema-version row. |
+| Schema management | `create_tables()` runs on every `__init__` (idempotent `CREATE TABLE IF NOT EXISTS`). Schema changes are **ad-hoc** inline `ALTER TABLE … ADD COLUMN` guarded by `PRAGMA table_info` (4 tables today: `dispensing_history`, `animals`, `valve_calibration`, `valve_calibration_history`). No `PRAGMA user_version`, no migration framework, no schema-version row. |
 | Construction | `DatabaseHandler()` is instantiated **independently in ≥4 places** (`main.py`, `projects_controller.py`, `ui/schedule_drop_area.py`, `ui/splash_screen.py`). Not a singleton; not consistently dependency-injected. Each instance re-runs `create_tables()`. |
-| Access discipline | **Good** — grep confirms **no** raw `sqlite3`/`import sqlite3` anywhere outside this file. The handler genuinely is the single DB access point already. |
+| Access discipline | **Good** — no raw `sqlite3` in app code outside this file. The one exception (since v1.21.0) is the bench tool `Project/tools/gravimetric_check.py`, which opens the database read-only (`?mode=ro`). |
 
 ### Method domains (the 52 methods cluster into ~7 concerns)
 
@@ -81,7 +81,8 @@ The user asked to weigh all three. Here is the honest assessment of each.
 ### Axis C — Migration safety
 
 - **The most real risk.** Schema evolution is ad-hoc `ALTER TABLE … ADD
-  COLUMN` inside `create_tables`, guarded by bare try/except. There is:
+  COLUMN` inside `create_tables`, guarded by a `PRAGMA table_info`
+  check. There is:
   - no `PRAGMA user_version` / schema-version tracking,
   - no ordered, idempotent, testable migration sequence,
   - no down-migration or recovery story,
@@ -99,7 +100,7 @@ The user asked to weigh all three. Here is the honest assessment of each.
 
 ### Option 1 — Do nothing (status quo)
 - **Pro:** zero risk, zero churn; the access-point discipline already
-  holds (no raw sqlite3 elsewhere).
+  holds (no raw sqlite3 elsewhere in app code; only a read-only bench tool).
 - **Con:** all three pains persist; the next non-trivial schema change
   is still scary.
 - **When this is right:** if no schema change is on the horizon and the
