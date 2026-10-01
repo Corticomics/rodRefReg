@@ -188,6 +188,76 @@ on `main` but never released.
   `PulseCalibrator`, and the unused `gpio/mock_gpio_handler.py`.
 - CI also runs the unit suite on Debian Bookworm with Python 3.11.
 
+## 1.18.0 — whole-pulse doses
+
+- **1.18.0** — Change: a staggered window fires whole pulses against its
+  running shortfall (asked minus delivered). A chunk no longer rounds up to
+  a whole pulse each time, which ends the measured over-delivery on
+  staggered doses.
+
+## 1.17.0 — honest delivery accounting
+
+- **1.17.0** — Change: the ledger records what actually left the valve
+  (`volume_actual_ml`, `pulses_fired`, `volume_per_pulse_ml`, added
+  automatically). A retry asks only for the outstanding dose instead of
+  +5 % per failure. Completion is judged within half a pulse instead of
+  0.01 mL.
+
+## 1.16.x — calibration timing profile
+
+- **1.16.1** — Fix: the calibration wizard accepts 10–1000 pulses (it
+  accepted only 100–500).
+- **1.16.0** — Feature: a calibration stores the rest between pulses,
+  set in the wizard. Deliveries replay the pulse width and rest each cage
+  was calibrated at; older calibrations keep the legacy 100 ms rest.
+  (Validated first as 1.16.0-beta.)
+
+## 1.15.x — hardware operation lock
+
+- **1.15.1** — Change: controls locked by another hardware operation are
+  greyed out.
+- **1.15.0** — Feature (safety): schedule runs, priming and calibration
+  share one hardware lock, and each refuses to start while another holds
+  it.
+
+## 1.13.0 – 1.14.2 — instant schedules
+
+- **1.14.2** — Fix: instant schedules load their deliveries again (a
+  method removed by mistake in 1.14.1).
+- **1.14.1** — Change: removed dead instant-delivery and legacy
+  controller code.
+- **1.14.0** — Fix: instant deliveries run through the delivery strategy,
+  like staggered ones.
+- **1.13.1** — Fix: instant schedule cards show the right animal count.
+- **1.13.0** — Fix: instant schedules can be created, run and edited.
+
+## 1.10.0 – 1.12.0 — schedule editing, guests, UI polish
+
+- **1.12.0** — Add: an **Edit Schedule** button in the Schedules hub's
+  select mode.
+- **1.11.1** — Fix: follow-ups to schedule editing.
+- **1.11.0** — Change: the edit-schedule dialog is rebuilt on the wizard's
+  step 3 and saves its edits. Card labels no longer show grey boxes.
+- **1.10.1** — Fix: drop-down lists show every item; Help opens on its
+  first topic.
+- **1.10.0** — Change: Settings is hidden from guests, and Help stays
+  available. The schedule wizard checks the delivery window before saving.
+  The solenoid strategy defaults to pulse mode.
+
+## 1.9.x — legacy flow sensor removed, lint gate, UI polish
+
+- **1.9.3** — Fix: calibration buttons fit their row. Tidier wizard
+  header; Help's "Creating Schedules" rewritten for the wizard.
+- **1.9.2** — Fix: calibration buttons centred; the animals table fills
+  its width after a refresh; login prompt and Schedules empty state
+  tidied.
+- **1.9.1** — Fix: the Delivery hardware-mode help text and the drop-down
+  menu.
+- **1.9.0** — Change: removed the legacy direct-I²C flow-sensor driver.
+  The Teensy UART bridge is the only flow sensor, and a device still set
+  to `i2c` falls back to calibration-only mode. The code is now formatted
+  and linted with ruff.
+
 ## 1.8.x — stop-sequence safety + multi-HAT
 
 - **1.8.7** — Fix: the Stop button now ends a running schedule *cleanly*
