@@ -57,7 +57,7 @@ This is the step where forgetting will tag the wrong commit. Don't skip it.
 Bump [`Project/version.py`](Project/version.py) inside the release-bound
 PR, before merging (v1.21.0 was bumped that way, in #149). If the merged
 PRs did not bump, open a `chore/bump-<version>` PR (as #140 did for
-v1.18.0). Never commit the bump straight to `main`. `main` must carry the
+v1.18.0), merge it, and repeat §4 before tagging. Never commit the bump straight to `main`. `main` must carry the
 bumped value at the moment you tag.
 
 ## 6. Tag locally (still reversible)

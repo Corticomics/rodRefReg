@@ -85,7 +85,10 @@ row so it never runs twice. The pattern is tested in
 `DatabaseHandler.create_tables` is called on **every** app startup. It
 must therefore be safe to re-run:
 
-- Every `CREATE TABLE` uses `IF NOT EXISTS`.
+- Every `CREATE TABLE` uses `IF NOT EXISTS`, except `dispensing_history`:
+  `create_tables` runs a plain `CREATE TABLE` for it only when
+  `PRAGMA table_info(dispensing_history)` finds no columns, and otherwise
+  adds the columns an older install is missing.
 - Adding a column on an existing install uses the `PRAGMA table_info` →
   `ALTER TABLE ADD COLUMN` pattern (see the `sex` column on `animals`
   at [`database_handler.py:306-314`](Project/models/database_handler.py#L306-L314); the calibration tables' `inter_pulse_interval_ms` / `topology` loop at `:316-332` shows the same guard over several columns).

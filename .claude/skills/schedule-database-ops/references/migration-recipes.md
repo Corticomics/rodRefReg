@@ -39,9 +39,11 @@ Rules:
 
 - New columns **must** be nullable or have a `DEFAULT` — otherwise the
   migration fails on rows that already exist.
-- Don't combine "create table if not exists" + "add column" for the same
-  column; only the `PRAGMA` path handles both new and existing installs
-  correctly.
+- `CREATE TABLE IF NOT EXISTS` does not upgrade an existing table, so a new
+  column always needs the `PRAGMA table_info` guard. Listing the column in
+  the `CREATE TABLE` as well is fine (the calibration tables and
+  `dispensing_history` do): a new install gets it there, and the `PRAGMA`
+  check then skips it.
 
 ## Recipe 3 — One-time data migration with a sentinel
 
