@@ -1545,6 +1545,18 @@ class SettingsTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
 
+    def _stop_running_schedule(self) -> bool:
+        """Stop a running schedule the way the Stop button does.
+
+        True if one was running. Priming's CLOSE ALL RELAYS calls this: a
+        schedule left running would open its valves again at its next pulse.
+        """
+        section = self.run_stop_section
+        if section is None or not getattr(section, 'job_in_progress', False):
+            return False
+        section.stop_program()
+        return True
+
     def _create_priming_control(self):
         """
         Create priming control tab using modular PrimingControlWidget.
@@ -1559,7 +1571,9 @@ class SettingsTab(QWidget):
 
         # Instantiate the modular priming control widget
         priming_widget = PrimingControlWidget(
-            settings=self.settings, print_callback=self.print_to_terminal
+            settings=self.settings,
+            print_callback=self.print_to_terminal,
+            stop_schedule=self._stop_running_schedule,
         )
 
         # Connect widget signals to parent if needed

@@ -462,7 +462,11 @@ def test_an_unconfirmed_emergency_stop_says_to_cut_the_power(priming, fake_relay
     panel._on_emergency_stop_clicked()
 
     assert shown[-1] == ("critical", "Emergency Stop Failed")
-    assert get_operation_lock().is_busy() is False, "the failsafe still frees the lock"
+    # A valve may still be open: the priming session keeps its hold on the
+    # hardware, so no schedule can start onto that valve. (It used to be
+    # force-released here; see test_emergency_stop.py.)
+    assert get_operation_lock().held_by("priming")
+    assert panel._model.is_master_open, "the panel still shows what may be open"
 
 
 def test_a_confirmed_emergency_stop_is_unchanged(priming, fake_relay_handler):
