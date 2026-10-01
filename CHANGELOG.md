@@ -66,9 +66,8 @@ on `main` but never released.
     OPEN* for a valve seen to open whose close did not get through, and
     *the … valve's relay is not answering, so the valve cannot be confirmed
     closed; it may be OPEN* for a valve whose relay has not answered since
-    the run started. A
-    dead HAT therefore alarms. If a later close gets through,
-    `[VALVE OK] … closed after all` clears the alarm.
+    the run started. A dead HAT therefore alarms. If a later close gets
+    through, `[VALVE OK] … closed after all` clears the alarm.
   - Pump relays that do not switch off are retried once, then
     `[VALVE CRITICAL] relay unit N: …` says they may still be ON.
   - When the relays cannot be confirmed off, CLOSE ALL RELAYS shows
