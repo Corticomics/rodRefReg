@@ -607,16 +607,15 @@ class CalibrationWizard(QDialog):
         whichever termination path fires first (finish, error, cancel,
         dialog close).
         """
-        # The run starts half a second after its step is shown. A wizard that
-        # was closed in that time (Esc, Cancel or the X button) must not then
-        # start pulsing with no window on screen.
-        if self._user_cancelled:
-            return
-
         # Hardware mutual-exclusion: calibration drives the master valve + flow
         # sensor shared with schedules/priming. Hold the lock for exactly the
         # pulse run (the later measure/results steps use no hardware).
         lock = get_operation_lock()
+        if self._user_cancelled:
+            # The run starts half a second after its step is shown. A wizard
+            # that was closed in that time (Esc, Cancel or the X button) must
+            # not then start pulsing with no window on screen.
+            return
         if not lock.try_acquire(CALIBRATION):
             QMessageBox.warning(
                 self,
