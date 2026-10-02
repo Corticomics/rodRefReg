@@ -38,7 +38,7 @@ RodentRefreshmentGUI (QTabWidget)
 │   ├── WizardTab            (wraps ScheduleCreationWizard)
 │   └── CagesVisualizationTab (relay-board layout + inline cage naming)
 ├── SettingsTab          ─── QTabWidget
-│   ├── Delivery (Hardware/Pump)
+│   ├── Delivery            (hardware mode + valve topology, both guarded; solenoid/pump settings)
 │   ├── Calibration         (per-cage; opens CalibrationWizard)
 │   ├── Priming             (embeds PrimingControlWidget)
 │   ├── General
@@ -114,7 +114,7 @@ standard pattern. Two notes:
 - Dialogs that need the database/login system **receive them in
   `__init__`** — don't reach up through `parent()`.
 - For schedule editing, the canonical dialog is `ScheduleEditDialog`
-  defined **inside** [schedules_hub.py:36](Project/ui/schedules_hub.py#L36),
+  defined **inside** [schedules_hub.py:53](Project/ui/schedules_hub.py#L53),
   not the deleted standalone `EditScheduleDialog`.
 
 ## Tabs

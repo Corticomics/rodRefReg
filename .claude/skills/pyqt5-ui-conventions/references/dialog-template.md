@@ -2,7 +2,7 @@
 
 Standard pattern for modal dialogs in RRR. Two real-world references:
 
-- [`Project/ui/schedules_hub.py:36`](Project/ui/schedules_hub.py) `ScheduleEditDialog`
+- [`Project/ui/schedules_hub.py:53`](Project/ui/schedules_hub.py) `ScheduleEditDialog`
   — the canonical schedule-edit dialog (lives *inside* `schedules_hub.py`,
   not as a standalone file).
 - [`Project/ui/edit_animal_dialog.py`](Project/ui/edit_animal_dialog.py)

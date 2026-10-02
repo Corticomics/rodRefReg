@@ -65,7 +65,7 @@ affect device behavior.
 
 `Project/version.py` carries `__version__ = "MAJOR.MINOR.PATCH"`. The
 git tag must be exactly `v<__version__>` at the tagged commit, or CI
-rejects the build (see [`.github/workflows/release.yml`](.github/workflows/release.yml)).
+rejects the build (see [`.github/workflows/release.yml`](../../.github/workflows/release.yml)).
 
 ### PATCH bump — `1.6.1 → 1.6.2`
 
@@ -168,8 +168,16 @@ git checkout -b <type>/<short-slug>          # e.g. fix/calibration-csv-export
 # 4. bump the version — ALWAYS for a release-bound change
 $EDITOR Project/version.py                   # SemVer per §2
 
-# 5. tests must pass locally
+# 4b. add the release to CHANGELOG.md (newest first). Start with a
+#     "Before you update" list if operators must do anything, e.g.
+#     calibrate cages. Fold any version number that was set on main but
+#     never tagged into this entry.
+$EDITOR CHANGELOG.md
+
+# 5. tests and both lint gates must pass locally (CI runs all three)
 pytest
+ruff check .
+ruff format --check .                        # `ruff format .` fixes layout
 
 # 6. commit + push + PR
 git add -A
@@ -185,6 +193,11 @@ git pull --ff-only origin main
 git tag v<MAJOR.MINOR.PATCH>                 # MUST equal Project/version.py
 git push origin v<MAJOR.MINOR.PATCH>         # point of no return
 # CI now builds the bundle, computes SHA256, creates the GitHub Release
+
+# 8. once the Release exists, replace its generated PR-title list with
+#    this release's CHANGELOG.md entry: the Updates tab shows the release
+#    notes, and nothing else tells operators what to do before updating.
+gh release edit v<MAJOR.MINOR.PATCH> --notes-file <entry.md>
 ```
 
 ### 3b. Hotfix on top of an in-flight release
@@ -199,7 +212,8 @@ Don't try to undo it — cut a new PATCH on top. See §6.
 
 ### 3c. Doc / test-only change
 
-Same as 3a but **skip steps 4 and 7**. No version bump, no tag. The
+Same as 3a but **skip steps 4, 4b, 7 and 8**. No version bump, no
+CHANGELOG entry, no tag. The
 change lands on `main` and stays there until the next code change cuts
 the next release (which will pick this up automatically).
 
@@ -221,7 +235,7 @@ re-bump `version.py` to `1.7.0` before tagging stable.
 
 ## 4. Hard rules
 
-Restated from [CLAUDE.md](CLAUDE.md) — the ones that matter at release
+Restated from [CLAUDE.md](../../CLAUDE.md) — the ones that matter at release
 time:
 
 | # | Rule | What it stops |
@@ -264,7 +278,7 @@ After `git push origin v<x.y.z>`:
    "Update now" and watch the apply → restart cycle complete.
 5. **Watch the test Pi for ~5 minutes** under a real schedule before
    declaring victory. The launcher's boot sentinel
-   ([scripts/runtime/launch.sh](scripts/runtime/launch.sh)) auto-rolls
+   ([scripts/runtime/launch.sh](../../scripts/runtime/launch.sh)) auto-rolls
    back a release that fails to start twice in a row, but you want to
    catch behavior issues *before* the fleet does.
 
@@ -313,7 +327,7 @@ You cannot recall a release; devices may already be running it.
 
 ### 6.4 CI rejected the tag with "tag does not match Project/version.py"
 
-The release workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml))
+The release workflow ([`.github/workflows/release.yml`](../../.github/workflows/release.yml))
 checks `tag_name == "v" + Project/version.py` *at the tagged commit*.
 The fix is §6.1 (tag not yet pushed) or §6.2 (tag pushed). Do not edit
 `version.py` and force-push — that rewrites history and is worse.
@@ -393,7 +407,11 @@ feat(offline): Slack failure indicator + clearer updater dialogs (Phase 3, v1.6.
   update pipeline (bundle format, blue-green layout, apply engine,
   boot sentinel)
 - [README.md](../../README.md) — user/operator-facing install and quickstart
+- [.github/workflows/tests.yml](../../.github/workflows/tests.yml) — on every
+  PR and push to `main`: ruff (format + lint) and pytest on the runner's
+  Python, and pytest again in a Debian Bookworm container (Python 3.11, apt
+  PyQt5/pandas, a `--system-site-packages` venv) that mirrors the devices
 - [.github/workflows/release.yml](../../.github/workflows/release.yml) — the
-  CI workflow that runs on every `v*` tag push
+  CI workflow that runs on every `v*` tag push (it does not re-run the tests)
 - [scripts/release/build-bundle.sh](../../scripts/release/build-bundle.sh) —
   what `git archive`s into the bundle (worth reading once)
