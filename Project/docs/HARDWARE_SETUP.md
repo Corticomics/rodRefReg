@@ -316,7 +316,8 @@ chatter, and the Pi can latch up.
 2. Run a single 18 AWG wire from the PSU's negative terminal to one slot.
 3. Run a single 22 AWG wire from the relay HAT's GND header pin (any GND
    pin on the Pi 5 GPIO header, since the HAT shares it) to another slot.
-4. Run all 16 valve-return wires to their own slots (one per slot).
+4. Run every valve-return wire to its own slot (one per slot): 16 on the
+   shared-manifold rig, 15 on the independent rig.
 5. Label every slot. Take a photo.
 
 This is electrically clean, mechanically tidy, and the obvious first thing a
@@ -366,8 +367,9 @@ happens to already be wired to earth.
    the plug body. Verify HOT and NEUTRAL terminals are empty and the screws
    are tight against the empty terminal so they cannot work loose. Reassemble
    the plug body.
-3. **Plug 2 (valve side):** Same procedure with all 16 valve return leads
-   joined to a single lead going to the GROUND pin.
+3. **Plug 2 (valve side):** Same procedure with every valve return lead (16 on
+   the shared-manifold rig, 15 on the independent rig) joined to a single lead
+   going to the GROUND pin.
 4. Plug both into the same power strip. The power strip's ground bar joins
    the two plug-side return bundles.
 5. Plug the power strip into a verified-grounded wall outlet.
@@ -476,7 +478,7 @@ no default of its own.
 > animal received nothing.
 >
 > After switching, calibrate every animal channel in **Settings →
-> Calibration**. A calibration measured under the other topology shows
+> Calibration**. A calibration measured under the other valve topology shows
 > **Stale** there (one saved before v1.21.0 counts as shared manifold). In
 > solenoid pulse mode (the default) **Run** refuses a schedule that waters a
 > cage with no usable calibration measured under this device's valve
@@ -598,8 +600,9 @@ After install:
    **Settings → Delivery → Valve Topology** and choose **Shared manifold
    (master valve)** (the default) or **Independent (one syringe and one valve
    per animal)**. Do this before priming and calibrating: each calibration
-   records the topology it was measured under, and one from the other topology
-   shows **Stale**. After a change, close and reopen RRR before priming.
+   records the topology it was measured under, and one measured under the
+   other valve topology shows **Stale**. After a change, close and reopen RRR
+   before priming.
 3. **Open Settings → Priming** and prime every line. See
    [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md).
 4. **Calibrate every valve.** See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md).

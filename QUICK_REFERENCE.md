@@ -27,7 +27,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 | Task | How To Do It |
 |------|--------------|
-| Rename a cage | Cages tab → click cage tile → enter custom name → Save |
+| Rename a cage | Cages tab → double-click the cage tile → type the name → Enter (Esc cancels; relay 16 cannot be renamed) |
 | View relay layout | Cages tab — shows the full HAT board: relay 16 is the MASTER SOLENOID on a shared-manifold rig and RESERVED (unused) on an independent rig |
 
 ### System Operations
@@ -41,7 +41,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Calibrate valves | Settings → Calibration → **Calibrate** on the cage's row (or **Calibrate All Uncalibrated**) |
 | Prime tubing | Settings → Priming → select cage → **Open Selected** → **Close Selected** once water flows (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
 | Change valve topology | Settings → Delivery → Valve Topology (logged in; refused while a schedule, priming or calibration runs). Priming cannot open a valve until RRR is closed and reopened; then recalibrate the cages marked Stale |
-| Set up notifications | Settings → General → Slack credentials → Save |
+| Set up notifications | Settings → General → Slack Integration → enter the Slack Bot Token and Channel ID (each is saved when you press Enter or leave the field, and is used from the next message) |
 
 ## Troubleshooting Guide
 

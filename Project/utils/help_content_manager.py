@@ -866,7 +866,7 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Priming Safety Interlocks</h2>
   <p>In the Priming panel on a shared-manifold rig, individual cage relays cannot be
   opened unless the master solenoid is open first.  An independent rig has no master, so a
-  cage valve opens directly.  The <em>Close All Relays</em> emergency button closes every
+  cage valve opens directly.  The <strong>CLOSE ALL RELAYS</strong> emergency button closes every
   relay immediately.  If a relay HAT does not confirm, it shows <em>Emergency Stop Failed</em>:
   a valve may still be open, so disconnect the valve power supply, then check the relay HAT
   and its I²C connection.</p>
@@ -874,8 +874,8 @@ def _build_content() -> Dict[str, HelpContent]:
   <div class='help-warning'>
     <strong>Warning:</strong> If the Stop button does not respond, or a <em>Relays Not
     Confirmed Off</em> or <em>Emergency Stop Failed</em> dialog appears, disconnect the valve
-    power supply (or the relay HAT's power) immediately.  Note any System Messages errors and consult
-    Troubleshooting.
+    power supply, then check the relay HAT and its I²C connection.  Note any System Messages
+    errors and consult Troubleshooting.
   </div>
 </div>
 """,
@@ -1031,7 +1031,7 @@ def _build_content() -> Dict[str, HelpContent]:
   </ul>
   <p>You must be logged in to change it.  RRR asks for confirmation and refuses the change
   while a schedule, a priming session or a calibration is running.  Schedules and calibrations
-  started afterwards use the new topology.  Cages calibrated under the other topology show
+  started afterwards use the new topology.  Cages calibrated under the other valve topology show
   <strong>Stale</strong> in Settings → Calibration; in solenoid pulse mode (the default) a
   schedule that waters them will not start until they are recalibrated.  Priming cannot open a valve until
   RRR is closed and reopened.</p>
@@ -1205,7 +1205,7 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><strong>Cage Relay Control</strong> — select a cage from the dropdown and open
     or close its individual relay.  On a shared-manifold rig the master must be open first
     (safety interlock); on an independent rig a cage valve opens directly.</li>
-    <li><strong>Emergency Controls</strong> — <em>Close All Relays</em> immediately
+    <li><strong>Emergency Controls</strong> — <strong>CLOSE ALL RELAYS</strong> immediately
     closes every relay, including the master where there is one.</li>
   </ul>
 
@@ -1240,7 +1240,7 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Independent rig: the hardware lock is held from the first cage valve opened until
     the last one is closed; until then Run and the calibration buttons are greyed out, and
     nothing is queued.</li>
-    <li><em>Close All Relays</em> bypasses normal sequencing for rapid emergency
+    <li><strong>CLOSE ALL RELAYS</strong> bypasses normal sequencing for rapid emergency
     shutdown.</li>
   </ul>
 
@@ -1262,7 +1262,7 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <div class='help-warning'>
     <strong>Warning:</strong> Do not leave cage relays open unattended.  Always close
-    all relays before leaving the system.  Use <em>Close All Relays</em> if in doubt.
+    all relays before leaving the system.  Use <strong>CLOSE ALL RELAYS</strong> if in doubt.
   </div>
 </div>
 """,
@@ -1452,8 +1452,8 @@ def _build_content() -> Dict[str, HelpContent]:
   <ol>
     <li>Press <strong>Stop</strong> in the Run/Stop section.</li>
     <li>If Stop does not respond within a few seconds, or a <em>Relays Not Confirmed
-    Off</em> dialog appears, disconnect the valve power supply (or the relay HAT's
-    power).</li>
+    Off</em> dialog appears, disconnect the valve power supply, then check the relay HAT
+    and its I²C connection.</li>
     <li>Restart the application.  Review the System Messages terminal for the error that
     caused the hang.</li>
   </ol>

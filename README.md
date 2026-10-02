@@ -124,7 +124,7 @@ table of contents you need to bookmark.
 #### Naming Cages
 
 1. Go to the **Cages** tab to see a visual layout of the relay board
-2. Click any cage tile to assign a custom name (e.g., "Rack A — Cage 3")
+2. Double-click any cage tile, type a custom name (e.g., "Rack A — Cage 3") and press Enter
 3. Names sync automatically to the Wizard, Schedules, and Calibration views
 
 #### Creating a Water Delivery Schedule
@@ -207,7 +207,7 @@ The RRR system is designed to run continuously even when you disconnect your dis
 ### What if the system isn't delivering water?
 
 1. Check that **Run** has been clicked and the schedule started: if Run showed *Valve calibration needed* or *Cage not on this device*, calibrate the listed cages in **Settings → Calibration** (or edit the schedule) and press **Run** again
-2. Verify that your time window settings are correct (is a future time if start time has passed but end time not, the system will NOT start)
+2. Verify that your time window is correct: a schedule whose end time has passed shows *Expired Schedule* and does not start; if only the start time has passed, RRR asks whether to run the rest of the window
 3. Inspect the water tubes for air bubbles or blockages (make sure to prime the tubes and pumpos prior to first use)
 4. Check that the water reservoir has enough water
 5. Look in the Terminal tab for `[VALVE ERROR]`: a valve command did not reach its relay HAT (or a pulse failed) and that delivery stopped. Check the HAT (`sudo i2cdetect -y 1`); after fixing a HAT that was missing when RRR started, close and reopen RRR
@@ -266,8 +266,10 @@ The application uses a virtual environment at `~/rrr/shared/venv`, and the runni
 
 ```bash
 cd ~/rrr/current/Project
-~/rrr/shared/venv/bin/python3 tests/test_relay_hat.py
+~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py list
 ```
+
+That example only reads the delivery ledger. Do **not** run `tests/test_relay_hat.py` on a plumbed rig: without arguments it switches every relay on, which opens every valve.
 
 ## Getting Help
 
@@ -276,7 +278,7 @@ If you need assistance with the RRR system:
 1. Click the **Help** tab in the application for detailed guides
 2. Use the search bar to find specific help topics
 3. Contact your laboratory manager or IT support
-4. For urgent issues, contact [zepaulojr2@gmail.com](mailto:support@example.com)
+4. For urgent issues, contact [zepaulojr2@gmail.com](mailto:zepaulojr2@gmail.com)
 
 ## Important Safety Notes
 

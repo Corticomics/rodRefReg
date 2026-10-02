@@ -194,9 +194,9 @@ reset() -> None
 **Purpose**: Complete UI for manual relay control
 
 **Key Features**:
-- Master solenoid control (open/close)
+- Master solenoid control (open/close; shared-manifold topology only)
 - Individual cage relay control
-- Safety interlock (master must be open before cages)
+- Safety interlock (master must be open before cages, where a master exists)
 - Emergency stop (close all relays)
 - Status messages emitted to the main Terminal tab (in-widget Terminal tab was removed — see commit `1ba5a46`)
 - Visual state indicators
@@ -250,7 +250,7 @@ self.tab_widget.addTab(self.priming_control, "Priming")
 
 **Step 1: Open Master Solenoid**
 1. Click **"Open Master"** button
-2. Verify status shows: **"Status: OPEN"** (green)
+2. Verify status shows: **"Status: OPEN [OK]"** (green)
 3. Master close button becomes enabled
 
 **Step 2: Open Target Cage Relay**
@@ -398,7 +398,8 @@ There is no hardware integration test; use the manual checklist below on a rig.
 - [ ] Independent topology: no Master Solenoid Control group, a cage opens directly, and the daily syringe-line reminder shows
 - [ ] After a topology change in Settings, Open Master and Open Selected stay greyed out until RRR is closed and reopened; Close and CLOSE ALL RELAYS still work
 - [ ] Emergency stop closes all relays; with the relay HAT disconnected (power the Pi and the valve supply off to disconnect it, then start RRR) it shows **Emergency Stop Failed**
-- [ ] Activity log shows timestamped messages
+- [ ] The main Terminal tab shows timestamped `[Priming HH:MM:SS]` messages
+      when a valve is opened or closed and on emergency stop
 - [ ] Button states update correctly
 - [ ] Multiple cage relays can be controlled sequentially
 - [ ] Cleanup properly closes all relays on widget destruction
@@ -426,8 +427,8 @@ command (a HAT missing at start-up or an I²C error), so a valve may still be
 open. Before v1.21.0 the panel said "All relays have been closed" regardless.
 
 **Solutions**:
-- Disconnect the valve power supply first
-- Then check the relay HAT as in item 1
+- Disconnect the valve power supply, then check the relay HAT and its I²C
+  connection (item 1)
 
 #### 2. **"Master solenoid must be open before opening cage relays"**
 

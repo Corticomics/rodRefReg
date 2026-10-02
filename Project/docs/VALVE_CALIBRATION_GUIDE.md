@@ -297,12 +297,12 @@ else:
 - Fluid type change (e.g. water to saline)
 - After maintenance on manifold
 - After switching the device's valve topology (manifold to independent, or
-  back, in Settings → Delivery → Valve Topology): every animal-carrying cage. Since v1.21.0 each calibration records the
-  topology it was measured under. One from the other topology shows **Stale**
-  in Settings → Calibration, and in solenoid pulse mode (the default) Run
-  refuses a schedule that waters that cage until it is recalibrated.
-  Calibrations saved before v1.21.0 carry no tag and count as measured on the
-  shared manifold.
+  back, in Settings → Delivery → Valve Topology): every animal-carrying cage.
+  Since v1.21.0 each calibration records the topology it was measured under.
+  One measured under the other valve topology shows **Stale** in Settings →
+  Calibration (one saved before v1.21.0 counts as shared manifold), and in
+  solenoid pulse mode (the default) Run refuses a schedule that waters that
+  cage until it is recalibrated.
 
 **Should calibrate:**
 - Every 3 months (routine)
@@ -341,10 +341,11 @@ else:
 each cage's own figure keeps delivery error under 5 %.
 
 **Global calibration is no longer an option.** Since v1.21.0, in solenoid
-pulse mode (the default), Run refuses a schedule that waters a cage without
-its own usable calibration measured under this device's valve topology
-(*Valve calibration needed*). The global figures in `pulse_calibration.json`
-remain only as the delivery code's last-resort fallback.
+pulse mode (the default), Run refuses a schedule that waters a cage with no
+usable calibration measured under this device's valve topology (*Valve
+calibration needed*), and only a cage's own calibration counts. The global
+figures in `pulse_calibration.json` remain only as the delivery code's
+last-resort fallback.
 
 ---
 

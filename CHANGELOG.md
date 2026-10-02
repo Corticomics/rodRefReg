@@ -27,9 +27,13 @@ on `main` but never released.
   calibration measured under this device's valve topology (**Valve
   calibration needed**), and the dialog names those cages. Until now such a
   cage was dosed at a guessed ~0.026 mL per pulse, about 30 % too much
-  water on the production valve. Open Settings > Calibration and calibrate
-  every **Not Calibrated** or **Invalid** row a schedule uses. On a two-HAT
-  device the table now lists all 31 cages.
+  water on the production valve. Before updating, open Settings >
+  Calibration and calibrate every **Not Calibrated** row a schedule uses.
+  After updating, look again before the next Run: this release also marks
+  a calibration it cannot use as **Invalid**, and on a two-HAT device it
+  lists cages 16–31 for the first time. Those cages could not be
+  calibrated before, so allow about 10 minutes for each one a schedule
+  uses.
 - **A shared-manifold rig needs no other change.** Valve Topology defaults
   to *Shared manifold (master valve)*, calibrations made before this
   release count as shared-manifold ones, and a clean delivery drives the
@@ -77,7 +81,8 @@ on `main` but never released.
     close. Do not save a measurement from that run.
   - Priming keeps its session and the hardware lock while a cage valve
     may still be open after Close Master, until that valve is confirmed
-    closed. A failed Open Master no longer frees them.
+    closed. While such a valve may be open, a failed Open Master does not
+    free them either.
 - **Fix (safety):** with the first HAT missing, relay commands are no
   longer shifted onto the next HAT, where they drove another animal's
   valve.
@@ -92,9 +97,9 @@ on `main` but never released.
   After a change, Priming cannot open a valve until RRR is closed and
   reopened. Every start prints `[TOPOLOGY] Valve topology: …`.
 - **Add:** each calibration records the topology it was measured under.
-  Settings > Calibration marks a calibration from the other topology
-  **Stale**, and Run refuses it. After switching the topology, recalibrate
-  every cage.
+  Settings > Calibration marks a calibration measured under the other
+  valve topology **Stale**, and Run refuses it. After switching the
+  topology, recalibrate every cage.
 - **Add:** Settings > Calibration marks a stored calibration whose volume
   per pulse or pulse width is missing, zero or invalid **Invalid** (red),
   and highlights its Recalibrate button; Run refuses it too. The table's
@@ -209,7 +214,7 @@ on `main` but never released.
 - **1.16.0** — Feature: a calibration stores the rest between pulses,
   set in the wizard. Deliveries replay the pulse width and rest each cage
   was calibrated at; older calibrations keep the legacy 100 ms rest.
-  (Validated first as 1.16.0-beta.)
+  (Tagged first as the pre-release 1.16.0-beta.)
 
 ## 1.15.x — hardware operation lock
 
