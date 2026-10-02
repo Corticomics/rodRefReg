@@ -71,7 +71,7 @@ def _troubleshooting(detail: str) -> str:
     ):
         return (
             "Slack rejected the bot token. Re-create the Slack app/bot, "
-            "paste a fresh token above, and click Save."
+            "paste a fresh token above, and press Enter (it is saved when you leave the field)."
         )
 
     if any(code in low for code in ("channel_not_found", "is_archived", "not_in_channel")):

@@ -183,10 +183,11 @@ def relay_for_cage(system_controller, cage_id: int) -> Optional[int]:
     """
     The physical relay a cage id drives, or None if the cage does not exist.
 
-    Cage ids and relay ids are different number spaces: relay 16 is the
-    master, so cage 16 (on a second HAT) drives relay 17. The stored
+    Cage ids and relay ids are different number spaces: relay 16 is
+    reserved (the master on the shared manifold, unused on the independent
+    topology), so cage 16 (on a second HAT) drives relay 17. The stored
     ``cage_relays`` map wins when present; otherwise cages are numbered
-    sequentially over every relay except the master, exactly as the
+    sequentially over every relay except the reserved one, exactly as the
     delivery path builds its map.
     """
     settings = getattr(system_controller, 'settings', None) or {}
@@ -437,7 +438,7 @@ class Step2SelectAnimals(QWidget):
     Step 2: Select animals/cages for the schedule.
 
     Hardware Constraints:
-    - Max selectable animals limited by available cages (15 per HAT)
+    - Max selectable animals limited by available cages (15 on one HAT, 31 on two)
     - The master relay is never assignable as a cage (cage ids skip it)
     - Warning shown when selection exceeds limit
     """
@@ -1614,7 +1615,7 @@ class ScheduleCreationWizard(QWidget):
         cancelled(): Emitted when wizard is cancelled
 
     Hardware Constraints:
-        - Max animals limited by available cages (15 per HAT)
+        - Max animals limited by available cages (15 on one HAT, 31 on two)
         - Master relay (default 16) excluded from cage assignment
     """
 

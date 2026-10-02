@@ -289,7 +289,7 @@ class DatabaseHandler:
                 ''')
 
                 # Add cage_names table for user-defined cage naming
-                # Design: Maps cage_id (1-15 per HAT) to user-friendly name
+                # Design: Maps cage_id (1-15 on one HAT, 1-31 on two) to user-friendly name
                 # Reference: SQLite Documentation - CREATE TABLE IF NOT EXISTS
                 # ensures idempotent schema creation
                 cursor.execute('''
@@ -2153,7 +2153,7 @@ class DatabaseHandler:
         Get the name and details for a specific cage.
 
         Args:
-            cage_id: The cage ID (1-15 per HAT)
+            cage_id: The cage ID (1-15 on one HAT, 1-31 on two)
 
         Returns:
             dict with cage_id, relay_id, name, description, created_at, updated_at
@@ -2229,7 +2229,7 @@ class DatabaseHandler:
         Set or update the name for a cage (INSERT or UPDATE - upsert pattern).
 
         Args:
-            cage_id: The cage ID (1-15 per HAT)
+            cage_id: The cage ID (1-15 on one HAT, 1-31 on two)
             relay_id: The physical relay ID this cage maps to
             name: User-friendly name for the cage
             description: Optional description
@@ -2299,10 +2299,12 @@ class DatabaseHandler:
 
         Args:
             num_hats: Number of relay HATs installed (default 1)
-            master_relay: The relay ID reserved for master solenoid (default 16)
+            master_relay: The reserved relay (default 16): the master solenoid on the
+                shared manifold, unused on the independent topology
 
         Design:
-        - Solenoid mode: 15 cages per HAT (cage 16 is master)
+        - Solenoid mode: the reserved relay takes no cage, so one HAT gives cages
+          1-15 and a second adds cages 16-31 on relays 17-32
         - Uses INSERT OR IGNORE to preserve existing user customizations
 
         Reference: SQLite INSERT OR IGNORE documentation
@@ -2354,7 +2356,8 @@ class DatabaseHandler:
 
         Args:
             num_hats: Number of relay HATs (for generating full list)
-            master_relay: Master relay to exclude
+            master_relay: The reserved relay to exclude (default 16; the master on the
+                shared manifold, unused on the independent topology)
 
         Returns:
             List of dicts: [{'cage_id': 1, 'relay_id': 1, 'name': 'Mouse A',

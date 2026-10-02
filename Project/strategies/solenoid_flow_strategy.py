@@ -40,7 +40,8 @@ __all__ = ["DeliveryResult", "SolenoidFlowStrategy"]
 
 
 class SolenoidFlowStrategy:
-    """Volume-based delivery using a global master + per-cage solenoids.
+    """Volume-based delivery through per-cage solenoids, with a global master valve on
+    the shared manifold and none on the independent topology (see utils.topology).
 
     **SUPPORTS TWO MODES:**
 
@@ -381,7 +382,8 @@ class SolenoidFlowStrategy:
         self._stale_calibrations[cage_id] = label
         message = (
             f"[CAL TOPOLOGY] cage={cage_id} calibration measured on {label}; "
-            f"this device runs {self._topology} - using it anyway; recalibrate cage {cage_id}"
+            f"this device runs {self._topology} - a pulse delivery to this cage would still "
+            f"use it; recalibrate cage {cage_id}"
         )
         self._logger.info(message)
         try:
@@ -915,7 +917,8 @@ class SolenoidFlowStrategy:
 
         Algorithm:
         1. Verify sensor health (if available)
-        2. Open master valve (prime manifold)
+        2. Prime the manifold through the master valve (shared manifold only;
+           skipped on the independent topology)
         3. Calculate estimated pulses from calibration
         4. Execute pulses until target reached or max exceeded
         5. Restart sensor every 5 pulses to prevent firmware hang (if available)

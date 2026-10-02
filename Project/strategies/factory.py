@@ -17,7 +17,8 @@ class StrategyFactory:
     - pump_controller: required for pump mode
     - volume_calculator: required for pump mode
     - solenoid_controller: required for solenoid mode
-    - flow_sensor: required for solenoid mode
+    - flow_sensor: optional for solenoid mode (None runs calibration-only, the
+      production rig)
     - calibration_store: optional for solenoid mode
     - settings: required for all modes
 

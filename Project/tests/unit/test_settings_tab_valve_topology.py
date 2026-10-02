@@ -190,6 +190,7 @@ def test_the_confirmation_names_the_risk_of_each_direction(
     _kind, _title, text = dialogs.shown[-1]
     assert "NO WATER" in text and "relay 16" in text
     assert "Stale" in text and "reopened" in text
+    assert "Run refuses a schedule that waters a Stale cage" in text, "since #170"
 
     system_controller.save_settings({"valve_topology": INDEPENDENT})
     tab = _settings_tab(system_controller, database_handler)
@@ -197,6 +198,21 @@ def test_the_confirmation_names_the_risk_of_each_direction(
     _kind, _title, text = dialogs.shown[-1]
     assert "NO WATER" not in text
     assert "master valve feeds a shared manifold" in text and "relay 16" in text
+    assert "Run refuses a schedule that waters a Stale cage" in text
+
+
+def test_the_topology_note_says_run_refuses_a_stale_cage(qapp, database_handler, system_controller):
+    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+
+    tab = _settings_tab(system_controller, database_handler)
+    notes = [
+        label.text()
+        for label in tab.findChildren(QLabel)
+        if label.text().startswith("Must match how this rig is plumbed")
+    ]
+    assert len(notes) == 1
+    assert "a schedule watering a Stale cage will not start" in notes[0]
+    assert "reopened" in notes[0]
 
 
 def test_nobody_logged_in_cannot_change_it(qapp, database_handler, system_controller, dialogs):
