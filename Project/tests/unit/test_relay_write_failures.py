@@ -1768,7 +1768,7 @@ def test_a_delivery_too_slow_for_the_time_limit_is_refused_with_the_stop_line(
     assert len(lines) == 1
     assert re.fullmatch(
         STOP_LINE.format(
-            reason=r"the delivery would take about \d+ s, over the limit of 5 s "
+            reason=r"the delivery would take about \d+\.\d s, over the limit of 5 s "
             r"\(\d+ pulses at 30 ms \+ 1000 ms rest\): shorten the rest between pulses, "
             r"split the dose, or raise max_pulse_delivery_time_s",
             pulses=0,
@@ -1847,3 +1847,19 @@ def test_an_operator_stop_prints_no_stop_line(fake_relay_handler, monkeypatch, c
     out = capsys.readouterr().out
     assert "VALVE ERROR" not in out and "delivery stopped after" not in out
     assert fake_relay_handler.energized() == set()
+
+
+def test_the_time_refusal_never_prints_two_equal_figures(fake_relay_handler, monkeypatch, capsys):
+    """Rounded to whole seconds, an estimate just over a limit that is not a
+    whole number read "about 11 s, over the limit of 11 s"."""
+    strategy = _strategy(IndependentSolenoidController(fake_relay_handler, CAGE_MAP), monkeypatch)
+    strategy._settings['max_pulse_delivery_time_s'] = 11.2
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and fake_relay_handler.trace == []
+    (line,) = _stop_lines(capsys.readouterr().out)
+    said = re.search(r"would take about ([\d.]+) s, over the limit of ([\d.]+) s", line)
+    assert said, line
+    assert said.group(2) == "11.2", "the limit as configured"
+    assert float(said.group(1)) > float(said.group(2)), line

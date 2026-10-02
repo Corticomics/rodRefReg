@@ -1181,8 +1181,8 @@ class SolenoidFlowStrategy:
         if estimated_duration_s > max_time_s:
             self._report_stopped(
                 cage_id,
-                f"the delivery would take about {estimated_duration_s:.0f} s, over the limit "
-                f"of {max_time_s:.0f} s ({estimated_pulses} pulses at {cage_pw_ms} ms + "
+                f"the delivery would take about {estimated_duration_s:.1f} s, over the limit "
+                f"of {max_time_s:g} s ({estimated_pulses} pulses at {cage_pw_ms} ms + "
                 f"{cage_interval_ms} ms rest): shorten the rest between pulses, split the "
                 f"dose, or raise max_pulse_delivery_time_s",
                 0,
@@ -1228,7 +1228,7 @@ class SolenoidFlowStrategy:
                 if elapsed_time >= max_time_s:
                     self._report_stopped(
                         cage_id,
-                        f"the time limit of {max_time_s:.0f} s was passed",
+                        f"the time limit of {max_time_s:g} s was passed",
                         pulse_count,
                         delivered_ml,
                         relay_fault=False,
