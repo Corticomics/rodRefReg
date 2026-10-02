@@ -204,7 +204,7 @@ reset() -> None
 
 **Public API**:
 ```python
-__init__(settings: Dict, print_callback=None)
+__init__(settings: Dict, print_callback=None, stop_schedule=None)
 cleanup() -> None  # Call when widget is destroyed
 ```
 
@@ -305,7 +305,7 @@ be left open across it.
 #### 3. **Emergency Stop**
 - Click **"CLOSE ALL RELAYS"** at any time
 - Switches every relay on every HAT off: the master, where there is one, and every cage valve
-- Stops a running schedule the way the **Stop** button does, then switches the relays off once more. The message then reads *All relays have been closed. The running schedule was stopped.*; animals it had not yet watered get no water until **Run** is pressed again
+- Stops a running schedule the way the **Stop** button does, then switches the relays off once more. The message then reads *All relays have been closed. The running schedule was stopped.* The schedule does not resume: animals it had not finished watering get no more water from it, and **Run** starts it over (staggered: every animal's whole dose again; instant: delivery times that have passed are skipped), so check what each animal has received before running it again
 - If a HAT does not confirm the command, **Emergency Stop Failed** appears instead of *All relays have been closed*: disconnect the valve power supply, then check the relay HAT and its I²C connection. The panel keeps showing what may be open, and Run and calibration stay unavailable until a later **CLOSE ALL RELAYS** is confirmed or RRR is closed and reopened
 - Use if unexpected behavior occurs
 
@@ -435,10 +435,11 @@ open. Before v1.21.0 the panel said "All relays have been closed" regardless.
 **Solutions**:
 - Disconnect the valve power supply, then check the relay HAT and its I²C
   connection (item 1)
-- Run and calibration stay unavailable (*an unconfirmed emergency stop*), and
-  an open priming session stays open, until **CLOSE ALL RELAYS** is confirmed:
-  press it again once the HAT answers, or close and reopen RRR. A schedule
-  that was running has been stopped
+- Run and calibration stay unavailable until **CLOSE ALL RELAYS** is
+  confirmed: press it again once the HAT answers, or close and reopen RRR. An
+  open priming session stays open, and closing its valves does not free the
+  hardware (the tooltip then names *an unconfirmed emergency stop*). A
+  schedule that was running has been stopped
 
 #### 2. **"Master solenoid must be open before opening cage relays"**
 

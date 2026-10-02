@@ -400,7 +400,10 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>5 — Stop If Needed</h2>
   <p>Press <strong>Stop</strong> at any time to immediately halt all water delivery.
-  All relay units are deactivated and the event is logged in System Messages.  If a relay
+  All relay units are deactivated and the event is logged in System Messages.  A stopped
+  schedule does not resume: <strong>Run</strong> starts it over (a staggered schedule gives
+  every animal its whole dose again; an instant schedule skips the delivery times that have
+  passed), so check what each animal has received before running it again.  If a relay
   HAT does not confirm OFF, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may
   still be open: disconnect the valve power supply, then check the relay HAT and its I²C
   connection.</p>
@@ -769,7 +772,8 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Stopping a Schedule</h2>
   <p>Press <strong>Stop</strong> in the Run/Stop section at any time.  The monitor
-  updates card statuses immediately and the 10-second hide timer begins.</p>
+  updates card statuses immediately and the 10-second hide timer begins.  A stopped schedule
+  does not resume: Run starts it over.</p>
 
   <div class='help-note'>
     <strong>Note:</strong> All delivery events and errors are also logged in the
@@ -846,8 +850,10 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><code>[VALVE CRITICAL] … OPEN</code> means a valve close did not get through, or the
     valve's relay is not answering, so the valve may be open.  Check the rig and press
     <strong>CLOSE ALL RELAYS</strong> in Settings → Priming, which switches every relay off
-    again and stops a running schedule; press Run again afterwards for the animals not yet
-    watered.  If a later close gets through, <code>[VALVE OK]</code> says the alarm is
+    again and stops a running schedule.  The schedule does not resume: Run starts it over (a
+    staggered schedule gives every animal its whole dose again; an instant schedule skips the
+    delivery times that have passed), so check what each animal has received before running
+    it again.  If a later close gets through, <code>[VALVE OK]</code> says the alarm is
     cleared.  In pump mode
     the same alarm names the relay unit and says its relays may still be ON.</li>
     <li>A relay HAT that was not found when RRR started stays unusable until RRR is closed and
@@ -1146,7 +1152,10 @@ def _build_content() -> Dict[str, HelpContent]:
   wizard stops with a <em>Calibration Failed</em> message and closes without saving.  Discard
   the collected water and calibrate the cage again once the relay HAT is fixed.  A
   <code>[VALVE CRITICAL]</code> line in System Messages means a valve may still be open:
-  check the rig and press <strong>CLOSE ALL RELAYS</strong> in Settings → Priming.</p>
+  check the rig and press <strong>CLOSE ALL RELAYS</strong> in Settings → Priming.  Esc,
+  Cancel and the window's X button stop a run; if a run cannot be stopped (a relay command
+  that does not return), <em>Calibration Did Not Stop</em> says a valve may be open and the
+  hardware stays locked until the run ends: disconnect the valve power supply.</p>
 
   <h2>When to Recalibrate</h2>
   <ul>
@@ -1424,8 +1433,9 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Run greyed out or <em>Hardware busy</em>: a priming session or a calibration is using
     the valves.  Finish it first (Close Master on a shared-manifold rig, close every cage valve
     on an independent rig).  If the message names <em>an unconfirmed emergency stop</em>,
-    CLOSE ALL RELAYS could not confirm every relay off: fix the relay HAT and press CLOSE ALL
-    RELAYS again, or close and reopen RRR.</li>
+    CLOSE ALL RELAYS could not confirm every relay off, or a schedule's delivery worker had
+    not stopped: press CLOSE ALL RELAYS again once the relay HAT answers, or close and reopen
+    RRR.</li>
     <li><em>Expired Schedule</em>: the whole window, or every instant delivery time, has
     passed; create a schedule with future times.  If only the start has passed, RRR offers to
     run the rest.</li>
@@ -1444,8 +1454,8 @@ def _build_content() -> Dict[str, HelpContent]:
     not found when RRR started.  Fix the connection, then close and reopen RRR.</li>
     <li><code>[VALVE CRITICAL] … OPEN</code> — a close did not get through, or the valve's
     relay is not answering.  Check the rig and press <strong>CLOSE ALL RELAYS</strong>
-    (Settings → Priming); during a schedule this also stops the schedule, so press Run again
-    afterwards.</li>
+    (Settings → Priming); during a schedule this also stops the schedule.  Run does not
+    resume it but starts it over, so check what each animal has received first.</li>
     <li><em>Relays Not Confirmed Off</em> or <em>Emergency Stop Failed</em> — disconnect the
     valve power supply now, then check the relay HAT and its I²C connection.</li>
   </ul>

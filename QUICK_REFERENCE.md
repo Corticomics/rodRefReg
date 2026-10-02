@@ -66,7 +66,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Problem | Solution |
 |---------|----------|
 | Relay HAT not detected | • Check physical connections and `sudo i2cdetect -y 1`<br>• Verify the stack-level jumpers<br>• After fixing it, close and reopen RRR: until then every valve delivery to a missing HAT fails with `[VALVE ERROR]` |
-| `[VALVE CRITICAL] … OPEN`, *Emergency Stop Failed* or *Relays Not Confirmed Off* | • Disconnect the valve power supply first<br>• Then check the relay HAT and its I²C connection; Settings → Priming → CLOSE ALL RELAYS switches every relay off again and stops a running schedule (press Run again afterwards)<br>• `[VALVE OK] … closed after all` means a later close got through and that alarm is cleared |
+| `[VALVE CRITICAL] … OPEN`, *Emergency Stop Failed* or *Relays Not Confirmed Off* | • Disconnect the valve power supply first<br>• Then check the relay HAT and its I²C connection; Settings → Priming → CLOSE ALL RELAYS switches every relay off again and stops a running schedule (it does not resume: Run starts it over, so check what each animal has received first)<br>• `[VALVE OK] … closed after all` means a later close got through and that alarm is cleared |
 | Pump not triggering | • Test the relay<br>• Check power connections<br>• Verify common ground connection |
 | System freezes during operation | • Check for overheating<br>• Ensure power supply is adequate<br>• Reduce number of simultaneous triggers |
 
