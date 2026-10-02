@@ -77,8 +77,19 @@ on `main` but never released.
   - When the relays cannot be confirmed off, CLOSE ALL RELAYS shows
     **Emergency Stop Failed** and Stop shows **Relays Not Confirmed Off**.
     Both say to disconnect the valve power supply.
+  - CLOSE ALL RELAYS (Settings > Priming) now also stops a running
+    schedule. Before, the schedule carried on and opened its valves again
+    at its next pulse. Animals it had not yet watered get no water until
+    Run is pressed again.
+  - CLOSE ALL RELAYS frees the hardware lock only when every relay is
+    confirmed off and nothing is still running. After **Emergency Stop
+    Failed** the hardware stays locked (Run and calibration unavailable)
+    until a later press is confirmed or RRR is restarted.
   - The calibration wizard stops at a pulse whose valve did not open or
     close. Do not save a measurement from that run.
+  - Esc in the calibration wizard stops the pulse run, as the window's X
+    does. Before, Esc closed the window and the run carried on to its
+    last pulse.
   - Priming keeps its session and the hardware lock while a cage valve
     may still be open after Close Master, until that valve is confirmed
     closed. While such a valve may be open, a failed Open Master does not

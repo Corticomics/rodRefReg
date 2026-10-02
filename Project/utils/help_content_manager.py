@@ -844,8 +844,10 @@ def _build_content() -> Dict[str, HelpContent]:
     retry 30 seconds later asks only for the rest of the dose.</li>
     <li><code>[VALVE CRITICAL] … OPEN</code> means a valve close did not get through, or the
     valve's relay is not answering, so the valve may be open.  Check the rig and press
-    <strong>CLOSE ALL RELAYS</strong> in Settings → Priming, which retries every relay.  If a
-    later close gets through, <code>[VALVE OK]</code> says the alarm is cleared.  In pump mode
+    <strong>CLOSE ALL RELAYS</strong> in Settings → Priming, which switches every relay off
+    again and stops a running schedule; press Run again afterwards for the animals not yet
+    watered.  If a later close gets through, <code>[VALVE OK]</code> says the alarm is
+    cleared.  In pump mode
     the same alarm names the relay unit and says its relays may still be ON.</li>
     <li>A relay HAT that was not found when RRR started stays unusable until RRR is closed and
     reopened.</li>
@@ -867,9 +869,11 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>In the Priming panel on a shared-manifold rig, individual cage relays cannot be
   opened unless the master solenoid is open first.  An independent rig has no master, so a
   cage valve opens directly.  The <strong>CLOSE ALL RELAYS</strong> emergency button closes every
-  relay immediately.  If a relay HAT does not confirm, it shows <em>Emergency Stop Failed</em>:
-  a valve may still be open, so disconnect the valve power supply, then check the relay HAT
-  and its I²C connection.</p>
+  relay immediately and stops a running schedule.  If a relay HAT does not confirm, it shows
+  <em>Emergency Stop Failed</em>: a valve may still be open, so disconnect the valve power
+  supply, then check the relay HAT and its I²C connection.  Run and the calibration buttons
+  then stay greyed out until a later CLOSE ALL RELAYS is confirmed or RRR is closed and
+  reopened.</p>
 
   <div class='help-warning'>
     <strong>Warning:</strong> If the Stop button does not respond, or a <em>Relays Not
@@ -1206,7 +1210,8 @@ def _build_content() -> Dict[str, HelpContent]:
     or close its individual relay.  On a shared-manifold rig the master must be open first
     (safety interlock); on an independent rig a cage valve opens directly.</li>
     <li><strong>Emergency Controls</strong> — <strong>CLOSE ALL RELAYS</strong> immediately
-    closes every relay, including the master where there is one.</li>
+    closes every relay, including the master where there is one, and stops a running
+    schedule.</li>
   </ul>
 
   <h2>How to Prime</h2>
@@ -1241,7 +1246,8 @@ def _build_content() -> Dict[str, HelpContent]:
     the last one is closed; until then Run and the calibration buttons are greyed out, and
     nothing is queued.</li>
     <li><strong>CLOSE ALL RELAYS</strong> bypasses normal sequencing for rapid emergency
-    shutdown.</li>
+    shutdown: it switches every relay off, stops a running schedule, and ends the priming
+    session once every relay HAT has confirmed.</li>
   </ul>
 
   <h2>After a Valve Topology Change</h2>
@@ -1255,7 +1261,8 @@ def _build_content() -> Dict[str, HelpContent]:
   until that valve is closed: use <strong>CLOSE ALL RELAYS</strong>, and cut the valve power
   if water still flows.  If CLOSE ALL RELAYS shows <em>Emergency Stop Failed</em>, a relay HAT
   did not confirm and a valve may still be open: disconnect the valve power supply, then
-  check the relay HAT and its I²C connection.</p>
+  check the relay HAT and its I²C connection.  Run and the calibration buttons stay greyed
+  out until a later CLOSE ALL RELAYS is confirmed or RRR is closed and reopened.</p>
 
   <p>All priming actions are logged to the <strong>System Messages</strong> terminal with
   timestamps.</p>
@@ -1415,7 +1422,9 @@ def _build_content() -> Dict[str, HelpContent]:
     again; if it repeats, the Terminal tab shows the database error.</li>
     <li>Run greyed out or <em>Hardware busy</em>: a priming session or a calibration is using
     the valves.  Finish it first (Close Master on a shared-manifold rig, close every cage valve
-    on an independent rig).</li>
+    on an independent rig).  If the message names <em>an unconfirmed emergency stop</em>,
+    CLOSE ALL RELAYS could not confirm every relay off: fix the relay HAT and press CLOSE ALL
+    RELAYS again, or close and reopen RRR.</li>
     <li><em>Expired Schedule</em>: the whole window, or every instant delivery time, has
     passed; create a schedule with future times.  If only the start has passed, RRR offers to
     run the rest.</li>
@@ -1434,7 +1443,8 @@ def _build_content() -> Dict[str, HelpContent]:
     not found when RRR started.  Fix the connection, then close and reopen RRR.</li>
     <li><code>[VALVE CRITICAL] … OPEN</code> — a close did not get through, or the valve's
     relay is not answering.  Check the rig and press <strong>CLOSE ALL RELAYS</strong>
-    (Settings → Priming).</li>
+    (Settings → Priming); during a schedule this also stops the schedule, so press Run again
+    afterwards.</li>
     <li><em>Relays Not Confirmed Off</em> or <em>Emergency Stop Failed</em> — disconnect the
     valve power supply now, then check the relay HAT and its I²C connection.</li>
   </ul>
@@ -1450,7 +1460,8 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Emergency — Schedule Running and Won't Respond</h2>
   <ol>
-    <li>Press <strong>Stop</strong> in the Run/Stop section.</li>
+    <li>Press <strong>Stop</strong> in the Run/Stop section (<strong>CLOSE ALL RELAYS</strong>
+    in Settings → Priming also stops the schedule and switches every relay off).</li>
     <li>If Stop does not respond within a few seconds, or a <em>Relays Not Confirmed
     Off</em> dialog appears, disconnect the valve power supply, then check the relay HAT
     and its I²C connection.</li>
