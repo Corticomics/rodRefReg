@@ -320,5 +320,9 @@ def test_the_circuit_breaker_names_where_to_look(qapp, monkeypatch):
     assert "check the relay HAT" in breaker[0] and "the flow sensor connection" in breaker[0]
     assert "Cages tab" in breaker[0]
     # The line gives the reason, which is not always a valve command (a dose
-    # over the pulse or time limit prints it too).
-    assert "names the cage being watered and what stopped the delivery" in breaker[0]
+    # over the pulse or time limit prints it too). Only solenoid pulse
+    # delivery prints one: pump and continuous mode have no such line.
+    assert (
+        "in solenoid pulse mode a [VALVE ERROR] line above names the cage being watered "
+        "and what stopped the delivery"
+    ) in breaker[0]
