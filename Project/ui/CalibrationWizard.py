@@ -293,6 +293,8 @@ class CalibrationWizard(QDialog):
         # per run, on whichever termination path fires first.
         self._run_finalized = True
         self._user_cancelled = False
+        # The "did not stop" dialog is shown once per run.
+        self._stop_failure_shown = False
 
         # Window properties
         self.setWindowTitle(f"Valve Calibration Wizard - Cage {cage_id}")
@@ -611,6 +613,11 @@ class CalibrationWizard(QDialog):
         # sensor shared with schedules/priming. Hold the lock for exactly the
         # pulse run (the later measure/results steps use no hardware).
         lock = get_operation_lock()
+        if self._user_cancelled:
+            # The run starts half a second after its step is shown. A wizard
+            # that was closed in that time (Esc, Cancel or the X button) must
+            # not then start pulsing with no window on screen.
+            return
         if not lock.try_acquire(CALIBRATION):
             QMessageBox.warning(
                 self,
@@ -623,6 +630,7 @@ class CalibrationWizard(QDialog):
         # The lock is now held; _finalize_run() must release it exactly once.
         self._run_finalized = False
         self._user_cancelled = False
+        self._stop_failure_shown = False
 
         self._worker_stop = threading.Event()
         self._worker = _CalibrationPulseWorker(
@@ -708,14 +716,21 @@ class CalibrationWizard(QDialog):
         self._run_finalized = True
         get_operation_lock().release(CALIBRATION)
 
-    def _shutdown_worker(self, wait_ms=5000):
+    # How long Esc, Cancel and the X button wait for the pulse worker to stop.
+    STOP_WAIT_MS = 5000
+
+    def _shutdown_worker(self, wait_ms=None) -> bool:
         """
         Ask a running pulse worker to stop and wait (bounded) for its thread.
 
         The worker checks the stop event once per pulse and closes the cage
-        relay + master valve before finishing, so when the wait returns the
-        hardware is safe. No-op when no worker is running.
+        relay + master valve before finishing, so when this returns True the
+        hardware is safe. Returns False when the worker is still running
+        after the wait: only a relay command that does not return (a hung
+        I2C bus) lasts that long. True, and a no-op, when no worker is running.
         """
+        if wait_ms is None:
+            wait_ms = self.STOP_WAIT_MS
         if self._worker_stop is not None:
             self._worker_stop.set()
         thread = self._worker_thread
@@ -726,6 +741,34 @@ class CalibrationWizard(QDialog):
                     f"WARNING: calibration worker did not stop within {wait_ms} ms — "
                     "verify that all valves are closed"
                 )
+                return False
+        return True
+
+    def _stop_run(self) -> None:
+        """End the pulse run for Esc, Cancel and the X button.
+
+        Stops the worker (bounded wait) and releases the operation lock. A
+        worker that is still running after the wait keeps the lock: it still
+        owns the hardware and may have a valve open, so a schedule or a
+        priming session must not start beside it. _on_worker_finished
+        releases the lock when the worker does end. The operator is told in
+        a dialog, because the wizard's own log is about to be hidden.
+        """
+        self._user_cancelled = True
+        if self._shutdown_worker():
+            self._finalize_run()
+            return
+        if self._stop_failure_shown:
+            return
+        self._stop_failure_shown = True
+        QMessageBox.critical(
+            self,
+            "Calibration Did Not Stop",
+            f"The pulse run on cage {self.cage_id} did not stop: a relay command is not "
+            "returning, so a valve may be OPEN.\n\nDisconnect the valve power supply now, "
+            "then check the relay HAT and its I²C connection.\n\nRun and priming stay "
+            "unavailable until the run ends. If they stay unavailable, close and reopen RRR.",
+        )
 
     def _show_measurement(self):
         """Step 4: User measures output"""
@@ -894,14 +937,25 @@ class CalibrationWizard(QDialog):
         except Exception:
             pass
         # Stop a running pulse worker first (bounded wait; the worker closes
-        # the cage + master valves before finishing), then make sure the
-        # operation lock isn't left held if the dialog is closed mid-run.
-        self._user_cancelled = True
-        self._shutdown_worker()
-        self._finalize_run()
+        # the cage + master valves before finishing) and release the
+        # operation lock, unless the worker did not stop (see _stop_run).
+        self._stop_run()
         # Just accept the close - dialog will be marked as rejected automatically
         # by Qt when closed via X button (not accept() or reject())
         event.accept()
+
+    def reject(self):
+        """Esc, and every other reject, ends the run as the X button does.
+
+        QDialog sends Esc to reject(), which hides the dialog without a
+        closeEvent. The pulse worker used to keep running with the wizard
+        gone and the hardware lock held: the Cancel button is disabled during
+        a run, so Esc was the natural way out. Stop the worker (bounded wait;
+        it closes the cage and master valves before finishing) and release
+        the lock before the dialog goes.
+        """
+        self._stop_run()
+        super().reject()
 
     def _safe_cancel(self):
         """
@@ -927,15 +981,9 @@ class CalibrationWizard(QDialog):
         else:
             self.log("User cancelled calibration wizard")
 
-        # Stop a running pulse worker first (bounded wait; the worker closes
-        # the cage + master valves before finishing), then release the
-        # operation lock for this run.
-        self._user_cancelled = True
-        self._shutdown_worker()
-        self._finalize_run()
-
-        # Close dialog immediately - user pressed cancel, they mean it
-        # Use simple reject() - Qt will handle cleanup
+        # Close dialog immediately - user pressed cancel, they mean it.
+        # reject() stops a running pulse worker first and releases the
+        # operation lock for this run (see _stop_run).
         self.reject()
 
     def _save_and_finish(self):
