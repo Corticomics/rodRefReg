@@ -374,3 +374,75 @@ def test_escape_in_the_modal_wizard_returns_with_nothing_running(qapp, fake_rela
         poll.stop()
         wizard._shutdown_worker()
         wizard._finalize_run()
+
+
+# --- a worker that does not stop keeps the lock ------------------------------------------------
+#
+# Only a relay command that does not return (a hung I2C bus) outlasts the
+# wait. The wizard used to release the lock anyway and say so only in its own
+# log, which the close was about to hide: a schedule could then start beside
+# a run that still had a valve open.
+
+
+@pytest.mark.parametrize("way_out", ["escape", "x button", "cancel"])
+def test_a_run_that_does_not_stop_keeps_the_lock_and_says_so(qapp, monkeypatch, way_out):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    hung, unblock = threading.Event(), threading.Event()
+
+    class _HangingRelayHandler(_RecordingRelayHandler):
+        def set_relays(self, relay_ids, state):
+            if tuple(relay_ids) == (_CAGE_RELAY,) and state and not unblock.is_set():
+                super().set_relays(relay_ids, state)  # the valve did open
+                hung.set()
+                unblock.wait(20)  # ...and the command never returns
+                return True
+            return super().set_relays(relay_ids, state)
+
+    created = []
+
+    def _factory(*args, **kwargs):
+        created.append(_HangingRelayHandler(*args, **kwargs))
+        return created[-1]
+
+    monkeypatch.setattr("gpio.gpio_handler.RelayHandler", _factory)
+    monkeypatch.setattr("models.relay_unit_manager.RelayUnitManager", MagicMock())
+    monkeypatch.setattr(CalibrationWizard, "STOP_WAIT_MS", 200)
+    shown = []
+    monkeypatch.setattr(
+        QMessageBox, "critical", staticmethod(lambda *a, **k: shown.append((a[1], a[2])))
+    )
+
+    wizard = _make_wizard(num_pulses=5)
+    wizard.show()
+    wizard._execute_calibration()
+    thread = wizard._worker_thread
+    try:
+        assert hung.wait(10), "the worker reached the relay command that hangs"
+
+        _WAYS_OUT[way_out](wizard)
+
+        # The wizard is gone, the worker is not: the run still owns the hardware.
+        assert wizard.isVisible() is False
+        assert thread.isRunning() is True
+        assert get_operation_lock().held_by("calibration"), "nothing else may start"
+        assert get_operation_lock().try_acquire("schedule") is False
+        ((title, text),) = shown
+        assert title == "Calibration Did Not Stop"
+        assert "a valve may be OPEN" in text
+        assert "Disconnect the valve power supply now" in text
+
+        # The command returns at last: the worker closes its valves and ends,
+        # and only then is the lock released.
+        unblock.set()
+        assert _drain_until(qapp, lambda: wizard._worker is None)
+        assert thread.isRunning() is False
+        assert get_operation_lock().is_busy() is False
+        assert created[0].calls[-1][1] == 0, "last relay write is a close"
+        assert len(shown) == 1
+    finally:
+        unblock.set()
+        wizard._shutdown_worker(wait_ms=5000)
+        wizard._finalize_run()
