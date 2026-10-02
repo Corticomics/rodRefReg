@@ -29,7 +29,13 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from utils.operation_lock import PRIMING, get_operation_lock
+from utils.operation_lock import (
+    CALIBRATION,
+    EMERGENCY,
+    PRIMING,
+    SCHEDULE,
+    get_operation_lock,
+)
 from utils.topology import INDEPENDENT, SETTING_KEY, SHARED_MANIFOLD, is_independent
 
 
@@ -133,19 +139,24 @@ class PrimingControlWidget(QWidget):
     # Signals for parent widget integration
     status_message = pyqtSignal(str)  # For logging to parent terminal
 
-    def __init__(self, settings: Dict, print_callback=None):
+    def __init__(self, settings: Dict, print_callback=None, stop_schedule=None):
         """
         Initialize priming control widget.
 
         Args:
             settings: System settings dictionary from SystemController
             print_callback: Optional callback for status messages (e.g., print_to_terminal)
+            stop_schedule: Optional callable that stops a running schedule the
+                way the Stop button does and returns True if one was running.
+                CLOSE ALL RELAYS calls it: a schedule left running opens its
+                valves again at its next pulse.
         """
         super().__init__()
 
         # Store settings and callback
         self.settings = settings
         self._print_callback = print_callback or (lambda x: None)
+        self._stop_schedule = stop_schedule
 
         # Valve topology: on the independent topology there is no master
         # valve, so the master controls are hidden, a cage valve is primed
@@ -158,6 +169,11 @@ class PrimingControlWidget(QWidget):
         # Hardware controllers (lazy initialization)
         self._relay_handler = None
         self._solenoid_controller = None
+
+        # True from a CLOSE ALL RELAYS that could not confirm every relay off
+        # until one that does. While it is set, ending the priming session
+        # does not free the hardware (see _end_session).
+        self._stop_unconfirmed = False
 
         # Setup UI
         self._init_ui()
@@ -313,8 +329,12 @@ class PrimingControlWidget(QWidget):
 
     # ==================== Hardware Control Methods ====================
 
-    def _get_relay_handler(self):
-        """Lazy initialization of relay handler (Dependency Injection pattern)."""
+    def _get_relay_handler(self, quiet=False):
+        """Lazy initialization of relay handler (Dependency Injection pattern).
+
+        ``quiet`` skips the error dialog: the emergency stop must not wait
+        behind one before it stops the schedule.
+        """
         if self._relay_handler is None:
             try:
                 from gpio.gpio_handler import RelayHandler
@@ -326,6 +346,8 @@ class PrimingControlWidget(QWidget):
 
             except Exception as e:
                 self._log_error(f"Failed to initialize relay handler: {e}")
+                if quiet:
+                    return None
                 QMessageBox.critical(
                     self,
                     "Hardware Error",
@@ -435,17 +457,20 @@ class PrimingControlWidget(QWidget):
                 f"Cannot prime while {lock.active_label()} is in progress.",
             )
             return
+        # On a failure the lock is released only if nothing is open: after a
+        # Close Master that left a cage valve unconfirmed, the session (and
+        # the lock) must go on until that valve is closed.
         try:
             controller = self._get_solenoid_controller()
             if not controller:
-                lock.release(PRIMING)
+                self._release_if_idle()
                 return
 
             if controller.open_master():
                 self._model.set_master_open(True)
                 self._log_success("Master solenoid OPENED")
             else:
-                lock.release(PRIMING)
+                self._release_if_idle()
                 QMessageBox.warning(
                     self,
                     "Hardware Error",
@@ -453,7 +478,7 @@ class PrimingControlWidget(QWidget):
                 )
 
         except Exception as e:
-            lock.release(PRIMING)
+            self._release_if_idle()
             self._log_error(f"Error opening master: {e}")
             QMessageBox.critical(self, "Error", f"Failed to open master:\n{str(e)}")
 
@@ -499,7 +524,7 @@ class PrimingControlWidget(QWidget):
                 return
             if master_closed:
                 # All valves closed — end the priming session, release the lock.
-                get_operation_lock().release(PRIMING)
+                self._end_session()
                 self._log_success("Master solenoid CLOSED, all cages closed")
             else:
                 QMessageBox.warning(self, "Hardware Error", "Failed to close master solenoid.")
@@ -566,7 +591,20 @@ class PrimingControlWidget(QWidget):
         if self._model.get_open_cages():
             return
         if self._independent or not self._model.is_master_open:
-            get_operation_lock().release(PRIMING)
+            self._end_session()
+
+    def _end_session(self) -> None:
+        """Free the priming session's hold on the hardware.
+
+        After an emergency stop that could not confirm every relay off, the
+        hardware stays locked instead (EMERGENCY): the session's own valves
+        are closed, but a relay this panel does not track may still be on.
+        Only a confirmed CLOSE ALL RELAYS, or a restart, clears that.
+        """
+        lock = get_operation_lock()
+        lock.release(PRIMING)
+        if self._stop_unconfirmed:
+            self._hold_until_safe(lock)
 
     def _on_close_cage_clicked(self):
         """Handle cage close button click."""
@@ -594,36 +632,137 @@ class PrimingControlWidget(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to close cage:\n{str(e)}")
 
     def _on_emergency_stop_clicked(self):
-        """Handle emergency stop button click."""
+        """Handle emergency stop button click.
+
+        Switches every relay off, stops a running schedule (left running, it
+        would open its valves again at its next pulse), then switches the
+        relays off once more. The operation lock is cleared only when every
+        relay is confirmed off and nothing that can open a valve is still
+        running. Otherwise the hardware stays locked: whoever holds the lock
+        keeps it, and when nobody does the panel takes it (EMERGENCY), until
+        a later press is confirmed or RRR is restarted.
+        """
         try:
-            relay_handler = self._get_relay_handler()
-            if not relay_handler:
-                return
+            if self._stop_unconfirmed:
+                # The last press could not confirm every relay off. A HAT
+                # that did not answer when this panel's handler was built
+                # has no slot in it, so a HAT reseated since would never be
+                # found: build a fresh handler for this press.
+                self._relay_handler = None
+                self._solenoid_controller = None
+            # Built without a dialog: a panel that cannot reach the relays
+            # must still stop the schedule, which has a handler of its own.
+            relay_handler = self._get_relay_handler(quiet=True)
 
             # Direct hardware call for fastest response
-            all_off = relay_handler.set_all_relays(0)
+            all_off = self._all_relays_off(relay_handler)
 
-            # Reset model state
-            self._model.reset()
+            schedule_stopped = self._stop_running_schedule()
+            if schedule_stopped:
+                # The schedule may have pulsed once more before it stopped.
+                all_off = self._all_relays_off(relay_handler)
+            still_running = self._delivery_may_be_running()
+            # With a stop callback, "still running" is a delivery worker that
+            # did not exit: nothing in the app can end it (Stop is greyed
+            # out), and RRR refuses to quit while it is alive.
+            worker_alive = still_running and self._stop_schedule is not None
+            lock = get_operation_lock()
 
-            # Emergency stop is the universal hardware failsafe: force-clear the
-            # operation lock so a stuck/stale holder can't lock out the app.
-            get_operation_lock().force_release()
-
-            if all_off is False:
+            if not all_off:
                 # A HAT missing or not answering: its relays are in an
-                # unknown state, which only cutting the power settles.
+                # unknown state, which only cutting the power settles. The
+                # panel keeps showing what may be open, and the hardware
+                # stays locked.
+                self._stop_unconfirmed = True
+                self._hold_until_safe(lock)
                 self._log_error("⛔ EMERGENCY STOP - relays NOT confirmed off")
                 QMessageBox.critical(
                     self,
                     "Emergency Stop Failed",
-                    "Not every relay HAT confirmed the command, so a valve may still be "
-                    "OPEN.\n\nDisconnect the valve power supply now, then check the relay "
-                    "HAT and its I²C connection.",
+                    self._unconfirmed_text(schedule_stopped, still_running, worker_alive, lock),
                 )
                 return
-            self._log_warning("⛔ EMERGENCY STOP - All relays closed")
-            QMessageBox.information(self, "Emergency Stop", "All relays have been closed.")
+
+            # Every relay is confirmed off, so the priming session is over.
+            self._stop_unconfirmed = False
+            self._model.reset()
+            lock.release(PRIMING)
+
+            if worker_alive:
+                # The Stop path releases the schedule's hold although its
+                # worker thread did not exit (it abandons one that will not
+                # die). That worker can still open a valve.
+                self._hold_until_safe(lock)
+                self._log_error(
+                    "⛔ EMERGENCY STOP - All relays closed; the delivery worker has not stopped"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Emergency Stop",
+                    "All relays have been closed, but the schedule's delivery worker has "
+                    "not stopped and may open a valve again.\n\nWait a few seconds and "
+                    "press CLOSE ALL RELAYS again. If this message comes back, disconnect "
+                    "the valve power supply and restart the Raspberry Pi (RRR will not quit "
+                    "while that worker is alive).",
+                )
+                return
+
+            if still_running:
+                # A panel with no way to stop a schedule: its hold stays.
+                self._hold_until_safe(lock)
+                self._log_warning(
+                    "⛔ EMERGENCY STOP - All relays closed; a schedule is still running"
+                )
+                QMessageBox.warning(
+                    self,
+                    "Emergency Stop",
+                    "All relays have been closed, but a schedule is still running and will "
+                    "open its valves again.\n\nPress Stop to end it.",
+                )
+                return
+
+            if lock.held_by(CALIBRATION):
+                # Not known to be stale. The wizard is modal, so this button
+                # should be out of reach while a calibration pulses; a hold
+                # seen here means that guarantee failed, and freeing it would
+                # let a schedule start beside a run that may still be live.
+                self._log_warning(
+                    "⛔ EMERGENCY STOP - All relays closed; a calibration holds the hardware"
+                )
+                QMessageBox.warning(
+                    self,
+                    "Emergency Stop",
+                    "All relays have been closed, but a calibration holds the hardware and "
+                    "may still be pulsing.\n\nClose the calibration window. If none is open, "
+                    "close and reopen RRR.",
+                )
+                return
+
+            # The failsafe for a hold nothing is using: a running schedule
+            # has just been stopped and its worker is gone, or an earlier
+            # unconfirmed stop is now confirmed.
+            lock.force_release()
+            self._log_warning(
+                "⛔ EMERGENCY STOP - All relays closed"
+                + ("; the running schedule was stopped" if schedule_stopped else "")
+            )
+            QMessageBox.information(
+                self,
+                "Emergency Stop",
+                "All relays have been closed."
+                + (
+                    # Run does not continue a stopped schedule: the worker
+                    # it builds starts every animal from zero. Telling the
+                    # operator to "press Run again" would double the dose of
+                    # every animal already watered.
+                    " The running schedule was stopped.\n\nIt does not resume. Run starts "
+                    "the schedule over: a staggered schedule gives every animal its whole "
+                    "dose again, and an instant schedule skips the delivery times that have "
+                    "passed. Check what each animal has received before running it again."
+                    if schedule_stopped
+                    else ""
+                ),
+            )
 
         except Exception as e:
             self._log_error(f"Emergency stop error: {e}")
@@ -632,6 +771,93 @@ class PrimingControlWidget(QWidget):
                 "Critical Error",
                 f"Emergency stop failed:\n{str(e)}\n\n" "Manually disconnect power if necessary!",
             )
+
+    @staticmethod
+    def _unconfirmed_text(schedule_stopped, still_running, worker_alive, lock) -> str:
+        """The Emergency Stop Failed dialog: what to do now, what became of
+        the schedule, and what clears the lock."""
+        text = (
+            "Not every relay HAT confirmed the command, so a valve may still be OPEN.\n\n"
+            "Disconnect the valve power supply now, then check the relay HAT and its I²C "
+            "connection."
+        )
+        if worker_alive:
+            text += (
+                "\n\nThe schedule's delivery worker has not stopped and may open a valve again."
+            )
+        elif schedule_stopped:
+            text += "\n\nThe running schedule was stopped."
+        elif still_running:
+            text += "\n\nA schedule is still running: press Stop to end it."
+        if lock.held_by(PRIMING):
+            text += (
+                "\n\nThe priming session stays open. Run and calibration stay unavailable "
+                "until every relay is confirmed off."
+            )
+        else:
+            text += (
+                "\n\nRun, priming and calibration stay unavailable until every relay is "
+                "confirmed off."
+            )
+        if worker_alive:
+            text += (
+                " Once the relay HAT answers, press CLOSE ALL RELAYS again. If this message "
+                "comes back, restart the Raspberry Pi (RRR will not quit while that worker "
+                "is alive)."
+            )
+        else:
+            text += (
+                " Once the relay HAT answers, press CLOSE ALL RELAYS again; or close and "
+                "reopen RRR."
+            )
+        return text
+
+    def _all_relays_off(self, relay_handler) -> bool:
+        """Switch every relay off. False unless every relay HAT confirmed it:
+        no handler, a HAT that did not answer and a command that raised all
+        leave a valve possibly open. Never raises."""
+        if relay_handler is None:
+            return False
+        try:
+            return relay_handler.set_all_relays(0) is not False
+        except Exception as exc:
+            self._log_error(f"Emergency stop: the all-relays-off command failed: {exc}")
+            return False
+
+    @staticmethod
+    def _hold_until_safe(lock) -> None:
+        """Keep the hardware locked. Whoever holds the lock keeps it; a free
+        lock is taken for the emergency stop itself."""
+        if not lock.is_busy():
+            lock.try_acquire(EMERGENCY)
+
+    def _stop_running_schedule(self) -> bool:
+        """Stop a running schedule through the callback Settings provides.
+
+        True if one was running. Never raises: the relays are already off,
+        and the rest of the emergency stop must still run.
+        """
+        if self._stop_schedule is None:
+            return False
+        try:
+            return bool(self._stop_schedule())
+        except Exception as exc:
+            self._log_error(f"Emergency stop could not stop the schedule: {exc}")
+            return False
+
+    def _delivery_may_be_running(self) -> bool:
+        """Whether a schedule's delivery worker may still open a valve.
+
+        The worker thread itself decides, whoever holds the lock: the Stop
+        path releases the schedule's hold even when its worker did not exit.
+        A panel with no way to stop a schedule assumes one that holds the
+        lock is live.
+        """
+        if self._stop_schedule is None:
+            return get_operation_lock().held_by(SCHEDULE)
+        from utils import updater  # noqa: PLC0415
+
+        return updater.is_busy()
 
     # ==================== Model Event Handlers ====================
 

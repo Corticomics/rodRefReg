@@ -64,6 +64,16 @@ if not USE_CUSTOM_SM16 or not 'USING_CUSTOM_MODULE' in globals() or not USING_CU
             USING_CUSTOM_MODULE = False
 
 
+def _say(*args, **kwargs) -> None:
+    """Print a diagnostic line. Never raises: a broken stdout (the journal
+    pipe gone) must not stop a relay write, above all the all-off of an
+    emergency stop."""
+    try:
+        print(*args, **kwargs)
+    except Exception:
+        pass
+
+
 class RelayHandler:
     def __init__(self, relay_unit_manager, num_hats=1):
         """Initialize RelayHandler with relay unit manager and hats"""
@@ -114,13 +124,13 @@ class RelayHandler:
                     available_buses.append(i)
 
             if available_buses:
-                print(f"Found I2C buses: {available_buses}")
+                _say(f"Found I2C buses: {available_buses}")
             else:
-                print("No I2C buses found. Make sure I2C is enabled.")
+                _say("No I2C buses found. Make sure I2C is enabled.")
 
             return available_buses
         except Exception as e:
-            print(f"Error finding I2C buses: {e}")
+            _say(f"Error finding I2C buses: {e}")
             return [0, 1]  # Default fallback
 
     def _initialize_hats(self):
@@ -151,13 +161,13 @@ class RelayHandler:
                         hat = SM16relind(stack=stack, bus_id=bus)
                         hat.set_all(0)
                         self.relay_hats[stack] = hat
-                        print(f"Initialized relay hat stack={stack} on I2C bus {bus}")
+                        _say(f"Initialized relay hat stack={stack} on I2C bus {bus}")
                         success = True
                     except Exception as e:
-                        print(f"Failed to initialize custom hat stack={stack} bus={bus}: {e}")
+                        _say(f"Failed to initialize custom hat stack={stack} bus={bus}: {e}")
             if not success:
                 error_msg = "Failed to initialize relay hats via custom module on preferred buses."
-                print(error_msg)
+                _say(error_msg)
                 logging.error(error_msg)
             return
 
@@ -170,17 +180,17 @@ class RelayHandler:
                 hat = ctor(stack)
                 hat.set_all(0)
                 self.relay_hats[stack] = hat
-                print(f"Initialized relay hat stack={stack}")
+                _say(f"Initialized relay hat stack={stack}")
                 success = True
             except Exception as e:
-                print(f"Failed to initialize hat stack={stack}: {e}")
+                _say(f"Failed to initialize hat stack={stack}: {e}")
                 logging.error(f"Hat initialization error: {str(e)}")
 
         if not success:
             error_msg = (
                 "Failed to initialize any relay hats. Check I2C configuration and connections."
             )
-            print(error_msg)
+            _say(error_msg)
             logging.error(error_msg)
 
     def set_all_relays(self, state):
@@ -200,13 +210,13 @@ class RelayHandler:
                     f"Relay HAT(s) missing: {len(hats)} of {self.num_hats} "
                     "initialised; the missing ones were not switched"
                 )
-                print(message)
+                _say(message)
                 logging.error(message)
             for hat in hats:
                 try:
                     hat.set_all(0 if state == 0 else 65535)  # 65535 = all relays ON
                 except Exception as e:
-                    print(f"Error setting all relays: {e}")
+                    _say(f"Error setting all relays: {e}")
                     logging.error(f"Relay state error: {str(e)}")
                     ok = False
             return ok
@@ -255,7 +265,7 @@ class RelayHandler:
             # Get relay unit from dictionary
             relay_unit = self.relay_units.get(unit_id)
             if not relay_unit:
-                print(
+                _say(
                     f"Relay unit {unit_id} not found in available units: {list(self.relay_units.keys())}"
                 )
                 continue
@@ -263,7 +273,7 @@ class RelayHandler:
             # Get number of triggers for this specific unit
             unit_triggers = num_triggers.get(str(unit_id))
             if unit_triggers is None:
-                print(f"No trigger count specified for relay unit {unit_id}")
+                _say(f"No trigger count specified for relay unit {unit_id}")
                 continue
 
             success = self._execute_triggers(relay_unit, unit_triggers, stagger)
@@ -284,7 +294,7 @@ class RelayHandler:
         try:
             for trigger in range(num_triggers):
                 # Log trigger attempt
-                print(
+                _say(
                     f"Executing trigger {trigger + 1}/{num_triggers} "
                     f"for relay unit {relay_unit.unit_id}"
                 )
@@ -293,9 +303,8 @@ class RelayHandler:
                 # unit: the trigger did not happen and must not be counted.
                 switched_on = [self._set_relay_states([r], 1) for r in relay_unit.relay_ids]
                 if not all(switched_on):
-                    # Only a relay that did switch on can be left on.
                     went_on = [r for r, ok in zip(relay_unit.relay_ids, switched_on) if ok]
-                    self._switch_unit_off(relay_unit, trigger, confirm=went_on)
+                    self._switch_unit_off(relay_unit, trigger, went_on)
                     logging.error(
                         f"Relay unit {relay_unit.unit_id}: trigger {trigger + 1} did not "
                         "switch on; stopping"
@@ -307,7 +316,7 @@ class RelayHandler:
                 time.sleep(stagger)
 
                 # Deactivate relays
-                if not self._switch_unit_off(relay_unit, trigger, confirm=relay_unit.relay_ids):
+                if not self._switch_unit_off(relay_unit, trigger, relay_unit.relay_ids):
                     return False
 
                 # Wait between triggers
@@ -320,28 +329,41 @@ class RelayHandler:
             logging.error(f"Trigger execution error: {str(e)}")
             return False
 
-    def _switch_unit_off(self, relay_unit, trigger, confirm):
+    def _switch_unit_off(self, relay_unit, trigger, known_on):
         """Switch a unit's relays off, trying a lost write again at once.
 
-        False, with a [VALVE CRITICAL] line, when a relay in ``confirm``
-        (those known to be on) did not switch off: the pump may still be
-        running.
+        False, with a [VALVE CRITICAL] line, when a relay did not switch off.
+        It always follows a switch-on attempt, and a write can take effect
+        yet report a failure, so every such relay may still be running the
+        pump: one known to be on, or one whose switch-on reported a failure
+        (``known_on`` tells them apart, for the wording).
         """
         stuck = [
             relay_id
             for relay_id in relay_unit.relay_ids
             if not (self._set_relay_states([relay_id], 0) or self._set_relay_states([relay_id], 0))
-            and relay_id in confirm
         ]
         if not stuck:
             return True
+        on = [r for r in stuck if r in known_on]
+        unknown = [r for r in stuck if r not in known_on]
+        parts = []
+        if on:
+            parts.append(
+                f"relay(s) {', '.join(map(str, on))} did not switch off at trigger "
+                f"{trigger + 1}; they may still be ON"
+            )
+        if unknown:
+            parts.append(
+                f"relay(s) {', '.join(map(str, unknown))} are not answering, so they cannot "
+                "be confirmed off; they may be ON"
+            )
         message = (
-            f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: relay(s) "
-            f"{', '.join(str(r) for r in stuck)} did not switch off at trigger {trigger + 1}; "
-            "they may still be ON. Check the rig; Settings > Priming > CLOSE ALL RELAYS "
-            "retries every relay."
+            f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: {'; '.join(parts)}. Check the "
+            "rig; Settings > Priming > CLOSE ALL RELAYS switches every relay off again and "
+            "stops the schedule."
         )
-        print(message, flush=True)
+        _say(message, flush=True)
         logging.error(message)
         return False
 
@@ -364,14 +386,14 @@ class RelayHandler:
                         f"Relay {relay_id} not switched: no initialised relay HAT for it "
                         f"({len(self._initialized_hats())} of {self.num_hats} initialised)"
                     )
-                    print(message)
+                    _say(message)
                     logging.error(message)
                     ok = False
                     continue
                 try:
                     hat.set(relay_num + 1, state)
                 except Exception as e:
-                    print(f"Error setting relay {relay_id} to state {state}: {e}")
+                    _say(f"Error setting relay {relay_id} to state {state}: {e}")
                     logging.error(f"Relay state change error: {str(e)}")
                     ok = False
             return ok
