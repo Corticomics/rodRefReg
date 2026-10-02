@@ -67,8 +67,10 @@ In solenoid pulse mode (the default) the delivery stops with
 or master valve whose close did not get through, or whose relay has not
 answered since the run started, raises `[VALVE CRITICAL] … OPEN`. A Stop
 whose all-off command a HAT did not confirm shows **Relays Not Confirmed
-Off**; the Priming panel's **CLOSE ALL RELAYS** button shows **Emergency
-Stop Failed**.
+Off**; the Priming panel's **CLOSE ALL RELAYS** button (which also stops a
+running schedule) shows **Emergency Stop Failed** and keeps the operation
+lock held: by the open priming session, or else by the `EMERGENCY` holder,
+until a later press is confirmed or RRR is restarted.
 The schedule path sets up its HATs when RRR starts (and again only on
 Change Relay Hats): after fixing one, close and reopen RRR.
 
@@ -95,7 +97,7 @@ def _initialize_hardware(self):
 | `OSError: [Errno 110] Connection timed out` | I²C clock conflict (often if `i2c-dev` was just modprobed) | `sudo modprobe i2c-dev` then retry; reboot if persistent |
 | Journal shows `WARNING: SM16relind module not found. Hardware control will not work.`, then `Failed to initialize hat stack=0: SM16relind class not found in module` and `Failed to initialize any relay hats` | apt package not installed, or the venv does not see system packages (the ImportError is caught, so there is no traceback) | Run `scripts/install/40-hardware.sh`; check the venv uses `--system-site-packages` |
 | Terminal tab shows `Relay N not switched: no initialised relay HAT for it` or `[VALVE ERROR] cage N: …; delivery stopped` | No HAT answered for that relay when RRR started, or an I²C write failed | `i2cdetect -y 1`; fix the HAT, then close and reopen RRR (the schedule path sets its HATs up at start-up) |
-| `[VALVE CRITICAL] … OPEN`, **Relays Not Confirmed Off** or **Emergency Stop Failed** | A close or the all-off command did not reach a HAT, or a valve's relay has not answered since the run started | Disconnect the valve power supply, then check the relay HAT and its I²C connection; Settings > Priming > **CLOSE ALL RELAYS** retries every relay |
+| `[VALVE CRITICAL] … OPEN`, **Relays Not Confirmed Off** or **Emergency Stop Failed** | A close or the all-off command did not reach a HAT, or a valve's relay has not answered since the run started | Disconnect the valve power supply, then check the relay HAT and its I²C connection; Settings > Priming > **CLOSE ALL RELAYS** switches every relay off again and stops a running schedule |
 
 ## Pi 4 vs Pi 5 differences
 
