@@ -82,9 +82,13 @@ def _panel(stop_schedule=None):
     return PrimingControlWidget(dict(SETTINGS), lambda *_: None, stop_schedule=stop_schedule)
 
 
+# Run does not resume a stopped schedule (a new worker starts every animal
+# from zero), so the dialog must not tell the operator to "press Run again".
 STOPPED = (
     "All relays have been closed. The running schedule was stopped.\n\n"
-    "Animals it had not yet watered get no water until Run is pressed again."
+    "It does not resume. Run starts the schedule over: a staggered schedule gives every "
+    "animal its whole dose again, and an instant schedule skips the delivery times that "
+    "have passed. Check what each animal has received before running it again."
 )
 
 
@@ -145,7 +149,9 @@ def test_a_schedule_it_cannot_stop_keeps_its_hold(relays, lock, dialogs):
 
 
 def test_a_worker_still_running_keeps_the_hold(relays, lock, dialogs, monkeypatch):
-    """The callback found no job to stop, yet a delivery worker is alive."""
+    """The callback found no job to stop, yet a delivery worker is alive. The
+    Stop button is greyed out in that state (no job in progress), so the
+    dialog must not send the operator to it."""
     from utils import updater  # noqa: PLC0415
 
     monkeypatch.setattr(updater, "_busy_check", lambda: True)
@@ -156,7 +162,10 @@ def test_a_worker_still_running_keeps_the_hold(relays, lock, dialogs, monkeypatc
     panel._on_emergency_stop_clicked()
 
     assert lock.held_by("schedule")
-    assert dialogs[-1][0] == "warning" and "Press Stop to end it" in dialogs[-1][2]
+    ((kind, title, text),) = dialogs
+    assert (kind, title) == ("critical", "Emergency Stop")
+    assert "delivery worker has not stopped" in text and "restart the Raspberry Pi" in text
+    assert "Press Stop" not in text
 
 
 def test_a_stale_hold_is_still_cleared(relays, lock, dialogs):
@@ -182,8 +191,10 @@ def test_relays_not_confirmed_off_keep_the_priming_session(relays, lock, dialogs
     panel._on_emergency_stop_clicked()
 
     assert dialogs[-1][:2] == ("critical", "Emergency Stop Failed")
-    assert "The priming session stays open, so Run and calibration stay unavailable." in (
-        dialogs[-1][2]
+    assert dialogs[-1][2].endswith(
+        "The priming session stays open. Run and calibration stay unavailable until every "
+        "relay is confirmed off. Once the relay HAT answers, press CLOSE ALL RELAYS again; "
+        "or close and reopen RRR."
     )
     assert lock.held_by("priming"), "no schedule can start onto a valve that may be open"
     assert lock.try_acquire("schedule") is False
@@ -295,6 +306,18 @@ def test_a_worker_that_outlives_the_stop_is_not_reported_stopped(
     assert "was stopped" not in text
     assert lock.held_by("emergency")
     assert lock.try_acquire("priming") is False
+
+    # Pressed again, as the dialog says, with the worker still alive: no job
+    # is in progress any more, so Stop is greyed out. The same message comes
+    # back, and it says what to do then.
+    panel._stop_schedule, _ = _stopper(lock, running=False)
+    panel._on_emergency_stop_clicked()
+
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop")
+    assert "delivery worker has not stopped" in dialogs[-1][2]
+    assert "disconnect the valve power supply and restart the Raspberry Pi" in dialogs[-1][2]
+    assert "Press Stop" not in dialogs[-1][2]
+    assert lock.held_by("emergency")
 
     alive["worker"] = False  # it exits; the operator presses the button again
     panel._stop_schedule, _ = _stopper(lock, running=False)
@@ -552,3 +575,138 @@ def test_a_real_worker_thread_is_stopped_by_the_real_stop_sequence(
     finally:
         worker.cancelled.set()
         worker.wait(2000)
+
+
+# --- found by the re-review of the rework ------------------------------------------------------
+
+
+def test_an_unconfirmed_stop_beside_a_live_worker_says_to_restart_the_pi(
+    relays, lock, dialogs, monkeypatch
+):
+    """RRR refuses to quit while a delivery worker is alive, so "close and
+    reopen RRR" is not a way out of that state."""
+    from utils import updater  # noqa: PLC0415
+
+    monkeypatch.setattr(updater, "_busy_check", lambda: True)
+    stop, _calls = _stopper(lock)
+    panel = _panel(stop)
+    assert lock.try_acquire("schedule")
+    relays.fail_all_off = True
+
+    panel._on_emergency_stop_clicked()
+
+    ((kind, title, text),) = dialogs
+    assert (kind, title) == ("critical", "Emergency Stop Failed")
+    assert "The schedule's delivery worker has not stopped and may open a valve again." in text
+    assert "was stopped" not in text
+    assert "restart the Raspberry Pi (RRR will not quit while that worker is alive)" in text
+    assert "close and reopen RRR" not in text
+    assert lock.held_by("emergency")
+
+
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_an_unconfirmed_stop_outlives_the_priming_session(relays, lock, dialogs, topology):
+    """A second HAT is not answering, so the all-off is not confirmed, while
+    the session's own valves (on the first HAT) still switch. Closing them
+    ends the session; the hardware must stay locked, because nothing has
+    confirmed the other HAT's relays."""
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+
+    panel = PrimingControlWidget({**SETTINGS, "valve_topology": topology}, lambda *_: None)
+    panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
+    if topology == "shared_manifold":
+        panel._on_open_master_clicked()
+    panel._on_open_cage_clicked()
+    assert lock.held_by("priming") and panel._model.is_cage_open(CAGE)
+    relays.fail_all_off = True
+
+    panel._on_emergency_stop_clicked()
+
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop Failed")
+    assert lock.held_by("priming")
+
+    # The operator closes the session's valves the ordinary way.
+    if topology == "shared_manifold":
+        panel._on_close_master_clicked()
+    else:
+        panel._on_close_cage_clicked()
+
+    assert relays.energized() == set()
+    assert lock.held_by("emergency"), "the session ended; the hardware stays locked"
+    assert lock.try_acquire("schedule") is False
+
+    relays.fail_all_off = False  # the other HAT answers; a press is confirmed
+    panel._on_emergency_stop_clicked()
+
+    assert lock.is_busy() is False
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+
+    # From here a session ends the ordinary way again.
+    if topology == "shared_manifold":
+        panel._on_open_master_clicked()
+        assert lock.held_by("priming")
+        panel._on_close_master_clicked()
+    else:
+        panel._on_open_cage_clicked()
+        assert lock.held_by("priming")
+        panel._on_close_cage_clicked()
+    assert lock.is_busy() is False
+
+
+def test_the_retry_after_an_unconfirmed_stop_builds_a_fresh_relay_handler(
+    monkeypatch, fake_relay_handler, lock, dialogs
+):
+    """A HAT that did not answer when the panel built its relay handler has
+    no slot in it. Reseated, it would never be found by that handler, and
+    "press CLOSE ALL RELAYS again" could not work."""
+    built = []
+
+    def _factory(*_a, **_k):
+        handler = type(fake_relay_handler)()
+        handler.fail_all_off = not built  # the first one never confirms
+        built.append(handler)
+        return handler
+
+    monkeypatch.setattr("gpio.gpio_handler.RelayHandler", _factory)
+    monkeypatch.setattr("models.relay_unit_manager.RelayUnitManager", MagicMock())
+    stop, _calls = _stopper(lock, running=False)
+    panel = _panel(stop)
+
+    panel._on_emergency_stop_clicked()
+
+    assert len(built) == 1
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop Failed")
+    assert lock.held_by("emergency")
+
+    panel._on_emergency_stop_clicked()  # the HAT has been reseated
+
+    assert len(built) == 2, "a fresh handler, which looks for the HATs again"
+    assert built[1].trace == [(("all",), 0)]
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+    assert lock.is_busy() is False
+
+    panel._on_emergency_stop_clicked()  # a healthy panel keeps its handler
+
+    assert len(built) == 2
+
+
+def test_a_session_opened_beside_an_abandoned_worker_does_not_keep_the_lock(
+    relays, lock, dialogs, monkeypatch
+):
+    """An ordinary Stop abandoned its worker and freed the lock; the operator
+    then opened a priming session. The button ends that session (every relay
+    is confirmed off) and holds the hardware for the worker that is alive."""
+    from utils import updater  # noqa: PLC0415
+
+    monkeypatch.setattr(updater, "_busy_check", lambda: True)
+    stop, _calls = _stopper(lock, running=False)
+    panel = _panel(stop)
+    panel._on_open_master_clicked()
+    assert lock.held_by("priming") and panel._model.is_master_open
+
+    panel._on_emergency_stop_clicked()
+
+    assert not panel._model.is_master_open
+    assert lock.held_by("emergency"), "not a priming session with nothing open"
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop")
+    assert "delivery worker has not stopped" in dialogs[-1][2]
