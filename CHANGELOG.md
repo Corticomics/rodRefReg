@@ -61,7 +61,9 @@ on `main` but never released.
   - A delivery stops at the first valve command that did not switch, or
     at a pulse that failed for any other reason (`[VALVE ERROR] cage N:
     …; delivery stopped after …` in the Terminal tab). Only pulses whose
-    valve opened are credited, and the retry asks only for the rest.
+    valve opened are credited, and the retry asks only for the rest. The
+    same line reports a dose refused or cut short by the pulse or time
+    limit.
   - A close that does not reach its relay is retried twice at once, then
     after 20, 50 and 100 ms. A pulse whose close got through late is
     credited with the time its valve stayed open, at the valve's steady

@@ -49,7 +49,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 
 | Problem | Solution |
 |---------|----------|
-| No water delivered | • Check if the schedule is running (Run may have refused it: *Valve calibration needed* lists the cages to calibrate)<br>• Ensure time window is correct<br>• Look in the Terminal tab for `[VALVE ERROR]`: a valve command did not reach its relay HAT and the delivery stopped<br>• Check the water reservoir level, or on an independent rig that animal's syringe and line<br>• Verify pump connections (pump mode) |
+| No water delivered | • Check if the schedule is running (Run may have refused it: *Valve calibration needed* lists the cages to calibrate)<br>• Ensure time window is correct<br>• Look in the Terminal tab for `[VALVE ERROR]`: the line says why the delivery stopped, most often a valve command that did not reach its relay HAT<br>• Check the water reservoir level, or on an independent rig that animal's syringe and line<br>• Verify pump connections (pump mode) |
 | Uneven water delivery | • Check for air bubbles in tubing: prime the line (Settings → Priming)<br>• Solenoid rig: recalibrate that cage (Settings → Calibration → **Recalibrate** on its row)<br>• Pump mode: calibrate the pumps and run 200 test triggers to prime them |
 | Leaking connections | • Check tube fittings<br>• Replace damaged tubing<br>• Ensure correct tube diameter (2mm) |
 

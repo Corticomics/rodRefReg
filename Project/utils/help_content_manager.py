@@ -837,7 +837,8 @@ def _build_content() -> Dict[str, HelpContent]:
   <ul>
     <li>Every valve command is checked.  In solenoid pulse mode, a close that does not reach
     its relay is tried again at once and after short waits.  A delivery stops when a valve
-    command still does not switch its relay, or a pulse fails for any other reason, and System
+    command still does not switch its relay, a pulse fails for any other reason, or the dose
+    runs into the pulse or time limit, and System
     Messages shows <code>[VALVE ERROR] cage N: … delivery stopped after …</code> with the
     pulses and mL delivered.  Only pulses whose valve opened are counted; a pulse whose close
     got through late is counted with the extra water from the time its valve stayed open.  The
@@ -1436,9 +1437,9 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>[VALVE ERROR], [VALVE CRITICAL] or Relay HAT Missing</h2>
   <ul>
     <li><code>[VALVE ERROR] cage N: … delivery stopped</code> — a valve command did not switch
-    its relay (or a pulse failed for another reason, which the line gives), so the delivery
-    stopped; the line gives the pulses and mL delivered.  Check the relay HAT's power and I²C
-    cable.</li>
+    its relay (or the delivery stopped for another reason, which the line gives); the line
+    gives the pulses and mL delivered.  When it says to check the relay HAT, check the HAT's
+    power and I²C cable.</li>
     <li><code>Relay HAT(s) missing</code> or <code>no initialised relay HAT</code> — a HAT was
     not found when RRR started.  Fix the connection, then close and reopen RRR.</li>
     <li><code>[VALVE CRITICAL] … OPEN</code> — a close did not get through, or the valve's

@@ -210,7 +210,7 @@ The RRR system is designed to run continuously even when you disconnect your dis
 2. Verify that your time window is correct: a schedule whose end time has passed shows *Expired Schedule* and does not start; if only the start time has passed, RRR asks whether to run the rest of the window
 3. Inspect the water tubes for air bubbles or blockages (make sure to prime the tubes and pumpos prior to first use)
 4. Check that the water reservoir has enough water
-5. Look in the Terminal tab for `[VALVE ERROR]`: a valve command did not reach its relay HAT (or a pulse failed) and that delivery stopped. Check the HAT (`sudo i2cdetect -y 1`); after fixing a HAT that was missing when RRR started, close and reopen RRR
+5. Look in the Terminal tab for `[VALVE ERROR]`: the line says why that delivery stopped, most often a valve command that did not reach its relay HAT. Check the HAT (`sudo i2cdetect -y 1`); after fixing a HAT that was missing when RRR started, close and reopen RRR
 
 ### How do I know how much water each animal received?
 
