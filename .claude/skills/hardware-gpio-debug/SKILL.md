@@ -69,8 +69,10 @@ answered since the run started, raises `[VALVE CRITICAL] … OPEN`. A Stop
 whose all-off command a HAT did not confirm shows **Relays Not Confirmed
 Off**; the Priming panel's **CLOSE ALL RELAYS** button (which also stops a
 running schedule) shows **Emergency Stop Failed** and keeps the operation
-lock held: by the open priming session, or else by the `EMERGENCY` holder,
-until a later press is confirmed or RRR is restarted.
+lock held: by the open priming session (which hands it to `EMERGENCY` when
+it ends), or else by the `EMERGENCY` holder, until a later press is
+confirmed or RRR is restarted. That later press builds a fresh
+`RelayHandler`, so a HAT reseated since the first press is found.
 The schedule path sets up its HATs when RRR starts (and again only on
 Change Relay Hats): after fixing one, close and reopen RRR.
 

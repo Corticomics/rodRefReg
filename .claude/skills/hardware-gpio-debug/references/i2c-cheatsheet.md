@@ -49,6 +49,8 @@ it claims the bus for the `'relay'` type under an `RLock`, runs the write
 outside the lock and waits 10 ms before releasing. It does not serialise two
 relay writers (a caller of the same type is let straight in). What keeps a
 schedule, priming and calibration apart is the operation lock
-(`utils/operation_lock.py`). It has a fourth holder, `EMERGENCY`, taken by
-CLOSE ALL RELAYS when it could not confirm every relay off and nothing else
-held the lock. Go through `RelayHandler`; don't write to the HAT around it.
+(`utils/operation_lock.py`). It has a fourth holder, `EMERGENCY`: CLOSE ALL
+RELAYS takes it, when nothing else holds the lock, after it could not confirm
+every relay off or a schedule's delivery worker did not stop; a priming
+session that ends after such a press hands its hold to it. Go through
+`RelayHandler`; don't write to the HAT around it.

@@ -139,7 +139,8 @@ has Open Master / Close Master buttons (shared manifold only) and a cage
 selector with Open Selected / Close Selected. A valve stays open until the
 operator closes it or presses CLOSE ALL RELAYS (which also stops a running
 schedule through the Stop path, and frees the operation lock only when every
-relay is confirmed off and no delivery worker is alive). On the independent topology
+relay is confirmed off and no delivery worker is alive; a stopped schedule
+does not resume, Run starts it over). On the independent topology
 the master group is hidden and a cage valve is primed directly. After the
 valve topology is changed in Settings, Priming cannot open a valve until
 RRR is closed and reopened. No flow integration; it doesn't count against the schedule.
