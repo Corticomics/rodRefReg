@@ -162,10 +162,12 @@ Full procedure: [`references/calibration-pipeline.md`](references/calibration-pi
 
 ## Where to start when "delivered 0 mL"
 
-1. Read the Terminal tab for `[VALVE ERROR] cage N: …; delivery stopped` or
-   `Relay N not switched`: a relay write did not reach its HAT (a HAT
-   missing at start-up needs RRR restarted). Then read
-   [`hardware-gpio-debug`](../hardware-gpio-debug/SKILL.md).
+1. Read the Terminal tab for `[VALVE ERROR] cage N: <reason>; delivery
+   stopped` or `Relay N not switched`. The reason is usually a relay write
+   that did not reach its HAT (a HAT missing at start-up needs RRR
+   restarted): read [`hardware-gpio-debug`](../hardware-gpio-debug/SKILL.md).
+   It can also be the pulse or time limit (`max_pulses_per_delivery`,
+   `max_pulse_delivery_time_s`).
 2. Check the flow sensor path:
    `python3 -c "from drivers.flow_sensor_factory import create_flow_sensor; ..."`
 3. If solenoid mode with pulse delivery: Run already refuses a cage with no

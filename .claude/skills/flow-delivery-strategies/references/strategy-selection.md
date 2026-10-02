@@ -90,7 +90,9 @@ Hardware footprint:
 - Stop at the first pulse that fails, including a valve command that did
   not switch (`[VALVE ERROR] cage N: …; delivery stopped after …`). Only
   pulses whose valve opened are credited; a pulse whose close got through
-  late is credited with the time its valve stayed open.
+  late is credited with the time its valve stayed open. The same line is
+  printed when the dose is refused or cut short by `max_pulses_per_delivery`
+  or `max_pulse_delivery_time_s`.
 - Optionally verify final integral against the flow sensor.
 - Good for Parker Series 3 valves. Higher precision.
 
