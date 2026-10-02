@@ -63,8 +63,9 @@ def _initialize_hardware(self):
 Stop goes through `utils.stop_sequence.execute_stop_sequence`:
 
 1. `relay_handler.set_all_relays(0)` first. If it returns False, a HAT did
-   not confirm OFF: tell the operator to disconnect the valve power
-   (**Relays Not Confirmed Off**, shown once the teardown ends).
+   not confirm OFF: tell the operator to disconnect the valve power supply,
+   then check the relay HAT and its I²C connection (**Relays Not Confirmed
+   Off**, shown once the teardown ends).
 2. Call `worker.request_cancel()` directly (thread-safe; the worker is
    usually blocked in a delivery and cannot run a queued slot), then emit
    `stop_requested` to the worker (QueuedConnection).

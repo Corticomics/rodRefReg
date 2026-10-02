@@ -2,6 +2,10 @@
 
 **Status:** Phase 2 shipped (v1.4.0) — Phase 3 (offline + signing) deferred · **Date:** 2026-05-19 · **Owner:** zepaulojr1
 
+> Line numbers in the code links below are from the 2026-05-19 audit. That
+> code has since moved (Phase 2a onwards), so each link opens the current
+> file, not the line that was audited.
+
 Design for shipping updates to deployed Rodent Refreshment Regulator (RRR) devices —
 automatically, safely, and without requiring operators to touch a terminal.
 
@@ -23,8 +27,8 @@ automatically, safely, and without requiring operators to touch a terminal.
 
 ## 2. Why the current model must change
 
-Updates today run `git pull --ff-only` ([scripts/install/20-repo.sh:34](../../scripts/install/20-repo.sh#L34),
-[bootstrap.sh:41](../../bootstrap.sh#L41)). For a non-technical operator on a lab device this fails on
+Updates today run `git pull --ff-only` ([scripts/install/20-repo.sh:34](../../scripts/install/20-repo.sh),
+[bootstrap.sh:41](../../bootstrap.sh)). For a non-technical operator on a lab device this fails on
 four counts:
 
 1. **Not atomic** — an interrupted pull leaves a half-updated checkout. The device is bricked
@@ -223,11 +227,11 @@ Today it does not. Audit of the current code:
 
 | Data | Today | Code | Move to |
 |------|-------|------|---------|
-| SQLite DB `rrr_database.db` | **Inside repo** (`Project/`, CWD-relative) | [models/database_handler.py:12](../../Project/models/database_handler.py#L12) | `~/rrr/shared/rrr_database.db` |
-| `settings.json` | **Inside repo** (`Project/settings/`) | [settings/config.py:5](../../Project/settings/config.py#L5) | `~/rrr/shared/settings/settings.json` |
-| Slack credentials | **Inside repo**, CWD-relative `settings.json` — buggy | [ui/SlackCredentialsTab.py:41](../../Project/ui/SlackCredentialsTab.py#L41) | same as above; **fix the CWD-relative path** |
-| Runtime log `~/rrr_app_debug.log` | Outside repo (`$HOME`) | [main.py:28](../../Project/main.py#L28) | `~/rrr/shared/logs/` |
-| User exports / backups | Outside (operator-chosen) | [ui/SettingsTab.py:1425](../../Project/ui/SettingsTab.py#L1425) | no change |
+| SQLite DB `rrr_database.db` | **Inside repo** (`Project/`, CWD-relative) | [models/database_handler.py:12](../../Project/models/database_handler.py) | `~/rrr/shared/rrr_database.db` |
+| `settings.json` | **Inside repo** (`Project/settings/`) | `settings/config.py:5` (file removed in v1.5.0, when settings moved to SQLite) | `~/rrr/shared/settings/settings.json` |
+| Slack credentials | **Inside repo**, CWD-relative `settings.json` — buggy | [ui/SlackCredentialsTab.py:41](../../Project/ui/SlackCredentialsTab.py) | same as above; **fix the CWD-relative path** |
+| Runtime log `~/rrr_app_debug.log` | Outside repo (`$HOME`) | [main.py:28](../../Project/main.py) | `~/rrr/shared/logs/` |
+| User exports / backups | Outside (operator-chosen) | [ui/SettingsTab.py:1425](../../Project/ui/SettingsTab.py) | no change |
 
 **Required work:**
 
@@ -249,9 +253,9 @@ Phase 2.
 For non-technical researchers, the entire flow is two screens:
 
 - **Banner** — when an update is found, a non-modal bar appears in the main window
-  ([ui/gui.py:161](../../Project/ui/gui.py#L161) area): *"RRR 1.1.0 is available."* → `[View]`.
+  ([ui/gui.py:161](../../Project/ui/gui.py) area): *"RRR 1.1.0 is available."* → `[View]`.
 - **Updates panel** — a new sub-tab in Settings (alongside Delivery/Calibration/Priming/General,
-  [ui/SettingsTab.py:63](../../Project/ui/SettingsTab.py#L63)). Shows current version, available
+  [ui/SettingsTab.py:63](../../Project/ui/SettingsTab.py)). Shows current version, available
   version, changelog, and one primary button **[Update Now]** plus **[Later]**. Also hosts
   **[Check for updates]**, **[Install from file…]** (offline/USB), and **[Revert to previous
   version]**.
@@ -314,16 +318,16 @@ Relocate data in the installer, not at app launch.
 
 - The DB is created safely on demand — `create_tables()` runs in `__init__` with
   `CREATE TABLE IF NOT EXISTS` for every table
-  ([database_handler.py:57-247](../../Project/models/database_handler.py#L57)); a missing DB never
+  ([database_handler.py:57-247](../../Project/models/database_handler.py)); a missing DB never
   crashes the app.
 - **But `DatabaseHandler()` is instantiated in three uncoordinated places** —
-  [main.py:115](../../Project/main.py#L115), [splash_screen.py:53](../../Project/ui/splash_screen.py#L53),
-  [schedule_drop_area.py:22](../../Project/ui/schedule_drop_area.py#L22) — each with the default
+  [main.py:115](../../Project/main.py), [splash_screen.py:53](../../Project/ui/splash_screen.py),
+  [schedule_drop_area.py:22](../../Project/ui/schedule_drop_area.py) — each with the default
   CWD-relative `rrr_database.db`. An in-app migration would race: whichever site runs first
   creates a fresh empty DB in the wrong location.
 - The installer is the opposite — one serialized step that already runs Python
-  ([30-python.sh:11](../../scripts/install/30-python.sh#L11)) and already does protected file copies
-  ([40-hardware.sh:91](../../scripts/install/40-hardware.sh#L91), `cp -n`).
+  ([30-python.sh:11](../../scripts/install/30-python.sh)) and already does protected file copies
+  ([40-hardware.sh:91](../../scripts/install/40-hardware.sh), `cp -n`).
 
 → Add a relocation step to the installer. The in-app `paths` module (§7) still ships, but only
 to *read* the relocated locations, never to perform the move.
@@ -333,7 +337,7 @@ to *read* the relocated locations, never to perform the move.
 - `git shortlog -sn`: `zepaulojr1` = 1273 commits; next contributor = 104. All recent commits
   are `zepaulojr1`.
 - No `.github/` existed before this work — no prior CI, no CODEOWNERS.
-- README's only contact is `zepaulojr2@gmail.com` ([README.md:246](../../README.md#L246)); no lab
+- README's only contact is `zepaulojr2@gmail.com` ([README.md:246](../../README.md)); no lab
   or institution named.
 
 → No key-custody policy required. The minisign private key is held by the sole maintainer as a
@@ -342,11 +346,11 @@ single GitHub Actions secret. Releases are manual tag pushes at the maintainer's
 ### 12.3 Fleet visibility → **deferred; cheap interim win**
 
 - The Slack integration sends only free-text relay/error strings
-  ([notifications.py:17-22](../../Project/notifications/notifications.py#L17),
-  [main.py:367](../../Project/main.py#L367)) — no device ID, no version.
+  ([notifications.py:17-22](../../Project/notifications/notifications.py),
+  [main.py:367](../../Project/main.py)) — no device ID, no version.
 - No telemetry, analytics, `device_id`, or `machine-id` code exists anywhere in the app.
 - No version string is shown in the UI — the window title is the plain
-  `"Rodent Refreshment Regulator"` ([gui.py:58](../../Project/ui/gui.py#L58)).
+  `"Rodent Refreshment Regulator"` ([gui.py:58](../../Project/ui/gui.py)).
 
 → A real check-in service is out of scope. Interim win once `version.py` ships: append
 `__version__` to the existing Slack startup/error message — basic "which version is this
@@ -405,10 +409,10 @@ variable, set by the launcher in 2b:
 
 - [models/database_handler.py](../../Project/models/database_handler.py) — default `db_path`
   argument → `paths.database_path()`. The three instantiation sites
-  ([main.py:115](../../Project/main.py#L115), [splash_screen.py:53](../../Project/ui/splash_screen.py#L53),
-  [schedule_drop_area.py:22](../../Project/ui/schedule_drop_area.py#L22)) pass no path, so they
+  ([main.py:115](../../Project/main.py), [splash_screen.py:53](../../Project/ui/splash_screen.py),
+  [schedule_drop_area.py:22](../../Project/ui/schedule_drop_area.py)) pass no path, so they
   all inherit the new default — this is what kills the 3-site race from §12.1.
-- [settings/config.py](../../Project/settings/config.py) — `settings.json` path → `paths.settings_path()`.
+- `settings/config.py` (removed in v1.5.0, when settings moved to SQLite) — `settings.json` path → `paths.settings_path()`.
 - [ui/SlackCredentialsTab.py](../../Project/ui/SlackCredentialsTab.py) — fix the CWD-relative
   `settings.json` write → `paths.settings_path()`.
 - [main.py](../../Project/main.py) — `_DEBUG_LOG_PATH` → `paths.debug_log_path()`.

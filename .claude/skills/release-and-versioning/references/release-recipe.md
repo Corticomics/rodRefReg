@@ -17,6 +17,8 @@ git checkout main
 git pull --ff-only origin main
 git checkout -b <type>/<short-kebab-slug>   # feat/, fix/, chore/, etc.
 # … edit code …
+# release-bound: add the release to CHANGELOG.md (newest first; start with a
+# "Before you update" list if operators must do anything)
 pytest                                      # green or new-test-passes
 ruff check .                                # CI gates on both ruff checks,
 ruff format --check .                       # separately (tests.yml)
@@ -83,6 +85,16 @@ This kicks off [`.github/workflows/release.yml`](.github/workflows/release.yml):
    `dist/rrr-<version>.rrrupdate`, `.sha256`, and `latest.json`.
 3. Creates the GitHub Release with those three assets attached.
 4. Marks pre-release if the tag has `-beta`.
+
+The Release is created with auto-generated notes (`--generate-notes`). Once
+it exists, replace them with this release's `CHANGELOG.md` entry, because
+the Updates tab shows the release notes:
+
+```bash
+gh release edit v<new_version> --notes-file <entry.md>   # <entry.md> = this release's CHANGELOG.md entry saved to a file
+```
+
+(MAINTENANCE.md §3a, steps 4b and 8.)
 
 ## 8. Verify on a device
 

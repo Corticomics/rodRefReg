@@ -110,7 +110,7 @@ schedule_id = db.add_schedule(schedule)
 ```python
 opts = db.get_cages_for_dropdown(num_hats=1, master_relay=16)
 # returns [{'cage_id': N, 'display_name': str}, ...]
-# database_handler.py:2348
+# implementation: DatabaseHandler.get_cages_for_dropdown (near the end of database_handler.py)
 ```
 
 `master_relay` (relay 16 by default) is kept out of the dropdown on both

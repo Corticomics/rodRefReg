@@ -61,13 +61,16 @@ So if your prompt says "branch, commit, push, PR, bump version", bump.
 
 ```
 1. branch off main with <type>/<slug>
-2. make changes, commit conventionally; bump Project/version.py in the same PR if it is release-bound
+2. make changes, commit conventionally; if the PR is release-bound, bump Project/version.py
+   and add the release to CHANGELOG.md in the same PR
 3. push branch, open PR
 4. merge PR through GitHub UI
 5. on local main: git pull --ff-only
 6. confirm Project/version.py on main holds the new version
 7. git tag v<new_version>       ← still local; reversible
 8. git push origin v<new_version>   ← POINT OF NO RETURN
+9. once CI has created the Release: gh release edit v<new_version> --notes-file <entry.md>
+   (<entry.md> = this release's CHANGELOG.md entry saved to a file)
 ```
 
 After step 8 the GitHub Actions release workflow builds the bundle

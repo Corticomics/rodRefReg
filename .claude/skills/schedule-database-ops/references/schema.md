@@ -78,7 +78,7 @@ Per-animal target. PRIMARY KEY (schedule_id, animal_id).
 | `delivery_datetime` | TEXT NOT NULL | scheduled wallclock |
 | `water_volume` | REAL NOT NULL | mL |
 | `relay_unit_id` | INTEGER → relay_units | nullable |
-| `completed` | BOOLEAN DEFAULT 0 | never set by current code (its writer was removed in v1.14.1); attempts are in `dispensing_history` |
+| `completed` | BOOLEAN DEFAULT 0 | never set: no code has ever written it (`mark_instant_completed`, removed in v1.14.1, updated `schedule_time_instants`, a table that does not exist); attempts are in `dispensing_history` |
 
 ## schedule_staggered_windows (L209)
 
