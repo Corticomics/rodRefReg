@@ -299,6 +299,10 @@ project's own rule against landing code paths that aren't yet exercised.
 
 ## 10. R3 — Dependency-injection feasibility (the §-Q3 deep-dive)
 
+> **Done** in #94 (2026-05-29): the two sites marked **Fix** below now take
+> the handler as a parameter. The line numbers in this section are those of
+> the code when it was written.
+
 ### How hard: LOW. The backbone already exists.
 
 `main.py:162` already creates the canonical `database_handler` and
