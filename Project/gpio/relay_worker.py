@@ -1372,7 +1372,7 @@ class RelayWorker(QObject):
                     )
                     self.progress.emit(
                         "Deliveries kept failing: check the relay HAT (a [VALVE ERROR] line "
-                        "above names the cage being watered and the valve command that failed; "
+                        "above names the cage being watered and what stopped the delivery; "
                         "the Cages tab shows which HAT each relay is on) and the flow sensor "
                         "connection"
                     )
