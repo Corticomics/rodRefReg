@@ -7,11 +7,16 @@ opened its valves again at its next pulse, and with the lock gone priming and
 calibration could start beside it. When the relays were not confirmed off it
 cleared the lock all the same, so a schedule could start onto a valve that
 might be open.
+
+The lock is now cleared only when every relay is confirmed off and nothing
+that can open a valve is still running. Otherwise its holder keeps it, and
+when nobody holds it the emergency stop takes it itself.
 """
 
 from __future__ import annotations
 
 import os
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -77,13 +82,20 @@ def _panel(stop_schedule=None):
     return PrimingControlWidget(dict(SETTINGS), lambda *_: None, stop_schedule=stop_schedule)
 
 
-def _stopper(lock, running=True):
+STOPPED = (
+    "All relays have been closed. The running schedule was stopped.\n\n"
+    "Animals it had not yet watered get no water until Run is pressed again."
+)
+
+
+def _stopper(lock, running=True, relays=None):
     """What Settings hands the panel: stops the schedule the way Stop does
-    (which releases the schedule's hold) and says whether one was running."""
+    (which releases the schedule's hold) and says whether one was running.
+    Each call records how many relay writes had got through by then."""
     calls = []
 
     def stop():
-        calls.append(1)
+        calls.append(len(relays.writes) if relays is not None else 1)
         if running:
             lock.release("schedule")
         return running
@@ -92,18 +104,16 @@ def _stopper(lock, running=True):
 
 
 def test_close_all_relays_stops_a_running_schedule(relays, lock, dialogs):
-    stop, calls = _stopper(lock)
+    stop, calls = _stopper(lock, relays=relays)
     panel = _panel(stop)
     assert lock.try_acquire("schedule")
 
     panel._on_emergency_stop_clicked()
 
-    assert calls == [1], "the schedule was stopped, once"
+    assert calls == [1], "the schedule was stopped once, after the first all-off"
     assert relays.trace == [(("all",), 0), (("all",), 0)], "off at once, and again after the stop"
     assert lock.is_busy() is False
-    assert dialogs == [
-        ("information", "Emergency Stop", "All relays have been closed. The running schedule was stopped.")
-    ]
+    assert dialogs == [("information", "Emergency Stop", STOPPED)]
 
 
 def test_with_nothing_running_it_is_unchanged(relays, lock, dialogs):
@@ -146,7 +156,7 @@ def test_a_worker_still_running_keeps_the_hold(relays, lock, dialogs, monkeypatc
     panel._on_emergency_stop_clicked()
 
     assert lock.held_by("schedule")
-    assert dialogs[-1][0] == "warning"
+    assert dialogs[-1][0] == "warning" and "Press Stop to end it" in dialogs[-1][2]
 
 
 def test_a_stale_hold_is_still_cleared(relays, lock, dialogs):
@@ -172,6 +182,9 @@ def test_relays_not_confirmed_off_keep_the_priming_session(relays, lock, dialogs
     panel._on_emergency_stop_clicked()
 
     assert dialogs[-1][:2] == ("critical", "Emergency Stop Failed")
+    assert "The priming session stays open, so Run and calibration stay unavailable." in (
+        dialogs[-1][2]
+    )
     assert lock.held_by("priming"), "no schedule can start onto a valve that may be open"
     assert lock.try_acquire("schedule") is False
     assert panel._model.is_master_open and panel._model.is_cage_open(CAGE)
@@ -185,6 +198,8 @@ def test_relays_not_confirmed_off_keep_the_priming_session(relays, lock, dialogs
 
 
 def test_relays_not_confirmed_off_still_stop_the_schedule(relays, lock, dialogs):
+    """The Stop path frees the schedule's hold; with a valve possibly open,
+    the emergency stop takes the lock so nothing can start onto it."""
     stop, calls = _stopper(lock)
     panel = _panel(stop)
     assert lock.try_acquire("schedule")
@@ -196,7 +211,148 @@ def test_relays_not_confirmed_off_still_stop_the_schedule(relays, lock, dialogs)
     ((kind, title, text),) = dialogs
     assert (kind, title) == ("critical", "Emergency Stop Failed")
     assert "Disconnect the valve power supply now" in text
-    assert text.endswith("The running schedule was stopped.")
+    assert "\n\nThe running schedule was stopped.\n\n" in text
+    assert text.endswith(
+        "Run, priming and calibration stay unavailable until every relay is confirmed off. "
+        "Once the relay HAT answers, press CLOSE ALL RELAYS again; or close and reopen RRR."
+    )
+    assert lock.held_by("emergency")
+    assert lock.active_label() == "an unconfirmed emergency stop"
+    assert lock.try_acquire("schedule") is False, "Run cannot start onto a valve that may be open"
+
+    relays.fail_all_off = False  # the HAT answers again; the operator presses it again
+    panel._stop_schedule, _ = _stopper(lock, running=False)  # no schedule runs any more
+    panel._on_emergency_stop_clicked()
+
+    assert lock.is_busy() is False
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+
+
+def test_the_all_off_after_the_stop_decides(relays, lock, dialogs):
+    """The HAT stops answering while the schedule is being stopped: the first
+    all-off was confirmed, the one after the stop is not."""
+    calls = []
+
+    def stop():
+        calls.append(1)
+        lock.release("schedule")
+        relays.fail_all_off = True
+        return True
+
+    panel = _panel(stop)
+    assert lock.try_acquire("schedule")
+
+    panel._on_emergency_stop_clicked()
+
+    assert calls == [1]
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop Failed")
+    assert lock.held_by("emergency")
+
+
+def test_relays_not_confirmed_off_with_nothing_running_lock_the_hardware(relays, lock, dialogs):
+    stop, _calls = _stopper(lock, running=False)
+    panel = _panel(stop)
+    relays.fail_all_off = True
+
+    panel._on_emergency_stop_clicked()
+
+    ((kind, title, text),) = dialogs
+    assert (kind, title) == ("critical", "Emergency Stop Failed")
+    assert "schedule" not in text, "none was running"
+    assert lock.held_by("emergency")
+
+    # Priming cannot open a valve either, and says why.
+    panel._on_open_master_clicked()
+    assert dialogs[-1][0] == "warning"
+    assert "an unconfirmed emergency stop" in dialogs[-1][2]
+    assert relays.energized() == set()
+    assert lock.held_by("emergency")
+
+    relays.fail_all_off = False
+    panel._on_emergency_stop_clicked()
+    assert lock.is_busy() is False
+
+
+def test_a_worker_that_outlives_the_stop_is_not_reported_stopped(
+    relays, lock, dialogs, monkeypatch
+):
+    """The Stop path abandons a worker thread that will not exit, and still
+    releases the schedule's hold. The emergency stop must not call that
+    stopped, nor leave the lock free beside a worker that can pulse again."""
+    from utils import updater  # noqa: PLC0415
+
+    alive = {"worker": True}
+    monkeypatch.setattr(updater, "_busy_check", lambda: alive["worker"])
+    stop, _calls = _stopper(lock)
+    panel = _panel(stop)
+    assert lock.try_acquire("schedule")
+
+    panel._on_emergency_stop_clicked()
+
+    ((kind, title, text),) = dialogs
+    assert (kind, title) == ("critical", "Emergency Stop")
+    assert "delivery worker has not stopped" in text
+    assert "was stopped" not in text
+    assert lock.held_by("emergency")
+    assert lock.try_acquire("priming") is False
+
+    alive["worker"] = False  # it exits; the operator presses the button again
+    panel._stop_schedule, _ = _stopper(lock, running=False)
+    panel._on_emergency_stop_clicked()
+
+    assert lock.is_busy() is False
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+
+
+def test_a_calibration_hold_is_not_freed(relays, lock, dialogs):
+    """Its wizard is modal, so the button should be out of reach while a
+    calibration pulses. A hold seen here is not known to be stale: Esc once
+    closed the wizard and left its worker pulsing."""
+    stop, _calls = _stopper(lock, running=False)
+    panel = _panel(stop)
+    assert lock.try_acquire("calibration")
+
+    panel._on_emergency_stop_clicked()
+
+    assert relays.trace == [(("all",), 0)]
+    assert lock.held_by("calibration"), "a schedule cannot start beside a calibration"
+    ((kind, title, text),) = dialogs
+    assert (kind, title) == ("warning", "Emergency Stop")
+    assert "a calibration holds the hardware" in text
+    assert "close and reopen RRR" in text
+
+
+@pytest.mark.parametrize("fault", ["handler cannot be built", "all-off raises"])
+def test_a_panel_that_cannot_switch_the_relays_still_stops_the_schedule(
+    monkeypatch, fake_relay_handler, lock, dialogs, fault
+):
+    """The schedule has a relay handler of its own: the Stop path can switch
+    the relays off even when the panel's handler cannot."""
+    if fault == "handler cannot be built":
+
+        def _broken(*_a, **_k):
+            raise TypeError("no HAT library")
+
+        monkeypatch.setattr("gpio.gpio_handler.RelayHandler", _broken)
+    else:
+
+        def _raises(_state):
+            raise OSError("I2C bus error")
+
+        monkeypatch.setattr(fake_relay_handler, "set_all_relays", _raises)
+        monkeypatch.setattr("gpio.gpio_handler.RelayHandler", lambda *a, **k: fake_relay_handler)
+    monkeypatch.setattr("models.relay_unit_manager.RelayUnitManager", MagicMock())
+    stop, calls = _stopper(lock)
+    panel = _panel(stop)
+    assert lock.try_acquire("schedule")
+
+    panel._on_emergency_stop_clicked()
+
+    assert calls == [1], "the schedule was stopped"
+    ((kind, title, text),) = dialogs
+    assert (kind, title) == ("critical", "Emergency Stop Failed"), "one dialog, after the stop"
+    assert "The running schedule was stopped." in text
+    assert lock.held_by("emergency")
 
 
 def test_a_stop_callback_that_raises_does_not_break_the_emergency_stop(relays, lock, dialogs):
@@ -275,8 +431,124 @@ def test_the_whole_path_with_the_real_run_stop_section(
     assert section.job_in_progress is False
     assert lock.is_busy() is False
     assert relays.trace == [(("all",), 0), (("all",), 0)]
-    assert dialogs[-1] == (
-        "information",
-        "Emergency Stop",
-        "All relays have been closed. The running schedule was stopped.",
+    assert dialogs[-1] == ("information", "Emergency Stop", STOPPED)
+
+
+def _real_section(system_controller, database_handler, stop_sequence):
+    from ui.run_stop_section import RunStopSection  # noqa: PLC0415
+
+    login = MagicMock()
+    login.is_logged_in.return_value = True
+    return RunStopSection(
+        MagicMock(),
+        stop_sequence,  # main.stop_program
+        MagicMock(),
+        system_controller=system_controller,
+        database_handler=database_handler,
+        login_system=login,
     )
+
+
+def test_the_real_stop_path_with_a_worker_that_does_not_exit(
+    relays, lock, dialogs, monkeypatch, system_controller, database_handler
+):
+    """The Stop button's flow releases the schedule's hold whether or not the
+    worker thread exited. The emergency stop then holds the lock itself, and
+    Run stays greyed out."""
+    from utils import updater  # noqa: PLC0415
+
+    monkeypatch.setattr(updater, "_busy_check", lambda: True)  # the thread is still alive
+    section = _real_section(system_controller, database_handler, lambda: True)
+    tab = _settings_tab(system_controller, database_handler, section)
+    assert lock.try_acquire("schedule")  # as Run does
+    section.job_in_progress = True
+
+    tab.priming_widget._on_emergency_stop_clicked()
+
+    assert section.job_in_progress is False
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop")
+    assert "delivery worker has not stopped" in dialogs[-1][2]
+    assert lock.held_by("emergency")
+    assert section.run_button.isEnabled() is False
+    assert section.run_button.toolTip() == (
+        "Unavailable while an unconfirmed emergency stop is in progress"
+    )
+
+
+def test_an_unconfirmed_stop_greys_out_run_until_it_is_confirmed(
+    relays, lock, dialogs, system_controller, database_handler
+):
+    section = _real_section(system_controller, database_handler, lambda: False)
+    tab = _settings_tab(system_controller, database_handler, section)
+    assert lock.try_acquire("schedule")
+    section.job_in_progress = True
+    relays.fail_all_off = True
+
+    tab.priming_widget._on_emergency_stop_clicked()
+
+    assert dialogs[-1][:2] == ("critical", "Emergency Stop Failed")
+    assert lock.held_by("emergency")
+    assert section.run_button.isEnabled() is False
+    assert "an unconfirmed emergency stop" in section.run_button.toolTip()
+    assert tab._hardware_change_blocked_reason() == "an unconfirmed emergency stop is in progress"
+
+    relays.fail_all_off = False
+    tab.priming_widget._on_emergency_stop_clicked()
+
+    assert lock.is_busy() is False
+    assert section.run_button.isEnabled() is True
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+
+
+def test_a_real_worker_thread_is_stopped_by_the_real_stop_sequence(
+    relays, lock, dialogs, monkeypatch, system_controller, database_handler
+):
+    """A thread pulsing a valve, the Stop button's real sequence
+    (utils.stop_sequence) and the real Run/Stop section: after the button the
+    thread has exited, no relay is energised and nothing pulses again."""
+    from PyQt5.QtCore import QThread  # noqa: PLC0415
+    from utils import stop_sequence, updater  # noqa: PLC0415
+
+    class _Delivery(QThread):
+        def __init__(self):
+            super().__init__()
+            self.cancelled = threading.Event()
+
+        def request_cancel(self):
+            self.cancelled.set()
+
+        def run(self):
+            while not self.cancelled.wait(0.005):
+                relays.set_relays([CAGE], 1)
+                relays.set_relays([CAGE], 0)
+
+    worker = _Delivery()
+    signals = SimpleNamespace(stop_requested=SimpleNamespace(emit=lambda: None))
+    section = _real_section(
+        system_controller,
+        database_handler,
+        lambda: stop_sequence.execute_stop_sequence(relays, worker, worker, signals),
+    )
+    tab = _settings_tab(system_controller, database_handler, section)
+    monkeypatch.setattr(updater, "_busy_check", worker.isRunning)
+    assert lock.try_acquire("schedule")  # as Run does
+    section.job_in_progress = True
+    worker.start()
+    try:
+        while not relays.writes:  # let it pulse at least once
+            worker.wait(5)
+
+        tab.priming_widget._on_emergency_stop_clicked()
+
+        assert worker.isRunning() is False
+        writes = len(relays.writes)
+        assert relays.trace[-1] == (("all",), 0)
+        assert relays.energized() == set()
+        assert lock.is_busy() is False
+        assert section.job_in_progress is False
+        assert dialogs[-1] == ("information", "Emergency Stop", STOPPED)
+        worker.wait(50)
+        assert len(relays.writes) == writes, "nothing pulsed after the stop"
+    finally:
+        worker.cancelled.set()
+        worker.wait(2000)
