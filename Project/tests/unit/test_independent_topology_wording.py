@@ -285,7 +285,8 @@ def test_the_stop_line_does_not_name_a_master_the_rig_may_not_have(capsys):
 
 def test_the_cage_mapping_line_names_the_relay_for_the_device(qapp, system_controller):
     """#169 fixed the relay manager's line; this is its twin in the settings
-    defaults, shown in System Messages when a cage map is created."""
+    defaults, emitted on system_status when a cage map is created. Nothing in
+    the app connects to that signal, so today the line reaches no screen."""
     lines = []
     system_controller.system_status.connect(lines.append)
     system_controller.settings.update(cage_relays={}, valve_topology="independent")

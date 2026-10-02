@@ -289,7 +289,7 @@ class DatabaseHandler:
                 ''')
 
                 # Add cage_names table for user-defined cage naming
-                # Design: Maps cage_id (1-15 per HAT) to user-friendly name
+                # Design: Maps cage_id (1-15 on one HAT, 1-31 on two) to user-friendly name
                 # Reference: SQLite Documentation - CREATE TABLE IF NOT EXISTS
                 # ensures idempotent schema creation
                 cursor.execute('''
@@ -2153,7 +2153,7 @@ class DatabaseHandler:
         Get the name and details for a specific cage.
 
         Args:
-            cage_id: The cage ID (1-15 per HAT)
+            cage_id: The cage ID (1-15 on one HAT, 1-31 on two)
 
         Returns:
             dict with cage_id, relay_id, name, description, created_at, updated_at
@@ -2229,7 +2229,7 @@ class DatabaseHandler:
         Set or update the name for a cage (INSERT or UPDATE - upsert pattern).
 
         Args:
-            cage_id: The cage ID (1-15 per HAT)
+            cage_id: The cage ID (1-15 on one HAT, 1-31 on two)
             relay_id: The physical relay ID this cage maps to
             name: User-friendly name for the cage
             description: Optional description

@@ -66,10 +66,7 @@ def force_hardware_safe_state(handler) -> bool:
             "open. Disconnect the valve power supply."
         )
         return False
-    print(
-        "[STOP] HARDWARE SAFE: all relays off (every cage valve, and the master valve "
-        "where the rig has one)"
-    )
+    print("[STOP] HARDWARE SAFE: all relays off on every relay HAT")
     return True
 
 

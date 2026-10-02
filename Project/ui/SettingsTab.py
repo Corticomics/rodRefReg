@@ -594,9 +594,9 @@ class SettingsTab(QWidget):
 
         note = QLabel(
             "Must match how this rig is plumbed. After a change, calibrations measured "
-            "under the other topology show as Stale, and a schedule watering a Stale cage "
-            "will not start until that cage is recalibrated. Priming cannot open a valve "
-            "until RRR is closed and reopened."
+            "under the other topology show as Stale, and in solenoid pulse mode (the "
+            "default) a schedule watering a Stale cage will not start until that cage is "
+            "recalibrated. Priming cannot open a valve until RRR is closed and reopened."
         )
         note.setObjectName("HelpText")
         note.setWordWrap(True)
@@ -758,9 +758,10 @@ class SettingsTab(QWidget):
             self,
             "Change Valve Topology",
             f"Change the valve topology from {old} to {new}?\n\n{effect}\n\n"
-            "Calibrations measured under the other topology will show as Stale, and Run "
-            "refuses a schedule that waters a Stale cage until that cage is recalibrated. "
-            "Priming cannot open a valve until RRR is closed and reopened.",
+            "Calibrations measured under the other topology will show as Stale, and in "
+            "solenoid pulse mode (the default) Run refuses a schedule that waters a Stale "
+            "cage until that cage is recalibrated. Priming cannot open a valve until RRR "
+            "is closed and reopened.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )

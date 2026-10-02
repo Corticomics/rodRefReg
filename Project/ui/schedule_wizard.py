@@ -438,7 +438,7 @@ class Step2SelectAnimals(QWidget):
     Step 2: Select animals/cages for the schedule.
 
     Hardware Constraints:
-    - Max selectable animals limited by available cages (15 per HAT)
+    - Max selectable animals limited by available cages (15 on one HAT, 31 on two)
     - The master relay is never assignable as a cage (cage ids skip it)
     - Warning shown when selection exceeds limit
     """
@@ -1615,7 +1615,7 @@ class ScheduleCreationWizard(QWidget):
         cancelled(): Emitted when wizard is cancelled
 
     Hardware Constraints:
-        - Max animals limited by available cages (15 per HAT)
+        - Max animals limited by available cages (15 on one HAT, 31 on two)
         - Master relay (default 16) excluded from cage assignment
     """
 

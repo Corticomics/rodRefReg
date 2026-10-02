@@ -29,7 +29,7 @@ class Cage:
     Represents a physical cage with its relay mapping and user-defined name.
 
     Attributes:
-        cage_id: Unique identifier for the cage (1-15 per HAT)
+        cage_id: Unique identifier for the cage (1-15 on one HAT, 1-31 on two)
         relay_id: Physical relay ID this cage is connected to
         name: User-friendly name (default: "Cage N")
         description: Optional description or notes

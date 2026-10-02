@@ -382,8 +382,8 @@ class SolenoidFlowStrategy:
         self._stale_calibrations[cage_id] = label
         message = (
             f"[CAL TOPOLOGY] cage={cage_id} calibration measured on {label}; "
-            f"this device runs {self._topology} - a delivery to this cage would still use it; "
-            f"recalibrate cage {cage_id}"
+            f"this device runs {self._topology} - a pulse delivery to this cage would still "
+            f"use it; recalibrate cage {cage_id}"
         )
         self._logger.info(message)
         try:
