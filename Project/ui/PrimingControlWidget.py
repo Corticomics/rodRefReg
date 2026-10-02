@@ -440,17 +440,20 @@ class PrimingControlWidget(QWidget):
                 f"Cannot prime while {lock.active_label()} is in progress.",
             )
             return
+        # On a failure the lock is released only if nothing is open: after a
+        # Close Master that left a cage valve unconfirmed, the session (and
+        # the lock) must go on until that valve is closed.
         try:
             controller = self._get_solenoid_controller()
             if not controller:
-                lock.release(PRIMING)
+                self._release_if_idle()
                 return
 
             if controller.open_master():
                 self._model.set_master_open(True)
                 self._log_success("Master solenoid OPENED")
             else:
-                lock.release(PRIMING)
+                self._release_if_idle()
                 QMessageBox.warning(
                     self,
                     "Hardware Error",
@@ -458,7 +461,7 @@ class PrimingControlWidget(QWidget):
                 )
 
         except Exception as e:
-            lock.release(PRIMING)
+            self._release_if_idle()
             self._log_error(f"Error opening master: {e}")
             QMessageBox.critical(self, "Error", f"Failed to open master:\n{str(e)}")
 
