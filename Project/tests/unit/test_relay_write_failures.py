@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import threading
 from datetime import datetime
 from types import SimpleNamespace
@@ -1713,3 +1714,136 @@ def test_a_master_hold_that_does_not_open_prints_the_stop_line(
         "[VALVE ERROR] cage 1: open_master() did not reach its relay; delivery stopped after "
         "0 pulse(s), 0.000 mL. Check the relay HAT"
     ) in out
+
+
+# --- the pulse and time limits print the stop line too (last review) ---------------------------
+#
+# Four ways a pulse delivery fails without any relay fault: two refusals
+# before water moves and two limits inside the loop. Each reached only the
+# logger, so the circuit breaker's "a [VALVE ERROR] line above names the
+# cage" pointed at nothing.
+
+STOP_LINE = r"\[VALVE ERROR\] cage 1: {reason}; delivery stopped after {pulses} pulse\(s\), {ml} mL"
+
+
+def _stop_lines(out):
+    return [line for line in out.splitlines() if "delivery stopped after" in line]
+
+
+def test_a_dose_over_the_pulse_limit_is_refused_with_the_stop_line(
+    fake_relay_handler, monkeypatch, capsys
+):
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy._settings['max_pulses_per_delivery'] = 5
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 0
+    assert all(CAGE not in ids for ids, _state in fake_relay_handler.trace), "no pulse fired"
+    lines = _stop_lines(capsys.readouterr().out)
+    assert len(lines) == 1
+    assert re.fullmatch(
+        STOP_LINE.format(
+            reason=r"the dose needs about \d+ pulses, over the limit of 5 "
+            r"\(dose too large, or the calibration is wrong\)",
+            pulses=0,
+            ml=r"0\.000",
+        ),
+        lines[0],
+    ), lines[0]
+    assert "Check the relay HAT" not in lines[0], "not a relay fault"
+
+
+def test_a_delivery_too_slow_for_the_time_limit_is_refused_with_the_stop_line(
+    fake_relay_handler, monkeypatch, capsys
+):
+    strategy = _strategy(IndependentSolenoidController(fake_relay_handler, CAGE_MAP), monkeypatch)
+    strategy._settings['max_pulse_delivery_time_s'] = 5.0
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 0
+    assert fake_relay_handler.trace == [], "refused before any relay moved"
+    lines = _stop_lines(capsys.readouterr().out)
+    assert len(lines) == 1
+    assert re.fullmatch(
+        STOP_LINE.format(
+            reason=r"the delivery would take about \d+ s, over the limit of 5 s "
+            r"\(\d+ pulses at 30 ms \+ 1000 ms rest\): shorten the rest between pulses, "
+            r"split the dose, or raise max_pulse_delivery_time_s",
+            pulses=0,
+            ml=r"0\.000",
+        ),
+        lines[0],
+    ), lines[0]
+    assert "Check the relay HAT" not in lines[0]
+
+
+def test_the_pulse_limit_inside_the_loop_prints_the_stop_line(
+    fake_relay_handler, monkeypatch, capsys
+):
+    """Pulses that give less than planned (a sensor-corrected pulse) run the
+    loop into its pulse limit with water already in the cage."""
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy._settings['max_pulses_per_delivery'] = 10
+
+    async def _weak_pulse(_cage_id):
+        return Q / 10
+
+    monkeypatch.setattr(strategy, '_execute_single_pulse', _weak_pulse)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 10
+    assert abs(result.delivered_ml - Q) < 1e-9
+    lines = _stop_lines(capsys.readouterr().out)
+    assert lines == [
+        "[VALVE ERROR] cage 1: the limit of 10 pulses was reached; delivery stopped after "
+        "10 pulse(s), 0.034 mL"
+    ]
+
+
+def test_the_time_limit_inside_the_loop_prints_the_stop_line(
+    fake_relay_handler, monkeypatch, capsys
+):
+    """The estimate fits the limit, but each pulse then takes far longer
+    (relay writes that succeed slowly)."""
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy._settings['max_pulse_delivery_time_s'] = 20.0
+
+    async def _slow_pulse(_cage_id):
+        strategy.test_clock.now += 8.0
+        return Q
+
+    monkeypatch.setattr(strategy, '_execute_single_pulse', _slow_pulse)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 3
+    assert abs(result.delivered_ml - 3 * Q) < 1e-9
+    lines = _stop_lines(capsys.readouterr().out)
+    assert lines == [
+        "[VALVE ERROR] cage 1: the time limit of 20 s was passed; delivery stopped after "
+        "3 pulse(s), 0.102 mL"
+    ]
+
+
+def test_an_operator_stop_prints_no_stop_line(fake_relay_handler, monkeypatch, capsys):
+    """Stop is not a failure: the delivery ends, the valves close, no [VALVE ERROR]."""
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    fired = []
+
+    async def _pulse_then_stop(_cage_id):
+        fired.append(1)
+        if len(fired) == 2:
+            strategy.request_cancel()
+        return Q
+
+    monkeypatch.setattr(strategy, '_execute_single_pulse', _pulse_then_stop)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 2
+    out = capsys.readouterr().out
+    assert "VALVE ERROR" not in out and "delivery stopped after" not in out
+    assert fake_relay_handler.energized() == set()

@@ -674,10 +674,11 @@ class SolenoidFlowStrategy:
         return pulse_ml + extra_s * rate_ml_s
 
     def _report_stopped(self, cage_id, reason, pulses, delivered_ml, relay_fault=True) -> None:
-        """The operator's line when a pulse delivery stops early: what failed,
-        and what the cage had received by then. Printed on every such path
-        (the manifold prime and the master hold included), so the Terminal
-        tab always names the cage and the command."""
+        """The operator's line when a pulse delivery fails: what stopped it,
+        and what the cage had received by then. Printed on every failing
+        path (the manifold prime, the master hold and the pulse and time
+        limits included), so the Terminal tab always names the cage and the
+        reason. An operator Stop ends a delivery without it."""
         message = (
             f"[VALVE ERROR] cage {cage_id}: {reason}; delivery stopped after "
             f"{pulses} pulse(s), {delivered_ml:.3f} mL"
@@ -1160,9 +1161,13 @@ class SolenoidFlowStrategy:
         max_time_s = float(self._settings.get('max_pulse_delivery_time_s', 120.0))
 
         if estimated_pulses > max_pulses:
-            self._logger.error(
-                f"Estimated pulses ({estimated_pulses}) exceeds safety limit ({max_pulses}). "
-                f"Target volume too large or calibration invalid."
+            self._report_stopped(
+                cage_id,
+                f"the dose needs about {estimated_pulses} pulses, over the limit of "
+                f"{max_pulses} (dose too large, or the calibration is wrong)",
+                0,
+                0.0,
+                relay_fault=False,
             )
             return False
 
@@ -1174,12 +1179,15 @@ class SolenoidFlowStrategy:
             cage_pw_ms, cage_interval_ms
         )
         if estimated_duration_s > max_time_s:
-            self._logger.error(
-                f"Estimated delivery time ({estimated_duration_s:.1f}s) exceeds the limit "
-                f"({max_time_s:.1f}s) for cage {cage_id}: {estimated_pulses} pulses @ "
-                f"{cage_pw_ms}ms + {cage_interval_ms}ms rest. Refusing before dispensing — "
-                f"shorten the inter-pulse interval, split the volume, or raise "
-                f"max_pulse_delivery_time_s."
+            self._report_stopped(
+                cage_id,
+                f"the delivery would take about {estimated_duration_s:.0f} s, over the limit "
+                f"of {max_time_s:.0f} s ({estimated_pulses} pulses at {cage_pw_ms} ms + "
+                f"{cage_interval_ms} ms rest): shorten the rest between pulses, split the "
+                f"dose, or raise max_pulse_delivery_time_s",
+                0,
+                0.0,
+                relay_fault=False,
             )
             return False
 
@@ -1207,12 +1215,24 @@ class SolenoidFlowStrategy:
 
                 # Check safety limits
                 if pulse_count >= max_pulses:
-                    self._logger.error(f"Max pulses ({max_pulses}) reached, aborting")
+                    self._report_stopped(
+                        cage_id,
+                        f"the limit of {max_pulses} pulses was reached",
+                        pulse_count,
+                        delivered_ml,
+                        relay_fault=False,
+                    )
                     return False
 
                 elapsed_time = asyncio.get_event_loop().time() - start_time
                 if elapsed_time >= max_time_s:
-                    self._logger.error(f"Max time ({max_time_s}s) exceeded, aborting")
+                    self._report_stopped(
+                        cage_id,
+                        f"the time limit of {max_time_s:.0f} s was passed",
+                        pulse_count,
+                        delivered_ml,
+                        relay_fault=False,
+                    )
                     return False
 
                 # CRITICAL: Restart sensor periodically to reset firmware error counter
