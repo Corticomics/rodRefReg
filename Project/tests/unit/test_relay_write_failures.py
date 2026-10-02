@@ -1662,3 +1662,54 @@ def test_a_strategy_can_be_built_and_deliver_with_stdout_already_broken(
 
     assert result.success is True and result.pulses == 3
     assert fake_relay_handler.energized() == set()
+
+
+# --- the stop line exists on every path (docs review) -----------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("controller", "reason"),
+    [
+        ("shared", "manifold prime failed: open_master() did not reach its relay"),
+        ("independent", "pulse failed: open_cage(1) did not reach its relay"),
+    ],
+)
+def test_a_dead_hat_prints_the_stop_line_on_both_topologies(
+    fake_relay_handler, monkeypatch, capsys, controller, reason
+):
+    """The docs review's case: on the shared manifold a dead HAT fails every
+    delivery at the manifold prime, and that failure reached only the logger.
+    The docs, the Help tab and the circuit breaker all send the operator to a
+    [VALVE ERROR] line that the production rig never printed."""
+    monkeypatch.setattr(fake_relay_handler, "set_relays", lambda _ids, _state: False)
+    valves = (
+        SolenoidController(fake_relay_handler, MASTER, CAGE_MAP)
+        if controller == "shared"
+        else IndependentSolenoidController(fake_relay_handler, CAGE_MAP)
+    )
+    strategy = _strategy(valves, monkeypatch)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False
+    out = capsys.readouterr().out
+    assert f"[VALVE ERROR] cage 1: {reason}; delivery stopped after 0 pulse(s), 0.000 mL" in out
+    assert "Check the relay HAT; one that was not found at start-up needs RRR restarted." in out
+
+
+def test_a_master_hold_that_does_not_open_prints_the_stop_line(
+    fake_relay_handler, monkeypatch, capsys
+):
+    """The prime's open and close get through; the hold's open is lost."""
+    fake_relay_handler.fail_on(nth=3)
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 0
+    assert all(CAGE not in ids or not state for ids, state in fake_relay_handler.trace)
+    out = capsys.readouterr().out
+    assert (
+        "[VALVE ERROR] cage 1: open_master() did not reach its relay; delivery stopped after "
+        "0 pulse(s), 0.000 mL. Check the relay HAT"
+    ) in out

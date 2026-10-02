@@ -673,6 +673,22 @@ class SolenoidFlowStrategy:
         rate_ml_s = min(pulse_ml / flowing_s, cls.MAX_STEADY_FLOW_ML_S)
         return pulse_ml + extra_s * rate_ml_s
 
+    def _report_stopped(self, cage_id, reason, pulses, delivered_ml, relay_fault=True) -> None:
+        """The operator's line when a pulse delivery stops early: what failed,
+        and what the cage had received by then. Printed on every such path
+        (the manifold prime and the master hold included), so the Terminal
+        tab always names the cage and the command."""
+        message = (
+            f"[VALVE ERROR] cage {cage_id}: {reason}; delivery stopped after "
+            f"{pulses} pulse(s), {delivered_ml:.3f} mL"
+        )
+        if relay_fault:
+            message += (
+                ". Check the relay HAT; one that was not found at start-up needs RRR restarted."
+            )
+        self._logger.error(message)
+        self._say(message)
+
     def _alarm_unclosed(self, cage_id: int, which: str) -> None:
         """Say loudly that a close did not reach its relay: that valve may still be open.
 
@@ -1110,7 +1126,11 @@ class SolenoidFlowStrategy:
                 self._valve(self._valves.close_master)
                 await asyncio.sleep(0.05)
             except Exception as e:
-                self._logger.error(f"Failed to prime manifold: {e}")
+                # The master did not switch: say so where the operator looks.
+                # (This used to reach only the logger, so a shared-manifold
+                # rig with a dead HAT failed every delivery without a
+                # [VALVE ERROR] line.)
+                self._report_stopped(cage_id, f"manifold prime failed: {e}", 0, 0.0)
                 if not self._closed(self._valves.close_master):
                     self._alarm_unclosed(cage_id, 'master')
                 return False
@@ -1256,25 +1276,20 @@ class SolenoidFlowStrategy:
                         delivered_ml += e.delivered_ml
                         pulse_count += 1
                         self._record_pulse(e.delivered_ml, expected_vol_per_pulse)
-                    message = (
-                        f"[VALVE ERROR] cage {cage_id}: {e}; delivery stopped after "
-                        f"{pulse_count} pulse(s), {delivered_ml:.3f} mL. Check the relay "
-                        "HAT; one that was not found at start-up needs RRR restarted."
-                    )
-                    self._logger.error(message)
-                    self._say(message)
+                    self._report_stopped(cage_id, e, pulse_count, delivered_ml)
                     return False
                 except Exception as e:
                     # Not a relay fault, but something broke the pulse: end
                     # the delivery rather than pulse on. Carrying on would
                     # leave a valve that the failure left open open through
                     # every later pulse; the finally closes the valves.
-                    message = (
-                        f"[VALVE ERROR] cage {cage_id}: pulse {pulse_count + 1} failed: {e}; "
-                        f"delivery stopped after {pulse_count} pulse(s), {delivered_ml:.3f} mL"
+                    self._report_stopped(
+                        cage_id,
+                        f"pulse {pulse_count + 1} failed: {e}",
+                        pulse_count,
+                        delivered_ml,
+                        relay_fault=False,
                     )
-                    self._logger.error(message)
-                    self._say(message)
                     return False
 
                 # Valve-closed rest between pulses, per this cage's calibrated
@@ -1302,7 +1317,16 @@ class SolenoidFlowStrategy:
             return True
 
         except Exception as e:
+            # Outside a pulse: the master valve's hold did not open, or
+            # something else broke the delivery. The finally closes the valves.
             self._logger.error(f"Pulse delivery failed: {e}", exc_info=True)
+            self._report_stopped(
+                cage_id,
+                e,
+                pulse_count,
+                delivered_ml,
+                relay_fault=isinstance(e, ValveCommandError),
+            )
             return False
 
         finally:
