@@ -607,6 +607,12 @@ class CalibrationWizard(QDialog):
         whichever termination path fires first (finish, error, cancel,
         dialog close).
         """
+        # The run starts half a second after its step is shown. A wizard that
+        # was closed in that time (Esc, Cancel or the X button) must not then
+        # start pulsing with no window on screen.
+        if self._user_cancelled:
+            return
+
         # Hardware mutual-exclusion: calibration drives the master valve + flow
         # sensor shared with schedules/priming. Hold the lock for exactly the
         # pulse run (the later measure/results steps use no hardware).
@@ -902,6 +908,21 @@ class CalibrationWizard(QDialog):
         # Just accept the close - dialog will be marked as rejected automatically
         # by Qt when closed via X button (not accept() or reject())
         event.accept()
+
+    def reject(self):
+        """Esc, and every other reject, ends the run as the X button does.
+
+        QDialog sends Esc to reject(), which hides the dialog without a
+        closeEvent. The pulse worker used to keep running with the wizard
+        gone and the hardware lock held: the Cancel button is disabled during
+        a run, so Esc was the natural way out. Stop the worker (bounded wait;
+        it closes the cage and master valves before finishing) and release
+        the lock before the dialog goes.
+        """
+        self._user_cancelled = True
+        self._shutdown_worker()
+        self._finalize_run()
+        super().reject()
 
     def _safe_cancel(self):
         """
