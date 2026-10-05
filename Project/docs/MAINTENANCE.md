@@ -85,7 +85,9 @@ features, no breaking changes.
 ### MINOR bump — `1.6.1 → 1.7.0`
 
 A **feature or behavior change** that is backwards-compatible. Devices
-on the previous version can install this without operator intervention.
+on the previous version can install this without operator intervention,
+or with only a step the set-up guide already required (see "When in
+doubt").
 
 | Example | MINOR |
 |---|---|
@@ -273,26 +275,36 @@ the bench validation in [TOPOLOGY_VALIDATION.md](TOPOLOGY_VALIDATION.md).
 The relays only click: with no valves, every ledger row shows the planned
 volume, which is correct (the app cannot know that no water moved).
 
-Install the candidate. The installer builds the same bundle the tag will,
-so the Pi ends up on `~/rrr/releases/<version>` exactly as a device would:
+Quit RRR first (close it, or `systemctl --user stop rrr` if it
+autostarts): the installer does not stop a running copy, and the
+single-instance guard is per version, so a new version would start
+beside an old one. Then install the candidate. The installer fetches
+`main` itself and builds the same bundle the tag will, so the Pi ends up
+on `~/rrr/releases/<version>` exactly as a device would:
 
 ```bash
-ssh pi@<test-pi>
-cd ~/rodRefReg && git pull --ff-only && ./install.sh -y --branch main
+ssh -X pi@<test-pi>
+cd ~/rodRefReg && ./install.sh -y --branch main
 ```
 
-RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -X`. With
-the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
+RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -X`. Log in
+on the Profile tab (Create New Profile on a fresh database): Run,
+Calibration, Change Relay Hats and Valve Topology refuse in guest mode.
+With the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
 
-1. **Start.** The Terminal tab shows `Initialized relay hat stack=0`,
-   `[TOPOLOGY] Valve topology: shared_manifold`, and no `Relay HAT(s)
-   missing`.
+1. **Start.** Launch with `~/.local/bin/rrr` from the ssh terminal and
+   read that terminal (or `journalctl --user -u rrr` when the service
+   started it): the start-up lines are printed before the Terminal tab
+   exists. Expect `Initialized relay hat stack=0`, `[TOPOLOGY] Valve
+   topology: shared_manifold`, and no `Failed to initialize hat stack=…`.
 2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
    Selected on a cage (its relay clicks), Close Master (both click off).
    Run is greyed out while the session is open and comes back after
    Close Master.
 3. **Calibration.** Settings → Calibration: calibrate a cage with 10
-   pulses and hear the relay. Start a second run and press Esc while it
+   pulses and hear the relay; finish the wizard by entering any measured
+   volume (there is no water; 0.3 mL gives 0.03 mL per pulse) so the cage
+   counts as calibrated. Start a second run and press Esc while it
    pulses: the clicking stops within about a second, Run is available,
    and no `[VALVE CRITICAL]` line appears.
 4. **Run and Stop.** A staggered schedule for one animal on that cage,
@@ -303,20 +315,28 @@ the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    CLOSE ALL RELAYS: the dialog says the schedule was stopped, Run is
    available, and nothing clicks afterwards.
 6. **A missing HAT.** Change Relay Hats to 2 with one HAT fitted: the
-   second is now "missing". Stop shows **Relays Not Confirmed Off**;
-   CLOSE ALL RELAYS shows **Emergency Stop Failed** and Run stays greyed
-   out ("an unconfirmed emergency stop") until RRR is restarted. A
-   schedule for cage 16 or above (on the missing HAT) stops with
-   `[VALVE ERROR] cage N: … did not reach its relay; delivery stopped
-   after 0 pulse(s)` and a `failed` row in the ledger. Set the count
-   back to 1 and restart RRR.
-7. **Topology.** Settings → Delivery → Valve Topology → Independent:
-   every calibration shows **Stale**, Priming's Open buttons are greyed
-   out until restart; after a restart the panel has no master group and
-   a delivery clicks only the cage relay (relay 16 stays silent). Switch
-   back to Shared manifold, recalibrate, restart.
-8. **Updates tab.** Shows the current version and "You're up to date".
-   The real update path is checked after the tag, below.
+   second is now "missing" (`Failed to initialize hat stack=1`). Run the
+   step-4 schedule and press Stop: **Relays Not Confirmed Off**, and the
+   Terminal tab shows `[STOP] CRITICAL: not every relay HAT confirmed
+   OFF`. Run it again and press CLOSE ALL RELAYS: **Emergency Stop
+   Failed**, and Run and Change Relay Hats stay greyed out ("an
+   unconfirmed emergency stop") until RRR is restarted. A cage on the
+   missing HAT (16 or above) cannot be watered: Run refuses its schedule
+   with **Valve calibration needed** (it has no calibration), and
+   calibrating it fails at the first pulse ("The cage 16 valve did not
+   open at pulse 1 of 10: its relay did not switch", **Calibration
+   Failed**, nothing saved). Restart RRR, then set the count back to 1.
+7. **Topology.** Settings → Delivery → Valve Topology → Independent
+   (answer Yes to **Change Valve Topology**): the step-3 calibration
+   shows **Stale**, and Priming's Open buttons are greyed out until
+   restart. After a restart the Priming panel has no master group.
+   Calibrate the cage again (only its relay clicks; relay 16 stays
+   silent), then Run the step-4 schedule: a delivery clicks only the cage
+   relay. Switch back to Shared manifold, recalibrate, restart.
+8. **Updates tab.** Shows `Installed version: <version>`; press **Check
+   for updates** and it says "You're up to date" (the latest Release is
+   still the previous version). The real update path is checked after
+   the tag, below.
 
 ### After the tag
 
