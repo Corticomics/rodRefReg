@@ -165,7 +165,10 @@ def test_changing_the_hat_count_refreshes_the_calibration_table(monkeypatch):
     settings = {'num_hats': 1, 'cage_relays': {"1": 1}}
     gui = SimpleNamespace(
         projects_section=SimpleNamespace(cages_tab=SimpleNamespace(refresh=MagicMock())),
-        settings_tab=SimpleNamespace(refresh_calibration_table=MagicMock()),
+        settings_tab=SimpleNamespace(
+            refresh_calibration_table=MagicMock(),
+            priming_widget=SimpleNamespace(refresh_hardware=MagicMock()),
+        ),
         print_to_terminal=MagicMock(),
     )
     monkeypatch.setattr(main.QInputDialog, "getInt", staticmethod(lambda *a, **k: (2, True)))
@@ -182,6 +185,8 @@ def test_changing_the_hat_count_refreshes_the_calibration_table(monkeypatch):
     assert settings['num_hats'] == 2 and settings['cage_relays'] == {}
     gui.projects_section.cages_tab.refresh.assert_called_once()
     gui.settings_tab.refresh_calibration_table.assert_called_once()
+    # Priming keeps its own relay handler; it must follow the new count.
+    gui.settings_tab.priming_widget.refresh_hardware.assert_called_once()
 
 
 # --- rows the Run gate would refuse (#170) ------------------------------------------------

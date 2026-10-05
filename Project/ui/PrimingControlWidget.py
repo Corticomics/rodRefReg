@@ -343,6 +343,7 @@ class PrimingControlWidget(QWidget):
         ``quiet`` skips the error dialog: the emergency stop must not wait
         behind one before it stops the schedule.
         """
+        self._drop_stale_hardware()
         if self._relay_handler is None:
             try:
                 from gpio.gpio_handler import RelayHandler
@@ -366,8 +367,50 @@ class PrimingControlWidget(QWidget):
 
         return self._relay_handler
 
+    def _drop_stale_hardware(self) -> None:
+        """Forget a relay handler built for another relay HAT count.
+
+        Change Relay Hats re-initialises the schedule's relay handler, not
+        this panel's. Kept, this panel's handler would not address a HAT
+        added since, and CLOSE ALL RELAYS would report every relay closed
+        without switching it off.
+
+        Never while a relay this panel switched may still be on: the old
+        handler is then the only one that addresses every HAT those relays
+        may be on. Change Relay Hats is greyed out while the panel holds the
+        hardware lock, so normally the count only changes when nothing is
+        open; this guard covers any other way the count could change.
+        """
+        built_for = getattr(self._relay_handler, 'num_hats', None)
+        if built_for is None:
+            return
+        try:
+            stale = int(built_for) != int(self.settings.get('num_hats', 1))
+        except (TypeError, ValueError):
+            stale = False
+        if stale and not self._may_have_a_relay_on():
+            self._relay_handler = None
+            self._solenoid_controller = None
+
+    def _may_have_a_relay_on(self) -> bool:
+        """Whether a relay this panel switched may still be on: a valve open
+        in its model (a close that did not confirm leaves it open there), or
+        an emergency stop that could not confirm every relay off. Holding the
+        lock alone is not enough: Open Master takes it before any valve
+        opens."""
+        if self._stop_unconfirmed or self._model.get_open_cages():
+            return True
+        return not self._independent and self._model.is_master_open
+
+    def refresh_hardware(self) -> None:
+        """Follow a change of the relay HAT count: list the cages of the new
+        count, and build the relay handler for it at the next use."""
+        self._drop_stale_hardware()
+        self._populate_cage_selector()
+
     def _get_solenoid_controller(self):
         """Lazy initialization of solenoid controller."""
+        self._drop_stale_hardware()
         if self._solenoid_controller is None:
             try:
                 from utils.topology import build_solenoid_controller

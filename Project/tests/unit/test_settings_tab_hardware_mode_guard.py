@@ -166,3 +166,52 @@ def test_a_backup_file_cannot_switch_the_mode_behind_the_guard(
     assert system_controller.settings["min_trigger_interval_ms"] == 600, "the rest applies"
     _assert_still_solenoid(tab, system_controller, database_handler)
     assert "hardware mode (pump) was not applied" in shown[-1]
+
+
+@pytest.mark.parametrize("backup_hats", [1, 2])
+def test_a_backup_file_cannot_change_the_relay_layout(
+    qapp, system_controller, database_handler, monkeypatch, tmp_path, backup_hats
+):
+    """The relay layout is the device's wiring. Restored from a file, a new
+    HAT count would leave the relay handlers, and a priming session's
+    valves, on the old one: it changes only through Change Relay Hats."""
+    import json  # noqa: PLC0415
+
+    from PyQt5.QtWidgets import QFileDialog, QMessageBox  # noqa: PLC0415
+
+    system_controller.settings["num_hats"] = 2
+    system_controller.settings["global_master_relay_id"] = 16
+    system_controller.settings["cage_relays"] = {"1": 1}
+    backup = tmp_path / "backup.json"
+    backup.write_text(
+        json.dumps(
+            {
+                "pump_volume_ul": 50,
+                "calibration_factor": 1.0,
+                "min_trigger_interval_ms": 700,
+                "num_hats": backup_hats,
+                "global_master_relay_id": 8,
+                "relay_pairs": [[1, 2]],
+                "cage_relays": {"1": 9},
+            }
+        )
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(backup), ""))
+    )
+    shown = []
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda *a, **k: shown.append(a[2]))
+    )
+    tab = _tab(system_controller, database_handler)
+
+    tab.restore_from_backup()
+
+    settings = system_controller.settings
+    assert settings["min_trigger_interval_ms"] == 700, "the rest applies"
+    assert settings["num_hats"] == 2
+    assert settings["global_master_relay_id"] == 16
+    assert settings["cage_relays"] == {"1": 1}
+    assert settings.get("relay_pairs") != [[1, 2]]
+    said = "relay layout (1 relay HAT(s)) was not applied: this device keeps its 2"
+    assert (said in shown[-1]) == (backup_hats == 1), "said only when the count differs"

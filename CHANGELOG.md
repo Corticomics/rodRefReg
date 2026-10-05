@@ -103,6 +103,13 @@ on `main` but never released.
 - **Fix (safety):** with the first HAT missing, relay commands are no
   longer shifted onto the next HAT, where they drove another animal's
   valve.
+- **Fix (safety):** after Change Relay Hats, Priming (CLOSE ALL RELAYS
+  included) uses the new HAT count and lists its cages. Before, it kept
+  the relay handler it first built until RRR was restarted, so CLOSE ALL
+  RELAYS did not switch a HAT added since and still reported every relay
+  closed. Restoring a settings backup no longer changes the relay layout
+  (the number of HATs, the master relay and the cage relays): change the
+  number with Change Relay Hats.
 - **Add:** a **Valve Topology** choice in Settings > Delivery > Solenoid
   Mode Settings.
   - *Shared manifold (master valve)*: the production rig, where relay 16
