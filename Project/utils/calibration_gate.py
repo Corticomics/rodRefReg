@@ -75,6 +75,16 @@ def _positive(value, cast) -> bool:
     return math.isfinite(number) and number > 0
 
 
+def calibration_is_usable(row) -> bool:
+    """Whether a stored calibration row can plan a delivery at all: a positive,
+    finite volume per pulse and pulse width. Settings shows a row that fails
+    this as Invalid; Run refuses its cage as unusable."""
+    return bool(row) and (
+        _positive(row.get('volume_per_pulse_ml'), float)
+        and _positive(row.get('pulse_width_ms'), int)
+    )
+
+
 def _order(cage):
     number = _as_cage_id(cage)
     return (0, number, '') if number is not None else (1, 0, str(cage))
@@ -106,10 +116,7 @@ def calibration_problems(cage_ids: Iterable, calibrations, settings) -> List[Cag
             problems.append(CageProblem(raw, NOT_A_CAGE))
         elif row is None:
             problems.append(CageProblem(raw, UNCALIBRATED))
-        elif not (
-            _positive(row.get('volume_per_pulse_ml'), float)
-            and _positive(row.get('pulse_width_ms'), int)
-        ):
+        elif not calibration_is_usable(row):
             problems.append(CageProblem(cage, UNUSABLE))
         elif calibration_is_stale(row, settings):
             problems.append(CageProblem(cage, STALE, calibration_label(row)))
