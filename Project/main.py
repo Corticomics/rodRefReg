@@ -630,6 +630,12 @@ def change_relay_hats():
         gui.settings_tab.refresh_calibration_table()
     except Exception as exc:
         gui.print_to_terminal(f"Calibration table refresh failed: {exc}")
+    # Priming keeps its own relay handler: it must address the new count
+    # (CLOSE ALL RELAYS switches every HAT) and list its cages.
+    try:
+        gui.settings_tab.priming_widget.refresh_hardware()
+    except Exception as exc:
+        gui.print_to_terminal(f"Priming refresh failed: {exc}")
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 
