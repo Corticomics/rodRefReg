@@ -1,6 +1,6 @@
 ---
 name: flow-delivery-strategies
-description: Understand and modify how RRR turns "deliver N mL to animal X" into actual valve/pump actions. Two strategies live behind the DeliveryStrategy Protocol — SolenoidFlowStrategy (canonical, Teensy-bridged flow sensor) and PumpStrategy (legacy time-based). Selection happens in StrategyFactory by hardware_mode. Use when wiring a new dispensing path, choosing between continuous and pulse mode, debugging "delivered 0 mL", working with the SLF3S-0600F or Teensy UART bridge, or running the per-cage pulse calibration pipeline.
+description: Understand and modify how RRR turns "deliver N mL to animal X" into actual valve/pump actions. Two strategies live behind the DeliveryStrategy Protocol — SolenoidFlowStrategy (canonical; per-cage valves on a shared manifold or one syringe per animal; Teensy-bridged flow sensor optional) and PumpStrategy (legacy time-based). Selection happens in StrategyFactory by hardware_mode. Use when wiring a new dispensing path, choosing between continuous and pulse mode, debugging "delivered 0 mL", working with the SLF3S-0600F or Teensy UART bridge, or running the per-cage pulse calibration pipeline.
 ---
 
 # Flow / delivery strategies
@@ -20,16 +20,21 @@ defines:
 class DeliveryStrategy(Protocol):
     async def deliver(self, relay_unit_id: int,
                       target_volume_ml: float,
-                      triggers_hint: Optional[int] = None) -> bool: ...
+                      triggers_hint: Optional[int] = None) -> DeliveryResult: ...
 
     async def clean(self, relay_unit_id: int, to_waste: bool = True) -> None: ...
 ```
+
+Check `result.success`, never `if result:` (a dataclass is always truthy);
+`result.delivered_ml` is the strategy's estimate of what left the valve
+(pulses fired × the calibrated volume, or the sensor-corrected figure where
+a flow sensor is fitted), reported on failure too.
 
 Two concrete implementations:
 
 | Strategy | File | When |
 |---|---|---|
-| `SolenoidFlowStrategy` | [`Project/strategies/solenoid_flow_strategy.py`](Project/strategies/solenoid_flow_strategy.py) | canonical — global master valve + per-cage solenoids + flow sensor |
+| `SolenoidFlowStrategy` | [`Project/strategies/solenoid_flow_strategy.py`](Project/strategies/solenoid_flow_strategy.py) | canonical — one solenoid per cage, plus a master valve on relay 16 on the shared manifold (none on the independent topology); flow sensor optional |
 | `PumpStrategy` | [`Project/strategies/pump_strategy.py`](Project/strategies/pump_strategy.py) | legacy — peristaltic pump fired for N triggers per `volume_calculator` |
 
 ## The factory
@@ -39,44 +44,67 @@ Two concrete implementations:
 (a `system_settings` key):
 
 ```python
-mode = (hardware_mode or "pump").strip().lower()
+mode = hardware_mode.strip().lower() if isinstance(hardware_mode, str) else ""
 if mode == "pump":
     return PumpStrategy(pump_controller, volume_calculator)
 if mode == "solenoid":
     return SolenoidFlowStrategy(...)
+raise ValueError(f"Unknown hardware_mode {hardware_mode!r}: ...")
 ```
 
-Unknown values fall back to `pump` (defensive default). Selection rules
+An unknown value is refused with `ValueError` (v1.21.0); it used to fall
+back to `pump`, which on a valve rig would pulse the valves with pump
+trigger timing. `RelayWorker._resolve_hardware_mode` treats a missing value
+as `solenoid`. Selection rules
 and what each mode requires: [`references/strategy-selection.md`](references/strategy-selection.md).
 
 ## SolenoidFlowStrategy has two sub-modes
 
-Auto-selected from `settings['use_pulse_delivery']`:
+Auto-selected from `settings['use_pulse_delivery']`.
+`SystemController.ensure_solenoid_defaults()` runs at every start
+(main.py:168) and sets it back to True, so continuous mode lasts only until
+the next start.
 
 - **Continuous mode** (Lee Company LHD valves, legacy) — open the
   solenoid, integrate the flow sensor, close when the integral hits
-  target with a predictive cutoff.
-- **Pulse mode** (Parker Series 3 valves, recommended) — fire timed
-  micro-pulses (10-500 ms each) using empirical per-valve
-  pulse-to-volume calibration. Precision: ~±0.003 mL.
+  target with a predictive cutoff. Without a sensor it holds the valve
+  open for a time worked out from `expected_flow_ml_min` instead.
+- **Pulse mode** (Parker Series 3 valves, production) — fire timed pulses
+  (10–500 ms wide) at the cage's calibrated width and rest. Doses are
+  planned in whole pulses of the cage's calibrated volume (about 0.034 mL
+  on the production valve), so a window lands within half a pulse of its
+  target, or within one pulse above it with `round_doses_up`.
 
 Per-cage pulse profiles live in the `valve_calibration` table, written by
-the calibration wizard through `DatabaseHandler.save_valve_calibration`.
+the calibration wizard through `DatabaseHandler.save_valve_calibration`;
+each row records the valve topology it was measured under (v1.21.0); one
+saved before v1.21.0 counts as shared manifold. In solenoid pulse mode (the
+default), Run refuses a schedule that waters a cage with no usable
+calibration measured under this device's valve topology (Valve calibration
+needed): no row, a missing, zero or invalid volume per pulse or pulse width
+(Invalid in Settings > Calibration), or a row from the other topology
+(Stale). It also refuses a schedule that waters a cage not on this device;
+there is nothing to calibrate there, so the schedule has to be edited (the
+dialog is titled Cage not on this device when that is the only problem)
+(`utils/calibration_gate.py`, `RunStopSection._passes_calibration_gate`).
 [`Project/utils/pulse_calibration.py`](Project/utils/pulse_calibration.py)
 holds only the global default profile (`CalibrationStore`, a JSON file with
-hardcoded fallbacks) used for a cage that has no row.
+hardcoded fallbacks, about 0.026 mL/pulse at 20 ms). The strategy still
+falls back to it for a cage with no row, and still uses a stale row with a
+warning, but only as a defence in depth behind the Run check.
 
-## Flow sensors — two drivers, one shape
+## Flow sensor — one driver, one seam
 
 | Driver | Class | Path |
 |---|---|---|
-| Direct I²C (legacy) | `SLF3S0600FDriver` | [`Project/drivers/flow_sensor.py:17`](Project/drivers/flow_sensor.py#L17) |
-| Teensy UART bridge (canonical) | `UARTFlowSensor` | [`Project/drivers/uart_flow_sensor.py`](Project/drivers/uart_flow_sensor.py) |
+| Teensy UART bridge (the only shipped type) | `UARTFlowSensor` | [`Project/drivers/uart_flow_sensor.py`](Project/drivers/uart_flow_sensor.py) |
 
 Picked by
 [`Project/drivers/flow_sensor_factory.py`](Project/drivers/flow_sensor_factory.py)
-`create_flow_sensor(settings)` based on `flow_sensor_type` (`'i2c'` or
-`'uart'`).
+`create_flow_sensor(settings)` from `flow_sensor_type`; `'uart'` is the
+only value it accepts (anything else raises `ValueError`). The direct-I²C
+driver was deleted in v1.9.0; a future sensor gets its own driver and
+branch (CLAUDE.md, "Flow sensor — extension point").
 
 Why we moved off direct-I²C: the SLF3S-0600F sometimes wedges the I²C
 bus, and Bookworm's smbus2 has been less reliable on the Pi 5 than the
@@ -91,10 +119,14 @@ Per-cage pulse-to-volume calibration:
 1. Operator opens the calibration wizard from the UI:
    [`Project/ui/CalibrationWizard.py`](Project/ui/CalibrationWizard.py).
 2. The wizard fires N pulses at the chosen width and interval into a
-   beaker; the operator weighs the output and enters it (gravimetric; the
+   beaker (on the shared manifold it opens the master first; on the
+   independent topology it pulses the cage valve only). A pulse whose valve
+   did not open or close stops the run with an error; save nothing from
+   that run. The operator weighs the output and enters it (gravimetric; the
    production rig runs without a flow sensor).
 3. **Save & Finish** calls `DatabaseHandler.save_valve_calibration`, which
-   upserts the cage's `valve_calibration` row and appends to
+   upserts the cage's `valve_calibration` row (its relay, timing profile
+   and the device's valve topology) and appends to
    `valve_calibration_history`.
 4. At schedule start `SolenoidFlowStrategy` snapshots every row
    (`get_all_valve_calibrations`), reading through to
@@ -103,8 +135,15 @@ Per-cage pulse-to-volume calibration:
 Priming the line (filling tubing without metering volume) is its own
 flow:
 [`Project/ui/PrimingControlWidget.py`](Project/ui/PrimingControlWidget.py)
-exposes a "prime" action that opens the cage solenoid until the operator
-hits stop. No flow integration; it doesn't count against the schedule.
+has Open Master / Close Master buttons (shared manifold only) and a cage
+selector with Open Selected / Close Selected. A valve stays open until the
+operator closes it or presses CLOSE ALL RELAYS (which also stops a running
+schedule through the Stop path, and frees the operation lock only when every
+relay is confirmed off and no delivery worker is alive; a stopped schedule
+does not resume, Run starts it over). On the independent topology
+the master group is hidden and a cage valve is primed directly. After the
+valve topology is changed in Settings, Priming cannot open a valve until
+RRR is closed and reopened. No flow integration; it doesn't count against the schedule.
 
 Full procedure: [`references/calibration-pipeline.md`](references/calibration-pipeline.md).
 
@@ -124,12 +163,19 @@ Full procedure: [`references/calibration-pipeline.md`](references/calibration-pi
 
 ## Where to start when "delivered 0 mL"
 
-1. Read [`hardware-gpio-debug`](../hardware-gpio-debug/SKILL.md) first
-   — relay HAT not detected is the most common cause.
+1. Read the Terminal tab for `[VALVE ERROR] cage N: <reason>; delivery
+   stopped` or `Relay N not switched`. The reason is usually a relay write
+   that did not reach its HAT (a HAT missing at start-up needs RRR
+   restarted): read [`hardware-gpio-debug`](../hardware-gpio-debug/SKILL.md).
+   It can also be the pulse or time limit (`max_pulses_per_delivery`,
+   `max_pulse_delivery_time_s`).
 2. Check the flow sensor path:
    `python3 -c "from drivers.flow_sensor_factory import create_flow_sensor; ..."`
-3. If solenoid mode with pulse delivery: confirm the cage has a row in
-   `valve_calibration`. Without calibration, the strategy can't translate
-   target volume into pulse count.
+3. If solenoid mode with pulse delivery: Run already refuses a cage with no
+   usable calibration or one measured under the other topology
+   (`utils/calibration_gate.py`). The `[CAL RESOLVE] cage=N using …` lines
+   show which calibration a delivery used; a cage with no row falls back to
+   about 0.026 mL/pulse. The ledger row's `status` (`completed` /
+   `partial` / `failed`) and `volume_actual_ml` show what was credited.
 4. Check `delivery_mode` on the schedule itself — staggered vs instant
    uses different code paths in `RelayWorker`.

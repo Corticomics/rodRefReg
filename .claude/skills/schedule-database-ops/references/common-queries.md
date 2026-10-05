@@ -8,7 +8,7 @@ Recipes operators and developers actually need. All go through existing
 ```python
 schedules = db.get_schedules_by_trainer(trainer_id)
 # returns list of Schedule objects with delivery_mode, status, animal IDs
-# implementation: database_handler.py:631
+# implementation: database_handler.py:688
 ```
 
 ## "What's the dispensing history for a specific animal?"
@@ -23,7 +23,7 @@ for sched in db.get_all_schedules():
     # progress is a dict keyed by animal_id with delivered_volume, status
 ```
 
-`get_schedule_progress` is at [`database_handler.py:1320`](Project/models/database_handler.py#L1320).
+`get_schedule_progress` is at [`database_handler.py:1588`](Project/models/database_handler.py#L1588).
 If you genuinely need a flat `dispensing_history` query, add a method on
 `DatabaseHandler` — don't run raw SQL from the UI.
 
@@ -32,33 +32,34 @@ If you genuinely need a flat `dispensing_history` query, add a method on
 ```python
 active = db.get_active_schedules()
 # returns rows where dispensing_status = 'active'
-# implementation: database_handler.py:960
+# implementation: database_handler.py:1066
 ```
 
-## "Get all pending instant deliveries"
+## "Get the instant deliveries of a schedule"
 
 ```python
-pending = db.get_pending_schedule_instants(schedule_id=None)
-# schedule_id=None returns across all schedules
-# rows have delivery_id, animal_id, delivery_datetime, water_volume,
-# relay_unit_id, completed (always 0 here)
-# implementation: database_handler.py:1005
+rows = db.get_schedule_instant_deliveries(schedule_id)
+# tuples: (animal_id, lab_animal_id, name, delivery_datetime,
+#          water_volume, completed, relay_unit_id), ordered by time
+# implementation: database_handler.py:1094
 ```
 
-After firing, mark complete:
-
-```python
-db.mark_instant_completed(instant_id, volume_dispensed)
-# database_handler.py:1036
-```
+Nothing sets `completed`: RelayWorker skips deliveries whose time has
+passed and records each attempt in `dispensing_history` (`completed` /
+`partial` / `failed`). An instant retry after a partial delivery sends
+only the rest (v1.21.0).
 
 ## "What's the calibration for cage 7?"
 
 ```python
 cal = db.get_valve_calibration(cage_id=7)
-# returns dict with pulse_width_ms, volume_per_pulse_ml, stddev, etc.
-# or None if cage was never calibrated.
-# implementation: database_handler.py:1618
+# dict with pulse_width_ms, volume_per_pulse_ml, inter_pulse_interval_ms,
+# topology, stddev_ml, etc., or None if the cage was never calibrated.
+# implementation: database_handler.py:1998
+# Is it usable on this device? utils.calibration_gate.calibration_problems([7],
+#   db.get_all_valve_calibrations(), settings) -> [] when it is, or when the
+#   gate does not apply (pump or continuous mode)
+#   (utils.topology.calibration_is_stale for the topology check alone).
 ```
 
 ## "Read a system setting"
@@ -90,18 +91,18 @@ The persist path is in
 
 ```python
 trainer = db.authenticate_trainer(username, password)
-# returns dict {trainer_id, trainer_name, role} on success, None on failure
-# database_handler.py:704
+# returns dict {trainer_id, role} on success, None on failure
+# database_handler.py:782
 ```
 
 ## "Add a new schedule"
 
 ```python
-schedule_id = db.add_schedule(schedule)        # staggered (default)
-# or for instant mode:
-schedule_id = db.add_instant_schedule(schedule_name, created_by,
-                                       is_super_user, deliveries)
-# implementations: database_handler.py:349 and :1071
+schedule_id = db.add_schedule(schedule)
+# staggered or instant: a Schedule with delivery_mode='instant' also writes
+# its schedule_instant_deliveries rows.
+# implementation: database_handler.py:417 (instant rows at :454);
+# edit with db.update_instant_schedule(schedule) (:1338)
 ```
 
 ## Cage names for the UI dropdown
@@ -109,8 +110,10 @@ schedule_id = db.add_instant_schedule(schedule_name, created_by,
 ```python
 opts = db.get_cages_for_dropdown(num_hats=1, master_relay=16)
 # returns [{'cage_id': N, 'display_name': str}, ...]
-# database_handler.py:1932
+# implementation: DatabaseHandler.get_cages_for_dropdown (near the end of database_handler.py)
 ```
 
-`master_relay` excludes the master valve from the dropdown so operators
-can't accidentally assign animals to it.
+`master_relay` (relay 16 by default) is kept out of the dropdown on both
+topologies: on the shared manifold it drives the master valve; on the
+independent rig it is reserved and never driven, so both rigs number their
+cages the same way.

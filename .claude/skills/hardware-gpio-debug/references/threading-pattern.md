@@ -1,8 +1,11 @@
 # Hardware threading pattern
 
-PyQt5 + hardware = one thread for the UI, one thread for the relays. Crossing
-that boundary without `Qt.QueuedConnection` causes random crashes that only
-show up under real schedules.
+PyQt5 + hardware: schedule deliveries drive the relays from the `RelayWorker`
+thread; Stop (hardware safe first), `main.cleanup()` and the Priming panel
+call `RelayHandler` on the GUI thread by design, and Calibration pulses on its
+own worker thread. Crossing the worker/GUI boundary without
+`Qt.QueuedConnection` causes random crashes that only show up under real
+schedules.
 
 ## The pattern
 
@@ -13,12 +16,16 @@ worker's event loop.
 Reference call sites in [Project/main.py](Project/main.py):
 
 ```python
+# The one deliberate DirectConnection: QThread.quit is thread-safe, and a
+# queued quit would wait behind Stop's thread.wait() on the GUI thread
+worker.finished.connect(thread.quit, Qt.DirectConnection)               # ~L345 (see the comment there)
+
 # Volume updates flow UI ← worker thread
-worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)  # ~L359
-worker.finished.connect(_on_finished, Qt.QueuedConnection)              # ~L376
+worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)  # ~L399
+worker.finished.connect(_on_finished, Qt.QueuedConnection)              # ~L416
 
 # Stop requests cross the other way
-control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L388
+control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L429
 ```
 
 ## Why it matters
@@ -32,8 +39,8 @@ control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L388
 
 ## What "lazy import" means here
 
-`RelayWorker._do_dispense` defers the flow-sensor and solenoid imports until
-the method actually runs ([Project/gpio/relay_worker.py:215](Project/gpio/relay_worker.py#L215)).
+`RelayWorker._initialize_hardware` defers the flow-sensor imports until
+the method actually runs ([Project/gpio/relay_worker.py:256](Project/gpio/relay_worker.py#L256)).
 Two reasons:
 
 1. **Boot speed** — the GUI starts before hardware drivers initialize, so
@@ -45,9 +52,17 @@ Don't move these imports to the top of `relay_worker.py`. The cost is a
 one-line import inside the hot path; the benefit is the smoke test stays
 runnable on any machine.
 
-## Cleanup order
+## Stop and cleanup order
 
-`RelayHandler.cleanup()` must run **before** `QApplication.quit()`. The
-pattern in [main.py](Project/main.py) chains: stop signal → worker exits
-event loop → `thread.wait()` → handler cleanup → app quit. Reverse that
-order and Qt complains about destroyed objects.
+There is no `RelayHandler.cleanup()`. Stop runs
+`utils.stop_sequence.execute_stop_sequence` (main.py `stop_program`),
+**hardware safe first**: `set_all_relays(0)` before touching the worker
+thread. Then `worker.request_cancel()` is called directly (thread-safe; it
+breaks the delivery loop the worker is blocked in), `stop_requested` is
+emitted over `QueuedConnection`, and the thread gets bounded `wait()` calls
+(3 s, then `terminate()` and 1 s, then it is abandoned). If
+`set_all_relays(0)` returned False, a HAT did not confirm OFF, and after the
+teardown the operator sees **Relays Not Confirmed Off** (disconnect the valve
+power supply, then check the relay HAT and its I²C connection). When the worker finishes, `main.cleanup()` switches all relays
+off again and prints `[CLEANUP] CRITICAL: relays NOT confirmed off` if that
+fails. Never add an unbounded `thread.wait()`: that was the v1.8.0 incident.
