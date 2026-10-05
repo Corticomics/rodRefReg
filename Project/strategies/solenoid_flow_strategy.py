@@ -719,7 +719,7 @@ class SolenoidFlowStrategy:
             )
         message = (
             f"[VALVE CRITICAL] cage {cage_id}: {situation}. Check the rig; Settings > Priming > "
-            "CLOSE ALL RELAYS retries every relay."
+            "CLOSE ALL RELAYS switches every relay off again and stops the schedule."
         )
         self._alarmed.add(key)
         self._logger.critical(message)

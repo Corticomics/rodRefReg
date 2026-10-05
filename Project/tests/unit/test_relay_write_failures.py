@@ -304,6 +304,8 @@ def test_a_valve_that_never_closes_raises_the_alarm(fake_relay_handler, monkeypa
     assert result.pulses == 1
     out = capsys.readouterr().out
     assert "[VALVE CRITICAL] cage 1: the cage valve close did not reach its relay" in out
+    # The button the alarm names also ends the run: the operator is told before pressing it.
+    assert "CLOSE ALL RELAYS switches every relay off again and stops the schedule." in out
     assert fake_relay_handler.energized() == {CAGE}, "the fake shows what the alarm says"
 
 
@@ -497,7 +499,11 @@ def test_an_unconfirmed_emergency_stop_says_to_cut_the_power(priming, fake_relay
     panel._on_emergency_stop_clicked()
 
     assert shown[-1] == ("critical", "Emergency Stop Failed")
-    assert get_operation_lock().is_busy() is False, "the failsafe still frees the lock"
+    # A valve may still be open: the priming session keeps its hold on the
+    # hardware, so no schedule can start onto that valve. (It used to be
+    # force-released here; see test_emergency_stop.py.)
+    assert get_operation_lock().held_by("priming")
+    assert panel._model.is_master_open, "the panel still shows what may be open"
 
 
 def test_a_confirmed_emergency_stop_is_unchanged(priming, fake_relay_handler):
@@ -948,9 +954,9 @@ def test_a_pump_relay_that_does_not_switch_off_is_retried_then_alarmed(monkeypat
     hats[0].fail_off = True
     assert handler.trigger_relays([1], {"1": 2}, 0) == []
     assert handler.last_trigger_counts == {1: 1}
-    assert (
-        "[VALVE CRITICAL] relay unit 1: relay(s) 3 did not switch off" in capsys.readouterr().out
-    )
+    out = capsys.readouterr().out
+    assert "[VALVE CRITICAL] relay unit 1: relay(s) 3 did not switch off" in out
+    assert "CLOSE ALL RELAYS switches every relay off again and stops the schedule." in out
 
 
 def test_a_pump_relay_that_does_not_answer_cannot_be_confirmed_off(monkeypatch, capsys):
