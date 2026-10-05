@@ -241,3 +241,208 @@ def test_cancel_mid_run_stops_early_and_closes_master(qapp, fake_relays):
     assert get_operation_lock().is_busy() is False
     assert _drain_until(qapp, lambda: wizard._worker is None)
     assert wizard._worker_thread is None
+
+
+# --- Esc ends a run as the X button does ------------------------------------------------------
+#
+# QDialog sends Esc to reject(), which hides the dialog without a closeEvent.
+# The Cancel button is disabled during a run, so Esc was the natural way out,
+# and it left the pulse worker running with no window and the lock held.
+
+
+def _press_escape(wizard):
+    from PyQt5.QtCore import Qt  # noqa: PLC0415
+    from PyQt5.QtTest import QTest  # noqa: PLC0415
+
+    QTest.keyClick(wizard, Qt.Key_Escape)
+
+
+_WAYS_OUT = {
+    "escape": _press_escape,
+    "reject": lambda wizard: wizard.reject(),
+    "x button": lambda wizard: wizard.close(),
+    "cancel": lambda wizard: wizard._safe_cancel(),
+}
+
+
+@pytest.mark.parametrize("way_out", ["escape", "reject", "x button"])
+def test_closing_the_wizard_mid_run_stops_the_pulses(qapp, fake_relays, way_out):
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    # 200 pulses would take ~22 s: the close must cut that short.
+    wizard = _make_wizard(num_pulses=200)
+    wizard.show()
+    progress_values = []
+
+    wizard._execute_calibration()
+    assert wizard._worker is not None
+    thread = wizard._worker_thread
+    wizard._worker.progress.connect(progress_values.append)
+    assert _drain_until(qapp, lambda: progress_values)
+
+    _WAYS_OUT[way_out](wizard)
+
+    try:
+        assert wizard.isVisible() is False
+        assert thread.isRunning() is False, "the pulse worker outlived its wizard"
+        assert get_operation_lock().is_busy() is False
+
+        handler = fake_relays[0]
+        assert 0 < progress_values[-1] < 200
+        assert any(ids == (_MASTER_RELAY,) and state == 0 for ids, state, _ in handler.calls)
+        assert handler.calls[-1][1] == 0, "last relay write must be a close"
+
+        # Nothing pulses afterwards.
+        writes = len(handler.calls)
+        deadline = time.monotonic() + 0.3
+        while time.monotonic() < deadline:
+            qapp.processEvents()
+            time.sleep(0.005)
+        assert len(handler.calls) == writes
+        assert _drain_until(qapp, lambda: wizard._worker is None)
+    finally:
+        wizard._shutdown_worker()
+        wizard._finalize_run()
+
+
+@pytest.mark.parametrize("way_out", ["escape", "reject", "x button", "cancel"])
+def test_a_wizard_closed_before_its_run_starts_never_starts_it(qapp, fake_relays, way_out):
+    """The run starts half a second after its step is shown. A wizard closed
+    in that time used to start the whole run with no window on screen."""
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    wizard = _make_wizard(num_pulses=200)
+    wizard.show()
+    wizard.show_step(1)  # the configuration step builds the spin boxes
+    wizard.show_step(2)  # arms the delayed start
+
+    _WAYS_OUT[way_out](wizard)
+
+    try:
+        deadline = time.monotonic() + 0.9
+        while time.monotonic() < deadline:
+            qapp.processEvents()
+            time.sleep(0.005)
+        assert wizard._worker_thread is None, "a run started after the wizard was closed"
+        assert fake_relays == [], "no relay handler was even built"
+        assert get_operation_lock().is_busy() is False
+    finally:
+        wizard._shutdown_worker()
+        wizard._finalize_run()
+
+
+def test_escape_in_the_modal_wizard_returns_with_nothing_running(qapp, fake_relays):
+    """The real launch path: exec_() blocks in the modal loop, the run starts
+    from the execution step's timer, and Esc is pressed while it pulses."""
+    from PyQt5.QtCore import QTimer  # noqa: PLC0415
+    from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    wizard = _make_wizard(num_pulses=200)
+    seen = {}
+
+    def _start():
+        wizard.show_step(1)
+        wizard.num_pulses_spin.setValue(200)
+        wizard.pulse_width_spin.setValue(10)
+        wizard.show_step(2)
+
+    def _escape_once_pulsing():
+        if wizard._worker_thread is not None and wizard.progress_bar.value() > 0:
+            seen["thread"] = wizard._worker_thread
+            seen["lock"] = get_operation_lock().held_by("calibration")
+            poll.stop()
+            _press_escape(wizard)
+
+    poll = QTimer()
+    poll.setInterval(20)
+    poll.timeout.connect(_escape_once_pulsing)
+    QTimer.singleShot(0, _start)
+    poll.start()
+    # A backstop so a broken run cannot hang the suite in the modal loop.
+    QTimer.singleShot(12_000, wizard.close)
+
+    try:
+        result = wizard.exec_()
+
+        assert seen.get("lock") is True, "the run held the lock while it pulsed"
+        assert result == QDialog.Rejected
+        assert seen["thread"].isRunning() is False
+        assert get_operation_lock().is_busy() is False
+        assert fake_relays[0].calls[-1][1] == 0, "last relay write must be a close"
+    finally:
+        poll.stop()
+        wizard._shutdown_worker()
+        wizard._finalize_run()
+
+
+# --- a worker that does not stop keeps the lock ------------------------------------------------
+#
+# Only a relay command that does not return (a hung I2C bus) outlasts the
+# wait. The wizard used to release the lock anyway and say so only in its own
+# log, which the close was about to hide: a schedule could then start beside
+# a run that still had a valve open.
+
+
+@pytest.mark.parametrize("way_out", ["escape", "x button", "cancel"])
+def test_a_run_that_does_not_stop_keeps_the_lock_and_says_so(qapp, monkeypatch, way_out):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    hung, unblock = threading.Event(), threading.Event()
+
+    class _HangingRelayHandler(_RecordingRelayHandler):
+        def set_relays(self, relay_ids, state):
+            if tuple(relay_ids) == (_CAGE_RELAY,) and state and not unblock.is_set():
+                super().set_relays(relay_ids, state)  # the valve did open
+                hung.set()
+                unblock.wait(20)  # ...and the command never returns
+                return True
+            return super().set_relays(relay_ids, state)
+
+    created = []
+
+    def _factory(*args, **kwargs):
+        created.append(_HangingRelayHandler(*args, **kwargs))
+        return created[-1]
+
+    monkeypatch.setattr("gpio.gpio_handler.RelayHandler", _factory)
+    monkeypatch.setattr("models.relay_unit_manager.RelayUnitManager", MagicMock())
+    monkeypatch.setattr(CalibrationWizard, "STOP_WAIT_MS", 200)
+    shown = []
+    monkeypatch.setattr(
+        QMessageBox, "critical", staticmethod(lambda *a, **k: shown.append((a[1], a[2])))
+    )
+
+    wizard = _make_wizard(num_pulses=5)
+    wizard.show()
+    wizard._execute_calibration()
+    thread = wizard._worker_thread
+    try:
+        assert hung.wait(10), "the worker reached the relay command that hangs"
+
+        _WAYS_OUT[way_out](wizard)
+
+        # The wizard is gone, the worker is not: the run still owns the hardware.
+        assert wizard.isVisible() is False
+        assert thread.isRunning() is True
+        assert get_operation_lock().held_by("calibration"), "nothing else may start"
+        assert get_operation_lock().try_acquire("schedule") is False
+        ((title, text),) = shown
+        assert title == "Calibration Did Not Stop"
+        assert "a valve may be OPEN" in text
+        assert "Disconnect the valve power supply now" in text
+
+        # The command returns at last: the worker closes its valves and ends,
+        # and only then is the lock released.
+        unblock.set()
+        assert _drain_until(qapp, lambda: wizard._worker is None)
+        assert thread.isRunning() is False
+        assert get_operation_lock().is_busy() is False
+        assert created[0].calls[-1][1] == 0, "last relay write is a close"
+        assert len(shown) == 1
+    finally:
+        unblock.set()
+        wizard._shutdown_worker(wait_ms=5000)
+        wizard._finalize_run()
