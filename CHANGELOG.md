@@ -175,7 +175,8 @@ on `main` but never released.
   `cage_map_from`, `calibration_is_stale`, `reserved_relay_reason`.
   `IndependentSolenoidController` has `has_master = False` and makes no
   relay writes for master operations. Master and cage relay ids below 1 are
-  refused. (The `valve_topology` setting and this seam were 1.20.0; the
+  refused. (The `valve_topology` setting, `build_solenoid_controller` and
+  `IndependentSolenoidController` were 1.20.0; the other helpers and the
   Settings control came with 1.21.0.)
 - `utils/calibration_gate.py` (Qt-free) holds the Run gate, called from
   `RunStopSection._passes_calibration_gate`. The strategy's ~0.026 mL/pulse
@@ -217,8 +218,8 @@ on `main` but never released.
   a whole pulse each time, which ends the measured over-delivery on
   staggered doses; a slot whose shortfall is under half a pulse is skipped
   and a later slot picks it up. An instant dose also rounds to the nearest
-  whole pulse instead of up (a 1 mL dose on the bench valve: 7 pulses,
-  0.99 mL, where 1.17.0 fired 8).
+  whole pulse instead of up (a 0.6 mL dose at 0.1415 mL per pulse: 4
+  pulses, 0.57 mL, where 1.17.0 fired 5, 0.71 mL).
 
 ## 1.17.0 — honest delivery accounting
 
@@ -237,10 +238,10 @@ on `main` but never released.
   set in the wizard (**Inter-Pulse Interval**). Deliveries replay the
   pulse width and rest each cage was calibrated at; older calibrations
   keep the legacy 100 ms rest. A delivery whose estimated duration would
-  exceed `max_pulse_delivery_time_s` (default 120 s) is refused before
+  exceed `max_pulse_delivery_time_s` (fixed at 120 s) is refused before
   any water moves, with the reason in the Terminal tab; before, the limit
   cut the dose off mid-way and the retry sent the whole dose again.
-  Shorten the rest, split the dose or raise the limit. The calibration
+  Shorten the rest or split the dose. The calibration
   wizard runs its pulses off the GUI thread: the window no longer
   freezes, the progress bar is live, X cancels a run mid-way, and the
   master valve is closed on every exit (a mid-run error used to leave it
@@ -264,9 +265,10 @@ on `main` but never released.
   controller code.
 - **1.14.0** — Change: instant deliveries run through the same delivery
   path as staggered ones. On solenoid hardware an instant dose now uses
-  the cage's valve calibration, pulse width and the flow sensor; before,
-  it went through the legacy pump path (a generic trigger count with the
-  stagger interval between triggers) and ignored them.
+  the cage's valve calibration and pulse width (and the flow sensor, when
+  one is connected); before, it went through the legacy pump path (a
+  generic trigger count with the stagger interval between triggers) and
+  ignored them.
 - **1.13.1** — Fix: instant schedule cards show the right animal count.
 - **1.13.0** — Fix: instant schedules can be created, run and edited.
 
@@ -274,21 +276,23 @@ on `main` but never released.
 
 - **1.12.0** — Add: an **Edit Schedule** button in the Schedules hub's
   select mode.
-- **1.11.1** — Fix: edit-schedule follow-ups. The dialog opens at full
-  size, the Quick Apply start/end/volume row is pre-filled and its edits
-  now apply on save (they were silently ignored), and the Schedules hub
-  log lists the exact edits made.
+- **1.11.1** — Fix: edit-schedule follow-ups. The dialog opens large
+  enough to show the whole form, the Quick Apply start/end/volume row is
+  pre-filled and its edits now apply on save (before, they were ignored
+  unless Apply to All was clicked), and the Schedules hub log lists the
+  exact edits made.
 - **1.11.0** — Change: the edit-schedule dialog is rebuilt on the wizard's
   step 3 and saves its edits. Card labels no longer show grey boxes.
 - **1.10.1** — Fix: drop-down lists show every item; Help opens on its
   first topic.
 - **1.10.0** — Change: Settings is hidden from guests and Help is now open
-  to them (it was disabled when logged out). The schedule wizard and the
-  edit dialog validate the delivery window before saving (a name, at least
-  one animal, volume above zero, end after start, and a window long enough
-  for the summed per-cage pulse time) and default the staggered window to
-  1 hour instead of 12. The solenoid strategy's fallback now defaults to
-  pulse mode (already enforced in production, so no delivery change).
+  to them (it was disabled when logged out). The schedule wizard validates
+  the delivery window before saving (a name, at least one animal, volume
+  above zero, end after start, and a window long enough for the summed
+  per-cage pulse time) and defaults the staggered window to 1 hour instead
+  of 12, as does the edit dialog. The solenoid strategy's fallback now
+  defaults to pulse mode (already enforced in production, so no delivery
+  change).
 
 ## 1.9.x — legacy flow sensor removed, lint gate, UI polish
 
