@@ -1968,6 +1968,15 @@ class SettingsTab(QWidget):
                 # backup file: those refuse while anything drives the hardware.
                 backup_topology = backup_settings.pop(SETTING_KEY, None)
                 backup_mode = backup_settings.pop('hardware_mode', None)
+                # The relay layout is this device's wiring. Its HAT count
+                # changes only through Change Relay Hats, which re-initialises
+                # the relay handlers and is greyed out while anything holds the
+                # hardware; restored from a file, it would leave them (and a
+                # priming session's valves) on the old layout.
+                layout_keys = ('num_hats', 'global_master_relay_id', 'relay_pairs', 'cage_relays')
+                backup_layout = {
+                    key: backup_settings.pop(key) for key in layout_keys if key in backup_settings
+                }
                 self.settings.update(backup_settings)
                 self.load_settings()
                 message = "Settings restored successfully"
@@ -1984,6 +1993,13 @@ class SettingsTab(QWidget):
                         f"\n\nThe backup's hardware mode ({backup_mode}) was not applied: "
                         f"this device stays in {mode} mode. Change it in Settings > Delivery > "
                         "Delivery Hardware Mode if needed."
+                    )
+                hats = self.settings.get('num_hats', 1)
+                if 'num_hats' in backup_layout and str(backup_layout['num_hats']) != str(hats):
+                    message += (
+                        f"\n\nThe backup's relay layout ({backup_layout['num_hats']} relay "
+                        f"HAT(s)) was not applied: this device keeps its {hats}. Change the "
+                        "number with Change Relay Hats if the hardware changed."
                     )
                 QMessageBox.information(self, "Success", message)
 

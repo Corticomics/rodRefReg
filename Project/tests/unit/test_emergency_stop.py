@@ -800,3 +800,62 @@ def test_refresh_hardware_lists_the_cages_of_the_new_count(
     assert panel._relay_handler is None, "the next use builds a handler for two HATs"
     panel._on_emergency_stop_clicked()
     assert [h.num_hats for h in built] == [1, 2]
+
+
+def test_a_count_lowered_during_a_session_keeps_the_handler_that_opened_the_valves(
+    monkeypatch, fake_relay_handler, lock, dialogs
+):
+    """The review's case: two HATs, the master and cage 20 (relay 21, on the
+    second HAT) open in Priming, and the count drops to one by some way other
+    than Change Relay Hats. A one-HAT handler would switch only the first HAT
+    and report every relay closed while relay 21 stayed on."""
+    built = _counting_factory(monkeypatch, fake_relay_handler, missing_from=99)
+    settings = {**SETTINGS, "num_hats": 2}
+    stop, _calls = _stopper(lock, running=False)
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+
+    panel = PrimingControlWidget(settings, lambda *_: None, stop_schedule=stop)
+    panel._on_open_master_clicked()
+    panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(20))
+    panel._on_open_cage_clicked()
+    assert built[0].energized() == {MASTER, 21} and lock.held_by("priming")
+
+    settings["num_hats"] = 1
+
+    panel._on_emergency_stop_clicked()
+
+    assert [h.num_hats for h in built] == [2], "the handler that opened the valves switched them"
+    assert built[0].energized() == set(), "relay 21 on the second HAT is off"
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+    assert lock.is_busy() is False
+
+    # Nothing is open any more: the next use follows the new count.
+    panel._on_open_master_clicked()
+    assert [h.num_hats for h in built] == [2, 1]
+    panel._on_close_master_clicked()
+
+
+@pytest.mark.parametrize("state", ["unconfirmed", "master open", "cage open", "nothing"])
+def test_a_handler_is_kept_while_a_relay_it_switched_may_be_on(
+    monkeypatch, fake_relay_handler, lock, dialogs, state
+):
+    _counting_factory(monkeypatch, fake_relay_handler, missing_from=99)
+    settings = {**SETTINGS, "num_hats": 2}
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+
+    panel = PrimingControlWidget(settings, lambda *_: None)
+    old = panel._get_relay_handler()
+    assert lock.try_acquire("priming"), "the session's hold alone does not keep it"
+    if state == "unconfirmed":
+        panel._stop_unconfirmed = True
+    elif state == "master open":
+        panel._model.set_master_open(True)
+    elif state == "cage open":
+        # After a Close Master whose cage close did not confirm: the master
+        # is closed, the cage may still be open.
+        panel._model.set_cage_open(20, True)
+    settings["num_hats"] = 1
+
+    kept = panel._get_relay_handler() is old
+    assert kept == (state != "nothing")
+    lock.force_release()
