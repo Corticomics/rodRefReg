@@ -117,6 +117,25 @@ def test_shown_notes_take_the_free_height_and_hidden_ones_give_it_back(tab, qapp
     tab.hide()
 
 
+def test_links_are_underlined_in_the_text_colour(tab):
+    """Qt gives Markdown links a fixed blue that the dark theme does not
+    change; on its background they are close to invisible."""
+    from PyQt5.QtGui import QTextFormat  # noqa: PLC0415
+
+    tab._on_result(_info(NOTES + "\nSee [the docs](https://example.com/docs) and <https://example.org>.\n"))
+
+    anchors = []
+    for block in _blocks(tab.notes.document()):
+        text = block.text()
+        for run in block.textFormats():
+            if run.format.isAnchor():
+                anchors.append((text[run.start : run.start + run.length], run.format))
+    assert [label for label, _ in anchors] == ["the docs", "https://example.org"]
+    for _label, fmt in anchors:
+        assert not fmt.hasProperty(QTextFormat.ForegroundBrush), "no fixed link colour"
+        assert fmt.fontUnderline(), "still shown to be a link"
+
+
 def test_raw_html_in_the_notes_stays_text(tab):
     tab._on_result(_info(NOTES))
 

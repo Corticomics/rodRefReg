@@ -6,7 +6,7 @@ clone the install/rollback controls stay hidden. See docs/UPDATE_SYSTEM.md §13.
 """
 
 from PyQt5.QtCore import QUrl, pyqtSlot
-from PyQt5.QtGui import QDesktopServices, QTextCursor, QTextDocument
+from PyQt5.QtGui import QDesktopServices, QTextCharFormat, QTextCursor, QTextDocument
 from PyQt5.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -131,7 +131,7 @@ class UpdatesTab(QWidget):
 
     def _set_notes_visible(self, visible):
         """Show or hide the notes. Shown, they take the tab's free height, so
-        the "Before you update" list fits without scrolling."""
+        as much of the "Before you update" list as fits is visible at once."""
         self.notes.setVisible(visible)
         self._layout.setStretch(0, 1 if visible else 0)  # the group box
         self._layout.setStretch(1, 0 if visible else 1)  # the spacer below it
@@ -148,11 +148,37 @@ class UpdatesTab(QWidget):
                 QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML
             )
             self.notes.document().setMarkdown(text, features)
+            self._links_in_text_colour()
             # Unlike setPlainText, this leaves the view at the end of the
             # notes; the "Before you update" list is at the top.
             self.notes.moveCursor(QTextCursor.Start)
         else:
             self.notes.setPlainText(text)
+
+    def _links_in_text_colour(self):
+        """Show links underlined in the text colour.
+
+        Qt marks a Markdown link only by colouring it with the application
+        palette's link colour, a fixed blue the themes do not set, which is
+        close to invisible on the dark theme. The notes cannot be clicked
+        anyway; the underline still shows which text was a link.
+        """
+        document = self.notes.document()
+        block = document.begin()
+        while block.isValid():
+            for run in block.textFormats():
+                if not run.format.isAnchor():
+                    continue
+                cursor = QTextCursor(document)
+                cursor.setPosition(block.position() + run.start)
+                cursor.setPosition(
+                    block.position() + run.start + run.length, QTextCursor.KeepAnchor
+                )
+                link = QTextCharFormat(run.format)
+                link.clearForeground()
+                link.setFontUnderline(True)
+                cursor.setCharFormat(link)
+            block = block.next()
 
     # --- apply -------------------------------------------------------------
     def _on_update_now(self):
