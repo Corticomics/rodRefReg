@@ -6,7 +6,7 @@ clone the install/rollback controls stay hidden. See docs/UPDATE_SYSTEM.md §13.
 """
 
 from PyQt5.QtCore import QUrl, pyqtSlot
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtGui import QDesktopServices, QTextCursor, QTextDocument
 from PyQt5.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -71,10 +71,11 @@ class UpdatesTab(QWidget):
         box_layout.addWidget(self.current_label)
         box_layout.addWidget(self.status_label)
         box_layout.addLayout(button_row)
-        box_layout.addWidget(self.notes)
+        box_layout.addWidget(self.notes, 1)
 
         layout.addWidget(box)
         layout.addStretch()
+        self._layout = layout
 
     def _refresh_revert_button(self):
         """Show 'Revert' only when a rollback target exists."""
@@ -102,7 +103,7 @@ class UpdatesTab(QWidget):
             )
             self.update_button.setVisible(False)
             self.view_button.setVisible(False)
-            self.notes.setVisible(False)
+            self._set_notes_visible(False)
             return
 
         self._latest = info
@@ -120,13 +121,38 @@ class UpdatesTab(QWidget):
                     f"{__version__}). Re-run the installer to update."
                 )
             if info.notes:
-                self.notes.setPlainText(info.notes)
-                self.notes.setVisible(True)
+                self._show_notes(info.notes)
+                self._set_notes_visible(True)
         else:
             self.status_label.setText(f"You’re up to date (version {__version__}).")
             self.update_button.setVisible(False)
             self.view_button.setVisible(False)
-            self.notes.setVisible(False)
+            self._set_notes_visible(False)
+
+    def _set_notes_visible(self, visible):
+        """Show or hide the notes. Shown, they take the tab's free height, so
+        the "Before you update" list fits without scrolling."""
+        self.notes.setVisible(visible)
+        self._layout.setStretch(0, 1 if visible else 0)  # the group box
+        self._layout.setStretch(1, 0 if visible else 1)  # the spacer below it
+
+    def _show_notes(self, text):
+        """Show a release's notes, which are its CHANGELOG.md entry (Markdown).
+
+        Rendered, so the "Before you update" list reads as bold text and a
+        list rather than literal asterisks. Raw HTML in the notes stays plain
+        text. Qt before 5.14 has no Markdown support: the text is shown as is.
+        """
+        if hasattr(QTextDocument, "MarkdownNoHTML"):
+            features = QTextDocument.MarkdownFeatures(
+                QTextDocument.MarkdownDialectGitHub | QTextDocument.MarkdownNoHTML
+            )
+            self.notes.document().setMarkdown(text, features)
+            # Unlike setPlainText, this leaves the view at the end of the
+            # notes; the "Before you update" list is at the top.
+            self.notes.moveCursor(QTextCursor.Start)
+        else:
+            self.notes.setPlainText(text)
 
     # --- apply -------------------------------------------------------------
     def _on_update_now(self):

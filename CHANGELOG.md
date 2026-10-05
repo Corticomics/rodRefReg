@@ -152,6 +152,10 @@ on `main` but never released.
 - **Fix:** a Slack token saved in Settings is kept and used at once.
   Auto-save no longer blanks it, and no longer fails for the rest of the
   session after a token is typed.
+- **Change:** the Updates tab shows a release's notes formatted (headings,
+  bold, lists), from the top and in the tab's full height, instead of as
+  raw Markdown in a small box. The notes are the release's entry in this
+  file.
 - **Change:** each delivery record (`dispensing_history`) also stores the
   dose asked for, the rounding policy, the schedule mode, the valve
   topology, the calibration used, the pulse timing, the duration and the
