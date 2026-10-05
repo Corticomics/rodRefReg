@@ -94,6 +94,7 @@ on the previous version can install this without operator intervention.
 | New sensor driver, opt-in via config | yes |
 | `apply_update` switched to fail-closed digest verification | yes (Phase 2 / v1.6.0) |
 | Slack notifier broadens what it catches; new `last_status` attribute | yes (Phase 2 / v1.6.0) |
+| Run refuses a schedule until every cage it waters is calibrated — a step HARDWARE_SETUP already required | yes (v1.21.0; see "When in doubt") |
 | Pure bug fix | no — that is PATCH |
 | DB schema change requiring a one-way migration | no — that is MAJOR |
 
@@ -113,13 +114,20 @@ MAJOR release.
 | Renaming `Project/version.py` or any path the installer hard-codes | yes |
 
 Practical signal: **if you're about to add a release-note line that
-starts with "Operators must…", it's a MAJOR**.
+starts with "Operators must…", it's a MAJOR** — unless the line only
+enforces something the set-up guide already required of every device
+(see "When in doubt").
 
 ### When in doubt
 
 - Fix → PATCH.
 - New thing → MINOR.
-- Forces the operator to do anything → MAJOR.
+- Forces the operator to do something new → MAJOR.
+- Enforces a step a correctly set-up device has already done (v1.21.0
+  refusing to water an uncalibrated cage, which the set-up guide already
+  required) → MINOR, with a **Before you update** list in the CHANGELOG
+  entry so an operator who skipped the step can do it first. Decided for
+  v1.21.0 (2026-10-05).
 - If two reasonable people would disagree, pick the *higher* of the two.
   An over-bump is cheap; an under-bump misleads operators about what's
   in a release.
@@ -254,6 +262,63 @@ not. Pause before that command.
 ---
 
 ## 5. Verifying a release
+
+### Before the tag — smoke test on a test Pi (relay HAT, no water)
+
+A Pi with a relay HAT and no plumbing exercises everything but the
+water: the install and launch path, relay addressing, the relay-failure
+reporting, the hardware lock, the emergency stop and the UI flows. Run
+it on the candidate `main` before tagging; dosing accuracy still needs
+the bench validation in [TOPOLOGY_VALIDATION.md](TOPOLOGY_VALIDATION.md).
+The relays only click: with no valves, every ledger row shows the planned
+volume, which is correct (the app cannot know that no water moved).
+
+Install the candidate. The installer builds the same bundle the tag will,
+so the Pi ends up on `~/rrr/releases/<version>` exactly as a device would:
+
+```bash
+ssh pi@<test-pi>
+cd ~/rodRefReg && git pull --ff-only && ./install.sh -y --branch main
+```
+
+RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -X`. With
+the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
+
+1. **Start.** The Terminal tab shows `Initialized relay hat stack=0`,
+   `[TOPOLOGY] Valve topology: shared_manifold`, and no `Relay HAT(s)
+   missing`.
+2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
+   Selected on a cage (its relay clicks), Close Master (both click off).
+   Run is greyed out while the session is open and comes back after
+   Close Master.
+3. **Calibration.** Settings → Calibration: calibrate a cage with 10
+   pulses and hear the relay. Start a second run and press Esc while it
+   pulses: the clicking stops within about a second, Run is available,
+   and no `[VALVE CRITICAL]` line appears.
+4. **Run and Stop.** A staggered schedule for one animal on that cage,
+   with a window starting now. Run: the relays click in the pulse
+   rhythm. Stop: `[STOP] HARDWARE SAFE: all relays off on every relay
+   HAT`, and nothing clicks afterwards.
+5. **Emergency stop.** Run the schedule again, then Settings → Priming →
+   CLOSE ALL RELAYS: the dialog says the schedule was stopped, Run is
+   available, and nothing clicks afterwards.
+6. **A missing HAT.** Change Relay Hats to 2 with one HAT fitted: the
+   second is now "missing". Stop shows **Relays Not Confirmed Off**;
+   CLOSE ALL RELAYS shows **Emergency Stop Failed** and Run stays greyed
+   out ("an unconfirmed emergency stop") until RRR is restarted. A
+   schedule for cage 16 or above (on the missing HAT) stops with
+   `[VALVE ERROR] cage N: … did not reach its relay; delivery stopped
+   after 0 pulse(s)` and a `failed` row in the ledger. Set the count
+   back to 1 and restart RRR.
+7. **Topology.** Settings → Delivery → Valve Topology → Independent:
+   every calibration shows **Stale**, Priming's Open buttons are greyed
+   out until restart; after a restart the panel has no master group and
+   a delivery clicks only the cage relay (relay 16 stays silent). Switch
+   back to Shared manifold, recalibrate, restart.
+8. **Updates tab.** Shows the current version and "You're up to date".
+   The real update path is checked after the tag, below.
+
+### After the tag
 
 After `git push origin v<x.y.z>`:
 
