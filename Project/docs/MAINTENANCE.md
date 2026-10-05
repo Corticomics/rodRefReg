@@ -168,10 +168,12 @@ git checkout -b <type>/<short-slug>          # e.g. fix/calibration-csv-export
 # 4. bump the version — ALWAYS for a release-bound change
 $EDITOR Project/version.py                   # SemVer per §2
 
-# 4b. add the release to CHANGELOG.md (newest first). Start with a
-#     "Before you update" list if operators must do anything, e.g.
-#     calibrate cages. Fold any version number that was set on main but
-#     never tagged into this entry.
+# 4b. add the release to CHANGELOG.md (newest first), as "## <version> — …".
+#     Start with a "Before you update" list if operators must do anything,
+#     e.g. calibrate cages. Fold any version number that was set on main
+#     but never tagged into this entry. The release workflow publishes this
+#     entry as the GitHub Release notes, which the in-app Updates tab shows;
+#     the test suite fails while version.py names a version with no entry.
 $EDITOR CHANGELOG.md
 
 # 5. tests and both lint gates must pass locally (CI runs all three)
@@ -192,12 +194,9 @@ git checkout main
 git pull --ff-only origin main
 git tag v<MAJOR.MINOR.PATCH>                 # MUST equal Project/version.py
 git push origin v<MAJOR.MINOR.PATCH>         # point of no return
-# CI now builds the bundle, computes SHA256, creates the GitHub Release
-
-# 8. once the Release exists, replace its generated PR-title list with
-#    this release's CHANGELOG.md entry: the Updates tab shows the release
-#    notes, and nothing else tells operators what to do before updating.
-gh release edit v<MAJOR.MINOR.PATCH> --notes-file <entry.md>
+# CI now builds the bundle, computes SHA256, and creates the GitHub Release
+# with this release's CHANGELOG.md entry as its notes (step 4b). Check the
+# Release page once the workflow is green.
 ```
 
 ### 3b. Hotfix on top of an in-flight release
@@ -212,7 +211,7 @@ Don't try to undo it — cut a new PATCH on top. See §6.
 
 ### 3c. Doc / test-only change
 
-Same as 3a but **skip steps 4, 4b, 7 and 8**. No version bump, no
+Same as 3a but **skip steps 4, 4b and 7**. No version bump, no
 CHANGELOG entry, no tag. The
 change lands on `main` and stays there until the next code change cuts
 the next release (which will pick this up automatically).
@@ -229,7 +228,9 @@ git push origin v1.7.0-beta
 
 CI flags it as a pre-release. Promote it to stable by tagging `v1.7.0`
 on the same (or a newer) commit after validation. Don't forget to
-re-bump `version.py` to `1.7.0` before tagging stable.
+re-bump `version.py` to `1.7.0` before tagging stable. The CHANGELOG
+entry can be `## 1.7.0-beta` or just `## 1.7.0`: a pre-release uses its
+own entry when there is one, else the stable one.
 
 ---
 
@@ -302,6 +303,9 @@ git push origin v<x.y.z>
 
 This is the v1.6.0 situation we recovered from. CI rejected because the
 tag pointed at a commit whose `version.py` was older than the tag name.
+The same recovery applies when the Release job fails because
+`CHANGELOG.md` has no entry for the version: nothing was published; add
+the entry on a branch, merge it, then re-tag the new commit as below.
 
 ```bash
 git tag -d v<x.y.z>                          # local

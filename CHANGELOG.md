@@ -171,6 +171,9 @@ on `main` but never released.
 
 **Developer notes**
 
+- The release workflow publishes this file's entry for the tagged version
+  as the GitHub Release notes, which the Updates tab shows. The test suite
+  fails while `Project/version.py` names a version with no entry.
 - `utils/topology.py` is the single decision point: `build_solenoid_controller`,
   `cage_map_from`, `calibration_is_stale`, `reserved_relay_reason`.
   `IndependentSolenoidController` has `has_master = False` and makes no

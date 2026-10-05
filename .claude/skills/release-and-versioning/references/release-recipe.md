@@ -81,20 +81,14 @@ git push origin v<new_version>
 This kicks off [`.github/workflows/release.yml`](.github/workflows/release.yml):
 
 1. Verifies `tag == v<version>` (rejects otherwise).
-2. Runs `scripts/release/build-bundle.sh` to produce
+2. Takes the Release notes from this version's `CHANGELOG.md` entry
+   (`scripts/release/changelog_entry.py`; a missing entry fails the job
+   before anything is published, recover per MAINTENANCE.md §6.2).
+3. Runs `scripts/release/build-bundle.sh` to produce
    `dist/rrr-<version>.rrrupdate`, `.sha256`, and `latest.json`.
-3. Creates the GitHub Release with those three assets attached.
-4. Marks pre-release if the tag has `-beta`.
-
-The Release is created with auto-generated notes (`--generate-notes`). Once
-it exists, replace them with this release's `CHANGELOG.md` entry, because
-the Updates tab shows the release notes:
-
-```bash
-gh release edit v<new_version> --notes-file <entry.md>   # <entry.md> = this release's CHANGELOG.md entry saved to a file
-```
-
-(MAINTENANCE.md §3a, steps 4b and 8.)
+4. Creates the GitHub Release with those three assets attached and the
+   notes from step 2, which the in-app Updates tab shows.
+5. Marks pre-release if the tag has `-beta`.
 
 ## 8. Verify on a device
 
