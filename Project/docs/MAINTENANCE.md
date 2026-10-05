@@ -203,11 +203,12 @@ git push origin v<MAJOR.MINOR.PATCH>         # point of no return
 
 If you've already merged a release-bound PR but haven't tagged yet, and
 you spot a bug — fix it on a new branch, merge to `main`, bump
-`version.py` once more (PATCH again) and rename the untagged
-`CHANGELOG.md` heading to the new version (step 4b folds it; the suite
-fails until `CHANGELOG.md` has a `## <new version>` entry), then tag the
-latest commit. The intermediate "would-have-been-tagged" commit on
-`main` is just history.
+`version.py` once more (PATCH again), and in `CHANGELOG.md` rename the
+untagged heading to the new version, add the untagged version to the
+entry's "also carries" line (step 4b folds it) and add a line for the
+fix. The suite fails until `CHANGELOG.md` has a `## <new version>`
+entry. Then tag the latest commit. The intermediate
+"would-have-been-tagged" commit on `main` is just history.
 
 If you've **already pushed the tag**, the bad release is published.
 Don't try to undo it — cut a new PATCH on top. See §6.
