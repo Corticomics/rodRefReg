@@ -1071,9 +1071,10 @@ class RelayWorker(QObject):
                     delivery_data['_dispensed_ml'] = (
                         float(delivery_data.get('_dispensed_ml', 0.0)) + actual_volume
                     )
-                    # A pump trigger count planned for the whole dose would
-                    # fire it again; the retry plans from its capped volume.
-                    delivery_data.pop('triggers', None)
+                # A pump trigger count planned when the delivery was scheduled
+                # ignores what has been delivered since: the retry plans from
+                # its own, capped volume.
+                delivery_data.pop('triggers', None)
                 self.failed_deliveries[animal_id] = failed_count + 1
                 _log('partial' if actual_volume > 0 else 'failed')
             if actual_volume > 0:
@@ -1257,12 +1258,20 @@ class RelayWorker(QObject):
                         pulses=fired,
                         warning="pump mode: a relay did not switch; volume is the triggers fired",
                     )
-                if relay_info:
-                    success_msg = f"Successfully triggered relay unit {relay_unit_id} {required_triggers} times"
-                    self.progress.emit(success_msg)
-                    if self.notification_handler:
-                        self.notification_handler.send_slack_notification(success_msg)
-                return relay_info
+                success_msg = (
+                    f"Successfully triggered relay unit {relay_unit_id} {required_triggers} times"
+                )
+                self.progress.emit(success_msg)
+                if self.notification_handler:
+                    self.notification_handler.send_slack_notification(success_msg)
+                # The ledger records the triggers fired, as it does for the
+                # retry path (PumpStrategy).
+                return DeliveryResult(
+                    success=True,
+                    delivered_ml=float(water_volume),
+                    pulses=int(required_triggers),
+                    warning="pump mode: volume is commanded, not measured",
+                )
             except Exception as e:
                 self.progress.emit(f"Error triggering relay {relay_unit_id}: {str(e)}")
                 return None
