@@ -1186,8 +1186,10 @@ class SolenoidFlowStrategy:
                 cage_id,
                 f"the delivery would take about {estimated_duration_s:.1f} s, over the limit "
                 f"of {max_time_s:g} s ({estimated_pulses} pulses at {cage_pw_ms} ms + "
-                f"{cage_interval_ms} ms rest): shorten the rest between pulses, split the "
-                f"dose, or raise max_pulse_delivery_time_s",
+                # The limit itself is not a remedy: ensure_solenoid_defaults
+                # resets it to 120 s at every start.
+                f"{cage_interval_ms} ms rest): shorten the rest between pulses or split "
+                f"the dose",
                 0,
                 0.0,
                 relay_fault=False,

@@ -1775,8 +1775,8 @@ def test_a_delivery_too_slow_for_the_time_limit_is_refused_with_the_stop_line(
     assert re.fullmatch(
         STOP_LINE.format(
             reason=r"the delivery would take about \d+\.\d s, over the limit of 5 s "
-            r"\(\d+ pulses at 30 ms \+ 1000 ms rest\): shorten the rest between pulses, "
-            r"split the dose, or raise max_pulse_delivery_time_s",
+            r"\(\d+ pulses at 30 ms \+ 1000 ms rest\): shorten the rest between pulses or "
+            r"split the dose",
             pulses=0,
             ml=r"0\.000",
         ),

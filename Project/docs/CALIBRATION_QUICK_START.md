@@ -45,7 +45,7 @@ Two controls set the profile, and both are stored with the calibration:
 
 **Duty cycle advisory.** Above roughly 15 % duty (`width ÷ (width + interval)`) the wizard shows a warning. It never blocks — it flags that the valve is energised for a large share of the run and the output may drift. Lengthen the interval to bring it down.
 
-**Trade-off: longer intervals make deliveries longer.** A delivery whose estimated duration would exceed `max_pulse_delivery_time_s` (default 120 s) is **refused before any water is dispensed**, and the Terminal tab gives the reason in a `[VALVE ERROR]` line. If you hit that, shorten the interval, reduce the per-delivery volume, or raise the limit.
+**Trade-off: longer intervals make deliveries longer.** A delivery whose estimated duration would exceed `max_pulse_delivery_time_s` (fixed at 120 s: RRR resets it at every start) is **refused before any water is dispensed**, and the Terminal tab gives the reason in a `[VALVE ERROR]` line. If you hit that, shorten the interval or reduce the per-delivery volume.
 
 **Existing calibrations are unaffected.** A calibration saved before v1.16.0 has no stored interval and keeps the previous 100 ms cadence exactly. It only changes when you re-calibrate that cage.
 
