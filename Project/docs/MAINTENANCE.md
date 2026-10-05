@@ -280,14 +280,17 @@ water moved).
 Quit RRR first (close it, or `systemctl --user stop rrr` if it
 autostarts): the installer does not stop a running copy, and the
 single-instance guard is per version, so a new version would start
-beside an old one. `git -C ~/rodRefReg status --short` must print
-nothing: the installer leaves a checkout with local changes as it is
-and installs that instead. Then install the candidate. The installer
+beside an old one. `git -C ~/rodRefReg status --short
+--untracked-files=no` must print nothing: the installer leaves a
+checkout with changes to tracked files as it is and installs its
+current commit instead. (A plain `git status` also lists `?? vendor/`,
+the relay driver the installer cloned there; that is expected.) Then
+install the candidate. The installer
 fetches `main` itself and builds the same bundle the tag will, so the
 Pi ends up on `~/rrr/releases/<version>` exactly as a device would:
 
 ```bash
-ssh -X pi@<test-pi>
+ssh -Y pi@<test-pi>
 cd ~/rodRefReg && ./install.sh -y --branch main
 ```
 
@@ -295,8 +298,10 @@ A Pi without RRR gets it with the one-line `bootstrap.sh` install in the
 [README](../../README.md#1-setting-up-your-system), which clones to
 `~/rodRefReg`.
 
-RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -X` (from a
-Mac, `ssh -X` needs XQuartz). Log in on the Profile tab (Create New
+RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -Y` (from a
+Mac it needs XQuartz). Use `-Y`, not `-X`: `-X` is untrusted forwarding,
+which refuses new windows 20 minutes after login, so the restarts in
+steps 6 and 7 would fail to open RRR. Log in on the Profile tab (Create New
 Profile on a fresh database): in guest mode the Settings tab (Priming,
 Calibration, Delivery, Updates) is hidden, and Run and Change Relay Hats
 are greyed out ("Please log in to use this control"). With the HAT
@@ -342,7 +347,7 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    - A cage on the missing HAT (16 or above) cannot be watered. A
      schedule for an animal on cage 16 is refused at Run with **Valve
      calibration needed** ("Not calibrated: cage 16"). Calibrating cage
-     16 fails at the first pulse: **Calibration Failed**, "The cage 16
+     16 with 10 pulses fails at the first pulse: **Calibration Failed**, "The cage 16
      valve did not open at pulse 1 of 10: its relay did not switch",
      with a `[VALVE CRITICAL] calibration of cage 16` line (relay 17
      cannot be switched off either); nothing is saved.
@@ -351,7 +356,8 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
      Off** and **Warning** again), then **Emergency Stop Failed**. Run
      and Change Relay Hats stay greyed out ("Unavailable while an
      unconfirmed emergency stop is in progress").
-   - Restart RRR, then set the count back to 1 with Change Relay Hats.
+   - Restart RRR, log in again, then set the count back to 1 with Change
+     Relay Hats (the restart cleared the lock-out).
 7. **Topology.** Settings → Delivery → Valve Topology → Independent
    (answer Yes to **Change Valve Topology**): the step-3 calibration
    shows **Stale**, and Priming's Open buttons are greyed out until
@@ -359,10 +365,10 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    Calibrate the cage again (only its relay clicks; relay 16 stays
    silent), then Run the step-4 schedule: a delivery clicks only the cage
    relay. Switch back to Shared manifold, recalibrate, restart.
-8. **Updates tab.** Shows `Installed version: <version>`, which must be
-   the candidate's; press **Check for updates** and it says "You're up to
-   date" (the latest Release is still the previous version). The real
-   update path is checked after the tag, below.
+8. **Updates tab.** Shows Installed version: <version>, which must be
+   the candidate's; press **Check for updates** and it says "You’re up to
+   date (version <version>)" (the latest Release is still the previous
+   version). The real update path is checked after the tag, below.
 
 ### After the tag
 
