@@ -22,7 +22,9 @@ SCRIPT = REPO_ROOT / "scripts" / "release" / "changelog_entry.py"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 VERSION_FILE = REPO_ROOT / "Project" / "version.py"
 
-if not SCRIPT.exists():  # the release bundle ships Project/ without the repo root
+if not (SCRIPT.exists() and CHANGELOG.exists()):
+    # The release bundle ships Project/ and scripts/ but not CHANGELOG.md:
+    # on a device these tests have nothing to check.
     pytest.skip("not running inside the repository", allow_module_level=True)
 
 spec = importlib.util.spec_from_file_location("changelog_entry", SCRIPT)

@@ -7,8 +7,9 @@ line. A release that asks something of the operator starts with a
 **Before you update** list. A version number that was set on `main` but
 never tagged is folded into the next release's entry.
 
-This is the human-readable companion to the auto-generated GitHub release
-notes. Versioning follows SemVer for RRR — see
+The release workflow publishes the tagged version's entry from this file,
+verbatim, as the GitHub Release notes, and the in-app Updates tab shows
+them. Versioning follows SemVer for RRR — see
 [Project/docs/MAINTENANCE.md §2](Project/docs/MAINTENANCE.md#2-picking-the-version-number--semver-for-rrr).
 Test-only / doc-only / tooling-only changes do not get a release and are
 not listed here.
