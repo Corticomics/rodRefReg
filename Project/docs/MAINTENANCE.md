@@ -270,33 +270,45 @@ not. Pause before that command.
 A Pi with a relay HAT and no plumbing exercises everything but the
 water: the install and launch path, relay addressing, the relay-failure
 reporting, the hardware lock, the emergency stop and the UI flows. Run
-it on the candidate `main` before tagging; dosing accuracy still needs
-the bench validation in [TOPOLOGY_VALIDATION.md](TOPOLOGY_VALIDATION.md).
-The relays only click: with no valves, every ledger row shows the planned
-volume, which is correct (the app cannot know that no water moved).
+it on the candidate `main` before tagging, in order; dosing accuracy
+still needs the bench validation in
+[TOPOLOGY_VALIDATION.md](TOPOLOGY_VALIDATION.md). Leave the relay outputs
+unconnected: the relays only click. With no valves, every ledger row
+shows the planned volume, which is correct (the app cannot know that no
+water moved).
 
 Quit RRR first (close it, or `systemctl --user stop rrr` if it
 autostarts): the installer does not stop a running copy, and the
 single-instance guard is per version, so a new version would start
-beside an old one. Then install the candidate. The installer fetches
-`main` itself and builds the same bundle the tag will, so the Pi ends up
-on `~/rrr/releases/<version>` exactly as a device would:
+beside an old one. `git -C ~/rodRefReg status --short` must print
+nothing: the installer leaves a checkout with local changes as it is
+and installs that instead. Then install the candidate. The installer
+fetches `main` itself and builds the same bundle the tag will, so the
+Pi ends up on `~/rrr/releases/<version>` exactly as a device would:
 
 ```bash
 ssh -X pi@<test-pi>
 cd ~/rodRefReg && ./install.sh -y --branch main
 ```
 
-RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -X`. Log in
-on the Profile tab (Create New Profile on a fresh database): Run,
-Calibration, Change Relay Hats and Valve Topology refuse in guest mode.
-With the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
+A Pi without RRR gets it with the one-line `bootstrap.sh` install in the
+[README](../../README.md#1-setting-up-your-system), which clones to
+`~/rodRefReg`.
+
+RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -X` (from a
+Mac, `ssh -X` needs XQuartz). Log in on the Profile tab (Create New
+Profile on a fresh database): in guest mode the Settings tab (Priming,
+Calibration, Delivery, Updates) is hidden, and Run and Change Relay Hats
+are greyed out ("Please log in to use this control"). With the HAT
+fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
 
 1. **Start.** Launch with `~/.local/bin/rrr` from the ssh terminal and
-   read that terminal (or `journalctl --user -u rrr` when the service
-   started it): the start-up lines are printed before the Terminal tab
-   exists. Expect `Initialized relay hat stack=0`, `[TOPOLOGY] Valve
+   read that terminal: the start-up lines are printed before the Terminal
+   tab exists. Expect `Initialized relay hat stack=0`, `[TOPOLOGY] Valve
    topology: shared_manifold`, and no `Failed to initialize hat stack=…`.
+   Do not check this in `journalctl --user -u rrr`: under the service the
+   output is buffered, and only the `[TOPOLOGY]` line reaches the journal
+   before RRR quits.
 2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
    Selected on a cage (its relay clicks), Close Master (both click off).
    Run is greyed out while the session is open and comes back after
@@ -308,24 +320,38 @@ With the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    pulses: the clicking stops within about a second, Run is available,
    and no `[VALVE CRITICAL]` line appears.
 4. **Run and Stop.** A staggered schedule for one animal on that cage,
-   with a window starting now. Run: the relays click in the pulse
-   rhythm. Stop: `[STOP] HARDWARE SAFE: all relays off on every relay
-   HAT`, and nothing clicks afterwards.
+   with a window from now to at least two hours ahead: steps 5 to 7 run
+   it again, across restarts, and Run refuses it once the window has
+   ended (**Expired Schedule**). Drop it in the Schedule Queue and press
+   Run; answer Yes to **Schedule Start Time Passed** (asked on every Run
+   once the start time is past). The relays click in the pulse rhythm.
+   Stop: `[STOP] HARDWARE SAFE: all relays off on every relay HAT`, and
+   nothing clicks afterwards.
 5. **Emergency stop.** Run the schedule again, then Settings → Priming →
    CLOSE ALL RELAYS: the dialog says the schedule was stopped, Run is
    available, and nothing clicks afterwards.
 6. **A missing HAT.** Change Relay Hats to 2 with one HAT fitted: the
-   second is now "missing" (`Failed to initialize hat stack=1`). Run the
-   step-4 schedule and press Stop: **Relays Not Confirmed Off**, and the
-   Terminal tab shows `[STOP] CRITICAL: not every relay HAT confirmed
-   OFF`. Run it again and press CLOSE ALL RELAYS: **Emergency Stop
-   Failed**, and Run and Change Relay Hats stay greyed out ("an
-   unconfirmed emergency stop") until RRR is restarted. A cage on the
-   missing HAT (16 or above) cannot be watered: Run refuses its schedule
-   with **Valve calibration needed** (it has no calibration), and
-   calibrating it fails at the first pulse ("The cage 16 valve did not
-   open at pulse 1 of 10: its relay did not switch", **Calibration
-   Failed**, nothing saved). Restart RRR, then set the count back to 1.
+   second is now "missing". The Terminal tab shows `Failed to initialize
+   hat stack=1: …`, `Relay HAT(s) missing: 1 of 2 initialised; …`,
+   `[CLEANUP] CRITICAL: relays NOT confirmed off; …` (expected here) and
+   `Relay hats updated to 2 hats.`
+   - Run the step-4 schedule and press Stop: the Terminal tab shows
+     `[STOP] CRITICAL: not every relay HAT confirmed OFF`, then **Relays
+     Not Confirmed Off** and a **Warning** dialog appear. Run is
+     available again.
+   - A cage on the missing HAT (16 or above) cannot be watered. A
+     schedule for an animal on cage 16 is refused at Run with **Valve
+     calibration needed** ("Not calibrated: cage 16"). Calibrating cage
+     16 fails at the first pulse: **Calibration Failed**, "The cage 16
+     valve did not open at pulse 1 of 10: its relay did not switch",
+     with a `[VALVE CRITICAL] calibration of cage 16` line (relay 17
+     cannot be switched off either); nothing is saved.
+   - Run the step-4 schedule again and press Settings → Priming → CLOSE
+     ALL RELAYS: the schedule is stopped first (**Relays Not Confirmed
+     Off** and **Warning** again), then **Emergency Stop Failed**. Run
+     and Change Relay Hats stay greyed out ("Unavailable while an
+     unconfirmed emergency stop is in progress").
+   - Restart RRR, then set the count back to 1 with Change Relay Hats.
 7. **Topology.** Settings → Delivery → Valve Topology → Independent
    (answer Yes to **Change Valve Topology**): the step-3 calibration
    shows **Stale**, and Priming's Open buttons are greyed out until
@@ -333,10 +359,10 @@ With the HAT fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    Calibrate the cage again (only its relay clicks; relay 16 stays
    silent), then Run the step-4 schedule: a delivery clicks only the cage
    relay. Switch back to Shared manifold, recalibrate, restart.
-8. **Updates tab.** Shows `Installed version: <version>`; press **Check
-   for updates** and it says "You're up to date" (the latest Release is
-   still the previous version). The real update path is checked after
-   the tag, below.
+8. **Updates tab.** Shows `Installed version: <version>`, which must be
+   the candidate's; press **Check for updates** and it says "You're up to
+   date" (the latest Release is still the previous version). The real
+   update path is checked after the tag, below.
 
 ### After the tag
 
@@ -361,6 +387,13 @@ After `git push origin v<x.y.z>`:
 4. **On a test Pi**, open RRR → Settings → Updates → "Check for
    updates". The new version should appear within seconds. Click
    "Update now" and watch the apply → restart cycle complete.
+   To rehearse the update the lab devices will get, put the test Pi on
+   the previous release first, with data of its own, before the tag:
+   quit RRR, move the smoke test's data aside (`mv ~/rrr/shared/data
+   ~/rrr/shared/data.smoke`), then
+   `git -C ~/rodRefReg checkout v<previous> && cd ~/rodRefReg && ./install.sh -y`
+   (a checked-out tag stays pinned). Log in, calibrate a cage and run a
+   schedule on it, so the update has a database to migrate.
 5. **Watch the test Pi for ~5 minutes** under a real schedule before
    declaring victory. The launcher's boot sentinel
    ([scripts/runtime/launch.sh](../../scripts/runtime/launch.sh)) auto-rolls
