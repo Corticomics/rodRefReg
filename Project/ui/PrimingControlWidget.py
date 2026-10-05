@@ -196,11 +196,19 @@ class PrimingControlWidget(QWidget):
 
     def _create_warning_banner(self) -> QWidget:
         """Create safety warning banner."""
+        # The independent rig has no shared reservoir: each animal has its
+        # own syringe.
+        supply = (
+            "Ensure each animal's syringe is filled and connected before opening its valve."
+            if self._independent
+            else "Ensure water reservoir is connected before opening valves."
+        )
         warning_label = QLabel(
             "⚠️ <b>Manual Control Mode</b><br>"
             "Use this panel to prime tubes and test hardware.<br>"
-            "Ensure water reservoir is connected before opening valves."
+            f"{supply}"
         )
+        self.warning_banner_label = warning_label
         warning_label.setProperty("variant", "warning")
         warning_label.setWordWrap(True)
         return warning_label

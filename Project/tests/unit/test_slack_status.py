@@ -53,6 +53,12 @@ def test_token_revoked_hint_mentions_resetting_token():
     )
 
 
+def test_the_token_hint_says_how_the_field_saves():
+    """There is no Save button: the field saves when the operator leaves it."""
+    hint = _hint_for("Slack rejected the message: token_revoked")
+    assert "press Enter" in hint and "click Save" not in hint
+
+
 def test_invalid_auth_hint_mentions_resetting_token():
     assert "fresh token" in _hint_for(
         "Slack rejected the message: invalid_auth"

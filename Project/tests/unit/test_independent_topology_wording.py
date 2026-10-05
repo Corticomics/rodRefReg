@@ -215,3 +215,114 @@ def test_the_help_describes_relay_16_and_priming_for_both_rigs():
     assert "Shared-manifold rig:" in priming and "Independent rig" in priming
     assert "about three days" in priming
     assert "nothing is queued" in priming, "Run is greyed out, not queued, during priming"
+
+
+# --- part 2: the rest of the operator-facing wording -------------------------------------------
+
+
+@pytest.fixture
+def no_relays(monkeypatch):
+    monkeypatch.setattr("gpio.gpio_handler.RelayHandler", lambda *a, **k: MagicMock())
+    monkeypatch.setattr("models.relay_unit_manager.RelayUnitManager", MagicMock())
+
+
+@pytest.mark.parametrize(
+    ("settings", "says", "not_says"),
+    [(INDEPENDENT, "syringe is filled", "reservoir"), (SHARED, "water reservoir", "syringe")],
+)
+def test_the_priming_banner_names_the_rig_s_water_supply(
+    qapp, no_relays, settings, says, not_says
+):
+    import utils.operation_lock as ol  # noqa: PLC0415
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+
+    ol._singleton = None
+    try:
+        panel = PrimingControlWidget(dict(settings), lambda *_: None)
+        banner = panel.warning_banner_label.text()
+    finally:
+        ol._singleton = None
+    assert says in banner and not_says not in banner
+
+
+@pytest.mark.parametrize(
+    ("settings", "item"),
+    [
+        (INDEPENDENT, "Cage 1 syringe is filled to its normal running level"),
+        (SHARED, "Fluid reservoir is FULL"),
+    ],
+)
+def test_the_calibration_checklist_names_the_rig_s_water_supply(qapp, settings, item):
+    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+    from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
+
+    controller = MagicMock()
+    controller.settings = dict(settings)
+    wizard = CalibrationWizard(
+        cage_id=1, database_handler=MagicMock(), system_controller=controller
+    )
+    items = [
+        label.text().strip()
+        for label in wizard.findChildren(QLabel)
+        if label.objectName() == "ChecklistItem"
+    ]
+    assert len(items) == 7, "the pre-flight checklist is shown when the wizard opens"
+    assert item in items
+    other = "Fluid reservoir is FULL" if settings is INDEPENDENT else "syringe is filled"
+    assert not any(other in text for text in items)
+
+
+def test_the_stop_line_does_not_name_a_master_the_rig_may_not_have(capsys):
+    from utils.stop_sequence import force_hardware_safe_state  # noqa: PLC0415
+
+    handler = MagicMock()
+    handler.set_all_relays.return_value = True
+    assert force_hardware_safe_state(handler) is True
+    out = capsys.readouterr().out
+    assert "HARDWARE SAFE: all relays off" in out
+    assert "master + cages" not in out
+
+
+def test_the_cage_mapping_line_names_the_relay_for_the_device(qapp, system_controller):
+    """#169 fixed the relay manager's line; this is its twin in the settings
+    defaults, emitted on system_status when a cage map is created. Nothing in
+    the app connects to that signal, so today the line reaches no screen."""
+    lines = []
+    system_controller.system_status.connect(lines.append)
+    system_controller.settings.update(cage_relays={}, valve_topology="independent")
+    system_controller.ensure_solenoid_defaults()
+    mapping = [line for line in lines if line.startswith("Created cage mapping")]
+    assert mapping and "relay 16 is reserved and unused on this device" in mapping[0]
+    assert "master on relay" not in mapping[0]
+
+
+def test_the_circuit_breaker_names_where_to_look(qapp, monkeypatch):
+    """The [VALVE ERROR] line names the cage, not the HAT: the breaker message
+    says so, and keeps the text HARDWARE_SETUP quotes."""
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+    from PyQt5.QtCore import QObject  # noqa: PLC0415
+
+    worker = RelayWorker.__new__(RelayWorker)
+    QObject.__init__(worker)
+    worker.settings = {"target_volumes": {1: 0.5}}
+    worker.delivered_volumes = {1: 0.0}
+    worker._completion_retry_counts = {1: 10}
+    worker.animal_windows = {1: {"relay_unit": 3, "target_volume": 0.5}}
+    worker.database_handler, worker.schedule_id = MagicMock(), 7
+    monkeypatch.setattr(RelayWorker, "stop", lambda self: None)
+    said = []
+    worker.progress.connect(said.append)
+
+    worker.check_final_completion()
+
+    breaker = [line for line in said if line.startswith("Deliveries kept failing")]
+    assert breaker, said
+    assert "check the relay HAT" in breaker[0] and "the flow sensor connection" in breaker[0]
+    assert "Cages tab" in breaker[0]
+    # The line gives the reason, which is not always a valve command (a dose
+    # over the pulse or time limit prints it too). Only solenoid pulse
+    # delivery prints one: pump and continuous mode have no such line.
+    assert (
+        "in solenoid pulse mode a [VALVE ERROR] line above names the cage being watered "
+        "and what stopped the delivery"
+    ) in breaker[0]

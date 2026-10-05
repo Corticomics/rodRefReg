@@ -31,6 +31,13 @@ from PyQt5.QtWidgets import (
 from utils.operation_lock import CALIBRATION, get_operation_lock
 
 
+def _rig_is_independent(system_controller) -> bool:
+    """Whether the device runs the independent topology (one syringe per animal)."""
+    from utils.topology import is_independent  # noqa: PLC0415
+
+    return is_independent(getattr(system_controller, 'settings', None))
+
+
 class _CalibrationPulseWorker(QObject):
     """
     Executes the calibration pulse sequence on a worker thread.
@@ -409,7 +416,11 @@ class CalibrationWizard(QDialog):
             " Lab scale available (±0.001g precision minimum)",
             " Empty collection beaker ready",
             " Beaker tared on scale",
-            " Fluid reservoir is FULL",
+            (
+                f" Cage {self.cage_id} syringe is filled to its normal running level"
+                if _rig_is_independent(self.system_controller)
+                else " Fluid reservoir is FULL"
+            ),
             " System has been running >30 minutes (stable temperature)",
             " No other schedules are running",
             f" Cage {self.cage_id} output tube is positioned over beaker",
@@ -607,8 +618,9 @@ class CalibrationWizard(QDialog):
         whichever termination path fires first (finish, error, cancel,
         dialog close).
         """
-        # Hardware mutual-exclusion: calibration drives the master valve + flow
-        # sensor shared with schedules/priming. Hold the lock for exactly the
+        # Hardware mutual-exclusion: calibration drives the relay HAT(s) shared
+        # with schedules/priming (and the master valve on the shared manifold);
+        # it never reads the flow sensor. Hold the lock for exactly the
         # pulse run (the later measure/results steps use no hardware).
         lock = get_operation_lock()
         if not lock.try_acquire(CALIBRATION):

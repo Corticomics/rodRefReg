@@ -418,6 +418,8 @@ class SystemController(QObject):
             except Exception:
                 pass
 
+            from utils import topology as topo
+
             # Build cage map if empty
             cage_map = s.get('cage_relays') or {}
             if not cage_map:
@@ -436,7 +438,8 @@ class SystemController(QObject):
                 s['cage_relays'] = new_map
                 settings_changed = True
                 self.system_status.emit(
-                    f"Created cage mapping: {len(new_map)} cages, master on relay {master_id}"
+                    f"Created cage mapping: {len(new_map)} cages; relay {master_id} is "
+                    f"{topo.reserved_relay_reason(s)}"
                 )
 
             # Valve topology: a value nobody recognises would leave the app
@@ -444,7 +447,6 @@ class SystemController(QObject):
             # manifold (today's behaviour) and say so, rather than guess —
             # and announce the resolved topology on every boot, so a rig set
             # to 'independent' says so in its log before any water moves.
-            from utils import topology as topo
 
             # Printed as well as emitted: at boot nothing is connected to
             # system_status yet, and the journal is where an operator looks.
