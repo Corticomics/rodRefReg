@@ -7,8 +7,9 @@ line. A release that asks something of the operator starts with a
 **Before you update** list. A version number that was set on `main` but
 never tagged is folded into the next release's entry.
 
-This is the human-readable companion to the auto-generated GitHub release
-notes. Versioning follows SemVer for RRR — see
+The release workflow publishes the tagged version's entry from this file,
+verbatim, as the GitHub Release notes, and the in-app Updates tab shows
+them. Versioning follows SemVer for RRR — see
 [Project/docs/MAINTENANCE.md §2](Project/docs/MAINTENANCE.md#2-picking-the-version-number--semver-for-rrr).
 Test-only / doc-only / tooling-only changes do not get a release and are
 not listed here.
@@ -182,6 +183,9 @@ on `main` but never released.
 
 **Developer notes**
 
+- The release workflow publishes this file's entry for the tagged version
+  as the GitHub Release notes, which the Updates tab shows. The test suite
+  fails while `Project/version.py` names a version with no entry.
 - `utils/topology.py` is the single decision point: `build_solenoid_controller`,
   `cage_map_from`, `calibration_is_stale`, `reserved_relay_reason`.
   `IndependentSolenoidController` has `has_master = False` and makes no

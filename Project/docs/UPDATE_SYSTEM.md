@@ -106,8 +106,10 @@ First action: set `1.0.0`, cut tag `v1.0.0` from the current `main`.
 
 6. **CI does the rest.** `.github/workflows/release.yml` fires on the tag,
    verifies the tag matches `Project/version.py` (fails the build if not),
-   builds the bundle, and publishes a GitHub Release with the `.rrrupdate`
-   bundle, its `.sha256`, and `latest.json` attached.
+   takes the Release notes from the version's `CHANGELOG.md` entry (fails
+   before publishing if there is none), builds the bundle, and publishes a
+   GitHub Release with the `.rrrupdate` bundle, its `.sha256`, and
+   `latest.json` attached. The Updates tab shows those notes.
 
 #### Recovery — tagged the wrong commit
 
