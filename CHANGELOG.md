@@ -160,6 +160,12 @@ on `main` but never released.
 - **Fix:** a Slack token saved in Settings is kept and used at once.
   Auto-save no longer blanks it, and no longer fails for the rest of the
   session after a token is typed.
+- **Fix (installer):** `install.sh --dry-run` runs to the end; a warning
+  printed before its first section used to stop it. The install's final
+  check scans for the relay HAT (it skipped the scan for a normal user)
+  and warns when the HAT is jumpered to a stack level other than 0, which
+  RRR cannot use. `scripts/runtime/diagnose.sh` finds the installed Python
+  environment and lists the relay HATs with their stack levels.
 - **Change:** the Updates tab shows a release's notes formatted (headings,
   bold, lists), from the top and in the tab's full height, instead of as
   raw Markdown in a small box. The notes are the release's entry in this

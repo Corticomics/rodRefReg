@@ -124,6 +124,15 @@ confirm() {
 }
 
 # Detect available I2C buses (prints numeric bus IDs, space-separated).
+# Stack levels (0-7) of the Sequent 16-relay HATs in `i2cdetect -y 1`
+# output read from stdin, one per line, ascending. A HAT answers at
+# 0x20 + (7 XOR level), so level 0 is 0x27 and level 4 is 0x23
+# (vendor manual p. 7; Project/docs/HARDWARE_SETUP.md §5.1).
+relay_hat_levels() {
+  awk '$1 == "20:" { for (i = 2; i <= 9; i++) if ($i ~ /^2[0-7]$/) print 7 - substr($i, 2, 1) }' |
+    sort -n
+}
+
 detect_i2c_buses() {
   local b out=""
   for b in /dev/i2c-*; do

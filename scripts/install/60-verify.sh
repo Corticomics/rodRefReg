@@ -25,10 +25,30 @@ else
   info "i2c buses: $BUSES"
   if [[ -e /dev/i2c-1 ]]; then
     verify "i2c-1 present (relay HAT bus)" -- true
-    if command -v i2cdetect >/dev/null; then
+    # i2c-tools installs to /usr/sbin, which is not on a normal user's PATH.
+    I2CDETECT=$(command -v i2cdetect || true)
+    if [[ -z "$I2CDETECT" && -x /usr/sbin/i2cdetect ]]; then
+      I2CDETECT=/usr/sbin/i2cdetect
+    fi
+    if [[ -n "$I2CDETECT" ]]; then
       # Non-fatal: this module only reports, never aborts the install.
-      step "scanning i2c-1 (i2cdetect)" -- run sudo i2cdetect -y 1 \
+      step "scanning i2c-1 (i2cdetect)" -- run sudo "$I2CDETECT" -y 1 \
         || warn "i2cdetect -y 1 failed"
+      if [[ "${DRY_RUN:-0}" != "1" ]]; then
+        # RRR drives HAT n at stack level n-1, so the first HAT must be at
+        # level 0 (0x27). A HAT on another level is invisible to the app.
+        HAT_LEVELS=$(sudo "$I2CDETECT" -y 1 2>/dev/null | relay_hat_levels | tr '\n' ' ')
+        HAT_LEVELS=${HAT_LEVELS% }
+        if [[ " $HAT_LEVELS " == *" 0 "* ]]; then
+          verify "relay HAT at stack level 0 (0x27)" -- true
+        elif [[ -n "$HAT_LEVELS" ]]; then
+          warn "relay HAT found at stack level(s) ${HAT_LEVELS// /, }, not 0: RRR drives the first HAT at level 0 (0x27). Power off and remove the three stack-level jumpers on J2 (Project/docs/HARDWARE_SETUP.md §5.1)"
+        else
+          warn "no relay HAT answers on I2C bus 1 (0x20-0x27): check it is fully seated (Project/docs/HARDWARE_SETUP.md §5.3)"
+        fi
+      fi
+    else
+      warn "i2cdetect not found (package i2c-tools): relay HAT scan skipped"
     fi
   else
     warn "/dev/i2c-1 NOT present — HAT bus is not live. Reboot, then re-run scripts/runtime/fix_i2c.sh"
