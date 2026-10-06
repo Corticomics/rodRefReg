@@ -133,6 +133,48 @@ def test_relay_hat_levels_reads_the_stack_level_from_i2cdetect(lib_env, grid, le
     assert done.stdout.split() == levels
 
 
+# --- the install's final check: which stack level the HAT answers at -----------------------------
+
+
+def _fake_i2cdetect(tmp_path, grid, exit_code=0):
+    fake = tmp_path / "i2cdetect"
+    fake.write_text(f"#!/bin/sh\ncat <<'GRID'\n{grid}GRID\nexit {exit_code}\n")
+    fake.chmod(0o755)
+    return fake
+
+
+@pytest.mark.parametrize(
+    ("grid", "exit_code", "expect"),
+    [
+        (_grid(**{"20": _row(c7="27")}), 0, "ok relay HAT at stack level 0 (0x27)"),
+        (_grid(**{"20": _row(c3="23")}), 0, "warn relay HAT found at stack level(s) 4, not 0"),
+        (_grid(**{"20": _row(c3="23", c6="26")}), 0, "warn relay HAT found at stack level(s) 1, 4, not 0"),
+        (_grid(), 0, "warn no relay HAT answers on I2C bus 1"),
+        # A scan that fails must not abort the install: it reports no HAT.
+        (_grid(**{"20": _row(c7="27")}), 3, "warn no relay HAT answers on I2C bus 1"),
+    ],
+)
+def test_the_final_check_reports_the_hat_level_and_never_aborts(lib_env, tmp_path, grid, exit_code, expect):
+    fake = _fake_i2cdetect(tmp_path, grid, exit_code)
+    script = (
+        f'set -Eeuo pipefail; source "{LIB}"; '
+        'sudo() { "$@"; }; '  # the installer's sudo, without a password prompt
+        'verify() { echo "ok $1"; }; warn() { echo "warn $*"; }; '
+        f'report_relay_hat_level "{fake}"; echo "still running"'
+    )
+    done = _run(script, env=lib_env)
+    assert done.returncode == 0, done.stderr
+    assert expect in done.stdout, done.stdout
+    assert "still running" in done.stdout
+
+
+def test_the_final_check_uses_i2cdetect_from_usr_sbin_when_not_on_path():
+    """i2c-tools installs to /usr/sbin, which is not on a normal user's PATH."""
+    text = (REPO / "scripts" / "install" / "60-verify.sh").read_text()
+    assert "I2CDETECT=/usr/sbin/i2cdetect" in text
+    assert 'report_relay_hat_level "$I2CDETECT"' in text
+
+
 # --- diagnose.sh finds the Python environment ----------------------------------------------------
 
 

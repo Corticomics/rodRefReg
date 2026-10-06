@@ -35,17 +35,7 @@ else
       step "scanning i2c-1 (i2cdetect)" -- run sudo "$I2CDETECT" -y 1 \
         || warn "i2cdetect -y 1 failed"
       if [[ "${DRY_RUN:-0}" != "1" ]]; then
-        # RRR drives HAT n at stack level n-1, so the first HAT must be at
-        # level 0 (0x27). A HAT on another level is invisible to the app.
-        HAT_LEVELS=$(sudo "$I2CDETECT" -y 1 2>/dev/null | relay_hat_levels | tr '\n' ' ')
-        HAT_LEVELS=${HAT_LEVELS% }
-        if [[ " $HAT_LEVELS " == *" 0 "* ]]; then
-          verify "relay HAT at stack level 0 (0x27)" -- true
-        elif [[ -n "$HAT_LEVELS" ]]; then
-          warn "relay HAT found at stack level(s) ${HAT_LEVELS// /, }, not 0: RRR drives the first HAT at level 0 (0x27). Power off and remove the three stack-level jumpers on J2 (Project/docs/HARDWARE_SETUP.md §5.1)"
-        else
-          warn "no relay HAT answers on I2C bus 1 (0x20-0x27): check it is fully seated (Project/docs/HARDWARE_SETUP.md §5.3)"
-        fi
+        report_relay_hat_level "$I2CDETECT"
       fi
     else
       warn "i2cdetect not found (package i2c-tools): relay HAT scan skipped"
