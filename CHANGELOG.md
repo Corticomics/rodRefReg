@@ -160,6 +160,13 @@ on `main` but never released.
 - **Fix:** a Slack token saved in Settings is kept and used at once.
   Auto-save no longer blanks it, and no longer fails for the rest of the
   session after a token is typed.
+- **Fix (installer):** `install.sh --dry-run` runs to the end; a warning
+  printed before its first section used to stop it. It also no longer
+  leaves an empty `vendor/` folder in the checkout. The install's final
+  check scans for the relay HAT (it skipped the scan for a normal user)
+  and warns when the HAT is jumpered to a stack level other than 0, which
+  RRR cannot use. `scripts/runtime/diagnose.sh` finds the installed Python
+  environment and lists the relay HATs with their stack levels.
 - **Change:** the Updates tab shows a release's notes formatted (headings,
   bold, lists), from the top and in the tab's full height, instead of as
   raw Markdown in a small box. The notes are the release's entry in this
@@ -225,6 +232,11 @@ on `main` but never released.
 - Removed: `tools/valve_calibration_tool.py` (it could not start),
   `PulseCalibrator`, and the unused `gpio/mock_gpio_handler.py`.
 - CI also runs the unit suite on Debian Bookworm with Python 3.11.
+- `scripts/install/test_install.sh` recognises a dry run that reached its
+  end; it looked for a message the installer stopped printing in May 2026,
+  so it failed every run. It checks that the dry run leaves the release
+  tree, the venv, `vendor/`, `dist/` and the udev rule as it found them, so
+  it also passes on a Pi where RRR is installed.
 
 ## 1.18.0 — whole-pulse doses
 
