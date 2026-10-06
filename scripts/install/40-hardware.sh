@@ -36,7 +36,7 @@ ensure_user_in_group "$TARGET_USER" dialout
 # Use a tracked clone under REPO_ROOT/vendor so re-runs are fast and clean.
 VENDOR_DIR="$REPO_ROOT/vendor/16relind-rpi"
 REPO_URL="https://github.com/SequentMicrosystems/16relind-rpi.git"
-mkdir -p "$REPO_ROOT/vendor"
+run mkdir -p "$REPO_ROOT/vendor"
 
 _update_vendor() {
   run git -C "$VENDOR_DIR" fetch --depth 1 origin
