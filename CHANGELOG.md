@@ -190,7 +190,9 @@ on `main` but never released.
   `cage_map_from`, `calibration_is_stale`, `reserved_relay_reason`.
   `IndependentSolenoidController` has `has_master = False` and makes no
   relay writes for master operations. Master and cage relay ids below 1 are
-  refused.
+  refused. (The `valve_topology` setting, `build_solenoid_controller` and
+  `IndependentSolenoidController` were 1.20.0; the other helpers and the
+  Settings control came with 1.21.0.)
 - `utils/calibration_gate.py` (Qt-free) holds the Run gate, called from
   `RunStopSection._passes_calibration_gate`. The strategy's ~0.026 mL/pulse
   fallback and its use of stale rows stay only as a defence in depth.
@@ -229,24 +231,36 @@ on `main` but never released.
 - **1.18.0** — Change: a staggered window fires whole pulses against its
   running shortfall (asked minus delivered). A chunk no longer rounds up to
   a whole pulse each time, which ends the measured over-delivery on
-  staggered doses.
+  staggered doses; a slot whose shortfall is under half a pulse is skipped
+  and a later slot picks it up. An instant dose also rounds to the nearest
+  whole pulse instead of up (a 0.6 mL dose at 0.1415 mL per pulse: 4
+  pulses, 0.57 mL, where 1.17.0 fired 5, 0.71 mL).
 
 ## 1.17.0 — honest delivery accounting
 
 - **1.17.0** — Change: the ledger records what actually left the valve
   (`volume_actual_ml`, `pulses_fired`, `volume_per_pulse_ml`, added
-  automatically). A retry asks only for the outstanding dose instead of
-  +5 % per failure. Completion is judged within half a pulse instead of
-  0.01 mL.
+  automatically), and a delivery cut short is credited and logged as
+  `partial` instead of zero. A retry asks only for the outstanding dose
+  instead of +5 % per failure. Completion is judged within half a pulse
+  instead of 0.01 mL.
 
 ## 1.16.x — calibration timing profile
 
 - **1.16.1** — Fix: the calibration wizard accepts 10–1000 pulses (it
   accepted only 100–500).
 - **1.16.0** — Feature: a calibration stores the rest between pulses,
-  set in the wizard. Deliveries replay the pulse width and rest each cage
-  was calibrated at; older calibrations keep the legacy 100 ms rest.
-  (Tagged first as the pre-release 1.16.0-beta.)
+  set in the wizard (**Inter-Pulse Interval**). Deliveries replay the
+  pulse width and rest each cage was calibrated at; older calibrations
+  keep the legacy 100 ms rest. A delivery whose estimated duration would
+  exceed `max_pulse_delivery_time_s` (fixed at 120 s) is refused before
+  any water moves, with the reason in the Terminal tab; before, the limit
+  cut the dose off mid-way and the retry sent the whole dose again.
+  Shorten the rest or split the dose. The calibration
+  wizard runs its pulses off the GUI thread: the window no longer
+  freezes, the progress bar is live, X cancels a run mid-way, and the
+  master valve is closed on every exit (a mid-run error used to leave it
+  open). (Tagged first as the pre-release 1.16.0-beta.)
 
 ## 1.15.x — hardware operation lock
 
@@ -254,16 +268,22 @@ on `main` but never released.
   greyed out.
 - **1.15.0** — Feature (safety): schedule runs, priming and calibration
   share one hardware lock, and each refuses to start while another holds
-  it.
+  it (a "Hardware busy" message says which). CLOSE ALL RELAYS in Settings
+  → Priming clears the lock.
 
 ## 1.13.0 – 1.14.2 — instant schedules
 
-- **1.14.2** — Fix: instant schedules load their deliveries again (a
-  method removed by mistake in 1.14.1).
+- **1.14.2** — Fix: pressing Run on an instant schedule (or dropping one
+  into the run area) failed in 1.14.1 with a missing-method error; the
+  method, removed by mistake in 1.14.1, is restored.
 - **1.14.1** — Change: removed dead instant-delivery and legacy
   controller code.
-- **1.14.0** — Fix: instant deliveries run through the delivery strategy,
-  like staggered ones.
+- **1.14.0** — Change: instant deliveries run through the same delivery
+  path as staggered ones. On solenoid hardware an instant dose now uses
+  the cage's valve calibration and pulse width (and the flow sensor, when
+  one is connected); before, it went through the legacy pump path (a
+  generic trigger count with the stagger interval between triggers) and
+  ignored them.
 - **1.13.1** — Fix: instant schedule cards show the right animal count.
 - **1.13.0** — Fix: instant schedules can be created, run and edited.
 
@@ -271,14 +291,23 @@ on `main` but never released.
 
 - **1.12.0** — Add: an **Edit Schedule** button in the Schedules hub's
   select mode.
-- **1.11.1** — Fix: follow-ups to schedule editing.
+- **1.11.1** — Fix: edit-schedule follow-ups. The dialog opens large
+  enough to show the whole form, the Quick Apply start/end/volume row is
+  pre-filled and its edits now apply on save (before, they were ignored
+  unless Apply to All was clicked), and the Schedules hub log lists the
+  exact edits made.
 - **1.11.0** — Change: the edit-schedule dialog is rebuilt on the wizard's
   step 3 and saves its edits. Card labels no longer show grey boxes.
 - **1.10.1** — Fix: drop-down lists show every item; Help opens on its
   first topic.
-- **1.10.0** — Change: Settings is hidden from guests, and Help stays
-  available. The schedule wizard checks the delivery window before saving.
-  The solenoid strategy defaults to pulse mode.
+- **1.10.0** — Change: Settings is hidden from guests and Help is now open
+  to them (it was disabled when logged out). The schedule wizard validates
+  the delivery window before saving (a name, at least one animal, volume
+  above zero, end after start, and a window long enough for the summed
+  per-cage pulse time) and defaults the staggered window to 1 hour instead
+  of 12, as does the edit dialog. The solenoid strategy's fallback now
+  defaults to pulse mode (already enforced in production, so no delivery
+  change).
 
 ## 1.9.x — legacy flow sensor removed, lint gate, UI polish
 
@@ -292,7 +321,9 @@ on `main` but never released.
 - **1.9.0** — Change: removed the legacy direct-I²C flow-sensor driver.
   The Teensy UART bridge is the only flow sensor, and a device still set
   to `i2c` falls back to calibration-only mode. The code is now formatted
-  and linted with ruff.
+  and linted with ruff. CONTRIBUTING.md and this changelog added;
+  ProjectsController and ScheduleDropArea now take the shared
+  DatabaseHandler (one DB handle instead of three).
 
 ## 1.8.x — stop-sequence safety + multi-HAT
 
