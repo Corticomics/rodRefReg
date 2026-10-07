@@ -121,10 +121,13 @@ def restarts(monkeypatch):
     """Stand in for utils.updater.restart_app. The real one would restart
     the rrr user service or launch a new RRR from inside the test run.
     ``restarts.result`` is what it answers; by default RRR cannot restart
-    itself, as on a machine without the launcher."""
+    itself, as on a machine without the launcher. ``restarts.real`` is the
+    real one, for a test that stubs what it would touch instead."""
     from utils import updater  # noqa: PLC0415
 
-    record = SimpleNamespace(calls=0, result=(False, "no launcher in the test run"))
+    record = SimpleNamespace(
+        calls=0, result=(False, "no launcher in the test run"), real=updater.restart_app
+    )
 
     def restart_app():
         record.calls += 1
@@ -145,7 +148,9 @@ def _settings_tab(
 
     login = SimpleNamespace(
         is_logged_in=lambda: logged_in,
-        get_current_trainer=lambda: {"username": "alice", "role": "normal"} if logged_in else None,
+        get_current_trainer=lambda: (
+            {"username": "alice", "trainer_id": 7, "role": "normal"} if logged_in else None
+        ),
     )
     return SettingsTab(
         system_controller,
@@ -160,6 +165,17 @@ def _stored(database_handler):
     from utils.topology import topology_from  # noqa: PLC0415
 
     return topology_from(database_handler.get_system_settings())
+
+
+def _logged(database_handler):
+    """The topology changes in the database's log: (super_user_id, details)."""
+    import sqlite3  # noqa: PLC0415
+    from contextlib import closing  # noqa: PLC0415
+
+    with closing(sqlite3.connect(database_handler.db_path)) as conn:
+        return conn.execute(
+            "SELECT super_user_id, details FROM logs WHERE action = 'valve_topology'"
+        ).fetchall()
 
 
 def _assert_unchanged(tab, system_controller, database_handler):
@@ -200,10 +216,13 @@ def test_a_confirmed_click_is_saved_read_back_and_announced(
     assert _titles(dialogs, "question") == ["Change Valve Topology"]
     assert _titles(dialogs, "information") == ["Valve Topology Changed"]
 
+    # The test run cannot restart RRR: the change, then why there was no restart.
     announced = [line for line in terminal if line.startswith("[TOPOLOGY]")]
-    assert len(announced) == 1
+    assert len(announced) == 2
     assert f"{SHARED} -> {INDEPENDENT} (by alice)" in announced[0]
-    assert journal.getvalue() == announced[0] + "\n", "the journal gets the same line"
+    assert "could not restart itself" in announced[1]
+    assert journal.getvalue() == "".join(f"{line}\n" for line in announced), "the same lines"
+    assert _logged(database_handler) == [(7, f"{SHARED} -> {INDEPENDENT} (by alice)")]
 
 
 def test_a_declined_change_keeps_the_old_topology(
@@ -216,6 +235,7 @@ def test_a_declined_change_keeps_the_old_topology(
     _assert_unchanged(tab, system_controller, database_handler)
     assert _titles(dialogs, "question") == ["Change Valve Topology"]
     assert restarts.calls == 0, "Cancel restarts nothing"
+    assert _logged(database_handler) == [], "and records nothing"
 
 
 def test_the_confirmation_offers_restart_or_cancel(
@@ -255,6 +275,32 @@ def test_confirming_saves_the_change_then_restarts_rrr(
     assert journal.getvalue() == announced[0] + "\n"
 
 
+def test_who_changed_it_is_kept_before_rrr_restarts(
+    qapp, database_handler, system_controller, dialogs, journal, monkeypatch
+):
+    """The Terminal tab goes with the restart, and under rrr.service
+    systemctl may stop RRR at once: the database's log has the change and
+    the journal has the line before restart_app runs."""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from utils import updater  # noqa: PLC0415
+
+    seen = {}
+
+    def restart_app():
+        seen["journal"] = journal.getvalue()
+        seen["logged"] = _logged(database_handler)
+        return True, "Restarting…"
+
+    monkeypatch.setattr(updater, "restart_app", restart_app)
+    tab = _settings_tab(system_controller, database_handler)
+    dialogs.answer = QMessageBox.Yes
+
+    tab.valve_topology_radios[INDEPENDENT].click()
+
+    assert f"{SHARED} -> {INDEPENDENT} (by alice). Restarting RRR to apply it." in seen["journal"]
+    assert seen["logged"] == [(7, f"{SHARED} -> {INDEPENDENT} (by alice)")]
+
+
 def test_when_rrr_cannot_restart_the_change_holds_and_it_says_to_reopen(
     qapp, database_handler, system_controller, dialogs, restarts
 ):
@@ -273,8 +319,32 @@ def test_when_rrr_cannot_restart_the_change_holds_and_it_says_to_reopen(
     assert "Close and reopen RRR" in info
     for button in (tab.priming_widget.master_open_btn, tab.priming_widget.cage_open_btn):
         assert not button.isEnabled() and button.toolTip() == RESTART_TIP
-    (line,) = [line for line in terminal if line.startswith("[TOPOLOGY]")]
-    assert "could not restart itself" in line and "Priming waits until RRR is reopened" in line
+    first, failed = [line for line in terminal if line.startswith("[TOPOLOGY]")]
+    assert "Restarting RRR to apply it" in first
+    assert "could not restart itself" in failed and "Priming waits until RRR is reopened" in failed
+
+
+def test_without_the_launcher_the_box_says_to_reopen_rrr_not_to_finish_an_update(
+    qapp, database_handler, system_controller, dialogs, restarts, monkeypatch, tmp_path
+):
+    """The real restart_app, with no rrr.service and no ~/.local/bin/rrr (a
+    development checkout): its reason reaches the box, which must not speak
+    of an update or say to reopen RRR twice."""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from utils import updater  # noqa: PLC0415
+
+    monkeypatch.setattr(updater, "restart_app", restarts.real)
+    monkeypatch.setattr(updater.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=3))
+    monkeypatch.setattr(updater.os.path, "expanduser", lambda p: p.replace("~", str(tmp_path)))
+    tab = _settings_tab(system_controller, database_handler)
+    dialogs.answer = QMessageBox.Yes
+
+    assert tab._on_valve_topology_chosen(INDEPENDENT) is True
+
+    (info,) = [text for kind, _t, text in dialogs.shown if kind == "information"]
+    assert "Could not find the launcher at ~/.local/bin/rrr" in info
+    assert "update" not in info.lower()
+    assert info.lower().count("reopen") == 1
 
 
 def test_clicking_the_current_topology_does_nothing(

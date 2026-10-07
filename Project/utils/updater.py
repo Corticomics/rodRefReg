@@ -488,12 +488,11 @@ def restart_app():
             return False, "Could not restart automatically: %s" % exc
 
     # Path B: spawn the shim detached, then schedule our own quit.
+    # Every failure message says why only: each caller (the in-app update,
+    # a valve topology change) tells the operator what to do next.
     shim = os.path.expanduser("~/.local/bin/rrr")
     if not os.path.isfile(shim):
-        return False, (
-            "Could not find the launcher at ~/.local/bin/rrr. "
-            "Please close and reopen RRR to finish the update."
-        )
+        return False, "Could not find the launcher at ~/.local/bin/rrr."
     try:
         subprocess.Popen(
             ["sh", "-c", _relaunch_command(os.getpid(), shim)],

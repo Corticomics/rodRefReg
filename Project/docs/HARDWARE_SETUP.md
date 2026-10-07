@@ -439,15 +439,18 @@ no default of its own.
 > while Hardware Mode is *Solenoid*), click **Independent (one syringe and one
 > valve per animal)** and confirm. The choice is greyed out, and refused with
 > *Cannot Change Topology*, while a schedule, a priming session or a
-> calibration is running. The Terminal tab records the change as a
-> `[TOPOLOGY] Valve topology changed in Settings: …` line with the user's name.
-> Confirming the change (**Restart RRR**; **Cancel** keeps the old one)
-> restarts RRR, so priming, calibration and schedules all use the new
-> topology. If RRR cannot restart itself it says so: close and reopen RRR
-> before priming.
+> calibration is running. Confirming the change (**Restart RRR**; **Cancel**
+> keeps the old one) restarts RRR, so priming, calibration and schedules all
+> use the new topology; log in again afterwards. If RRR cannot restart itself
+> it says so: close and reopen RRR before priming. RRR records who made the
+> change, and when, in its database (the `logs` table, action
+> `valve_topology`), and prints a `[TOPOLOGY] Valve topology changed in
+> Settings: …` line with the user's name just before it restarts (under
+> `rrr.service` the line is in the journal).
 >
 > With the app closed (its window, or `systemctl --user stop rrr.service`
-> where it runs as the user service), the command-line tool does the same:
+> where it runs as the user service), the command-line tool does the same,
+> without the `logs` record:
 >
 > ```bash
 > cd ~/rrr/current/Project

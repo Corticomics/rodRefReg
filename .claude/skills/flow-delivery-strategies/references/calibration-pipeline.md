@@ -68,8 +68,9 @@ deliver air and ruin the mean.
   RELAYS. There is no flow readout: watch the outlet for a steady stream
   with no bubbles.
 - **Does not count against the schedule** — priming water goes to drain.
-- After the valve topology is changed in Settings, Priming cannot open a
-  valve until RRR is closed and reopened.
+- A valve topology change in Settings restarts RRR (the panel is built for
+  the topology RRR started with); where RRR cannot restart itself, Priming
+  cannot open a valve until RRR is closed and reopened.
 
 The widget is independent of any delivery strategy; it drives the relays
 through the topology's valve controller

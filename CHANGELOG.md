@@ -122,8 +122,8 @@ on `main` but never released.
   Changing it asks **Restart RRR** or **Cancel**; confirming saves the
   change and restarts RRR, so priming, calibration and schedules all use
   the new topology. If RRR cannot restart itself it says so, and Priming
-  waits until RRR is reopened. Every start prints
-  `[TOPOLOGY] Valve topology: …`.
+  waits until RRR is reopened. RRR records who changed it, and when, in
+  its database's log. Every start prints `[TOPOLOGY] Valve topology: …`.
 - **Add:** each calibration records the topology it was measured under.
   Settings > Calibration marks a calibration measured under the other
   valve topology **Stale**, and Run refuses it. After switching the

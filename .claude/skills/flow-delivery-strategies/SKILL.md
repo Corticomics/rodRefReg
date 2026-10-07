@@ -141,9 +141,11 @@ operator closes it or presses CLOSE ALL RELAYS (which also stops a running
 schedule through the Stop path, and frees the operation lock only when every
 relay is confirmed off and no delivery worker is alive; a stopped schedule
 does not resume, Run starts it over). On the independent topology
-the master group is hidden and a cage valve is primed directly. After the
-valve topology is changed in Settings, Priming cannot open a valve until
-RRR is closed and reopened. No flow integration; it doesn't count against the schedule.
+the master group is hidden and a cage valve is primed directly. A valve
+topology change in Settings restarts RRR (`utils.updater.restart_app`), since
+the panel is built for the topology RRR started with; where RRR cannot restart
+itself, Priming cannot open a valve until RRR is closed and reopened. No flow
+integration; it doesn't count against the schedule.
 
 Full procedure: [`references/calibration-pipeline.md`](references/calibration-pipeline.md).
 

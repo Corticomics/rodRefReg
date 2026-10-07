@@ -5,6 +5,9 @@ instance meets this instance's single-instance lock (keyed by version, see
 main.py) if it starts while this one still runs: it hands over and exits,
 and once this one quits no RRR is left running. The relaunch therefore
 waits for this process to exit before it runs the launcher.
+
+When it cannot restart RRR it says why, and only why: the Updates tab and
+the valve topology change each tell the operator what to do next.
 """
 
 from __future__ import annotations
@@ -107,3 +110,39 @@ def test_without_the_launcher_it_does_not_quit(monkeypatch, tmp_path, no_systemd
     restarted, message = updater.restart_app()
 
     assert restarted is False and "~/.local/bin/rrr" in message
+    # Why only: the in-app update and a valve topology change each say what to do.
+    assert "update" not in message.lower() and "reopen" not in message.lower()
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt5.QtWidgets import QApplication  # noqa: PLC0415
+
+    return QApplication.instance() or QApplication([])
+
+
+def test_the_updates_tab_says_to_reopen_rrr_to_finish_the_update(qapp, monkeypatch):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    monkeypatch.setattr(updater, "has_previous_release", lambda: False)
+    from ui.UpdatesTab import UpdatesTab  # noqa: PLC0415
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "exec_", lambda _box: QMessageBox.Yes)
+    monkeypatch.setattr(
+        QMessageBox, "information", staticmethod(lambda _p, title, text: shown.append((title, text)))
+    )
+    monkeypatch.setattr(
+        updater, "restart_app", lambda: (False, "Could not find the launcher at ~/.local/bin/rrr.")
+    )
+
+    UpdatesTab()._offer_restart("Update installed.")
+
+    assert shown == [
+        (
+            "Restart",
+            "Could not find the launcher at ~/.local/bin/rrr.\n\n"
+            "Close and reopen RRR to finish the update.",
+        )
+    ]
