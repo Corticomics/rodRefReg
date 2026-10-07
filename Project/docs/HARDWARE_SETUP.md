@@ -441,9 +441,10 @@ no default of its own.
 > *Cannot Change Topology*, while a schedule, a priming session or a
 > calibration is running. The Terminal tab records the change as a
 > `[TOPOLOGY] Valve topology changed in Settings: …` line with the user's name.
-> Schedules and calibrations started afterwards use the new topology at once;
-> Priming cannot open a valve until RRR is closed and reopened, so close and
-> reopen RRR before priming.
+> Confirming the change (**Restart RRR**; **Cancel** keeps the old one)
+> restarts RRR, so priming, calibration and schedules all use the new
+> topology. If RRR cannot restart itself it says so: close and reopen RRR
+> before priming.
 >
 > With the app closed (its window, or `systemctl --user stop rrr.service`
 > where it runs as the user service), the command-line tool does the same:
@@ -601,8 +602,7 @@ After install:
    (master valve)** (the default) or **Independent (one syringe and one valve
    per animal)**. Do this before priming and calibrating: each calibration
    records the topology it was measured under, and one measured under the
-   other valve topology shows **Stale**. After a change, close and reopen RRR
-   before priming.
+   other valve topology shows **Stale**. Confirming a change restarts RRR.
 3. **Open Settings → Priming** and prime every line. See
    [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md).
 4. **Calibrate every valve.** See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md).

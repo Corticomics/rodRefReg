@@ -294,10 +294,11 @@ topology.
 
 #### 2c. **After the Valve Topology Changes in Settings** (v1.21.0)
 
-The panel lays out its controls for the topology RRR started with. After a
-change in **Settings → Delivery → Valve Topology**, **Open Master** and
+The panel lays out its controls for the topology RRR started with, so
+confirming a change in **Settings → Delivery → Valve Topology** restarts
+RRR. If RRR cannot restart itself, it says so, and **Open Master** and
 **Open Selected** stay greyed out with the tooltip *"Restart RRR to prime
-with the new valve topology"* until RRR is closed and reopened. **Close
+with the new valve topology"* until RRR is closed and reopened; **Close
 Master**, **Close Selected** and **CLOSE ALL RELAYS** keep working. The
 change itself is refused while a priming session is open, so no valve can
 be left open across it.
@@ -402,7 +403,8 @@ There is no hardware integration test; use the manual checklist below on a rig.
 - [ ] Cage selector populates with correct relays
 - [ ] Safety interlock prevents cage opening when master closed (shared manifold)
 - [ ] Independent topology: no Master Solenoid Control group, a cage opens directly, and the daily syringe-line reminder shows
-- [ ] After a topology change in Settings, Open Master and Open Selected stay greyed out until RRR is closed and reopened; Close and CLOSE ALL RELAYS still work
+- [ ] Confirming a topology change in Settings restarts RRR, and Priming then shows the controls for the new topology (no master group on independent)
+- [ ] Where RRR cannot restart itself, Open Master and Open Selected stay greyed out until RRR is closed and reopened; Close and CLOSE ALL RELAYS still work
 - [ ] Emergency stop closes all relays; pressed while a schedule runs it stops the schedule (Run comes back, no valve opens afterwards); with the relay HAT disconnected (power the Pi and the valve supply off to disconnect it, then start RRR) it shows **Emergency Stop Failed** and Run stays greyed out
 - [ ] The main Terminal tab shows timestamped `[Priming HH:MM:SS]` messages
       when a valve is opened or closed and on emergency stop

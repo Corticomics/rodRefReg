@@ -119,8 +119,11 @@ on `main` but never released.
     reserved, is never driven, and should be left unwired.
 
   The choice is greyed out while a schedule, priming or calibration runs.
-  After a change, Priming cannot open a valve until RRR is closed and
-  reopened. Every start prints `[TOPOLOGY] Valve topology: …`.
+  Changing it asks **Restart RRR** or **Cancel**; confirming saves the
+  change and restarts RRR, so priming, calibration and schedules all use
+  the new topology. If RRR cannot restart itself it says so, and Priming
+  waits until RRR is reopened. Every start prints
+  `[TOPOLOGY] Valve topology: …`.
 - **Add:** each calibration records the topology it was measured under.
   Settings > Calibration marks a calibration measured under the other
   valve topology **Stale**, and Run refuses it. After switching the
@@ -232,6 +235,11 @@ on `main` but never released.
 - Removed: `tools/valve_calibration_tool.py` (it could not start),
   `PulseCalibrator`, and the unused `gpio/mock_gpio_handler.py`.
 - CI also runs the unit suite on Debian Bookworm with Python 3.11.
+- `utils.updater.restart_app` relaunches through `~/.local/bin/rrr` only
+  after the running process has exited (it gives up waiting after 60 s).
+  The single-instance lock is keyed by version, so a restart that keeps
+  the version, such as a valve topology change, would otherwise hand over
+  to the old instance and exit.
 - `scripts/install/test_install.sh` recognises a dry run that reached its
   end; it looked for a message the installer stopped printing in May 2026,
   so it failed every run. It checks that the dry run leaves the release

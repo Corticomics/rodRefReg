@@ -1040,12 +1040,12 @@ def _build_content() -> Dict[str, HelpContent]:
     relay 16; each delivery, calibration and priming action opens only the animal's own
     valve.  If the rig still has a master valve, no water reaches any animal.</li>
   </ul>
-  <p>You must be logged in to change it.  RRR asks for confirmation and refuses the change
-  while a schedule, a priming session or a calibration is running.  Schedules and calibrations
-  started afterwards use the new topology.  Cages calibrated under the other valve topology show
-  <strong>Stale</strong> in Settings → Calibration; in solenoid pulse mode (the default) a
-  schedule that waters them will not start until they are recalibrated.  Priming cannot open a valve until
-  RRR is closed and reopened.</p>
+  <p>You must be logged in to change it.  RRR refuses the change while a schedule, a priming
+  session or a calibration is running, and otherwise asks you to confirm with
+  <strong>Restart RRR</strong> or <strong>Cancel</strong>.  Confirming restarts RRR, so priming,
+  calibration and schedules all use the new topology.  Cages calibrated under the other valve
+  topology show <strong>Stale</strong> in Settings → Calibration; in solenoid pulse mode (the
+  default) a schedule that waters them will not start until they are recalibrated.</p>
 
   <h2>Pump Mode (Legacy)</h2>
   <p>In pump mode, each relay unit controls a peristaltic pump using timed pulses.
@@ -1261,10 +1261,11 @@ def _build_content() -> Dict[str, HelpContent]:
   </ul>
 
   <h2>After a Valve Topology Change</h2>
-  <p>The Priming panel is built for the topology RRR started with.  After the topology is
-  changed in <strong>Settings → Delivery → Valve Topology</strong>, the Open buttons are greyed
-  out (<em>Restart RRR to prime with the new valve topology</em>) until RRR is closed and
-  reopened.  Closing valves and <strong>CLOSE ALL RELAYS</strong> still work.</p>
+  <p>The Priming panel is built for the topology RRR started with, so changing the topology in
+  <strong>Settings → Delivery → Valve Topology</strong> restarts RRR.  If RRR cannot restart
+  itself, it says so, and the Open buttons stay greyed out (<em>Restart RRR to prime with the new
+  valve topology</em>) until RRR is closed and reopened.  Closing valves and
+  <strong>CLOSE ALL RELAYS</strong> still work.</p>
 
   <h2>If a Valve Does Not Confirm</h2>
   <p>If a cage valve does not confirm closed, the panel names it and priming stays active

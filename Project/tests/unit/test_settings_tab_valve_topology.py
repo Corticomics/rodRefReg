@@ -2,10 +2,11 @@
 
 Headless (``QT_QPA_PLATFORM=offscreen``). The real ``SettingsTab`` runs
 against the test ``SystemController`` and database. The radios show the
-stored topology. A confirmed change is saved on its own, read back,
-announced and marks other-topology calibrations Stale, and priming cannot
-open a valve until RRR restarts. Every unsafe moment leaves the device on
-its old topology:
+stored topology. The confirmation offers Restart RRR or Cancel. A
+confirmed change is saved on its own, read back, announced, marks
+other-topology calibrations Stale and restarts RRR; where RRR cannot
+restart itself, priming cannot open a valve until RRR is reopened. Every
+unsafe moment leaves the device on its old topology:
 
 - a hardware operation holding the lock;
 - a delivery worker running, or the Run/Stop section mid-job;
@@ -73,10 +74,13 @@ def journal(monkeypatch):
 @pytest.fixture(autouse=True)
 def dialogs(monkeypatch):
     """Record every message box instead of showing it (a modal box blocks a
-    headless run). ``dialogs.answer`` is what the confirmation returns."""
+    headless run). ``dialogs.answer`` is what the confirmation returns:
+    QMessageBox.Yes clicks its accept button (Restart RRR), anything else
+    its reject button (Cancel). The confirmation is a QMessageBox with its
+    own buttons, recorded as a "question" like the static helpers."""
     from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
 
-    record = SimpleNamespace(shown=[], answer=QMessageBox.No)
+    record = SimpleNamespace(shown=[], answer=QMessageBox.No, boxes=[])
 
     def box(kind):
         def show(_parent, title, text, *_rest, **_kw):
@@ -87,6 +91,46 @@ def dialogs(monkeypatch):
 
     for kind in ("warning", "critical", "information", "question"):
         monkeypatch.setattr(QMessageBox, kind, box(kind))
+
+    # macOS ignores QMessageBox titles (windowTitle() reads ""), so keep the one set.
+    set_title = QMessageBox.setWindowTitle
+
+    def set_window_title(message_box, title):
+        message_box.recorded_title = title
+        set_title(message_box, title)
+
+    monkeypatch.setattr(QMessageBox, "setWindowTitle", set_window_title)
+
+    def exec_(message_box):
+        title = getattr(message_box, "recorded_title", message_box.windowTitle())
+        record.shown.append(("question", title, message_box.text()))
+        record.boxes.append(message_box)
+        role = QMessageBox.AcceptRole if record.answer == QMessageBox.Yes else QMessageBox.RejectRole
+        for button in message_box.buttons():
+            if message_box.buttonRole(button) == role:
+                button.click()
+                break
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec_", exec_)
+    return record
+
+
+@pytest.fixture(autouse=True)
+def restarts(monkeypatch):
+    """Stand in for utils.updater.restart_app. The real one would restart
+    the rrr user service or launch a new RRR from inside the test run.
+    ``restarts.result`` is what it answers; by default RRR cannot restart
+    itself, as on a machine without the launcher."""
+    from utils import updater  # noqa: PLC0415
+
+    record = SimpleNamespace(calls=0, result=(False, "no launcher in the test run"))
+
+    def restart_app():
+        record.calls += 1
+        return record.result
+
+    monkeypatch.setattr(updater, "restart_app", restart_app)
     return record
 
 
@@ -163,14 +207,74 @@ def test_a_confirmed_click_is_saved_read_back_and_announced(
 
 
 def test_a_declined_change_keeps_the_old_topology(
-    qapp, database_handler, system_controller, dialogs
+    qapp, database_handler, system_controller, dialogs, restarts
 ):
     tab = _settings_tab(system_controller, database_handler)
 
-    tab.valve_topology_radios[INDEPENDENT].click()  # dialogs.answer is No
+    tab.valve_topology_radios[INDEPENDENT].click()  # dialogs.answer is No: Cancel
 
     _assert_unchanged(tab, system_controller, database_handler)
     assert _titles(dialogs, "question") == ["Change Valve Topology"]
+    assert restarts.calls == 0, "Cancel restarts nothing"
+
+
+def test_the_confirmation_offers_restart_or_cancel(
+    qapp, database_handler, system_controller, dialogs
+):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    tab = _settings_tab(system_controller, database_handler)
+    tab._on_valve_topology_chosen(INDEPENDENT)
+
+    box = dialogs.boxes[-1]
+    roles = {button.text(): box.buttonRole(button) for button in box.buttons()}
+    assert roles == {"Restart RRR": QMessageBox.AcceptRole, "Cancel": QMessageBox.RejectRole}
+    assert box.defaultButton().text() == "Cancel", "Enter does not restart by accident"
+    assert box.escapeButton().text() == "Cancel"
+
+
+def test_confirming_saves_the_change_then_restarts_rrr(
+    qapp, database_handler, system_controller, dialogs, restarts, journal
+):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    terminal = []
+    tab = _settings_tab(system_controller, database_handler, terminal=terminal.append)
+    dialogs.answer = QMessageBox.Yes
+    restarts.result = (True, "Relaunching RRR…")
+
+    tab.valve_topology_radios[INDEPENDENT].click()
+
+    assert restarts.calls == 1
+    assert _stored(database_handler) == INDEPENDENT, "saved before the restart"
+    assert _titles(dialogs, "information") == [], "no box stands in the restart's way"
+    announced = [line for line in terminal if line.startswith("[TOPOLOGY]")]
+    assert len(announced) == 1
+    assert f"{SHARED} -> {INDEPENDENT} (by alice)" in announced[0]
+    assert "Restarting RRR to apply it" in announced[0]
+    assert journal.getvalue() == announced[0] + "\n"
+
+
+def test_when_rrr_cannot_restart_the_change_holds_and_it_says_to_reopen(
+    qapp, database_handler, system_controller, dialogs, restarts
+):
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+    terminal = []
+    tab = _settings_tab(system_controller, database_handler, terminal=terminal.append)
+    dialogs.answer = QMessageBox.Yes
+    restarts.result = (False, "Could not find the launcher at ~/.local/bin/rrr.")
+
+    assert tab._on_valve_topology_chosen(INDEPENDENT) is True
+
+    assert _stored(database_handler) == INDEPENDENT
+    (info,) = [text for kind, _t, text in dialogs.shown if kind == "information"]
+    assert "could not restart itself" in info and "Could not find the launcher" in info
+    assert "Close and reopen RRR" in info
+    for button in (tab.priming_widget.master_open_btn, tab.priming_widget.cage_open_btn):
+        assert not button.isEnabled() and button.toolTip() == RESTART_TIP
+    (line,) = [line for line in terminal if line.startswith("[TOPOLOGY]")]
+    assert "could not restart itself" in line and "Priming waits until RRR is reopened" in line
 
 
 def test_clicking_the_current_topology_does_nothing(
@@ -189,7 +293,7 @@ def test_the_confirmation_names_the_risk_of_each_direction(
     tab._on_valve_topology_chosen(INDEPENDENT)
     _kind, _title, text = dialogs.shown[-1]
     assert "NO WATER" in text and "relay 16" in text
-    assert "Stale" in text and "reopened" in text
+    assert "Stale" in text and "RRR restarts to apply the change" in text
     assert "Run refuses a schedule that waters a Stale cage" in text, "since #170"
 
     system_controller.save_settings({"valve_topology": INDEPENDENT})
@@ -212,7 +316,7 @@ def test_the_topology_note_says_run_refuses_a_stale_cage(qapp, database_handler,
     ]
     assert len(notes) == 1
     assert "a schedule watering a Stale cage will not start" in notes[0]
-    assert "reopened" in notes[0]
+    assert "Changing it restarts RRR" in notes[0]
 
 
 def test_nobody_logged_in_cannot_change_it(qapp, database_handler, system_controller, dialogs):
@@ -284,7 +388,7 @@ def test_refused_while_the_run_stop_section_has_a_job(
 
 
 def test_a_schedule_started_during_the_confirmation_wins(
-    qapp, database_handler, system_controller, dialogs, monkeypatch
+    qapp, database_handler, system_controller, dialogs, restarts, monkeypatch
 ):
     from utils.operation_lock import get_operation_lock  # noqa: PLC0415
 
@@ -299,6 +403,7 @@ def test_a_schedule_started_during_the_confirmation_wins(
     assert tab._on_valve_topology_chosen(INDEPENDENT) is False
     _assert_unchanged(tab, system_controller, database_handler)
     assert _titles(dialogs, "warning") == ["Cannot Change Topology"]
+    assert restarts.calls == 0, "never restarted under a running schedule"
 
 
 # --- a database that does not keep the value ------------------------------------------

@@ -363,13 +363,15 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
      unconfirmed emergency stop is in progress").
    - Restart RRR, log in again, then set the count back to 1 with Change
      Relay Hats (the restart cleared the lock-out).
-7. **Topology.** Settings → Delivery → Valve Topology → Independent
-   (answer Yes to **Change Valve Topology**): the step-3 calibration
-   shows **Stale**, and Priming's Open buttons are greyed out until
-   restart. After a restart the Priming panel has no master group.
+7. **Topology.** Settings → Delivery → Valve Topology → Independent.
+   **Change Valve Topology** offers **Restart RRR** or **Cancel**: Cancel
+   first (nothing changes), then Restart RRR. RRR closes and opens again
+   by itself. Log in: the step-3 calibration shows **Stale**, the Priming
+   panel has no master group, and Open Selected opens a cage directly.
    Calibrate the cage again (only its relay clicks; relay 16 stays
    silent), then Run the step-4 schedule: a delivery clicks only the cage
-   relay. Switch back to Shared manifold, recalibrate, restart.
+   relay. Switch back to Shared manifold (RRR restarts again) and
+   recalibrate.
 8. **Updates tab.** Shows Installed version: <version>, which must be
    the candidate's; press **Check for updates** and it says "You’re up to
    date (version <version>)" (the latest Release is still the previous
