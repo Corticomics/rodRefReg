@@ -10,11 +10,13 @@ The version lives in **one file**:
 the bundle filename, the GitHub Release title, the in-app updater check)
 derives from it.
 
-## The one invariant CI enforces
+## The two invariants CI enforces
 
 The git tag MUST equal `v<__version__>` at the tagged commit, byte for
-byte. [`.github/workflows/release.yml`](.github/workflows/release.yml)
-fails the build otherwise:
+byte, and `CHANGELOG.md` MUST have a `## <__version__>` entry (the test
+suite fails on every PR while it is missing, and the Release job fails
+before publishing). [`.github/workflows/release.yml`](.github/workflows/release.yml)
+rejects a mismatched tag:
 
 ```yaml
 - name: Verify tag matches Project/version.py
@@ -61,20 +63,25 @@ So if your prompt says "branch, commit, push, PR, bump version", bump.
 
 ```
 1. branch off main with <type>/<slug>
-2. make changes, commit conventionally
+2. make changes, commit conventionally; if the PR is release-bound, bump Project/version.py
+   and add the release to CHANGELOG.md in the same PR
 3. push branch, open PR
 4. merge PR through GitHub UI
 5. on local main: git pull --ff-only
-6. bump Project/version.py     ← if this PR is release-bound
+6. confirm Project/version.py on main holds the new version
 7. git tag v<new_version>       ← still local; reversible
 8. git push origin v<new_version>   ← POINT OF NO RETURN
 ```
 
-After step 8 the GitHub Actions release workflow builds the bundle
-(via [`scripts/release/build-bundle.sh`](scripts/release/build-bundle.sh)),
+After step 8 the GitHub Actions release workflow takes the Release notes
+from CHANGELOG.md (via
+[`scripts/release/changelog_entry.py`](scripts/release/changelog_entry.py);
+no entry for the version fails the job before anything is published),
+builds the bundle (via
+[`scripts/release/build-bundle.sh`](scripts/release/build-bundle.sh)),
 creates the GitHub Release with the `.rrrupdate` + `.sha256` + `latest.json`
 assets attached, and devices on the stable channel see "Update available"
-in [`Project/ui/UpdatesTab.py`](Project/ui/UpdatesTab.py).
+and those notes in [`Project/ui/UpdatesTab.py`](Project/ui/UpdatesTab.py).
 
 ## What the bundle contains
 

@@ -24,6 +24,7 @@ from strategies.pump_strategy import PumpStrategy
 # SolenoidFlowStrategy
 # ---------------------------------------------------------------------------
 
+
 def _make_solenoid(use_pulse=False):
     valves = MagicMock()
     sensor = MagicMock()
@@ -61,11 +62,9 @@ def test_deliver_does_not_clear_cancel(monkeypatch):
         return True
 
     monkeypatch.setattr(strat, "_deliver_continuous_mode", fake_continuous)
-    result = asyncio.get_event_loop().run_until_complete(
-        strat.deliver(relay_unit_id=1, target_volume_ml=0.5)
-    )
+    result = asyncio.run(strat.deliver(relay_unit_id=1, target_volume_ml=0.5))
     # Returned False without routing into the delivery, and token still set.
-    assert result is False
+    assert result.success is False
     assert routed["continuous"] is False
     assert strat._check_cancelled() is True
 
@@ -83,10 +82,8 @@ def test_deliver_proceeds_after_reset(monkeypatch):
         return True
 
     monkeypatch.setattr(strat, "_deliver_continuous_mode", fake_continuous)
-    result = asyncio.get_event_loop().run_until_complete(
-        strat.deliver(relay_unit_id=1, target_volume_ml=0.5)
-    )
-    assert result is True
+    result = asyncio.run(strat.deliver(relay_unit_id=1, target_volume_ml=0.5))
+    assert result.success is True
     assert routed["continuous"] is True
 
 
@@ -99,15 +96,14 @@ def test_cancelled_deliver_never_reports_success():
     """
     strat, _ = _make_solenoid(use_pulse=False)
     strat.request_cancel()
-    result = asyncio.get_event_loop().run_until_complete(
-        strat.deliver(relay_unit_id=3, target_volume_ml=0.5)
-    )
-    assert result is False
+    result = asyncio.run(strat.deliver(relay_unit_id=3, target_volume_ml=0.5))
+    assert result.success is False
 
 
 # ---------------------------------------------------------------------------
 # PumpStrategy (atomic — cancel can only prevent a not-yet-dispatched run)
 # ---------------------------------------------------------------------------
+
 
 def test_pump_request_cancel_prevents_dispatch():
     pump = MagicMock()
@@ -117,10 +113,8 @@ def test_pump_request_cancel_prevents_dispatch():
     strat = PumpStrategy(pump, volcalc)
 
     strat.request_cancel()
-    result = asyncio.get_event_loop().run_until_complete(
-        strat.deliver(relay_unit_id=1, target_volume_ml=0.3)
-    )
-    assert result is False
+    result = asyncio.run(strat.deliver(relay_unit_id=1, target_volume_ml=0.3))
+    assert result.success is False
     pump.dispense_water.assert_not_called()
 
 
@@ -136,8 +130,6 @@ def test_pump_normal_dispatch_after_no_cancel():
     volcalc.pump_volume_ul = 100
     strat = PumpStrategy(pump, volcalc)
 
-    result = asyncio.get_event_loop().run_until_complete(
-        strat.deliver(relay_unit_id=1, target_volume_ml=0.3)
-    )
-    assert result is True
+    result = asyncio.run(strat.deliver(relay_unit_id=1, target_volume_ml=0.3))
+    assert result.success is True
     pump.dispense_water.assert_called_once()

@@ -1,15 +1,18 @@
 import asyncio
 import logging
+import math
 import threading
 import time
 from datetime import datetime, timedelta
 from functools import partial
 
-from drivers.solenoid_controller import SolenoidController
 from PyQt5.QtCore import QMutex, QMutexLocker, QObject, QTimer, pyqtSignal, pyqtSlot
+from strategies.delivery_strategy import DeliveryResult
 from strategies.factory import StrategyFactory
 from utils.calibration import CalibrationStore
+from utils.topology import build_solenoid_controller, topology_from
 from utils.volume_calculator import VolumeCalculator
+from version import __version__
 
 """
 RelayWorker is a QObject-based class that manages the triggering of relays based on a schedule.
@@ -87,6 +90,12 @@ class RelayWorker(QObject):
         self.timers = []
         # Track per-animal retry timers to avoid duplicate scheduling
         self.retry_timers = {}
+        # Cumulative volume asked of each animal this window; the dose
+        # quantizer rounds each slot against (issued - delivered), so the
+        # per-slot rounding remainder is carried inside the window instead
+        # of being rounded up on every chunk. Fresh per worker, i.e. per
+        # run: nothing crosses a window boundary.
+        self.issued_targets = {}
 
         # Initialize main_timer
         self.main_timer = QTimer(self)
@@ -128,11 +137,7 @@ class RelayWorker(QObject):
             f"[DEBUG] system_settings.get('uart_port'): {system_settings.get('uart_port') if isinstance(system_settings, dict) else 'NOT A DICT'}"
         )
 
-        self.hardware_mode = (
-            (system_settings.get('hardware_mode') or 'pump')
-            if isinstance(system_settings, dict)
-            else 'pump'
-        )
+        self.hardware_mode = self._resolve_hardware_mode(system_settings)
         print(f"[DEBUG] Resolved hardware_mode: '{self.hardware_mode}'")
         print(f"[DEBUG] Type of hardware_mode: {type(self.hardware_mode)}")
         print(f"[DEBUG] hardware_mode == 'solenoid': {self.hardware_mode == 'solenoid'}")
@@ -308,11 +313,14 @@ class RelayWorker(QObject):
                 print(f"[DEBUG] Built fallback cage_map with {len(cage_map)} cages")
             except Exception as e:
                 print(f"Failed to build sequential cage_relays: {e}")
-        print(f"[DEBUG] Step 3b: Building SolenoidController...")
-        master_id = int(system_settings.get('global_master_relay_id', 16))
-        print(f"[DEBUG] Step 3b: master_id={master_id}, cage_map={cage_map}")
-        solenoid = SolenoidController(self.relay_handler, master_id, cage_map)
-        print(f"[DEBUG] Step 3b:  SolenoidController created")
+        print(f"[DEBUG] Step 3b: Building valve controller for this device's topology...")
+        # The device's valve topology decides whether a master valve exists;
+        # utils.topology is the one place that decision is made.
+        solenoid = build_solenoid_controller(self.relay_handler, system_settings, cage_map)
+        print(
+            f"[DEBUG] Step 3b:  {type(solenoid).__name__} created "
+            f"(has_master={solenoid.has_master}, cage_map={cage_map})"
+        )
 
         print(f"[DEBUG] Step 4: Creating strategy...")
         cal_store = CalibrationStore()
@@ -327,6 +335,7 @@ class RelayWorker(QObject):
             database_handler=self.system_controller.database_handler,
         )
         print(f"[DEBUG] Step 4:  Strategy created: {type(self.strategy)}")
+        self._report_stale_calibrations(system_settings)
 
         # Start flow sensor in continuous mode (only if available)
         print(f"[DEBUG] Step 5: Starting flow sensor...")
@@ -402,6 +411,52 @@ class RelayWorker(QObject):
             )
             self.progress.emit("✅ Hardware initialization complete (calibration mode)")
 
+    def _run_cage_ids(self):
+        """The cages this run delivers to, from its instant deliveries and
+        staggered assignments (empty when neither is known)."""
+        settings = getattr(self, 'settings', None) or {}
+        cages = set()
+        for delivery in settings.get('delivery_instants') or []:
+            try:
+                cages.add(int(delivery['relay_unit_id']))
+            except (KeyError, TypeError, ValueError):
+                pass
+        for relay_unit in (settings.get('relay_unit_assignments') or {}).values():
+            try:
+                cages.add(int(relay_unit))
+            except (TypeError, ValueError):
+                pass
+        return cages
+
+    def _report_stale_calibrations(self, system_settings):
+        """
+        Tell the operator, once per run, which cages this run waters with a
+        calibration measured under the other valve topology.
+
+        The Run button refuses such a start (utils.calibration_gate), so this
+        is a defence in depth; the strategy then still uses those
+        calibrations (refusing mid-run would leave an animal without water).
+        Never raises: a reporting failure must not abort the run's hardware
+        setup.
+        """
+        try:
+            stale_of = getattr(self.strategy, 'stale_calibrations', None)
+            stale = stale_of() if callable(stale_of) else {}
+            if not isinstance(stale, dict) or not stale:
+                return
+            run_cages = self._run_cage_ids()
+            device = topology_from(system_settings)
+            for cage_id, measured_on in sorted(stale.items()):
+                if run_cages and cage_id not in run_cages:
+                    continue
+                self.progress.emit(
+                    f"⚠️ Cage {cage_id}: calibration measured on {measured_on}, this device "
+                    f"runs {device} - deliveries use it anyway; recalibrate cage {cage_id} "
+                    "(Settings -> Calibration)"
+                )
+        except Exception as exc:
+            self.progress.emit(f"Could not check calibration topologies: {exc}")
+
     def run_instant_cycle(self):
         """Handle precise time-based deliveries"""
         # Cooperative cancel: stop scheduling further deliveries after Stop.
@@ -447,14 +502,24 @@ class RelayWorker(QObject):
                             f"Scheduling delivery in {total_delay/1000:.2f} seconds"
                         )
 
+                        # Route instant deliveries through the same handler as
+                        # staggered so they use the active DeliveryStrategy
+                        # (SolenoidFlowStrategy pulse mode + per-cage
+                        # valve_calibration + flow-sensor metering), not the
+                        # legacy pump-trigger path. _handle_delivery is
+                        # window-optional, so the one-shot instant volume is used
+                        # directly.
+                        delivery_data = {
+                            'schedule_id': self.schedule_id,
+                            'animal_id': instant['animal_id'],
+                            'relay_unit_id': instant['relay_unit_id'],
+                            'water_volume': instant['water_volume'],
+                            'instant_time': delivery_time,
+                            'triggers': None,
+                        }
                         timer = QTimer(self)
                         timer.setSingleShot(True)
-                        timer.timeout.connect(
-                            lambda i=instant: self.trigger_relay(
-                                i['relay_unit_id'],
-                                i['water_volume'],  # Changed from 'volume' to 'water_volume'
-                            )
-                        )
+                        timer.timeout.connect(partial(self._handle_delivery, delivery_data.copy()))
                         timer.start(int(total_delay))
                         self.timers.append(timer)
                         scheduled_count += 1
@@ -636,28 +701,404 @@ class RelayWorker(QObject):
             self.progress.emit(f"Error in staggered cycle: {str(e)}")
             self.check_window_completion()
 
-    async def execute_delivery(self, delivery_data):
-        """Execute delivery with volume tracking and compensation"""
-        try:
-            # Cooperative cancel: a delivery QTimer may fire after Stop was
-            # pressed. Don't start a new delivery; return fast so
-            # run_until_complete unwinds and the thread can exit.
-            if self._cancel_requested.is_set():
-                return False
-            animal_id = delivery_data['animal_id']
-            current_delivered = self.delivered_volumes.get(animal_id, 0)
-            target_volume = self.animal_windows[animal_id]['target_volume']
+    def _prepare_delivery(self, delivery_data):
+        """
+        Shared pre-flight for both delivery paths.
 
+        Applies, in order: the cooperative-cancel check, the schedule_id
+        default, the cumulative over-delivery guard, and the failed-retry
+        volume compensation. Staggered deliveries carry a per-animal window
+        (cumulative target + guard + compensation); instant deliveries have
+        no window and simply use the delivery's own volume.
+
+        Returns a dict:
+            proceed          -- False when the caller must return immediately
+            result           -- the value to return in that case
+            current_delivered/failed_count -- counters read BEFORE the
+                                hardware call, to be handed to
+                                :meth:`_finalize_delivery`
+        """
+        # A delivery QTimer may fire after Stop was pressed. Don't start a new
+        # delivery; return fast so the caller unwinds and the thread can exit.
+        if self._cancel_requested.is_set():
+            return {'proceed': False, 'result': False}
+
+        if 'schedule_id' not in delivery_data:
+            delivery_data['schedule_id'] = self.schedule_id
+
+        # The ledger records the volume asked of this delivery before the
+        # whole-pulse planner (or the window cap) rewrites water_volume;
+        # without it, volume_dispensed (the rounded plan) is all anyone can
+        # grade against. A retry re-enters with the same, already rewritten
+        # dict, so the first ask is kept.
+        delivery_data.setdefault('requested_ml', float(delivery_data['water_volume']))
+
+        animal_id = delivery_data['animal_id']
+        current_delivered = self.delivered_volumes.get(animal_id, 0)
+        failed_count = self.failed_deliveries.get(animal_id, 0)
+
+        window = getattr(self, 'animal_windows', None)
+        window = window.get(animal_id) if window else None
+        if window is not None:
+            target_volume = window['target_volume']
             if current_delivered >= target_volume:
-                return True
+                return {'proceed': False, 'result': True}
 
-            failed_count = self.failed_deliveries.get(animal_id, 0)
-            if failed_count > 0:
-                volume_increase = min(failed_count * 0.05, 0.2)
-                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                delivery_data['water_volume'] = min(
-                    adjusted_volume, target_volume - current_delivered
+        # Water leaves the valve in whole pulses. Round this request to the
+        # pulse count the animal's running deficit has actually earned; a
+        # slot whose deficit is under half a pulse fires nothing and the
+        # carry is picked up by a later slot in the same window.
+        quantized = self._quantize_to_pulses(delivery_data, window, current_delivered)
+        if quantized == 'skip':
+            return {'proceed': False, 'result': True}
+
+        if quantized is None and window is None and delivery_data.get('_dispensed_ml'):
+            # An instant retry on a strategy that does not dispense in pulses
+            # (pump/continuous): ask only for what the earlier attempt did
+            # not deliver.
+            ask = float(delivery_data.get('requested_ml', delivery_data['water_volume']))
+            rest = ask - float(delivery_data['_dispensed_ml'])
+            if rest <= 1e-9:
+                return {'proceed': False, 'result': True}
+            delivery_data['water_volume'] = rest
+
+        if quantized is None and window is not None:
+            # Non-pulse strategies (pump/continuous) request arbitrary mL:
+            # never ask for more than the animal still has coming. A retry
+            # follows a delivery that may have dispensed part of its volume
+            # already (credited in _finalize_delivery), so asking again for
+            # the original figure would double-dose. (Replaces the old
+            # "+5% per prior failure" inflation.)
+            #
+            # The quantized path must NOT take this cap: capping the request
+            # also caps what is counted toward the window, which strands the
+            # final slot below its target. There, over-delivery is bounded
+            # by the deficit arithmetic itself — cumulative issued never
+            # exceeds the window target, so delivered stays within half a
+            # pulse of it (within one pulse above it under round_doses_up).
+            outstanding = target_volume - current_delivered
+            delivery_data['water_volume'] = min(delivery_data['water_volume'], outstanding)
+
+        return {
+            'proceed': True,
+            'result': None,
+            'current_delivered': current_delivered,
+            'failed_count': failed_count,
+        }
+
+    def _quantize_to_pulses(self, delivery_data, window, current_delivered):
+        """
+        Rewrite the request as a whole number of pulses, carrying the
+        remainder within the window.
+
+        The old behaviour asked the strategy for an arbitrary volume, and
+        the pulse loop rounds UP — so every chunk delivered at least one
+        whole pulse however small its target, a bias of (pulse − chunk) per
+        chunk (+78% measured on the bench, +0.6% agreement with prediction).
+
+        Instead: track the cumulative volume this window has asked for, and
+        fire round(deficit / q) pulses where deficit = asked − actually
+        delivered. Zero is a legal answer. The window total then lands
+        within half a pulse of its cumulative target — the theoretical
+        floor — with nothing carried across the window boundary, and a
+        failed or partial delivery is absorbed by later slots because the
+        deficit is computed from ACTUAL delivered volume.
+
+        Rounding policy: by default the deficit rounds to the NEAREST whole
+        pulse, so the window lands within half a pulse either side of its
+        target. With the ``round_doses_up`` setting, any positive deficit
+        buys the next whole pulse, so the plan never falls below the dose
+        and lands within one pulse above it. The carry keeps this
+        cumulative — the window total is ceil(target / q), not one extra
+        pulse per slot.
+
+        Returns 'skip' when this slot should be skipped entirely (its carry
+        has not yet earned a pulse), 'applied' when the request was rewritten
+        to a whole pulse count, and None when the strategy does not dispense
+        in pulses (pump/continuous) or no calibration is resolvable — the
+        caller then keeps the legacy mL behaviour.
+        """
+        strategy = getattr(self, 'strategy', None)
+        quantum_of = getattr(strategy, 'pulse_volume_for', None)
+        if quantum_of is None:
+            return None
+        # Accept only a positive real quantum; anything else means the
+        # strategy is not (or not verifiably) dispensing in pulses. An
+        # isinstance check rather than float(): test doubles and misbehaving
+        # strategies can return objects that coerce but are not volumes.
+        q = quantum_of(delivery_data['relay_unit_id'])
+        if not isinstance(q, (int, float)) or isinstance(q, bool) or q <= 0:
+            return None
+        q = float(q)
+
+        requested = float(delivery_data['water_volume'])
+        animal_id = delivery_data['animal_id']
+
+        if window is not None:
+            if not hasattr(self, 'issued_targets'):
+                self.issued_targets = {}
+            # A retry re-enters with the same delivery_data; its volume was
+            # already counted toward the window the first time through.
+            if not delivery_data.get('_counted_toward_window'):
+                delivery_data['_counted_toward_window'] = True
+                window_target = float(window.get('target_volume', float('inf')))
+                outstanding = window_target - current_delivered
+                if requested >= outstanding - 1e-12:
+                    # The cycle loop sizes every chunk from DELIVERED volume
+                    # (min(target − delivered, per_cycle)), so an ask that
+                    # covers everything still outstanding — the closing
+                    # chunk, a leftover sliver, a completion-pass top-up — is
+                    # the window asking for the rest of its dose: from here
+                    # the cumulative ask is the whole target. Summing the ask
+                    # instead leaves the total short by whatever earlier
+                    # slots delivered above their ask. Nearest rounding
+                    # shrugs that off (the completion pass makes it up), but
+                    # under round-up every slot lands above its ask, so the
+                    # sum never reached the target and the window closed a
+                    # pulse short — exactly the shortfall the policy exists
+                    # to remove.
+                    self.issued_targets[animal_id] = window_target
+                else:
+                    # Never ask the window for more than its dose: counting a
+                    # re-requested leftover on top of chunks that already sum
+                    # to the target bought an extra pulse whenever the timing
+                    # allowed it (the 30-vs-31 pulse split seen on the bench
+                    # at 1.0 mL), and up to several after failed chunks were
+                    # re-queued.
+                    self.issued_targets[animal_id] = min(
+                        self.issued_targets.get(animal_id, 0.0) + requested, window_target
+                    )
+            deficit = self.issued_targets[animal_id] - current_delivered
+        else:
+            # Instant one-shot: no carry; this one request is rounded on
+            # its own (nearest, or up under round_doses_up). A retry after a
+            # partial delivery re-enters with the first attempt's whole plan
+            # in water_volume, and there is no window to subtract what was
+            # already dispensed: plan only the rest of the original ask, or
+            # the animal receives the partial plus the whole dose again.
+            ask = float(delivery_data.get('requested_ml', requested))
+            deficit = ask - float(delivery_data.get('_dispensed_ml', 0.0))
+
+        round_up = self._rounds_doses_up()
+        if round_up:
+            # The small subtraction keeps an exact multiple of q (which
+            # floating point can land a hair above) from buying a pulse.
+            n_pulses = max(0, math.ceil(deficit / q - 1e-9))
+        else:
+            n_pulses = max(0, int(deficit / q + 0.5))
+
+        # Anti-burst clamp: after repeated failures the deficit can span
+        # several slots; catching up all at once would defeat the
+        # little-by-little intent, so cap this slot near its own share.
+        cap = max(1, int(requested / q + 0.5)) + 2
+        if n_pulses > cap:
+            self.progress.emit(
+                f"Deficit for animal {animal_id} spans {n_pulses} pulses; "
+                f"capping this slot at {cap} and spreading the rest"
+            )
+            n_pulses = cap
+
+        if n_pulses == 0:
+            if round_up:
+                self.progress.emit(
+                    f"Animal {animal_id}: already at or above its cumulative target "
+                    f"— skipping this slot"
                 )
+            else:
+                self.progress.emit(
+                    f"Animal {animal_id}: carry of {max(0.0, deficit):.3f}mL is under half a "
+                    f"pulse ({q:.3f}mL) — skipping this slot, a later one picks it up"
+                )
+            return 'skip'
+
+        delivery_data['water_volume'] = n_pulses * q
+        delivery_data['dose_rounding'] = 'up' if round_up else 'nearest'
+        return 'applied'
+
+    @staticmethod
+    def _resolve_hardware_mode(system_settings):
+        """
+        The delivery hardware this run drives, normalised ('solenoid', 'pump').
+
+        A missing or empty value means the SystemController default,
+        'solenoid', the only mode a device boots in (ensure_solenoid_defaults
+        forces it). It used to fall back to 'pump', which on a valve rig
+        would drive the relays with pump trigger timing. Values the factory
+        does not know are refused there, not guessed here.
+        """
+        if not isinstance(system_settings, dict):
+            raise TypeError(
+                f"system settings must be a dict, got {type(system_settings).__name__}"
+            )
+        return str(system_settings.get('hardware_mode') or 'solenoid').strip().lower()
+
+    def _ledger_context(self):
+        """
+        The context every dispensing_history row carries, whichever path
+        writes it: the valve topology and schedule mode the run used, and
+        the app version. The schedule mode is kept on the row because the
+        schedule itself can be deleted later, and a staggered chunk's pulse
+        count (planned from the window's running carry) cannot be judged
+        like an instant dose's.
+        """
+        mode = getattr(self, 'mode', None)
+        return {
+            'topology': topology_from(getattr(self, 'settings', None)),
+            'app_version': __version__,
+            'delivery_mode': mode if mode in ('instant', 'staggered') else None,
+        }
+
+    def _log_undelivered(self, animal_id, info):
+        """The circuit-breaker row: the part of a window's dose never delivered.
+
+        Written through the same context as every other row, with the
+        undelivered remainder as its volume_requested_ml, so the ledger
+        shows how much the animal missed.
+        """
+        if not self.database_handler:
+            return
+        self.database_handler.log_delivery(
+            {
+                'schedule_id': self.schedule_id,
+                'animal_id': animal_id,
+                'relay_unit_id': self.animal_windows[animal_id]['relay_unit'],
+                'volume_delivered': 0,
+                'timestamp': datetime.now().isoformat(),
+                'status': 'sensor_failure',
+                'volume_requested_ml': info.get('remaining'),
+                **self._ledger_context(),
+            }
+        )
+
+    def _rounds_doses_up(self):
+        """Whether the operator chose to round every dose UP to a whole pulse."""
+        settings = getattr(self, 'settings', None) or {}
+        return bool(settings.get('round_doses_up', False))
+
+    @staticmethod
+    def _as_delivery_result(outcome, requested_ml):
+        """
+        Normalise whatever a delivery path produced into a DeliveryResult.
+
+        The strategies return one already. The legacy pump branch returns
+        ``trigger_relay``'s relay_info (or None), and an exception handler may
+        hand us a bare False — so accept those too rather than letting a
+        truthy object masquerade as success.
+        """
+        if isinstance(outcome, DeliveryResult):
+            return outcome
+        ok = bool(outcome)
+        return DeliveryResult(
+            success=ok,
+            delivered_ml=float(requested_ml) if ok else 0.0,
+            warning=None if ok else "delivery reported failure",
+        )
+
+    def _finalize_delivery(self, delivery_data, outcome, prepared):
+        """
+        Shared post-flight for both delivery paths: credit the volume, log
+        the outcome, emit progress, and schedule a retry on failure.
+
+        ``outcome`` is a DeliveryResult (or a legacy truthy/falsy value, which
+        is normalised). Crediting and logging use the volume that was
+        ACTUALLY dispensed, not the volume that was requested — a delivery
+        that aborts part-way has still put water in the cage, and recording
+        zero for it is what made a retry send the whole dose a second time.
+
+        ``prepared`` is the dict returned by :meth:`_prepare_delivery`; its
+        counters were read before the hardware call so the accounting matches
+        what the caller decided on.
+        """
+        animal_id = delivery_data['animal_id']
+        current_delivered = prepared['current_delivered']
+        failed_count = prepared['failed_count']
+        schedule_id = delivery_data.get('schedule_id', self.schedule_id)
+        requested_ml = delivery_data['water_volume']
+
+        result = self._as_delivery_result(outcome, requested_ml)
+        # NEVER `if result:` — a dataclass instance is always truthy, which
+        # would turn every failed delivery into a silent success.
+        success = result.success
+        actual_volume = float(result.delivered_ml)
+
+        def _log(status):
+            if not self.database_handler:
+                return
+            self.database_handler.log_delivery(
+                {
+                    'schedule_id': schedule_id,
+                    'animal_id': animal_id,
+                    'relay_unit_id': delivery_data['relay_unit_id'],
+                    # The PLANNED figure (for a pulse delivery, whole pulses x
+                    # mL/pulse); the ask before rounding is volume_requested_ml.
+                    'volume_delivered': requested_ml if status == 'completed' else 0,
+                    'volume_actual_ml': actual_volume,
+                    'pulses_fired': result.pulses,
+                    'volume_per_pulse_ml': result.volume_per_pulse_ml,
+                    'timestamp': delivery_data['instant_time'].isoformat(),
+                    'status': status,
+                    # The context this delivery ran under, so the ledger of
+                    # one device can be compared with another's.
+                    **self._ledger_context(),
+                    'calibration_id': result.calibration_id,
+                    'pulse_width_ms': result.pulse_width_ms,
+                    'inter_pulse_interval_ms': result.inter_pulse_interval_ms,
+                    'duration_s': result.duration_s,
+                    'volume_requested_ml': delivery_data.get('requested_ml'),
+                    'dose_rounding': delivery_data.get('dose_rounding'),
+                }
+            )
+
+        if success:
+            with QMutexLocker(self.mutex):
+                self.delivered_volumes[animal_id] = current_delivered + actual_volume
+                self.failed_deliveries[animal_id] = 0
+                _log('completed')
+
+            self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
+            self.progress.emit(
+                f"Delivered {actual_volume:.3f}mL to animal {animal_id} "
+                f"(Total: {self.delivered_volumes[animal_id]:.3f}mL)"
+            )
+        else:
+            with QMutexLocker(self.mutex):
+                # Credit any water that did reach the cage before the abort,
+                # so the retry asks for the remainder and not the whole dose.
+                if actual_volume > 0:
+                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
+                    # ...and on the delivery itself: an instant retry has no
+                    # window to subtract it from, so it plans from this.
+                    delivery_data['_dispensed_ml'] = (
+                        float(delivery_data.get('_dispensed_ml', 0.0)) + actual_volume
+                    )
+                # A pump trigger count planned when the delivery was scheduled
+                # ignores what has been delivered since: the retry plans from
+                # its own, capped volume.
+                delivery_data.pop('triggers', None)
+                self.failed_deliveries[animal_id] = failed_count + 1
+                _log('partial' if actual_volume > 0 else 'failed')
+            if actual_volume > 0:
+                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
+                self.progress.emit(
+                    f"Partial delivery to animal {animal_id}: {actual_volume:.3f}mL "
+                    f"of {requested_ml:.3f}mL before it stopped"
+                )
+            self.schedule_retry(delivery_data)
+
+        return success
+
+    async def execute_delivery(self, delivery_data):
+        """Execute delivery with volume tracking and compensation.
+
+        The retry path (see :meth:`schedule_retry`). Shares its pre- and
+        post-flight with :meth:`_handle_delivery`; the only difference is
+        that this one is already inside an event loop and can await the
+        strategy directly.
+        """
+        try:
+            prepared = self._prepare_delivery(delivery_data)
+            if not prepared['proceed']:
+                return prepared['result']
 
             success = await self.strategy.deliver(
                 relay_unit_id=delivery_data['relay_unit_id'],
@@ -665,47 +1106,59 @@ class RelayWorker(QObject):
                 triggers_hint=delivery_data.get('triggers'),
             )
 
-            if success:
-                with QMutexLocker(self.mutex):
-                    actual_volume = delivery_data['water_volume']
-                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
-                    self.failed_deliveries[animal_id] = 0
-                    self.database_handler.log_delivery(
-                        {
-                            'schedule_id': delivery_data['schedule_id'],
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': actual_volume,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'completed',
-                        }
-                    )
-
-                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
-                self.progress.emit(
-                    f"Delivered {actual_volume:.3f}mL to animal {animal_id} "
-                    f"(Total: {self.delivered_volumes[animal_id]:.3f}mL)"
-                )
-            else:
-                with QMutexLocker(self.mutex):
-                    self.failed_deliveries[animal_id] = failed_count + 1
-                    self.database_handler.log_delivery(
-                        {
-                            'schedule_id': delivery_data['schedule_id'],
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': 0,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'failed',
-                        }
-                    )
-                self.schedule_retry(delivery_data)
-
-            return success
+            return self._finalize_delivery(delivery_data, success, prepared)
 
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
             return False
+
+    def _completion_tolerance_ml(self, animal_id):
+        """
+        How close to the target counts as "done", in mL.
+
+        Water leaves the valve in whole pulses, so a window can only ever
+        land within half a pulse of its target. Judging completeness against
+        a fixed 0.01 mL — far finer than a single pulse on any real
+        calibration — marks a correctly-rounded window as incomplete, which
+        re-schedules deliveries that cannot help and can be misreported as a
+        sensor failure.
+
+        Falls back to the old fixed tolerance when the cage's volume per
+        pulse is unknown.
+        """
+        default_tolerance = 0.01
+        strategy = getattr(self, 'strategy', None)
+        assignments = self.settings.get('relay_unit_assignments') or {}
+        cage_id = assignments.get(str(animal_id), assignments.get(animal_id))
+        if strategy is None or cage_id is None:
+            return default_tolerance
+
+        snapshot = getattr(strategy, '_cal_snapshot', None) or {}
+        by_width = snapshot.get(cage_id)
+        volumes = []
+        if by_width:
+            volumes = [float(e.get('volume_per_pulse_ml') or 0.0) for e in by_width.values()]
+            volumes = [v for v in volumes if v > 0]
+
+        if not volumes:
+            # No stored calibration for this cage, so the planner fell back
+            # to its empirical default quantum. Judge "done" on that same
+            # quantum — otherwise a correctly rounded window is marked
+            # incomplete, re-scheduled until the circuit breaker trips, and
+            # misreported as a sensor failure.
+            quantum_of = getattr(strategy, 'pulse_volume_for', None)
+            q = quantum_of(cage_id) if quantum_of is not None else None
+            if isinstance(q, (int, float)) and not isinstance(q, bool) and q > 0:
+                volumes = [float(q)]
+
+        if not volumes:
+            return default_tolerance
+        if self._rounds_doses_up():
+            # Round-up promises the window never closes below its dose, so
+            # "done" is delivered >= target. The epsilon only absorbs the
+            # floating-point sum of n pulses landing a hair under n*q.
+            return 1e-6
+        return max(default_tolerance, max(volumes) / 2.0)
 
     def schedule_retry(self, delivery_data):
         """Schedule a retry for failed delivery"""
@@ -786,12 +1239,39 @@ class RelayWorker(QObject):
                 relay_info = self.relay_handler.trigger_relays(
                     [relay_unit_id], triggers_dict, self.stagger_interval
                 )
-                if relay_info:
-                    success_msg = f"Successfully triggered relay unit {relay_unit_id} {required_triggers} times"
-                    self.progress.emit(success_msg)
-                    if self.notification_handler:
-                        self.notification_handler.send_slack_notification(success_msg)
-                return relay_info
+                if not relay_info:
+                    # A relay did not switch part-way: credit the triggers
+                    # that did fire, so the retry asks only for the rest.
+                    fired = getattr(self.relay_handler, 'last_trigger_counts', {}).get(
+                        relay_unit_id, 0
+                    )
+                    # In the unit a full run is credited in (the volume asked
+                    # for), so the calibration factor is honoured.
+                    per_trigger_ml = water_volume / required_triggers if required_triggers else 0.0
+                    self.progress.emit(
+                        f"Relay unit {relay_unit_id} stopped after {fired} of "
+                        f"{required_triggers} triggers: a relay did not switch"
+                    )
+                    return DeliveryResult(
+                        success=False,
+                        delivered_ml=fired * per_trigger_ml,
+                        pulses=fired,
+                        warning="pump mode: a relay did not switch; volume is the triggers fired",
+                    )
+                success_msg = (
+                    f"Successfully triggered relay unit {relay_unit_id} {required_triggers} times"
+                )
+                self.progress.emit(success_msg)
+                if self.notification_handler:
+                    self.notification_handler.send_slack_notification(success_msg)
+                # The ledger records the triggers fired, as it does for the
+                # retry path (PumpStrategy).
+                return DeliveryResult(
+                    success=True,
+                    delivered_ml=float(water_volume),
+                    pulses=int(required_triggers),
+                    warning="pump mode: volume is commanded, not measured",
+                )
             except Exception as e:
                 self.progress.emit(f"Error triggering relay {relay_unit_id}: {str(e)}")
                 return None
@@ -875,7 +1355,7 @@ class RelayWorker(QObject):
                 delivered = self.delivered_volumes.get(animal_id, 0)
                 remaining = target - delivered
 
-                if remaining > 0.01:  # Allow 0.01 mL tolerance for floating point precision
+                if remaining > self._completion_tolerance_ml(animal_id):
                     incomplete_animals[animal_id] = {
                         'delivered': delivered,
                         'target': target,
@@ -900,26 +1380,19 @@ class RelayWorker(QObject):
                         f"for animal(s) {animals_exceeded_retries}"
                     )
                     self.progress.emit(
-                        "Possible sensor failure - please check flow sensor connection"
+                        "Deliveries kept failing: check the relay HAT (in solenoid pulse mode "
+                        "a [VALVE ERROR] line above names the cage being watered and what "
+                        "stopped the delivery; the Cages tab shows which HAT each relay is on) "
+                        "and the flow sensor connection"
                     )
 
                     # Log all incomplete deliveries as failed
                     for animal_id, info in incomplete_animals.items():
-                        if self.database_handler:
-                            self.database_handler.log_delivery(
-                                {
-                                    'schedule_id': self.schedule_id,
-                                    'animal_id': animal_id,
-                                    'relay_unit_id': self.animal_windows[animal_id]['relay_unit'],
-                                    'volume_delivered': 0,
-                                    'timestamp': datetime.now().isoformat(),
-                                    'status': 'sensor_failure',
-                                }
-                            )
+                        self._log_undelivered(animal_id, info)
 
                         self.progress.emit(
                             f"  Animal {animal_id}: INCOMPLETE - {info['delivered']:.3f}/{info['target']:.3f}mL "
-                            f"({info['remaining']:.3f}mL NOT delivered due to sensor failure)"
+                            f"({info['remaining']:.3f}mL NOT delivered: repeated delivery failures)"
                         )
 
                     self.stop()
@@ -1284,27 +1757,20 @@ class RelayWorker(QObject):
             return False
 
     def _handle_delivery(self, delivery_data):
-        """Synchronously handle a delivery"""
+        """Synchronously handle a delivery.
+
+        The primary path, bound as a QTimer slot for both staggered and
+        instant deliveries. Shares its pre- and post-flight with
+        :meth:`execute_delivery`; the difference is that this one is called
+        from the worker thread with no running event loop, so it drives the
+        strategy in a private loop (or, in pump mode, the legacy
+        synchronous relay call).
+        """
         try:
-            # Cooperative cancel: a delivery QTimer may fire after Stop.
-            # Don't start a new run_until_complete(deliver()) — that's the
-            # blocking call that made Stop fall through to terminate().
-            if self._cancel_requested.is_set():
-                return False
-            if 'schedule_id' not in delivery_data:
-                delivery_data['schedule_id'] = self.schedule_id
+            prepared = self._prepare_delivery(delivery_data)
+            if not prepared['proceed']:
+                return prepared['result']
             animal_id = delivery_data['animal_id']
-            current_delivered = self.delivered_volumes.get(animal_id, 0)
-            target_volume = self.animal_windows[animal_id]['target_volume']
-            if current_delivered >= target_volume:
-                return True
-            failed_count = self.failed_deliveries.get(animal_id, 0)
-            if failed_count > 0:
-                volume_increase = min(failed_count * 0.05, 0.2)
-                adjusted_volume = delivery_data['water_volume'] * (1 + volume_increase)
-                delivery_data['water_volume'] = min(
-                    adjusted_volume, target_volume - current_delivered
-                )
             # In pump mode, keep legacy synchronous path via trigger_relay to avoid behavior change.
             # For other modes, delivery is handled asynchronously by strategy at schedule time.
             if self.hardware_mode == 'pump':
@@ -1347,40 +1813,7 @@ class RelayWorker(QObject):
                     self.progress.emit(f"Delivery error for animal {animal_id}: {str(e)}")
                     self.progress.emit(f"[DEBUG] Exception traceback:\n{error_details}")
                     success = False
-            if success:
-                with QMutexLocker(self.mutex):
-                    actual_volume = delivery_data['water_volume']
-                    self.delivered_volumes[animal_id] = current_delivered + actual_volume
-                    self.failed_deliveries[animal_id] = 0
-                    delivery_log = {
-                        'schedule_id': self.schedule_id,
-                        'animal_id': animal_id,
-                        'relay_unit_id': delivery_data['relay_unit_id'],
-                        'volume_delivered': actual_volume,
-                        'timestamp': delivery_data['instant_time'].isoformat(),
-                        'status': 'completed',
-                    }
-                    if self.database_handler:
-                        self.database_handler.log_delivery(delivery_log)
-                self.volume_updated.emit(str(animal_id), self.delivered_volumes[animal_id])
-                self.progress.emit(
-                    f"Delivered {actual_volume:.3f}mL to animal {animal_id} (Total: {self.delivered_volumes[animal_id]:.3f}mL)"
-                )
-            else:
-                with QMutexLocker(self.mutex):
-                    self.failed_deliveries[animal_id] = failed_count + 1
-                    if self.database_handler:
-                        delivery_log = {
-                            'schedule_id': self.schedule_id,
-                            'animal_id': animal_id,
-                            'relay_unit_id': delivery_data['relay_unit_id'],
-                            'volume_delivered': 0,
-                            'timestamp': delivery_data['instant_time'].isoformat(),
-                            'status': 'failed',
-                        }
-                        self.database_handler.log_delivery(delivery_log)
-                self.schedule_retry(delivery_data)
-            return success
+            return self._finalize_delivery(delivery_data, success, prepared)
         except Exception as e:
             self.progress.emit(f"Delivery error: {str(e)}")
             return False

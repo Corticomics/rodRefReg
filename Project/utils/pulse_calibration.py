@@ -8,27 +8,29 @@ Best Practices:
 - Persistent storage: Save calibration results to JSON
 - Auto-discovery: Detect if calibration exists
 - Fail-safe: Use hardcoded defaults if no calibration
-- Idempotent: Can re-calibrate at any time
 - Observable: Log all operations for debugging
 
-Architecture:
-- CalibrationStore: Persistent storage (JSON file)
-- PulseCalibrator: Runs characterization tests
-- UI Integration: Button in Priming tab
+What lives here is the GLOBAL default pulse profile: one mL/pulse figure
+per pulse width, read by SolenoidFlowStrategy for a cage that has no row in
+the valve_calibration table. Per-cage calibrations are measured by the
+in-app Calibration Wizard and stored through
+DatabaseHandler.save_valve_calibration; nothing in this module writes them.
 
-Originally derived from the valve-characterization bench tests.
+- CalibrationStore: the JSON file of default profiles, with hardcoded
+  fallbacks when the file is absent.
+
+Originally derived from the valve-characterization bench tests. The
+PulseCalibrator characterisation runner that used to live here was removed
+in v1.21.0: nothing called it, and it drove the master valve directly.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import time
 from dataclasses import asdict, dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 
 @dataclass
@@ -232,196 +234,4 @@ class CalibrationStore:
                 'source': 'hardcoded',
                 'note': 'Run calibration to measure actual valve characteristics',
             },
-        )
-
-
-class PulseCalibrator:
-    """
-    Runs pulse characterization tests to measure valve behavior.
-
-    Best Practices:
-    - Reuse existing code: built on the valve-characterization bench-test logic
-    - Progress reporting: Emit signals for UI updates
-    - Fail-safe: Continue if individual tests fail
-    - Idempotent: Can run multiple times safely
-    """
-
-    def __init__(self, solenoid_controller, flow_sensor, cage_id: int, progress_callback=None):
-        """
-        Initialize calibrator.
-
-        Args:
-            solenoid_controller: SolenoidController instance
-            flow_sensor: UARTFlowSensor instance
-            cage_id: Cage to calibrate
-            progress_callback: Optional callback(message: str) for UI updates
-        """
-        self._controller = solenoid_controller
-        self._sensor = flow_sensor
-        self._cage_id = cage_id
-        self._progress_callback = progress_callback
-        self._logger = logging.getLogger(self.__class__.__name__)
-
-    def _emit_progress(self, message: str):
-        """Emit progress message to UI."""
-        self._logger.info(message)
-        if self._progress_callback:
-            self._progress_callback(message)
-
-    async def calibrate(
-        self, pulse_widths_ms: Optional[List[int]] = None, trials_per_pulse: int = 3
-    ) -> CalibrationData:
-        """
-        Run pulse characterization tests.
-
-        Args:
-            pulse_widths_ms: List of pulse widths to test (default: [10, 20, 50, 100, 200, 500])
-            trials_per_pulse: Number of trials per pulse width (default: 3)
-
-        Returns:
-            CalibrationData with measured pulse profiles
-        """
-        if pulse_widths_ms is None:
-            pulse_widths_ms = [10, 20, 50, 100, 200, 500]
-
-        self._emit_progress(f"Starting calibration for cage {self._cage_id}")
-        self._emit_progress(
-            f"Testing {len(pulse_widths_ms)} pulse widths with {trials_per_pulse} trials each"
-        )
-
-        pulse_profiles = {}
-
-        for pulse_ms in pulse_widths_ms:
-            self._emit_progress(f"Testing {pulse_ms}ms pulse width...")
-
-            try:
-                profile = await self._calibrate_single_pulse(pulse_ms, trials_per_pulse)
-                pulse_profiles[pulse_ms] = profile
-
-                stability = "STABLE" if profile.is_stable() else "UNSTABLE"
-                self._emit_progress(
-                    f"  {pulse_ms}ms: {profile.volume_mean_ml:.4f} mL "
-                    f"(CV: {profile.coefficient_of_variation_pct:.1f}%) {stability}"
-                )
-
-            except Exception as e:
-                self._logger.error(f"Failed to calibrate {pulse_ms}ms: {e}")
-                self._emit_progress(f"  {pulse_ms}ms: FAILED - {e}")
-
-        if not pulse_profiles:
-            raise RuntimeError("All pulse calibrations failed!")
-
-        calibration = CalibrationData(
-            calibration_date=datetime.now().isoformat(),
-            cage_id=self._cage_id,
-            valve_type="Parker Series 3",
-            pulse_profiles=pulse_profiles,
-            metadata={
-                'trials_per_pulse': trials_per_pulse,
-                'total_pulses_tested': len(pulse_profiles),
-                'successful_pulses': len([p for p in pulse_profiles.values() if p.is_stable()]),
-            },
-        )
-
-        self._emit_progress(f"✓ Calibration complete: {len(pulse_profiles)} pulse widths measured")
-
-        return calibration
-
-    async def _calibrate_single_pulse(self, pulse_ms: int, trials: int) -> PulseProfile:
-        """
-        Calibrate a single pulse width.
-
-        Logic adapted from the valve-characterization bench tests (Test 4).
-        """
-        volumes = []
-
-        for trial in range(trials):
-            # Restart sensor to reset error counter (critical fix!)
-            if trial > 0:
-                self._sensor.stop()
-                await asyncio.sleep(0.2)
-                self._sensor.start()
-                await asyncio.sleep(1.0)
-
-            # Verify streaming
-            if hasattr(self._sensor, 'ensure_streaming'):
-                if not self._sensor.ensure_streaming(min_frames=5, timeout_s=3.0):
-                    raise RuntimeError(f"Sensor not streaming for trial {trial+1}")
-
-            # Execute pulse and measure
-            try:
-                self._controller.close_cage(self._cage_id)
-                self._controller.close_master()
-            except Exception:
-                pass
-
-            await asyncio.sleep(1.0)
-            self._controller.open_master()
-            await asyncio.sleep(0.3)
-
-            # Clear sensor queue
-            if hasattr(self._sensor, 'clear_queue'):
-                self._sensor.clear_queue()
-
-            # Execute pulse
-            start_time = time.perf_counter()
-            self._controller.open_cage(self._cage_id)
-
-            # Measure during pulse + settling
-            samples = []
-            measurement_duration_s = (pulse_ms / 1000.0) + 0.5
-
-            while (time.perf_counter() - start_time) < measurement_duration_s:
-                sample = self._sensor.read_one()
-                if sample:
-                    elapsed = time.perf_counter() - start_time
-                    samples.append({'time_s': elapsed, 'flow_ml_min': sample[0] / 1000.0})
-
-                # Close valve at specified time
-                if (time.perf_counter() - start_time) >= (pulse_ms / 1000.0):
-                    if (time.perf_counter() - start_time) < (pulse_ms / 1000.0) + 0.01:
-                        self._controller.close_cage(self._cage_id)
-
-                await asyncio.sleep(0.01)
-
-            # Integrate flow to get volume
-            volume_ml = 0.0
-            for i in range(1, len(samples)):
-                dt_min = (samples[i]['time_s'] - samples[i - 1]['time_s']) / 60.0
-                avg_flow = (samples[i]['flow_ml_min'] + samples[i - 1]['flow_ml_min']) / 2.0
-                volume_ml += avg_flow * dt_min
-
-            volumes.append(volume_ml)
-
-            # Cleanup
-            try:
-                self._controller.close_cage(self._cage_id)
-                self._controller.close_master()
-            except Exception:
-                pass
-
-            await asyncio.sleep(2.0)
-
-        # Calculate statistics
-        if not volumes:
-            raise RuntimeError("No successful volume measurements")
-
-        mean_vol = sum(volumes) / len(volumes)
-
-        if len(volumes) > 1:
-            variance = sum((v - mean_vol) ** 2 for v in volumes) / (len(volumes) - 1)
-            stddev = variance**0.5
-        else:
-            stddev = 0.0
-
-        cv_pct = (stddev / mean_vol * 100.0) if mean_vol > 0 else 999.0
-
-        return PulseProfile(
-            pulse_width_ms=pulse_ms,
-            volume_mean_ml=mean_vol,
-            volume_stddev_ml=stddev,
-            coefficient_of_variation_pct=cv_pct,
-            trials=len(volumes),
-            calibration_date=datetime.now().isoformat(),
-            cage_id=self._cage_id,
         )

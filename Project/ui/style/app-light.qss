@@ -53,6 +53,13 @@ QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
     background-color: #FFFFFF;
 }
 
+/* Labels are transparent by default so they blend into whatever surface they
+   sit on (e.g. white Cards) rather than painting the grey app background as a
+   box. objectName-styled labels (banners, etc.) override this. */
+QLabel {
+    background: transparent;
+}
+
 /* ============================================
    TYPOGRAPHY HELPERS
    ============================================ */
@@ -92,6 +99,11 @@ QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
 QComboBox { 
     min-height: 36px;
     padding-right: 28px;
+    /* Use the classic popup that sizes to fit all items. With a stylesheet Qt
+       switches to a scrollable popup whose height is computed from the font
+       row height, not the styled (min-height + padding) row height, so the last
+       item gets clipped behind a scroll arrow. */
+    combobox-popup: 0;
 }
 QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover, 
 QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {

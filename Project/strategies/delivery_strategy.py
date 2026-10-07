@@ -1,6 +1,43 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
+
+
+@dataclass
+class DeliveryResult:
+    """What a delivery actually did, as opposed to what was asked of it.
+
+    ``delivered_ml`` is the strategy's best estimate of the volume that
+    physically left the valve — pulses fired times the calibrated volume per
+    pulse, or the sensor-corrected figure where a flow sensor is fitted. It
+    is reported on failure too: a delivery that aborts part-way has still put
+    water in the cage, and the scheduling layer has to know that or it will
+    re-send the whole dose.
+
+    ``success`` is the only field that says whether the request was met.
+    Never test the result object itself for truthiness — a dataclass instance
+    is always truthy, so ``if result:`` would treat every failure as a
+    success.
+
+    ``calibration_id``, ``pulse_width_ms`` and ``inter_pulse_interval_ms``
+    say which calibration row and timing profile the pulses were fired at
+    (None when the strategy does not pulse, or fell back to a default), so
+    the delivery record can be compared across devices and topologies.
+    ``duration_s`` is the wall-clock time the strategy measured, None when
+    nothing timed the delivery; these None values reach the ledger as NULL,
+    "not recorded", never as a measured zero.
+    """
+
+    success: bool
+    delivered_ml: float = 0.0
+    duration_s: Optional[float] = None
+    pulses: int = 0
+    volume_per_pulse_ml: Optional[float] = None
+    warning: Optional[str] = None
+    calibration_id: Optional[int] = None
+    pulse_width_ms: Optional[int] = None
+    inter_pulse_interval_ms: Optional[int] = None
 
 
 @runtime_checkable
@@ -14,8 +51,7 @@ class DeliveryStrategy(Protocol):
 
     Notes
     -----
-    - `relay_unit_id
-    por` refers to the logical unit used by `RelayHandler`.
+    - `relay_unit_id` refers to the logical unit used by `RelayHandler`.
     - `target_volume_ml` is the desired volume in milliliters.
     - `triggers_hint` can be provided when applicable (e.g., legacy pump path)
       to avoid recalculating triggers. Implementations may ignore it.
@@ -26,10 +62,13 @@ class DeliveryStrategy(Protocol):
         relay_unit_id: int,
         target_volume_ml: float,
         triggers_hint: Optional[int] = None,
-    ) -> bool:
+    ) -> DeliveryResult:
         """Deliver the requested volume to the specified relay unit.
 
-        Returns True on success; False on handled failure.
+        Returns a :class:`DeliveryResult`. Check ``.success`` for the
+        outcome and ``.delivered_ml`` for what was actually dispensed —
+        including on failure, where a partial volume may already be in the
+        cage.
         """
         ...
 

@@ -69,6 +69,16 @@ class SystemController(QObject):
             'residual_flow_threshold_ml_min': 1.0,
             'max_consecutive_sensor_errors': 10,
             'cage_relays': {},
+            # Dose rounding policy: nearest whole pulse unless the operator
+            # opts into rounding up. Deliberately NOT in the force-merged
+            # pulse_mode_settings block (ensure_solenoid_defaults), which
+            # would reset the choice on every start.
+            'round_doses_up': False,
+            # Valve topology: 'shared_manifold' (master valve + manifold, the
+            # production rig) or 'independent' (one syringe and valve per
+            # animal, no master). Read by utils.topology; like round_doses_up
+            # it is kept out of the force-merged pulse block below.
+            'valve_topology': 'shared_manifold',
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
@@ -103,6 +113,11 @@ class SystemController(QObject):
             'pulse_settling_ms',
             'max_pulses_per_delivery',
             'max_pulse_delivery_time_s',
+            # Dose rounding policy (v1.19.0): round every dose up to the
+            # next whole pulse instead of to the nearest one.
+            'round_doses_up',
+            # Valve topology (v1.20.0): shared_manifold | independent.
+            'valve_topology',
             'debug_mode',
             'log_level',
             # Scheduler tuning
@@ -139,6 +154,8 @@ class SystemController(QObject):
             'pulse_settling_ms': int,
             'max_pulses_per_delivery': int,
             'max_pulse_delivery_time_s': float,
+            'round_doses_up': bool,
+            'valve_topology': str,
         }
         return type_map.get(key, str)
 
@@ -401,6 +418,8 @@ class SystemController(QObject):
             except Exception:
                 pass
 
+            from utils import topology as topo
+
             # Build cage map if empty
             cage_map = s.get('cage_relays') or {}
             if not cage_map:
@@ -419,8 +438,32 @@ class SystemController(QObject):
                 s['cage_relays'] = new_map
                 settings_changed = True
                 self.system_status.emit(
-                    f"Created cage mapping: {len(new_map)} cages, master on relay {master_id}"
+                    f"Created cage mapping: {len(new_map)} cages; relay {master_id} is "
+                    f"{topo.reserved_relay_reason(s)}"
                 )
+
+            # Valve topology: a value nobody recognises would leave the app
+            # unsure whether a master valve exists. Fall back to the shared
+            # manifold (today's behaviour) and say so, rather than guess —
+            # and announce the resolved topology on every boot, so a rig set
+            # to 'independent' says so in its log before any water moves.
+
+            # Printed as well as emitted: at boot nothing is connected to
+            # system_status yet, and the journal is where an operator looks.
+            def _announce(message):
+                print(f"[TOPOLOGY] {message}", flush=True)
+                self.system_status.emit(message)
+
+            stored_topology = s.get('valve_topology')
+            topology = topo.normalize(stored_topology)
+            if stored_topology != topology:
+                s['valve_topology'] = topology
+                settings_changed = True
+                if topo.is_known(stored_topology):
+                    _announce(f"Normalised valve_topology {stored_topology!r} -> '{topology}'")
+                else:
+                    _announce(f"Unknown valve_topology {stored_topology!r}; using '{topology}'")
+            _announce(f"Valve topology: {topology} ({topo.describe(topology)})")
 
             # Save settings if any changes were made
             if settings_changed:

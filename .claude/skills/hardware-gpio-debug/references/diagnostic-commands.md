@@ -34,19 +34,29 @@ If `/dev/teensy_flow` is missing, the udev rule from
 [scripts/install/40-hardware.sh](scripts/install/40-hardware.sh) didn't apply —
 re-run with `./install.sh --only 40-hardware`.
 
-## Mock-fallback detection
+## No-hardware fallback detection
+
+The relay library and the HATs are set up while the app boots, before it
+redirects its output to the Terminal tab, so the evidence is in the journal
+(the systemd unit sends stdout there), not in `rrr_app_debug.log`:
 
 ```bash
-# Tail the app's debug log; "MockSM16relind" means we're not on real hardware
-tail -F ~/rrr_app_debug.log | grep -i mock
-
-# On an installed device data root:
-tail -F "$HOME/rrr/shared/logs/rrr_app_debug.log" | grep -i mock
+journalctl --user -u rrr.service -b | grep -E "SM16relind module not found|Failed to initialize"
 ```
 
-If you see `MockSM16relind` lines while running on a real Pi, the
-`sm_16relind` import failed — usually means the venv was built without
-`--system-site-packages` or the apt package isn't installed.
+- `WARNING: SM16relind module not found` — the relay library did not
+  import: usually the venv was built without `--system-site-packages` or
+  the apt package is missing.
+- `Failed to initialize any relay hats` (after `Failed to initialize hat
+  stack=N: …`) — the library loaded but no HAT answered.
+
+In either case `RelayHandler` has no HAT for those stacks, and since v1.21.0
+every write to them is refused. In solenoid pulse mode (the default) the
+Terminal tab shows `Relay N not switched: no initialised relay HAT for it`
+and the delivery stops with `[VALVE ERROR] cage N: …; delivery stopped`; in
+any mode the ledger row is `failed` (or `partial` if some water got
+through). Fix the cause, then close and reopen RRR: the schedule path sets
+its HATs up when RRR starts.
 
 ## I²C bus reset (last resort)
 

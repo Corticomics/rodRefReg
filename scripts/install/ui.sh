@@ -45,7 +45,15 @@ _ui_emit() {
 }
 
 # Section prefix for summary entries; empty when no section is active.
-_ui_tag() { [[ -n "$_UI_SECTION" ]] && printf '%s: ' "$_UI_SECTION"; }
+# Always succeeds: its output lands in assignments such as
+# `_UI_WARNS+=("$(_ui_tag)...")`, and a failing command substitution there
+# aborts the installer under `set -e` (the --dry-run banner is printed before
+# any section).
+_ui_tag() {
+  if [[ -n "$_UI_SECTION" ]]; then
+    printf '%s: ' "$_UI_SECTION"
+  fi
+}
 
 _ui_hide_cursor() { _ui_tty_write $'\e[?25l'; }
 _ui_show_cursor() { _ui_tty_write $'\e[?25h'; }

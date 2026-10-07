@@ -64,6 +64,16 @@ if not USE_CUSTOM_SM16 or not 'USING_CUSTOM_MODULE' in globals() or not USING_CU
             USING_CUSTOM_MODULE = False
 
 
+def _say(*args, **kwargs) -> None:
+    """Print a diagnostic line. Never raises: a broken stdout (the journal
+    pipe gone) must not stop a relay write, above all the all-off of an
+    emergency stop."""
+    try:
+        print(*args, **kwargs)
+    except Exception:
+        pass
+
+
 class RelayHandler:
     def __init__(self, relay_unit_manager, num_hats=1):
         """Initialize RelayHandler with relay unit manager and hats"""
@@ -114,13 +124,13 @@ class RelayHandler:
                     available_buses.append(i)
 
             if available_buses:
-                print(f"Found I2C buses: {available_buses}")
+                _say(f"Found I2C buses: {available_buses}")
             else:
-                print("No I2C buses found. Make sure I2C is enabled.")
+                _say("No I2C buses found. Make sure I2C is enabled.")
 
             return available_buses
         except Exception as e:
-            print(f"Error finding I2C buses: {e}")
+            _say(f"Error finding I2C buses: {e}")
             return [0, 1]  # Default fallback
 
     def _initialize_hats(self):
@@ -130,8 +140,14 @@ class RelayHandler:
           - Instantiate with stack index 0..num_hats-1 (per Sequent docs).
         Custom module (custom_SM16relind):
           - Supports bus_id; iterate detected I2C buses and stacks.
+
+        ``relay_hats`` keeps one slot per configured stack, None where the
+        HAT did not initialise. Relays are routed by stack (relay 17 is
+        stack 1, relay 1), so a missing HAT must leave its slot empty: a
+        compacted list would send stack 0's relays to stack 1, another
+        animal's valve, and report the write as made.
         """
-        self.relay_hats = []
+        self.relay_hats = [None] * self._expected_hats()
 
         success = False
 
@@ -144,14 +160,14 @@ class RelayHandler:
                     try:
                         hat = SM16relind(stack=stack, bus_id=bus)
                         hat.set_all(0)
-                        self.relay_hats.append(hat)
-                        print(f"Initialized relay hat stack={stack} on I2C bus {bus}")
+                        self.relay_hats[stack] = hat
+                        _say(f"Initialized relay hat stack={stack} on I2C bus {bus}")
                         success = True
                     except Exception as e:
-                        print(f"Failed to initialize custom hat stack={stack} bus={bus}: {e}")
+                        _say(f"Failed to initialize custom hat stack={stack} bus={bus}: {e}")
             if not success:
                 error_msg = "Failed to initialize relay hats via custom module on preferred buses."
-                print(error_msg)
+                _say(error_msg)
                 logging.error(error_msg)
             return
 
@@ -163,46 +179,85 @@ class RelayHandler:
                     raise AttributeError("SM16relind class not found in module")
                 hat = ctor(stack)
                 hat.set_all(0)
-                self.relay_hats.append(hat)
-                print(f"Initialized relay hat stack={stack}")
+                self.relay_hats[stack] = hat
+                _say(f"Initialized relay hat stack={stack}")
                 success = True
             except Exception as e:
-                print(f"Failed to initialize hat stack={stack}: {e}")
+                _say(f"Failed to initialize hat stack={stack}: {e}")
                 logging.error(f"Hat initialization error: {str(e)}")
 
         if not success:
             error_msg = (
                 "Failed to initialize any relay hats. Check I2C configuration and connections."
             )
-            print(error_msg)
+            _say(error_msg)
             logging.error(error_msg)
 
     def set_all_relays(self, state):
-        """Set all relays to given state (0 or 1) with I2C coordination"""
+        """Set all relays to given state (0 or 1) with I2C coordination.
+
+        Returns True only when every configured HAT took the command. A HAT
+        that failed to initialise, or whose write raised, leaves its relays
+        in an unknown state: the caller must say so (an emergency stop must
+        not report "all closed") rather than assume they switched.
+        """
 
         def _hardware_set_all_operation():
-            for hat in self.relay_hats:
+            hats = self._initialized_hats()
+            ok = bool(hats) and len(hats) >= self._expected_hats()
+            if not ok:
+                message = (
+                    f"Relay HAT(s) missing: {len(hats)} of {self.num_hats} "
+                    "initialised; the missing ones were not switched"
+                )
+                _say(message)
+                logging.error(message)
+            for hat in hats:
                 try:
                     hat.set_all(0 if state == 0 else 65535)  # 65535 = all relays ON
                 except Exception as e:
-                    print(f"Error setting all relays: {e}")
+                    _say(f"Error setting all relays: {e}")
                     logging.error(f"Relay state error: {str(e)}")
+                    ok = False
+            return ok
 
-        # Use I2C coordination if available
+        return self._run_coordinated(_hardware_set_all_operation, "set_all")
+
+    def _initialized_hats(self):
+        """The HATs that answered at start-up, in stack order."""
+        return [hat for hat in self.relay_hats if hat is not None]
+
+    def _expected_hats(self):
+        """How many HATs the device is configured for (at least one)."""
+        try:
+            return max(1, int(self.num_hats))
+        except (TypeError, ValueError):
+            return 1
+
+    def _run_coordinated(self, operation, what):
+        """Run a HAT write under the I2C coordinator when there is one.
+
+        Returns the operation's own result: True when every write went
+        through. If the coordinator itself fails, the write runs directly.
+        """
         if self._coordinator:
             try:
-                self._coordinator.sync_exclusive_access('relay', _hardware_set_all_operation)
+                return bool(self._coordinator.sync_exclusive_access('relay', operation))
             except Exception as e:
-                logging.error(f"I2C coordination failed for set_all operation: {e}")
-                _hardware_set_all_operation()
-        else:
-            _hardware_set_all_operation()
+                logging.error(f"I2C coordination failed for {what} operation: {e}")
+        return bool(operation())
 
     def trigger_relays(self, selected_units, num_triggers, stagger):
-        """Triggers the specified relay units with verification"""
-        relay_info = []
+        """Triggers the specified relay units with verification.
 
-        if not self.relay_hats:
+        A unit that did not complete every trigger is left out of the
+        returned list; ``last_trigger_counts`` then says, per unit id, how
+        many triggers fired before a relay did not switch.
+        """
+        relay_info = []
+        self.last_trigger_counts = {}
+
+        if not self._initialized_hats():
             logging.error("Trigger requested but no relay hats are initialized")
             return []
 
@@ -210,7 +265,7 @@ class RelayHandler:
             # Get relay unit from dictionary
             relay_unit = self.relay_units.get(unit_id)
             if not relay_unit:
-                print(
+                _say(
                     f"Relay unit {unit_id} not found in available units: {list(self.relay_units.keys())}"
                 )
                 continue
@@ -218,10 +273,11 @@ class RelayHandler:
             # Get number of triggers for this specific unit
             unit_triggers = num_triggers.get(str(unit_id))
             if unit_triggers is None:
-                print(f"No trigger count specified for relay unit {unit_id}")
+                _say(f"No trigger count specified for relay unit {unit_id}")
                 continue
 
             success = self._execute_triggers(relay_unit, unit_triggers, stagger)
+            self.last_trigger_counts[unit_id] = self._fired
 
             if success:
                 relay_info.append(f"Relay Unit {unit_id} triggered {unit_triggers} times")
@@ -229,25 +285,39 @@ class RelayHandler:
         return relay_info
 
     def _execute_triggers(self, relay_unit, num_triggers, stagger):
-        """Execute the specified number of triggers for a relay unit"""
+        """Execute the specified number of triggers for a relay unit.
+
+        ``self._fired`` counts the triggers that switched on (their water
+        was pumped), so a caller can credit them when a later one fails.
+        """
+        self._fired = 0
         try:
             for trigger in range(num_triggers):
                 # Log trigger attempt
-                print(
+                _say(
                     f"Executing trigger {trigger + 1}/{num_triggers} "
                     f"for relay unit {relay_unit.unit_id}"
                 )
 
-                # Activate relays
-                for relay_id in relay_unit.relay_ids:
-                    self._set_relay_states([relay_id], 1)
+                # Activate relays. A relay that did not switch fails the
+                # unit: the trigger did not happen and must not be counted.
+                switched_on = [self._set_relay_states([r], 1) for r in relay_unit.relay_ids]
+                if not all(switched_on):
+                    went_on = [r for r, ok in zip(relay_unit.relay_ids, switched_on) if ok]
+                    self._switch_unit_off(relay_unit, trigger, went_on)
+                    logging.error(
+                        f"Relay unit {relay_unit.unit_id}: trigger {trigger + 1} did not "
+                        "switch on; stopping"
+                    )
+                    return False
+                self._fired += 1
 
                 # Wait for activation duration
                 time.sleep(stagger)
 
                 # Deactivate relays
-                for relay_id in relay_unit.relay_ids:
-                    self._set_relay_states([relay_id], 0)
+                if not self._switch_unit_off(relay_unit, trigger, relay_unit.relay_ids):
+                    return False
 
                 # Wait between triggers
                 if trigger < num_triggers - 1:  # Don't wait after last trigger
@@ -259,29 +329,76 @@ class RelayHandler:
             logging.error(f"Trigger execution error: {str(e)}")
             return False
 
+    def _switch_unit_off(self, relay_unit, trigger, known_on):
+        """Switch a unit's relays off, trying a lost write again at once.
+
+        False, with a [VALVE CRITICAL] line, when a relay did not switch off.
+        It always follows a switch-on attempt, and a write can take effect
+        yet report a failure, so every such relay may still be running the
+        pump: one known to be on, or one whose switch-on reported a failure
+        (``known_on`` tells them apart, for the wording).
+        """
+        stuck = [
+            relay_id
+            for relay_id in relay_unit.relay_ids
+            if not (self._set_relay_states([relay_id], 0) or self._set_relay_states([relay_id], 0))
+        ]
+        if not stuck:
+            return True
+        on = [r for r in stuck if r in known_on]
+        unknown = [r for r in stuck if r not in known_on]
+        parts = []
+        if on:
+            parts.append(
+                f"relay(s) {', '.join(map(str, on))} did not switch off at trigger "
+                f"{trigger + 1}; they may still be ON"
+            )
+        if unknown:
+            parts.append(
+                f"relay(s) {', '.join(map(str, unknown))} are not answering, so they cannot "
+                "be confirmed off; they may be ON"
+            )
+        message = (
+            f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: {'; '.join(parts)}. Check the "
+            "rig; Settings > Priming > CLOSE ALL RELAYS switches every relay off again and "
+            "stops the schedule."
+        )
+        _say(message, flush=True)
+        logging.error(message)
+        return False
+
     def _set_relay_states(self, relay_ids, state):
-        """Set the state of specified relay IDs with I2C coordination"""
+        """Set the state of specified relay IDs with I2C coordination.
+
+        Returns True only when every relay was written to its HAT. A relay
+        whose HAT did not initialise, an id below 1 (divmod would wrap it
+        onto the last HAT), and a vendor error each make it False, so a
+        valve that never moved is not reported as having moved.
+        """
 
         def _hardware_relay_operation():
+            ok = True
             for relay_id in relay_ids:
                 hat_index, relay_num = divmod(relay_id - 1, 16)
-                if hat_index < len(self.relay_hats):
-                    try:
-                        self.relay_hats[hat_index].set(relay_num + 1, state)
-                    except Exception as e:
-                        print(f"Error setting relay {relay_id} to state {state}: {e}")
-                        logging.error(f"Relay state change error: {str(e)}")
+                hat = self.relay_hats[hat_index] if 0 <= hat_index < len(self.relay_hats) else None
+                if hat is None:
+                    message = (
+                        f"Relay {relay_id} not switched: no initialised relay HAT for it "
+                        f"({len(self._initialized_hats())} of {self.num_hats} initialised)"
+                    )
+                    _say(message)
+                    logging.error(message)
+                    ok = False
+                    continue
+                try:
+                    hat.set(relay_num + 1, state)
+                except Exception as e:
+                    _say(f"Error setting relay {relay_id} to state {state}: {e}")
+                    logging.error(f"Relay state change error: {str(e)}")
+                    ok = False
+            return ok
 
-        # Use I2C coordination if available, otherwise fall back to direct control
-        if self._coordinator:
-            try:
-                self._coordinator.sync_exclusive_access('relay', _hardware_relay_operation)
-            except Exception as e:
-                logging.error(f"I2C coordination failed for relay operation: {e}")
-                # Fall back to direct control
-                _hardware_relay_operation()
-        else:
-            _hardware_relay_operation()
+        return self._run_coordinated(_hardware_relay_operation, "relay")
 
     def set_relays(self, relay_ids, state):
         """Public method to set one or more relay channels ON (1) or OFF (0).
@@ -289,10 +406,12 @@ class RelayHandler:
         This wraps the internal `_set_relay_states` and should be preferred by
         higher-level controllers (e.g., solenoid controller) instead of calling
         `_execute_triggers` when a sustained ON/OFF state is desired.
+
+        Returns False when any of the relays did not switch (see
+        ``_set_relay_states``).
         """
         try:
-            self._set_relay_states(relay_ids, 1 if state else 0)
-            return True
+            return self._set_relay_states(relay_ids, 1 if state else 0)
         except Exception as e:
             logging.error(f"set_relays error: {str(e)}")
             return False

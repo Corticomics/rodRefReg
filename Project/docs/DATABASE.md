@@ -3,9 +3,9 @@
 The runtime data store is a single SQLite file. On installed devices it lives
 at `~/rrr/shared/data/rrr_database.db`; on a developer clone it falls back to
 `Project/rrr_database.db` (both resolved through
-[`utils.paths.database_path()`](../Project/utils/paths.py)). The whole schema
+[`utils.paths.database_path()`](../utils/paths.py)). The whole schema
 and every read/write path is owned by
-[`Project/models/database_handler.py`](../Project/models/database_handler.py);
+[`Project/models/database_handler.py`](../models/database_handler.py);
 no other module issues SQL directly.
 
 This document is the single source of truth for the schema, intended for
@@ -154,6 +154,8 @@ erDiagram
         int  num_samples
         text calibration_date
         int  calibrated_by       FK
+        int  inter_pulse_interval_ms
+        text topology
     }
     VALVE_CALIBRATION_HISTORY {
         int  history_id          PK
@@ -164,6 +166,8 @@ erDiagram
         int  num_samples
         text calibration_date
         int  calibrated_by       FK
+        int  inter_pulse_interval_ms
+        text topology
     }
     CAGE_NAMES {
         int  cage_id     PK
@@ -195,10 +199,11 @@ will succeed and leave dangling IDs. See §7.
 ## 2. Table reference (verbatim DDL)
 
 All DDL lives inside
-[`DatabaseHandler.create_tables()`](../Project/models/database_handler.py)
-(lines 23–274) and runs idempotently on every startup (`CREATE TABLE IF NOT
-EXISTS` everywhere except the single inline migration for `dispensing_history`
-— see §4).
+[`DatabaseHandler.create_tables()`](../models/database_handler.py)
+and runs idempotently on every startup (`CREATE TABLE IF NOT EXISTS`
+everywhere except `dispensing_history`, which is created only when
+`PRAGMA table_info` finds it absent and otherwise upgraded column by column;
+the inline migrations are listed in §4).
 
 ### Auth & users
 
@@ -339,6 +344,37 @@ CREATE TABLE dispensing_history (
     volume_dispensed REAL    NOT NULL,
     status           TEXT    NOT NULL,
     cycle_index      INTEGER DEFAULT NULL,    -- added by inline migration
+    -- volume_dispensed is the PLANNED volume: pulses planned x mL/pulse (0 on
+    -- rows that did not complete). For an instant delivery that is the ask
+    -- rounded per dose_rounding; a staggered chunk's plan also carries the
+    -- window's running remainder. The ask itself is volume_requested_ml.
+    -- v1.17.0: the volume credited to the animal, not a weighing. Pulse
+    -- mode: the sum over the pulses whose valve opened (v1.21.0) of the
+    -- calibrated mL/pulse, or of a sensor-corrected figure when a flow sensor
+    -- is fitted; a pulse whose close reached its relay late is credited with
+    -- the water that flowed while its valve stayed open, at the valve's
+    -- steady flow. Continuous mode: the target when the
+    -- delivery completed. Pump mode: the triggers that fired, at the pump's
+    -- mL per trigger.
+    -- NULL on older rows means "unknown", not zero.
+    volume_actual_ml        REAL    DEFAULT NULL,
+    pulses_fired            INTEGER DEFAULT NULL,
+    volume_per_pulse_ml     REAL    DEFAULT NULL,
+    -- v1.21.0: the context the delivery ran under, so the ledgers of two
+    -- devices or two valve topologies can be compared without the app.
+    topology                TEXT    DEFAULT NULL,   -- 'shared_manifold' | 'independent'
+    calibration_id          INTEGER DEFAULT NULL,   -- valve_calibration row in force
+    pulse_width_ms          INTEGER DEFAULT NULL,
+    inter_pulse_interval_ms INTEGER DEFAULT NULL,
+    duration_s              REAL    DEFAULT NULL,
+    app_version             TEXT    DEFAULT NULL,
+    volume_requested_ml     REAL    DEFAULT NULL,   -- the ask, before whole-pulse rounding
+                                                    -- (sensor_failure rows: the undelivered part)
+    dose_rounding           TEXT    DEFAULT NULL,   -- 'nearest' | 'up'; NULL = not recorded (older
+                                                    -- rows, breaker rows) or not rounded to pulses
+                                                    -- (pump, continuous)
+    delivery_mode           TEXT    DEFAULT NULL,   -- 'instant' | 'staggered', kept on the row
+                                                    -- because a schedule can be deleted
     FOREIGN KEY(schedule_id)   REFERENCES schedules(schedule_id),
     FOREIGN KEY(animal_id)     REFERENCES animals(animal_id),
     FOREIGN KEY(relay_unit_id) REFERENCES relay_units(relay_unit_id)
@@ -380,6 +416,10 @@ CREATE TABLE IF NOT EXISTS valve_calibration (
     calibration_date            TEXT    NOT NULL,
     calibrated_by               INTEGER,
     notes                       TEXT,
+    inter_pulse_interval_ms     INTEGER,            -- v1.16.0; NULL = legacy 100 ms rest
+    topology                    TEXT DEFAULT NULL,  -- v1.21.0; 'shared_manifold' | 'independent'
+                                                    -- NULL = measured before it was recorded
+                                                    --        (the shared manifold)
     FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
 );
 
@@ -395,6 +435,10 @@ CREATE TABLE IF NOT EXISTS valve_calibration_history (
     calibration_date            TEXT    NOT NULL,
     calibrated_by               INTEGER,
     notes                       TEXT,
+    inter_pulse_interval_ms     INTEGER,            -- v1.16.0; NULL = legacy 100 ms rest
+    topology                    TEXT DEFAULT NULL,  -- v1.21.0; 'shared_manifold' | 'independent'
+                                                    -- NULL = measured before it was recorded
+                                                    --        (the shared manifold)
     FOREIGN KEY(calibrated_by) REFERENCES trainers(trainer_id)
 );
 ```
@@ -429,16 +473,22 @@ If you ever need to add a method, **do not** add `self.conn = ...` to
 
 ## 4. Inline migrations
 
-The two existing schema changes are not run from a migration framework — they
-are inline `PRAGMA table_info(...)` + `ALTER TABLE ... ADD COLUMN ...`
-sequences inside `create_tables()`. Both run idempotently on every startup.
+Schema changes are not run from a migration framework — they are inline
+`PRAGMA table_info(...)` + `ALTER TABLE ... ADD COLUMN ...` sequences inside
+`create_tables()`. All run idempotently on every startup, and every added
+column is nullable so an older release can still read the rows (no `SELECT *`
+in the handler; every `INSERT` names its columns).
 
-| Migration | What it does | Location |
+| Migration | What it does | Since |
 |---|---|---|
-| `dispensing_history.cycle_index` | If the table pre-dates the column, add it with `DEFAULT NULL`. | `database_handler.py:30–55` |
-| `animals.sex` | Add a nullable `sex TEXT CHECK(sex IN ('male','female'))` if absent. | `database_handler.py:260–267` |
+| `dispensing_history.cycle_index` | If the table pre-dates the column, add it with `DEFAULT NULL`. | pre-v1.5 |
+| `animals.sex` | Add a nullable `sex TEXT CHECK(sex IN ('male','female'))` if absent. | pre-v1.5 |
+| `valve_calibration.inter_pulse_interval_ms`, `valve_calibration_history.inter_pulse_interval_ms` | The valve-closed rest the calibration was measured at; NULL = legacy 100 ms cadence. | v1.16.0 |
+| `valve_calibration.topology`, `valve_calibration_history.topology` | The valve topology the calibration was measured under; NULL = measured before it was recorded, which reads as the shared manifold. A calibration from the other topology is reported as Stale in Settings → Calibration, and Run refuses a pulse-mode schedule that waters that cage (`utils/calibration_gate.py`); the delivery strategy still reads such a row only as a defence in depth. | v1.21.0 |
+| `dispensing_history.volume_actual_ml`, `.pulses_fired`, `.volume_per_pulse_ml` | The volume credited to the animal (pulse mode: the calibrated or sensor-corrected volume of each pulse whose valve opened; continuous mode: the target when the delivery completed; pump mode: the triggers that fired), with the pulses fired and the mL/pulse they were fired at. Not a weighing; NULL = unknown. | v1.17.0 |
+| `dispensing_history.topology`, `.calibration_id`, `.pulse_width_ms`, `.inter_pulse_interval_ms`, `.duration_s`, `.app_version`, `.volume_requested_ml`, `.dose_rounding`, `.delivery_mode` | The context the delivery ran under (valve topology, calibration row, timing profile, wall-clock duration, app version, schedule mode), and the volume asked for before whole-pulse rounding with the rounding policy applied. | v1.21.0 |
 
-When you need a third migration, add it to `create_tables()` in the same
+When you need another migration, add it to `create_tables()` in the same
 style; *do not* introduce a parallel framework — see [`docs/UPDATE_SYSTEM.md`
 §14.5 F4](UPDATE_SYSTEM.md) for the reasoning.
 
@@ -481,8 +531,8 @@ All methods are synchronous (with one broken exception flagged in §7).
 |---|---|
 | `add_schedule(schedule)` | Generic insert; also writes `schedule_animals` and (for instant mode) `schedule_instant_deliveries`. |
 | `add_staggered_schedule(schedule)` | Staggered-mode insert with `schedule_desired_outputs` + `schedule_staggered_windows`. |
-| `add_instant_schedule(name, created_by, is_super, deliveries)` | Instant-mode insert. |
-| `update_schedule(...)` / `update_schedule_status(...)` | Partial / status updates. |
+| `update_staggered_schedule(schedule)` / `update_instant_schedule(schedule)` | Transactional edit: update the `schedules` row + replace all child rows. |
+| `update_schedule_status(...)` | Dispensing-status update. |
 | `remove_schedule(schedule_id)` | Deletes from `schedules` + `schedule_animals` only (no cascade — see §7). |
 | `get_schedule_details(schedule_id)` / `get_all_schedules()` / `get_schedules_by_trainer(trainer_id)` | Hydrated reads. |
 | `get_active_schedules()` | Currently in-window schedules with `dispensing_status='active'`. |
@@ -510,8 +560,8 @@ All methods are synchronous (with one broken exception flagged in §7).
 
 | Method | Purpose |
 |---|---|
-| `save_valve_calibration(...)` | Dual-write: append to `valve_calibration_history`, then `INSERT OR REPLACE` into `valve_calibration`. |
-| `get_valve_calibration(cage_id)` / `get_all_valve_calibrations()` | Current calibrations. |
+| `save_valve_calibration(..., inter_pulse_interval_ms=None, topology=None)` | Dual-write: append to `valve_calibration_history`, then `INSERT OR REPLACE` into `valve_calibration`. The row is replaced, so callers always pass the interval and the topology. |
+| `get_valve_calibration(cage_id)` / `get_all_valve_calibrations(*, raise_errors=False)` | Current calibrations, including `calibration_id`, `inter_pulse_interval_ms` and `topology`. A database error returns `None` / `{}`; `raise_errors=True` raises it instead, so the Run calibration gate can tell "nothing calibrated" from "could not read". |
 | `get_valve_calibration_history(cage_id, limit=10)` | Audit trail, newest first. |
 
 ### Cross-cutting
@@ -529,8 +579,8 @@ All methods are synchronous (with one broken exception flagged in §7).
 Every persisted *preference* lives in `system_settings`. **Slack credentials
 do NOT** — since Phase 2.5b (v1.5.1) they live in a dedicated mode-0600
 `secrets.json` next to the database; see
-[`Project/utils/secrets.py`](../Project/utils/secrets.py) and
-[`SystemController._ensure_secrets_migrated()`](../Project/controllers/system_controller.py).
+[`Project/utils/secrets.py`](../utils/secrets.py) and
+[`SystemController._ensure_secrets_migrated()`](../controllers/system_controller.py).
 
 `setting_type` records how to decode `setting_value`:
 
@@ -543,11 +593,11 @@ do NOT** — since Phase 2.5b (v1.5.1) they live in a dedicated mode-0600
 | `json` | `json.dumps(value, default=str)` | `json.loads(value)` |
 
 The type tag is inferred at write time by
-[`SystemController._write_setting_to_db`](../Project/controllers/system_controller.py)
+[`SystemController._write_setting_to_db`](../controllers/system_controller.py)
 based on Python type — `list`/`dict` round-trip through `json`.
 
 The set of keys persisted to the DB is the single source of truth
-[`SystemController._get_persisted_keys()`](../Project/controllers/system_controller.py).
+[`SystemController._get_persisted_keys()`](../controllers/system_controller.py).
 Anything else passed to `save_settings()` stays in `self.settings` in-memory
 only — useful for runtime objects (e.g. `relay_unit_manager`) you do not want
 to serialise.
@@ -558,9 +608,9 @@ row that prevents re-running. The legacy file is left intact (copy-not-move).
 See [`docs/UPDATE_SYSTEM.md` §13.8 / §14](UPDATE_SYSTEM.md) for the full plan.
 
 Test coverage:
-[`test_settings_persistence.py`](../Project/tests/unit/test_settings_persistence.py)
+[`test_settings_persistence.py`](../tests/unit/test_settings_persistence.py)
 — 20 cases for round-trip, migration, save semantics, and the previously silent `theme` drop.
-[`test_secrets.py`](../Project/tests/unit/test_secrets.py) — 12 cases for the secrets store
+[`test_secrets.py`](../tests/unit/test_secrets.py) — 12 cases for the secrets store
 plus the v1.5.0 → v1.5.1 and pre-v1.5.0 → v1.5.1 migration paths.
 
 ---
@@ -579,10 +629,9 @@ plus the v1.5.0 → v1.5.1 and pre-v1.5.0 → v1.5.1 migration paths.
   (which updates `animals.last_watering` on `status='completed'`).
 - **`cage_names.relay_id`** is not a FK to `relay_units`; the mapping is
   application-convention.
-- **No formal schema-version table.** Two inline `ALTER TABLE` migrations live
-  in `create_tables()`. Adding a third? Same pattern; do not bolt on a
-  framework (see [`docs/UPDATE_SYSTEM.md` §14.5 F4](UPDATE_SYSTEM.md)).
-- **Legacy stubs lurk in the schema.** A few methods reference a
-  `schedule_time_instants` table that does not exist in the DDL — they appear
-  to be legacy code paths superseded by `schedule_instant_deliveries`. Safe to
-  ignore until refactored.
+- **No formal schema-version table.** The inline `ALTER TABLE` migrations
+  listed in §4 live in `create_tables()`. Adding another? Same pattern; do
+  not bolt on a framework (see [`docs/UPDATE_SYSTEM.md` §14.5 F4](UPDATE_SYSTEM.md)).
+  (The dead `schedule_time_instants` method cluster that referenced a
+  non-existent table was removed in v1.14.1; instant deliveries live solely in
+  `schedule_instant_deliveries`.)

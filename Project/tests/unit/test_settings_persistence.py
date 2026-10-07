@@ -76,6 +76,33 @@ def test_db_values_override_defaults_on_reload(database_handler):
     assert sc2.settings["hardware_mode"] == "solenoid"
 
 
+def test_round_doses_up_is_a_persisted_bool_that_defaults_off(database_handler):
+    """The dose rounding policy (v1.19.0) survives a restart and is off by default.
+
+    A key missing from the managed set is silently dropped by
+    ``save_settings``, which would make the Settings-tab checkbox forget
+    itself on the next launch; the force-merged pulse-mode block would reset
+    it on every launch. Pin both.
+    """
+    from controllers.system_controller import SystemController
+
+    sc1 = SystemController(database_handler)
+    assert sc1.settings["round_doses_up"] is False
+    assert "round_doses_up" in sc1._get_persisted_keys()
+    assert sc1._get_setting_type("round_doses_up") is bool
+
+    sc1.save_settings({"round_doses_up": True})
+    sc2 = SystemController(database_handler)
+    assert sc2.settings["round_doses_up"] is True
+
+    # main.setup() runs this on every device boot, and its pulse_mode_settings
+    # block force-merges values: a key placed there would reset the operator's
+    # choice on every launch.
+    sc2.ensure_solenoid_defaults()
+    assert sc2.settings["round_doses_up"] is True
+    assert database_handler.get_system_settings()["round_doses_up"] is True
+
+
 # ---------------------------------------------------------------------------
 # Legacy-JSON migration
 # ---------------------------------------------------------------------------

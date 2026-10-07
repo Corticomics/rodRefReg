@@ -40,3 +40,35 @@ jobs:
 
       - name: Run pytest
         run: python3 -m pytest
+
+  unit-bookworm:
+    # The devices run Raspberry Pi OS Bookworm: Python 3.11 from apt, PyQt5
+    # and pandas from apt, and a venv built with --system-site-packages
+    # (scripts/install/10-apt.sh, 30-python.sh). The job above runs on the
+    # runner's newer Python, so code that only works there (3.12 f-string
+    # forms, newer stdlib behaviour) would pass CI and fail on a Pi. This job
+    # rebuilds the device's stack in a Debian Bookworm container and runs the
+    # same suite on it.
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - name: Install the device's apt stack
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
+            ca-certificates git python3 python3-venv python3-pip python3-pyqt5 python3-pandas
+
+      - uses: actions/checkout@v4
+
+      - name: Build the venv the way the installer does
+        run: |
+          python3 -m venv --system-site-packages /opt/rrr-venv
+          /opt/rrr-venv/bin/python -m pip install -q --upgrade pip
+          /opt/rrr-venv/bin/python -m pip install -q -r requirements.txt -r requirements-dev.txt
+
+      - name: Run pytest on the device's Python
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          /opt/rrr-venv/bin/python --version
+          /opt/rrr-venv/bin/python -m pytest

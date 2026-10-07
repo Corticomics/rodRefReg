@@ -31,3 +31,8 @@ dist/
 
 # IDE / agent state
 .cursor/worktrees.json
+.claude/worktrees/
+
+# The relay HAT driver (16relind-rpi) that scripts/install/40-hardware.sh
+# clones into the checkout on every install; never part of the repo.
+vendor/

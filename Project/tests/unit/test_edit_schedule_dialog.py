@@ -1,0 +1,218 @@
+"""Smoke + behaviour tests for the rebuilt ScheduleEditDialog.
+
+The dialog reuses the wizard's ``Step3ConfigureParameters`` and saves through
+``update_staggered_schedule``. These tests assert it (a) pre-fills the saved
+name/volume/cage from the schedule, and (b) actually persists an edit end to
+end. Skips cleanly when PyQt5 is unavailable; CI installs ``python3-pyqt5``.
+"""
+
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta
+
+import pytest
+
+pytest.importorskip("PyQt5")
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    from PyQt5.QtWidgets import QApplication  # noqa: PLC0415
+
+    return QApplication.instance() or QApplication([])
+
+
+def _seed_staggered(database_handler):
+    """Create a 2-animal staggered schedule and return its Schedule object."""
+    from models.Schedule import Schedule  # noqa: PLC0415
+
+    start = datetime.now() + timedelta(days=1)
+    end = start + timedelta(hours=1)
+    sched = Schedule(
+        schedule_id=None,
+        name="Morning ration",
+        water_volume=3.0,
+        start_time=start.isoformat(),
+        end_time=end.isoformat(),
+        created_by=1,
+        is_super_user=0,
+        delivery_mode="staggered",
+    )
+    sched.add_animal(animal_id=1, relay_unit_id=1, desired_volume=1.0)
+    sched.add_animal(animal_id=2, relay_unit_id=2, desired_volume=2.0)
+    sid = database_handler.add_staggered_schedule(sched)
+    assert sid is not None
+
+    # Re-read so we hand the dialog the same shape the hub does.
+    return next(s for s in database_handler.get_all_schedules() if s.schedule_id == sid)
+
+
+def test_dialog_prefills_from_schedule(qapp, database_handler):
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    schedule = _seed_staggered(database_handler)
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    assert dlg._step3 is not None
+    configs = dlg._step3.get_animal_configs()
+    assert configs[1]["volume"] == 1.0
+    assert configs[2]["volume"] == 2.0
+    assert configs[1]["cage_id"] == 1
+    assert configs[2]["cage_id"] == 2
+    assert dlg._step3._name_input.text() == "Morning ration"
+
+
+def test_dialog_save_persists_edit(qapp, database_handler):
+    from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    schedule = _seed_staggered(database_handler)
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    # Operator bumps animal 1's volume and renames the schedule.
+    dlg._step3._animal_widgets[1]["volume"].setValue(4.0)
+    dlg._step3._name_input.setText("Edited ration")
+
+    dlg._save_changes()
+    assert dlg.result() == QDialog.Accepted
+
+    details = database_handler.get_schedule_details(schedule.schedule_id)[0]
+    assert details["desired_water_outputs"]["1"] == 4.0
+    assert details["desired_water_outputs"]["2"] == 2.0
+
+
+def test_quick_apply_is_authoritative_in_edit(qapp, database_handler):
+    """Editing the prominent Quick Apply Start/End persists without a button click.
+
+    Regression for the reported "I change the time and save but nothing changes":
+    in edit mode the Quick Apply row is pre-filled and live (applies to all
+    animal rows), so a Save reflects it.
+    """
+    from PyQt5.QtCore import QDateTime  # noqa: PLC0415
+    from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    schedule = _seed_staggered(database_handler)
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    new_start = (datetime.now() + timedelta(days=3)).replace(second=0, microsecond=0)
+    new_end = new_start + timedelta(hours=2)
+    # Only touch the Quick Apply row — do NOT click "Apply to All".
+    dlg._step3._global_start.setDateTime(QDateTime(new_start))
+    dlg._step3._global_end.setDateTime(QDateTime(new_end))
+
+    dlg._save_changes()
+    assert dlg.result() == QDialog.Accepted
+
+    r = next(
+        s for s in database_handler.get_all_schedules() if s.schedule_id == schedule.schedule_id
+    )
+    assert datetime.fromisoformat(r.start_time).replace(microsecond=0) == new_start
+    assert datetime.fromisoformat(r.end_time).replace(microsecond=0) == new_end
+
+
+def test_change_summary_lists_what_changed(qapp, database_handler):
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    schedule = _seed_staggered(database_handler)
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    dlg._step3._animal_widgets[1]["volume"].setValue(4.0)
+    dlg._step3._name_input.setText("Edited ration")
+    dlg._save_changes()
+
+    summary = "\n".join(dlg.change_summary)
+    assert "Name: 'Morning ration' → 'Edited ration'" in summary
+    assert "volume" in summary.lower()
+    assert "4 mL" in summary  # new volume formatted
+
+
+def _seed_instant(database_handler, deliveries):
+    """Create an instant schedule. ``deliveries`` is ``[(animal_id, cage, vol, datetime)]``."""
+    from models.Schedule import Schedule  # noqa: PLC0415
+
+    total = sum(v for _, _, v, _ in deliveries)
+    times = [d for *_, d in deliveries]
+    sched = Schedule(
+        None,
+        "Instant ration",
+        total,
+        min(times).isoformat(),
+        max(times).isoformat(),
+        1,
+        0,
+        "instant",
+    )
+    seen = set()
+    for aid, cage, vol, when in deliveries:
+        if aid not in seen:
+            sched.add_animal(aid, cage, vol)
+            seen.add(aid)
+        sched.add_instant_delivery(aid, when.isoformat(), vol, cage)
+    sid = database_handler.add_schedule(sched)
+    return next(s for s in database_handler.get_all_schedules() if s.schedule_id == sid)
+
+
+def test_build_schedule_from_config_populates_instant_deliveries(qapp):
+    from ui.schedule_wizard import build_schedule_from_config  # noqa: PLC0415
+
+    dt = datetime(2026, 6, 5, 9, 0, 0)
+    config = {
+        "schedule_type": "instant",
+        "animals": [1],
+        "parameters": {
+            "name": "x",
+            "animal_configs": {1: {"delivery_time": dt, "volume": 1.5, "cage_id": 2}},
+        },
+    }
+    sched = build_schedule_from_config(config, trainer=None, system_controller=None)
+    assert len(sched.instant_deliveries) == 1
+    d = sched.instant_deliveries[0]
+    assert (d["animal_id"], d["volume"], d["relay_unit_id"]) == (1, 1.5, 2)
+    assert d["datetime"] == dt.isoformat()  # stored as ISO string for add_schedule
+
+
+def test_instant_dialog_prefills_and_saves(qapp, database_handler):
+    from PyQt5.QtCore import QDateTime  # noqa: PLC0415
+    from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    d1 = datetime(2026, 6, 5, 9, 0, 0)
+    schedule = _seed_instant(database_handler, [(1, 1, 1.0, d1)])
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+
+    assert dlg._step3 is not None
+    cfg = dlg._step3.get_animal_configs()[1]
+    assert cfg["volume"] == 1.0
+    assert cfg["cage_id"] == 1
+    assert cfg["delivery_time"].replace(microsecond=0) == d1
+
+    # Change the delivery time via the (authoritative) Quick Apply row, save.
+    nd = (datetime.now() + timedelta(days=2)).replace(second=0, microsecond=0)
+    dlg._step3._global_delivery_time.setDateTime(QDateTime(nd))
+    dlg._save_changes()
+    assert dlg.result() == QDialog.Accepted
+
+    with database_handler.connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT delivery_datetime FROM schedule_instant_deliveries WHERE schedule_id = ?",
+            (schedule.schedule_id,),
+        )
+        got = cur.fetchone()[0]
+    assert datetime.fromisoformat(got).replace(microsecond=0) == nd
+
+
+def test_instant_multi_delivery_shows_guard_notice(qapp, database_handler):
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    d1 = datetime(2026, 6, 5, 9, 0, 0)
+    d2 = datetime(2026, 6, 5, 12, 0, 0)
+    # Two deliveries for the SAME animal — not representable one-row-per-animal.
+    schedule = _seed_instant(database_handler, [(1, 1, 1.0, d1), (1, 1, 1.0, d2)])
+    dlg = ScheduleEditDialog(schedule, database_handler, system_controller=None)
+    assert dlg._step3 is None
+    assert dlg._blocked_reason

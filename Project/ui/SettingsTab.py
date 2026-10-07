@@ -1,14 +1,13 @@
-import base64
+import csv
 import json
-import os
 from datetime import datetime
 
 import pandas as pd
-from cryptography.fernet import Fernet
 from models.animal import Animal
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -21,15 +20,46 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
+from utils import updater
+from utils.calibration_gate import calibration_is_usable, gate_applies
+from utils.operation_lock import CALIBRATION, get_operation_lock
+from utils.topology import (
+    DEFAULT_MASTER_RELAY_ID,
+    INDEPENDENT,
+    SETTING_KEY,
+    SHARED_MANIFOLD,
+    calibration_is_stale,
+    calibration_label,
+    calibration_topology,
+    describe,
+    is_known,
+    normalize,
+    topology_from,
+)
 
 from ui.PrimingControlWidget import PrimingControlWidget
 from ui.UpdatesTab import UpdatesTab
 from ui.widgets.safe_spinbox import SafeDoubleSpinBox, SafeSpinBox
+
+
+def _as_number(value):
+    """A stored number as a float, or None when it is missing or not a number."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_number(value, template):
+    """Format a stored number for the calibration table and report; "—" if missing."""
+    number = _as_number(value)
+    return "—" if number is None else template.format(number)
 
 
 class SettingsTab(QWidget):
@@ -108,23 +138,51 @@ class SettingsTab(QWidget):
         # Refresh mode state in case login status changed
         if hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
+        self._apply_hardware_settings_lock_state()
 
     def _on_subtab_changed(self, index: int):
         """Handle settings sub-tab changes."""
         # If General tab is selected (index 3), refresh mode state
         if index == 3 and hasattr(self, '_update_mode_button_state'):
             self._update_mode_button_state()
+        if self.tab_widget.widget(index) is self.hardware_pump_settings:
+            self._apply_hardware_settings_lock_state()
 
     def refresh_calibration_table(self) -> None:
         """
         Public method to refresh the calibration table.
 
-        Called when cage names are updated in the Cages tab to keep
-        calibration table in sync. Follows Observer pattern via Qt signals.
+        Called when cage names change in the Cages tab and when the hat
+        count changes (main.change_relay_hats), so the rows follow the
+        device's cage map without a restart.
         """
         if hasattr(self, 'calibration_table'):
             self._populate_calibration_table()
-            self.print_to_terminal("Calibration table refreshed with updated cage names")
+            self.print_to_terminal("Calibration table refreshed")
+
+    def _cage_map(self) -> dict:
+        """
+        The device's cage map for the calibration views.
+
+        A stored map that cannot be read (only reachable by hand-editing
+        the database) must not take the Settings tab, and with it the whole
+        main window, down at boot: fall back to the sequential layout for
+        the hat count and say so, as the neighbouring database reads do.
+        """
+        from utils.topology import cage_map_from
+
+        try:
+            return cage_map_from(self.settings)
+        except (TypeError, ValueError) as exc:
+            self.print_to_terminal(
+                f"Stored cage map is unreadable ({exc}); showing the default layout"
+            )
+            layout = {
+                key: self.settings[key]
+                for key in ('num_hats', 'global_master_relay_id')
+                if self.settings.get(key) is not None
+            }
+            return cage_map_from(layout)
 
     def _connect_auto_save_handlers(self):
         """
@@ -148,6 +206,7 @@ class SettingsTab(QWidget):
         self.predictive_close_ms.valueChanged.connect(self._auto_save_settings)
         self.use_pulse_delivery.stateChanged.connect(self._auto_save_settings)
         self.pulse_width_ms.valueChanged.connect(self._auto_save_settings)
+        self.round_doses_up.stateChanged.connect(self._auto_save_settings)
 
         # Pump settings
         self.pump_volume.valueChanged.connect(self._auto_save_settings)
@@ -189,22 +248,37 @@ class SettingsTab(QWidget):
                 'predictive_close_ms': self.predictive_close_ms.value(),
                 'use_pulse_delivery': self.use_pulse_delivery.isChecked(),
                 'pulse_width_ms': self.pulse_width_ms.value(),
+                'round_doses_up': self.round_doses_up.isChecked(),
                 # Pump settings
                 'pump_volume_ul': self.pump_volume.value(),
                 'calibration_factor': self.calibration_factor.value(),
                 'min_triggers': self.min_triggers.value(),
-                # Notifications (if exist)
-                'slack_token': self._encrypt_sensitive_data(self.slack_token.text())
-                if hasattr(self, 'slack_token')
-                else '',
-                'channel_id': self.slack_channel.text() if hasattr(self, 'slack_channel') else '',
                 # System
                 'log_level': self.log_level.value() if hasattr(self, 'log_level') else 2,
             }
+            # Slack credentials, stored as entered: SystemController keeps
+            # them in the mode-0600 secrets.json. Only when their fields
+            # exist, so a save can never blank credentials it did not show.
+            if hasattr(self, 'slack_token'):
+                updated_settings['slack_token'] = self.slack_token.text()
+            if hasattr(self, 'slack_channel'):
+                updated_settings['channel_id'] = self.slack_channel.text()
+
+            credentials = ('slack_token', 'channel_id')
+            before = tuple(self.settings.get(key) for key in credentials)
 
             # Update settings via system controller (ensures persistence)
             self.settings.update(updated_settings)
             self.system_controller.save_settings(self.settings)
+
+            # The running NotificationHandler was built with the credentials
+            # at start-up; point it at the new ones so Slack uses them now.
+            after = tuple(self.settings.get(key) for key in credentials)
+            handler = self.notification_handler
+            if after != before and hasattr(handler, 'update_credentials'):
+                handler.update_credentials(*after)
+                self._refresh_slack_status()
+                self.print_to_terminal("Slack credentials updated; the next message uses them")
 
             # Emit signal for other components
             self.settings_updated.emit(self.settings)
@@ -280,6 +354,8 @@ class SettingsTab(QWidget):
         solenoid_layout = QVBoxLayout()
         solenoid_layout.setContentsMargins(12, 12, 12, 12)
         solenoid_layout.setSpacing(12)
+
+        solenoid_layout.addWidget(self._create_valve_topology_group())
 
         # Flow Sensor Configuration
         sensor_group = QGroupBox("Flow Sensor (Teensy Bridge)")
@@ -390,6 +466,24 @@ class SettingsTab(QWidget):
         self.pulse_width_ms.setToolTip("Pulse duration (default: 20ms for Parker Series 3)")
         pulse_layout.addRow("Pulse Width:", self.pulse_width_ms)
 
+        # Dose rounding policy. Water leaves the valve in whole pulses, so a
+        # dose can only land within one pulse of its target; this picks
+        # which side of the target that pulse falls on.
+        self.round_doses_up = QCheckBox("Round doses up to the next whole pulse")
+        self.round_doses_up.setChecked(bool(self.settings.get('round_doses_up', False)))
+        self.round_doses_up.setToolTip(
+            "Doses are delivered in whole pulses.\n"
+            "Off (default): each dose is rounded to the nearest pulse, so it can land "
+            "up to half a pulse under or over its target.\n"
+            "On: rounding always goes up, so a dose never plans below its target "
+            "and lands up to one pulse over.\n"
+            "Turn this on when weighed doses come out short — for example with a "
+            "flow-restricting needle on the reservoir.\n"
+            "Applies to schedules started after the change; a running schedule keeps "
+            "the policy it started with."
+        )
+        pulse_layout.addRow("", self.round_doses_up)
+
         pulse_group.setLayout(pulse_layout)
         solenoid_layout.addWidget(pulse_group)
 
@@ -450,27 +544,26 @@ class SettingsTab(QWidget):
         """
         Handle hardware mode change with safety check.
 
-        Best Practices:
-        - Prevent mode switching during active schedule
-        - Provide clear feedback to user
-        - Maintain system safety
+        Refused, and the combo put back, while a schedule, a priming session
+        or a calibration is running: the same check as the valve topology.
+        (It used to look for a ``run_stop_section.worker`` that does not
+        exist, so it never refused anything.)
         """
-        # Check if schedule is running
-        if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
-            if self.run_stop_section.worker and self.run_stop_section.worker.isRunning():
-                QMessageBox.warning(
-                    self,
-                    "Cannot Change Mode",
-                    "Cannot change hardware mode while a schedule is running.\n\n"
-                    "Please stop the current schedule first.",
-                )
-                # Revert to previous mode
-                old_mode = self.settings.get('hardware_mode', 'solenoid')
-                old_idx = self.hardware_mode_combo.findData(old_mode)
-                self.hardware_mode_combo.blockSignals(True)
-                self.hardware_mode_combo.setCurrentIndex(old_idx if old_idx >= 0 else 0)
-                self.hardware_mode_combo.blockSignals(False)
-                return
+        reason = self._hardware_change_blocked_reason()
+        if reason:
+            QMessageBox.warning(
+                self,
+                "Cannot Change Mode",
+                f"The hardware mode cannot change while {reason}.\n\n"
+                "Wait for it to finish, then try again.",
+            )
+            # Revert to previous mode
+            old_mode = self.settings.get('hardware_mode', 'solenoid')
+            old_idx = self.hardware_mode_combo.findData(old_mode)
+            self.hardware_mode_combo.blockSignals(True)
+            self.hardware_mode_combo.setCurrentIndex(old_idx if old_idx >= 0 else 0)
+            self.hardware_mode_combo.blockSignals(False)
+            return
 
         self._update_hardware_ui_visibility()
         self.print_to_terminal(f"Hardware mode changed to: {mode}")
@@ -486,6 +579,266 @@ class SettingsTab(QWidget):
         is_solenoid = self.hardware_mode_combo.currentData() == 'solenoid'
         self.solenoid_group.setVisible(is_solenoid)
         self.pump_group.setVisible(not is_solenoid)
+
+    # ==================== VALVE TOPOLOGY ====================
+
+    def _create_valve_topology_group(self):
+        """
+        The valve topology this device drives (see utils.topology).
+
+        Deliberately not on the auto-save path: a change is refused while
+        any hardware operation or schedule is active, confirmed by the
+        operator, saved on its own and read back from the database before
+        it is reported as done.
+        """
+        group = QGroupBox("Valve Topology")
+        group_layout = QVBoxLayout()
+        group_layout.setContentsMargins(12, 12, 12, 12)
+        group_layout.setSpacing(8)
+
+        self.valve_topology_buttons = QButtonGroup(group)
+        self.valve_topology_radios = {}
+        for value, label in (
+            (SHARED_MANIFOLD, "Shared manifold (master valve)"),
+            (INDEPENDENT, "Independent (one syringe and one valve per animal)"),
+        ):
+            radio = QRadioButton(label)
+            self.valve_topology_buttons.addButton(radio)
+            self.valve_topology_radios[value] = radio
+            group_layout.addWidget(radio)
+        self._show_valve_topology(topology_from(self.settings))
+
+        note = QLabel(
+            "Must match how this rig is plumbed. After a change, calibrations measured "
+            "under the other topology show as Stale, and in solenoid pulse mode (the "
+            "default) a schedule watering a Stale cage will not start until that cage is "
+            "recalibrated. Priming cannot open a valve until RRR is closed and reopened."
+        )
+        note.setObjectName("HelpText")
+        note.setWordWrap(True)
+        group_layout.addWidget(note)
+        group.setLayout(group_layout)
+
+        # buttonClicked fires for the operator's clicks (mouse or keyboard)
+        # only, never for the setChecked that puts a refused change back.
+        self.valve_topology_buttons.buttonClicked.connect(self._on_valve_topology_clicked)
+        get_operation_lock().state_changed.connect(self._apply_hardware_settings_lock_state)
+        self._apply_hardware_settings_lock_state()
+        return group
+
+    def _show_valve_topology(self, topology):
+        """Check the radio for ``topology`` without running the change handler."""
+        radio = self.valve_topology_radios.get(topology)
+        if radio is not None:
+            radio.setChecked(True)
+
+    def _hardware_change_blocked_reason(self):
+        """
+        Why the valve hardware settings cannot change right now, or None.
+
+        Any holder of the operation lock counts (a schedule run, a priming
+        session or a calibration), and so does a delivery worker that is
+        still running or a job the Run/Stop section has not finished.
+        """
+        lock = get_operation_lock()
+        if lock.is_busy():
+            return f"{lock.active_label()} is in progress"
+        if updater.is_busy() or getattr(self.run_stop_section, 'job_in_progress', False):
+            return "a schedule is running"
+        return None
+
+    def _apply_hardware_settings_lock_state(self):
+        """Grey out the hardware mode and the topology choice while a change
+        would be refused.
+
+        Purely visual: the handlers check again. The lock announces its own
+        changes; a running worker is re-checked whenever Settings or its
+        Delivery sub-tab is shown.
+        """
+        reason = self._hardware_change_blocked_reason()
+        tip = f"Unavailable while {reason}" if reason else ""
+        combo = getattr(self, 'hardware_mode_combo', None)
+        if combo is not None:
+            combo.setEnabled(reason is None)
+            combo.setToolTip(tip)
+        for value, radio in getattr(self, 'valve_topology_radios', {}).items():
+            radio.setEnabled(reason is None)
+            radio.setToolTip(tip or describe(value))
+
+    def _on_valve_topology_clicked(self, button):
+        for value, radio in self.valve_topology_radios.items():
+            if radio is button:
+                self._on_valve_topology_chosen(value)
+                return
+
+    def _on_valve_topology_chosen(self, new):
+        """
+        Switch the device to the ``new`` topology if nothing is running and
+        the operator confirms. Returns True once the change is saved.
+
+        Schedules and calibrations read the topology when they start, so
+        they pick the change up from the next start. Priming built its
+        panel for the old one and stays locked until RRR restarts; RRR is
+        not restarted from here.
+        """
+        old = topology_from(self.settings)
+        if new == old:
+            return False
+        if not self.login_system or not self.login_system.is_logged_in():
+            self._show_valve_topology(old)
+            QMessageBox.warning(
+                self, "Access Denied", "You must be logged in to change the valve topology."
+            )
+            return False
+        if self._refuse_valve_topology_change(old):
+            return False
+        if not self._confirm_valve_topology(old, new):
+            self._show_valve_topology(old)
+            return False
+        # The confirmation is modal, but the event loop keeps running under
+        # it: a schedule, priming session or calibration may have started.
+        if self._refuse_valve_topology_change(old):
+            return False
+        outcome = self._save_valve_topology(old, new)
+        if outcome != 'saved':
+            self._show_valve_topology(old)
+            if outcome == 'unchanged':
+                self._announce_valve_topology(
+                    f"Valve topology NOT changed: {new} could not be saved; still {old}"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Topology Not Saved",
+                    f"The valve topology could not be saved, so this device stays on "
+                    f"{old}.\n\nThe Terminal tab shows the database error.",
+                )
+            else:
+                self._announce_valve_topology(
+                    f"Valve topology NOT confirmed: the database could not be read back "
+                    f"after saving {new}; running on {old} until restart"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Topology Not Confirmed",
+                    f"The database could not confirm the valve topology. RRR keeps running "
+                    f"on {old}, but the next start may load {new}.\n\n"
+                    "The Terminal tab shows the database error. Restart RRR and check "
+                    "Settings > Delivery > Valve Topology before running a schedule.",
+                )
+            return False
+
+        trainer = self.login_system.get_current_trainer() or {}
+        who = trainer.get('username') or 'unknown user'
+        self._announce_valve_topology(
+            f"Valve topology changed in Settings: {old} -> {new} (by {who}). "
+            "Schedules and calibrations started from now on use it; "
+            "Priming waits for a restart."
+        )
+        if hasattr(self, 'calibration_table'):
+            self._populate_calibration_table()  # the Stale badges follow the topology
+        priming = getattr(self, 'priming_widget', None)
+        if priming is not None:
+            priming.refresh_topology_state()
+        self._notify_valve_topology_changed(new)
+        return True
+
+    def _refuse_valve_topology_change(self, old):
+        reason = self._hardware_change_blocked_reason()
+        if reason is None:
+            return False
+        self._show_valve_topology(old)
+        QMessageBox.warning(
+            self,
+            "Cannot Change Topology",
+            f"The valve topology cannot change while {reason}.\n\n"
+            "Wait for it to finish, then try again.",
+        )
+        return True
+
+    def _confirm_valve_topology(self, old, new):
+        """Ask the operator; what can go wrong depends on the direction."""
+        master = self.settings.get('global_master_relay_id', DEFAULT_MASTER_RELAY_ID)
+        if new == INDEPENDENT:
+            effect = (
+                f"RRR will stop driving the master valve (relay {master}): every delivery, "
+                "calibration and priming session opens only the animal's own valve.\n\n"
+                "If this rig still has a master valve, NO WATER will reach any animal."
+            )
+        else:
+            effect = (
+                f"RRR will open the master valve (relay {master}) and hold it open around "
+                "every delivery, calibration and priming session.\n\n"
+                "Choose this only if a master valve feeds a shared manifold on this rig."
+            )
+        answer = QMessageBox.question(
+            self,
+            "Change Valve Topology",
+            f"Change the valve topology from {old} to {new}?\n\n{effect}\n\n"
+            "Calibrations measured under the other topology will show as Stale, and in "
+            "solenoid pulse mode (the default) Run refuses a schedule that waters a Stale "
+            "cage until that cage is recalibrated. Priming cannot open a valve until RRR "
+            "is closed and reopened.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return answer == QMessageBox.Yes
+
+    def _save_valve_topology(self, old, new):
+        """
+        Persist the topology alone and read it back: 'saved', 'unchanged'
+        (the database confirms the old topology) or 'unknown'.
+
+        save_settings reports failures on a signal instead of raising, and a
+        failed row write still changes the in-memory value, so the database
+        is the judge. On a mismatch the old topology is put back in memory
+        and, as far as the database allows, on disk; 'unknown' means the
+        database confirmed neither, so the next start cannot be predicted.
+        """
+        self.system_controller.save_settings({SETTING_KEY: new})
+        if self._stored_valve_topology() == new:
+            return 'saved'
+        self.system_controller.save_settings({SETTING_KEY: old})
+        self.settings[SETTING_KEY] = old
+        return 'unchanged' if self._stored_valve_topology() == old else 'unknown'
+
+    def _stored_valve_topology(self):
+        """
+        The topology stored in the database, or None when it cannot be
+        confirmed. get_system_settings() answers {} when the database cannot
+        be read, so a missing row is not taken for the default topology.
+        """
+        try:
+            stored = self.database_handler.get_system_settings().get(SETTING_KEY)
+        except Exception as exc:
+            self.print_to_terminal(f"Could not read the valve topology back: {exc}")
+            return None
+        return normalize(stored) if is_known(stored) else None
+
+    def _announce_valve_topology(self, message):
+        """
+        To the Terminal tab and to the process's own stdout (the journal
+        under rrr.service), beside the [TOPOLOGY] line printed at start-up.
+        Once the GUI is up, sys.stdout feeds the Terminal tab only.
+        """
+        import sys
+
+        line = f"[TOPOLOGY] {message}"
+        self.print_to_terminal(line)
+        if sys.__stdout__ is not None:
+            try:
+                print(line, file=sys.__stdout__, flush=True)
+            except (OSError, ValueError):
+                pass
+
+    def _notify_valve_topology_changed(self, new):
+        QMessageBox.information(
+            self,
+            "Valve Topology Changed",
+            f"This device now runs the {new} topology.\n\n"
+            "Schedules and calibrations started from now on use it. Valves calibrated "
+            "under the other topology are marked Stale in the Calibration tab.\n\n"
+            "Priming cannot open a valve until RRR is closed and reopened.",
+        )
 
     def _auto_detect_teensy(self):
         """Auto-detect Teensy port using system controller"""
@@ -639,6 +992,11 @@ class SettingsTab(QWidget):
         )  # Tab scrolls instead
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        # The global `QTableWidget::item` padding has a 12px top inset, which
+        # pushes setCellWidget action buttons down so they dip into the next
+        # row. Trim the item padding for this table so the Calibrate buttons sit
+        # centred. Padding-only override keeps the theme's row border.
+        self.calibration_table.setStyleSheet("QTableWidget::item { padding: 4px 16px; }")
         # Rely on global QSS styling
 
         # Column resize modes - all fixed widths for consistent layout
@@ -698,10 +1056,15 @@ class SettingsTab(QWidget):
         calibrate_all_btn.setObjectName("CompactButton")
         calibrate_all_btn.setFixedHeight(28)
         calibrate_all_btn.setToolTip(
-            "Run calibration wizard for all uncalibrated valves (all users)"
+            "Run the calibration wizard for every valve with no calibration, or with one "
+            "measured under the other valve topology (Stale) (all users)"
         )
         calibrate_all_btn.clicked.connect(self._calibrate_all_uncalibrated)
         button_row.addWidget(calibrate_all_btn)
+        self._calibrate_all_btn = calibrate_all_btn
+        # Grey out calibration launch buttons while another hardware operation
+        # (schedule run / priming) holds the lock; the launcher also refuses.
+        get_operation_lock().state_changed.connect(self._apply_calibration_lock_state)
 
         export_btn = QPushButton("Export Report")
         export_btn.setObjectName("CompactButton")
@@ -715,7 +1078,9 @@ class SettingsTab(QWidget):
         # Help text
         help_text = QLabel(
             "<b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
-            "Requires lab scale (±0.001g). CV% <5% = production ready."
+            "Requires lab scale (±0.001g). CV% <5% = production ready. "
+            "<b>Stale</b> = measured under the other valve topology; a schedule "
+            "watering that cage will not start until it is recalibrated."
         )
         help_text.setWordWrap(True)
         help_text.setObjectName("HelpText")
@@ -738,7 +1103,15 @@ class SettingsTab(QWidget):
         from PyQt5.QtGui import QColor
         from PyQt5.QtWidgets import QPushButton
 
-        self.calibration_table.setRowCount(15)  # 15 cages
+        # One row per cage in the device's real cage map: 15 on one HAT, 31
+        # on two (relay 16 is reserved, the master on the shared manifold and
+        # unused on the independent topology, and has no row).
+        cage_map = self._cage_map()
+        self.calibration_table.setRowCount(len(cage_map))
+
+        # Per-row launch buttons are recreated here; track them fresh so the
+        # operation-lock gating can grey them out (see _apply_calibration_lock_state).
+        self._calibrate_buttons = []
 
         # Get all calibrations from database
         calibrations = {}
@@ -754,8 +1127,7 @@ class SettingsTab(QWidget):
         except Exception as e:
             self.print_to_terminal(f"Error loading cage names: {e}")
 
-        for cage_id in range(1, 16):
-            row = cage_id - 1
+        for row, (cage_id, relay_id) in enumerate(sorted(cage_map.items())):
             cal = calibrations.get(cage_id)
 
             # Cage name - use custom name if set, otherwise "Cage N"
@@ -768,25 +1140,62 @@ class SettingsTab(QWidget):
 
             cage_item = QTableWidgetItem(display_name)
             cage_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            cage_item.setToolTip(f"Cage {cage_id} - Relay {cage_info.get('relay_id', cage_id)}")
+            cage_item.setToolTip(f"Cage {cage_id} - Relay {relay_id}")
             self.calibration_table.setItem(row, 0, cage_item)
 
+            stale = bool(cal) and calibration_is_stale(cal, self.settings)
+            invalid = bool(cal) and not calibration_is_usable(cal)
+            # What Run does about it: only solenoid pulse delivery plans from
+            # a valve calibration (see utils.calibration_gate).
+            consequence = (
+                "A schedule watering this cage will not start until it is recalibrated."
+                if gate_applies(self.settings)
+                else "The current delivery mode does not use it, but pulse delivery would "
+                "refuse it until it is recalibrated."
+            )
             if cal:
-                # Calibrated - show data
-                status_item = QTableWidgetItem("[OK]")
-                status_item.setForeground(QColor(0, 150, 0))
+                # Calibrated - show data. A calibration measured under the
+                # other valve topology, or one without a usable volume or
+                # pulse width, is flagged, not hidden: a schedule watering
+                # this cage will not start until it is recalibrated.
+                if invalid:
+                    status_item = QTableWidgetItem("Invalid")
+                    status_item.setForeground(QColor(200, 0, 0))
+                    status_item.setToolTip(
+                        "The stored volume per pulse or pulse width is missing, zero or "
+                        f"invalid. {consequence}"
+                    )
+                elif stale:
+                    device = topology_from(self.settings)
+                    status_item = QTableWidgetItem("Stale")
+                    status_item.setForeground(QColor(200, 150, 0))
+                    status_item.setToolTip(
+                        f"Measured on {calibration_label(cal)}: "
+                        f"{describe(calibration_topology(cal))}. "
+                        f"This device runs {device}: {describe(device)}. "
+                        f"{consequence}"
+                    )
+                else:
+                    status_item = QTableWidgetItem("[OK]")
+                    status_item.setForeground(QColor(0, 150, 0))
+                    status_item.setToolTip(f"Calibrated on {calibration_label(cal)}")
                 status_item.setTextAlignment(Qt.AlignCenter)
-                status_item.setToolTip("Calibrated")
 
-                volume_item = QTableWidgetItem(f"{cal['volume_per_pulse_ml']:.6f}")
+                volume_item = QTableWidgetItem(
+                    _format_number(cal.get('volume_per_pulse_ml'), "{:.6f}")
+                )
                 volume_item.setTextAlignment(Qt.AlignCenter)
 
-                cv_pct = cal['coefficient_of_variation_pct']
-                cv_item = QTableWidgetItem(f"{cv_pct:.2f}%")
+                # The CV may be missing (a row written without it): shown
+                # as a dash rather than taking the whole table down.
+                cv_pct = _as_number(cal.get('coefficient_of_variation_pct'))
+                cv_item = QTableWidgetItem(_format_number(cv_pct, "{:.2f}%"))
                 cv_item.setTextAlignment(Qt.AlignCenter)
 
                 # Color code quality
-                if cv_pct < 1.0:
+                if cv_pct is None:
+                    cv_item.setForeground(QColor(150, 150, 150))
+                elif cv_pct < 1.0:
                     cv_item.setForeground(QColor(0, 150, 0))  # Excellent - green
                 elif cv_pct < 3.0:
                     cv_item.setForeground(QColor(50, 150, 50))  # Good - lighter green
@@ -796,11 +1205,12 @@ class SettingsTab(QWidget):
                     cv_item.setForeground(QColor(200, 0, 0))  # Poor - red
 
                 # Format date
+                raw_date = str(cal.get('calibration_date') or '')
                 try:
-                    date_obj = datetime.fromisoformat(cal['calibration_date'])
+                    date_obj = datetime.fromisoformat(raw_date)
                     date_str = date_obj.strftime('%Y-%m-%d')
-                except:
-                    date_str = cal['calibration_date'][:10]
+                except ValueError:
+                    date_str = raw_date[:10] or "—"
 
                 date_item = QTableWidgetItem(date_str)
                 date_item.setTextAlignment(Qt.AlignCenter)
@@ -810,13 +1220,17 @@ class SettingsTab(QWidget):
                 self.calibration_table.setItem(row, 3, cv_item)
                 self.calibration_table.setItem(row, 4, date_item)
 
-                # Action button - Recalibrate (compact for table)
+                # Action button - Recalibrate (compact for table); a stale or
+                # invalid row's button stands out like an uncalibrated row's.
                 btn = QPushButton("Recalibrate")
+                if stale or invalid:
+                    btn.setProperty("variant", "primary")
                 btn.setStyleSheet(self._ACTION_BUTTON_STYLE)
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
+                self._calibrate_buttons.append(btn)
 
             else:
                 # Not calibrated - show warning
@@ -850,6 +1264,27 @@ class SettingsTab(QWidget):
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
                 self.calibration_table.setCellWidget(row, 5, btn)
+                self._calibrate_buttons.append(btn)
+
+        # Reflect the current operation-lock state on the freshly-built buttons.
+        self._apply_calibration_lock_state()
+
+    def _apply_calibration_lock_state(self):
+        """Grey out the calibration launch buttons while another hardware
+        operation (a schedule run / priming) holds the operation lock. Purely
+        visual — _launch_calibration_wizard also refuses. Tolerates being called
+        before the table is first populated."""
+        lock = get_operation_lock()
+        busy = lock.is_busy() and not lock.held_by(CALIBRATION)
+        tip = f"Unavailable while {lock.active_label()} is in progress" if busy else ""
+        buttons = list(getattr(self, "_calibrate_buttons", []))
+        all_btn = getattr(self, "_calibrate_all_btn", None)
+        if all_btn is not None:
+            buttons.append(all_btn)
+        for btn in buttons:
+            btn.setEnabled(not busy)
+            if busy:
+                btn.setToolTip(tip)
 
     # Size-only stylesheet for the calibration-table action buttons. Cell-widget
     # buttons do not match the `QTableWidget QPushButton` compact rule in the
@@ -860,11 +1295,16 @@ class SettingsTab(QWidget):
     # on a real Pi display.
     _ACTION_BUTTON_STYLE = "QPushButton { min-height: 26px; max-height: 26px; padding: 2px 12px; }"
 
-    def _launch_calibration_wizard(self, cage_id):
+    def _launch_calibration_wizard(self, cage_id, announce=True):
         """
         Launch calibration wizard for specific cage.
 
         All users can calibrate - action is logged to database with trainer_id.
+
+        Returns True when the wizard finished and saved (Accepted), False
+        when it was refused, cancelled or crashed, so Calibrate All knows
+        whether to open the next cage. ``announce=False`` skips the
+        per-cage success box (the batch shows one summary instead).
 
         CRITICAL: Don't use print() to sys.stderr in this method - it's redirected
         through Qt signals which can corrupt during dialog operations.
@@ -874,18 +1314,19 @@ class SettingsTab(QWidget):
             QMessageBox.warning(
                 self, "Access Denied", "You must be logged in to calibrate valves."
             )
-            return
+            return False
 
-        # Check if schedule is running
-        if self.run_stop_section and hasattr(self.run_stop_section, 'worker'):
-            if self.run_stop_section.worker and self.run_stop_section.worker.isRunning():
-                QMessageBox.warning(
-                    self,
-                    "Schedule Running",
-                    "Cannot calibrate while a schedule is running.\n\n"
-                    "Please stop the schedule first.",
-                )
-                return
+        # Hardware mutual-exclusion: no calibration while another hardware
+        # operation (schedule run / priming) holds the lock. Authoritative check
+        # (the per-cage / Calibrate-All buttons are also greyed out in Phase 2).
+        _lock = get_operation_lock()
+        if _lock.is_busy() and not _lock.held_by(CALIBRATION):
+            QMessageBox.warning(
+                self,
+                "Hardware busy",
+                f"Cannot calibrate while {_lock.active_label()} is in progress.",
+            )
+            return False
 
         # Import and create wizard dialog
         from ui.CalibrationWizard import CalibrationWizard
@@ -951,7 +1392,7 @@ class SettingsTab(QWidget):
                 self.print_to_terminal("Table refreshed - calibration may have been saved")
             except Exception as refresh_error:
                 self.print_to_terminal(f"Failed to refresh table: {refresh_error}")
-            return
+            return False
 
         if result == QDialog.Accepted:
             # Calibration completed successfully
@@ -974,7 +1415,10 @@ class SettingsTab(QWidget):
 
                         self.print_to_terminal(traceback.format_exc())
 
-                    # Show success message
+                    # Show success message (one summary instead, in a batch)
+                    if not announce:
+                        self.print_to_terminal("Post-calibration handling complete")
+                        return
                     try:
                         self.print_to_terminal("Retrieving calibration data...")
                         cal = self.database_handler.get_valve_calibration(cage_id)
@@ -985,8 +1429,11 @@ class SettingsTab(QWidget):
                                 self,
                                 "Calibration Complete",
                                 f"Cage {cage_id} calibration saved successfully!\n\n"
-                                f"Volume per pulse: {cal['volume_per_pulse_ml']:.6f} mL\n"
-                                f"Quality (CV): {cal['coefficient_of_variation_pct']:.2f}%\n\n"
+                                "Volume per pulse: "
+                                f"{_format_number(cal.get('volume_per_pulse_ml'), '{:.6f}')} mL\n"
+                                "Quality (CV): "
+                                f"{_format_number(cal.get('coefficient_of_variation_pct'), '{:.2f}%')}"
+                                "\n\n"
                                 "This calibration is now active for all deliveries.",
                             )
                             self.print_to_terminal("Success message shown and dismissed")
@@ -1021,15 +1468,17 @@ class SettingsTab(QWidget):
 
             self.print_to_terminal("Scheduling post-calibration operations...")
             QTimer.singleShot(200, handle_successful_calibration)
+            return True
 
         elif result == QDialog.Rejected:
             # User cancelled/discarded calibration
             self.print_to_terminal(f"Cage {cage_id} calibration cancelled by user")
-            # No further action needed - just return silently
+            return False
 
         else:
             # Unexpected result
             self.print_to_terminal(f"Warning: Unexpected dialog result: {result}")
+            return False
 
     def _calibrate_all_uncalibrated(self):
         """
@@ -1042,29 +1491,63 @@ class SettingsTab(QWidget):
             QMessageBox.warning(self, "Access Denied", "You must be logged in.")
             return
 
-        # Get uncalibrated cages
+        # Cages with no calibration, then cages whose calibration has no
+        # usable volume or pulse width (Invalid), then cages whose calibration
+        # was measured under the other valve topology (Stale). Schedules
+        # watering any of them will not start.
         calibrations = self.database_handler.get_all_valve_calibrations()
-        uncalibrated = [c for c in range(1, 16) if c not in calibrations]
+        cages = sorted(self._cage_map())
+        uncalibrated = [c for c in cages if c not in calibrations]
+        invalid = [
+            c for c in cages if c in calibrations and not calibration_is_usable(calibrations[c])
+        ]
+        stale = [
+            c
+            for c in cages
+            if c in calibrations
+            and c not in invalid
+            and calibration_is_stale(calibrations[c], self.settings)
+        ]
+        batch = uncalibrated + invalid + stale
 
-        if not uncalibrated:
+        if not batch:
             QMessageBox.information(self, "All Calibrated", "All valves are already calibrated!")
             return
 
+        parts = []
+        if uncalibrated:
+            parts.append(f"{len(uncalibrated)} uncalibrated valves:\n{uncalibrated}")
+        if invalid:
+            parts.append(f"{len(invalid)} with an unusable calibration (Invalid):\n{invalid}")
+        if stale:
+            parts.append(
+                f"{len(stale)} calibrated under the other valve topology (Stale):\n{stale}"
+            )
+        found = "Found " + "\nand ".join(parts)
         reply = QMessageBox.question(
             self,
             "Calibrate All",
-            f"Found {len(uncalibrated)} uncalibrated valves:\n{uncalibrated}\n\n"
-            f"This will take approximately {len(uncalibrated) * 10} minutes.\n\n"
+            f"{found}\n\n"
+            f"This will take approximately {len(batch) * 10} minutes.\n\n"
             "Continue?",
             QMessageBox.Yes | QMessageBox.No,
         )
 
         if reply == QMessageBox.Yes:
-            for cage_id in uncalibrated:
-                self._launch_calibration_wizard(cage_id)
-                # If user cancels one, stop the batch
-                if not hasattr(self, '_last_calibration_success'):
+            done = 0
+            for cage_id in batch:
+                # Stop at the first wizard the operator cancels (or that
+                # cannot run) rather than open the next cage's. This used to
+                # stop after the first wizard every time: the flag it tested
+                # was never set anywhere.
+                if not self._launch_calibration_wizard(cage_id, announce=False):
                     break
+                done += 1
+            summary = f"Calibrated {done} of {len(batch)} valves."
+            if done < len(batch):
+                summary += f" Not done: {batch[done:]}"
+            self.print_to_terminal(summary)
+            QMessageBox.information(self, "Calibrate All", summary)
 
     def _export_calibration_report(self):
         """Export calibration data to CSV"""
@@ -1083,28 +1566,72 @@ class SettingsTab(QWidget):
 
             calibrations = self.database_handler.get_all_valve_calibrations()
 
-            with open(file_path, 'w') as f:
-                f.write(
-                    "Cage,Status,Volume_per_Pulse_mL,CV_Percent,Num_Samples,Calibration_Date,Notes\n"
+            # csv.writer quotes a field only when it needs it, so a comma or a
+            # quote in the notes cannot shift the columns.
+            with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(
+                    [
+                        "Cage",
+                        "Status",
+                        "Volume_per_Pulse_mL",
+                        "CV_Percent",
+                        "Num_Samples",
+                        "Pulse_Width_ms",
+                        "Inter_Pulse_Interval_ms",
+                        "Calibration_Date",
+                        "Notes",
+                        "Topology",
+                    ]
                 )
 
-                for cage_id in range(1, 16):
+                for cage_id in sorted(self._cage_map()):
                     if cage_id in calibrations:
                         cal = calibrations[cage_id]
-                        f.write(
-                            f"{cage_id},Calibrated,{cal['volume_per_pulse_ml']:.6f},"
-                            f"{cal['coefficient_of_variation_pct']:.2f},"
-                            f"{cal['num_samples']},{cal['calibration_date']},"
-                            f"\"{cal.get('notes', '')}\"\n"
+                        # Pre-timing-profile rows have no interval: report the
+                        # legacy cadence rather than an empty column.
+                        interval = cal.get('inter_pulse_interval_ms')
+                        interval_text = "100 (legacy)" if interval is None else str(interval)
+                        if not calibration_is_usable(cal):
+                            status = "Invalid"
+                        elif calibration_is_stale(cal, self.settings):
+                            status = "Stale"
+                        else:
+                            status = "Calibrated"
+                        writer.writerow(
+                            [
+                                cage_id,
+                                status,
+                                _format_number(cal.get('volume_per_pulse_ml'), '{:.6f}'),
+                                _format_number(cal.get('coefficient_of_variation_pct'), '{:.2f}'),
+                                cal.get('num_samples'),
+                                cal.get('pulse_width_ms'),
+                                interval_text,
+                                cal.get('calibration_date') or '',
+                                cal.get('notes') or '',
+                                calibration_label(cal),
+                            ]
                         )
                     else:
-                        f.write(f"{cage_id},Not Calibrated,—,—,—,—,—\n")
+                        writer.writerow([cage_id, "Not Calibrated"] + ["—"] * 8)
 
             self.print_to_terminal(f"Calibration report exported to {file_path}")
             QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")
 
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export: {str(e)}")
+
+    def _stop_running_schedule(self) -> bool:
+        """Stop a running schedule the way the Stop button does.
+
+        True if one was running. Priming's CLOSE ALL RELAYS calls this: a
+        schedule left running would open its valves again at its next pulse.
+        """
+        section = self.run_stop_section
+        if section is None or not getattr(section, 'job_in_progress', False):
+            return False
+        section.stop_program()
+        return True
 
     def _create_priming_control(self):
         """
@@ -1120,11 +1647,15 @@ class SettingsTab(QWidget):
 
         # Instantiate the modular priming control widget
         priming_widget = PrimingControlWidget(
-            settings=self.settings, print_callback=self.print_to_terminal
+            settings=self.settings,
+            print_callback=self.print_to_terminal,
+            stop_schedule=self._stop_running_schedule,
         )
 
         # Connect widget signals to parent if needed
         priming_widget.status_message.connect(self.print_to_terminal)
+        # Kept so a valve topology change can lock its Open buttons.
+        self.priming_widget = priming_widget
 
         # Wrap in scroll area for proper overflow handling
         scroll = QScrollArea()
@@ -1187,9 +1718,7 @@ class SettingsTab(QWidget):
         slack_layout.setSpacing(8)
 
         self.slack_token = QLineEdit()
-        self.slack_token.setText(
-            self._decrypt_sensitive_data(self.settings.get('slack_token', ''))
-        )
+        self.slack_token.setText(self.settings.get('slack_token', ''))
         self.slack_token.setEchoMode(QLineEdit.Password)
         slack_layout.addRow("Slack Bot Token:", self.slack_token)
 
@@ -1198,7 +1727,7 @@ class SettingsTab(QWidget):
         slack_layout.addRow("Channel ID:", self.slack_channel)
 
         # Phase 3 offline-resilience: status indicator + troubleshooting.
-        # The label is refreshed every 5 s by self._slack_status_timer
+        # The label is refreshed once a second by self._slack_status_timer
         # (started below) reading NotificationHandler.last_status.
         self.slack_status_label = QLabel()
         self.slack_status_label.setWordWrap(True)
@@ -1404,30 +1933,6 @@ class SettingsTab(QWidget):
             self.mode_toggle_button.setEnabled(False)
             self.mode_status_label.setText("Current Mode: Guest (login required)")
 
-    def _get_or_create_key(self):
-        key_file = "settings_key.key"
-        if os.path.exists(key_file):
-            with open(key_file, "rb") as f:
-                return base64.urlsafe_b64decode(f.read())
-        else:
-            key = Fernet.generate_key()
-            with open(key_file, "wb") as f:
-                f.write(base64.urlsafe_b64encode(key))
-            return key
-
-    def _encrypt_sensitive_data(self, data):
-        if not data:
-            return ""
-        return self.fernet.encrypt(data.encode()).decode()
-
-    def _decrypt_sensitive_data(self, data):
-        if not data:
-            return ""
-        try:
-            return self.fernet.decrypt(data.encode()).decode()
-        except:
-            return ""
-
     def create_backup(self):
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1458,9 +1963,45 @@ class SettingsTab(QWidget):
                 if not all(key in backup_settings for key in required_keys):
                     raise ValueError("Invalid backup file format")
 
+                # The valve topology and the hardware mode change only through
+                # their guarded controls in the Delivery tab, never from a
+                # backup file: those refuse while anything drives the hardware.
+                backup_topology = backup_settings.pop(SETTING_KEY, None)
+                backup_mode = backup_settings.pop('hardware_mode', None)
+                # The relay layout is this device's wiring. Its HAT count
+                # changes only through Change Relay Hats, which re-initialises
+                # the relay handlers and is greyed out while anything holds the
+                # hardware; restored from a file, it would leave them (and a
+                # priming session's valves) on the old layout.
+                layout_keys = ('num_hats', 'global_master_relay_id', 'relay_pairs', 'cage_relays')
+                backup_layout = {
+                    key: backup_settings.pop(key) for key in layout_keys if key in backup_settings
+                }
                 self.settings.update(backup_settings)
                 self.load_settings()
-                QMessageBox.information(self, "Success", "Settings restored successfully")
+                message = "Settings restored successfully"
+                current = topology_from(self.settings)
+                if backup_topology is not None and normalize(backup_topology) != current:
+                    message += (
+                        f"\n\nThe backup's valve topology ({backup_topology}) was not applied: "
+                        f"this device stays on {current}. Change it in Settings > Delivery > "
+                        "Valve Topology if the rig was re-plumbed."
+                    )
+                mode = self.settings.get('hardware_mode', 'solenoid')
+                if backup_mode is not None and str(backup_mode).strip().lower() != mode:
+                    message += (
+                        f"\n\nThe backup's hardware mode ({backup_mode}) was not applied: "
+                        f"this device stays in {mode} mode. Change it in Settings > Delivery > "
+                        "Delivery Hardware Mode if needed."
+                    )
+                hats = self.settings.get('num_hats', 1)
+                if 'num_hats' in backup_layout and str(backup_layout['num_hats']) != str(hats):
+                    message += (
+                        f"\n\nThe backup's relay layout ({backup_layout['num_hats']} relay "
+                        f"HAT(s)) was not applied: this device keeps its {hats}. Change the "
+                        "number with Change Relay Hats if the hardware changed."
+                    )
+                QMessageBox.information(self, "Success", message)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to restore backup: {str(e)}")
@@ -1469,9 +2010,7 @@ class SettingsTab(QWidget):
         """Reload all settings into UI elements"""
         self.pump_volume.setValue(self.settings.get('pump_volume_ul', 50))
         self.calibration_factor.setValue(self.settings.get('calibration_factor', 1.0))
-        self.slack_token.setText(
-            self._decrypt_sensitive_data(self.settings.get('slack_token', ''))
-        )
+        self.slack_token.setText(self.settings.get('slack_token', ''))
         self.slack_channel.setText(self.settings.get('channel_id', ''))
         self.log_level.setValue(self.settings.get('log_level', 2))
 

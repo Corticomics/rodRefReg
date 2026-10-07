@@ -10,6 +10,14 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.calibration_gate import (
+    calibration_problems,
+    format_problems,
+    gate_applies,
+    refusal_title,
+    run_cage_ids,
+)
+from utils.operation_lock import SCHEDULE, get_operation_lock
 
 from .schedule_drop_area import ScheduleDropArea
 
@@ -69,6 +77,10 @@ class RunStopSection(QWidget):
             self.login_system.login_status_changed.connect(self._update_controls_access)
             # Set initial state
             self._update_controls_access()
+
+        # Refresh Run / Change-Relay-Hats enablement when another hardware
+        # operation (priming/calibration) acquires or releases the lock.
+        get_operation_lock().state_changed.connect(self.update_button_states)
 
         print("RunStopSection initialized")
 
@@ -158,10 +170,21 @@ class RunStopSection(QWidget):
         """
         is_logged_in = self.login_system.is_logged_in() if self.login_system else False
 
+        # Disable Run/Relay-Hats when another hardware operation holds the lock
+        # (priming/calibration). NOTE: this run/relay gating is intentionally
+        # duplicated in update_button_states; keep the two in sync (a follow-up
+        # could consolidate them, but not in this UX PR — it's the run path).
+        lock = get_operation_lock()
+        lock_elsewhere = lock.is_busy() and not lock.held_by(SCHEDULE)
+
         # Update button states based on login
-        self.run_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.run_button.setEnabled(
+            is_logged_in and not self.job_in_progress and not lock_elsewhere
+        )
         self.stop_button.setEnabled(is_logged_in and self.job_in_progress)
-        self.relay_hats_button.setEnabled(is_logged_in and not self.job_in_progress)
+        self.relay_hats_button.setEnabled(
+            is_logged_in and not self.job_in_progress and not lock_elsewhere
+        )
 
         # Update schedule drop area
         self.schedule_drop_area.setEnabled(is_logged_in)
@@ -173,6 +196,11 @@ class RunStopSection(QWidget):
             self.stop_button.setToolTip(disabled_tooltip)
             self.relay_hats_button.setToolTip(disabled_tooltip)
             self.schedule_drop_area.setToolTip("Please log in to drop schedules")
+        elif lock_elsewhere:
+            busy_tip = f"Unavailable while {lock.active_label()} is in progress"
+            self.run_button.setToolTip(busy_tip)
+            self.relay_hats_button.setToolTip(busy_tip)
+            self.schedule_drop_area.setToolTip("Drag and drop a schedule here to load it")
         else:
             # Restore normal tooltips
             self.run_button.setToolTip("Start the loaded schedule")
@@ -194,10 +222,16 @@ class RunStopSection(QWidget):
             f"[SEC] update_button_states: login_system={self.login_system is not None}, is_logged_in={is_logged_in}, job_in_progress={self.job_in_progress}"
         )
 
+        # Also disable Run/Relay-Hats when another hardware operation holds the
+        # lock (priming/calibration). Mirrors the term in _update_controls_access
+        # — keep both in sync (see the note there).
+        lock = get_operation_lock()
+        lock_elsewhere = lock.is_busy() and not lock.held_by(SCHEDULE)
+
         # Buttons require both: logged in AND appropriate job state
-        run_enabled = is_logged_in and not self.job_in_progress
+        run_enabled = is_logged_in and not self.job_in_progress and not lock_elsewhere
         stop_enabled = is_logged_in and self.job_in_progress
-        relay_enabled = is_logged_in and not self.job_in_progress
+        relay_enabled = is_logged_in and not self.job_in_progress and not lock_elsewhere
 
         print(
             f"[SEC] Button states: run={run_enabled}, stop={stop_enabled}, relay={relay_enabled}"
@@ -218,6 +252,10 @@ class RunStopSection(QWidget):
             self.run_button.setToolTip("Job in progress")
             self.relay_hats_button.setToolTip("Cannot change relay hats during a job")
             self.stop_button.setToolTip("Click to stop the current job")
+        elif lock_elsewhere:
+            busy_tip = f"Unavailable while {lock.active_label()} is in progress"
+            self.run_button.setToolTip(busy_tip)
+            self.relay_hats_button.setToolTip(busy_tip)
         else:
             self.run_button.setToolTip("Start the loaded schedule")
             self.relay_hats_button.setToolTip("Configure relay HAT hardware")
@@ -252,6 +290,19 @@ class RunStopSection(QWidget):
 
         if not self.schedule_drop_area.current_schedule:
             QMessageBox.warning(self, "No Schedule", "Please drop a schedule to run")
+            return
+
+        # Hardware mutual-exclusion: only one of schedule/priming/calibration may
+        # run at a time (they drive the same relay HATs; see utils.operation_lock). Acquire here,
+        # before any hardware work; release on every exit path (reset_ui /
+        # _reset_run_button / stop_program force-release).
+        lock = get_operation_lock()
+        if not lock.try_acquire(SCHEDULE):
+            QMessageBox.warning(
+                self,
+                "Hardware busy",
+                f"Cannot run the schedule while {lock.active_label()} is in progress.",
+            )
             return
 
         # ═══════════════════════════════════════════════════════════════════
@@ -330,6 +381,7 @@ class RunStopSection(QWidget):
                 )
                 return
 
+            future_deliveries = None  # instant mode fills it below
             if mode == "Staggered":
                 if not schedule.start_time or not schedule.end_time:
                     self._reset_run_button()
@@ -478,6 +530,9 @@ class RunStopSection(QWidget):
                 )
                 return
 
+            if not self._passes_calibration_gate(schedule, mode, future_deliveries):
+                return
+
             # Update button states (already set job_in_progress in run_program)
             self.update_button_states()
 
@@ -495,11 +550,61 @@ class RunStopSection(QWidget):
             self._reset_run_button()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
 
+    def _passes_calibration_gate(self, schedule, mode, future_deliveries):
+        """
+        Refuse the start when a cage this run waters has no calibration it
+        can use: none (the strategy would guess the volume per pulse), one
+        measured under the other valve topology, or one without a usable
+        volume or pulse width. See utils.calibration_gate.
+
+        Runs on the GUI thread before any worker exists; on a refusal the
+        Run button, the job flag and the operation lock are reset first, so
+        the operator can go straight to Settings > Calibration.
+        """
+        settings = getattr(self.system_controller, 'settings', None) or {}
+        if not gate_applies(settings):
+            return True
+        cages = run_cage_ids(mode, schedule.relay_unit_assignments, future_deliveries)
+        try:
+            calibrations = self.database_handler.get_all_valve_calibrations(raise_errors=True)
+        except Exception as exc:
+            print(f"[RUN] Calibration gate could not read the calibrations: {exc}")
+            self._reset_run_button()
+            QMessageBox.warning(
+                self,
+                "Can't check valve calibrations",
+                "This schedule was not started. RRR could not read the valve calibrations "
+                "from its database, so it cannot confirm every cage is calibrated.\n\n"
+                "Press Run to try again; if this keeps happening, the Terminal tab shows "
+                "the database error.",
+            )
+            return False
+        problems = calibration_problems(cages, calibrations, settings)
+        if not problems:
+            return True
+        print(
+            "[RUN] Calibration gate refused the start: "
+            + ", ".join(f"cage {p.cage_id} {p.reason}" for p in problems)
+        )
+        self._reset_run_button()
+        QMessageBox.warning(self, refusal_title(problems), format_problems(problems, settings))
+        return False
+
     def _reset_run_button(self):
-        """Reset run button to initial state after error or cancellation."""
+        """Reset run button to initial state after error or cancellation.
+
+        Also takes down the Execution Monitor that run_program opened in its
+        loading state, as reset_ui does: a start that never happened must
+        not leave "Loading…" on screen with the GUI believing a schedule
+        runs.
+        """
         self.job_in_progress = False
+        get_operation_lock().release(SCHEDULE)
         self.run_button.setText("Run")
         self.update_button_states()
+        parent_gui = self._get_parent_gui()
+        if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
+            parent_gui.hide_execution_monitor()
 
     def _execute_program(self, schedule, mode, window_start, window_end):
         """
@@ -525,6 +630,7 @@ class RunStopSection(QWidget):
         except Exception as e:
             # Reset to initial state on error
             self.job_in_progress = False
+            get_operation_lock().release(SCHEDULE)
             self.run_button.setText("Run")
             self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to run program: {str(e)}")
@@ -546,6 +652,7 @@ class RunStopSection(QWidget):
 
         except Exception as e:
             self.job_in_progress = False
+            get_operation_lock().release(SCHEDULE)
             self.update_button_states()
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
 
@@ -574,7 +681,12 @@ class RunStopSection(QWidget):
             self.reset_ui()
 
             if not success:
-                QMessageBox.warning(self, "Warning", "Failed to stop schedule completely")
+                QMessageBox.warning(
+                    self,
+                    "Warning",
+                    "The schedule stopped, but not everything shut down cleanly. "
+                    "Check the messages above and the Terminal tab.",
+                )
 
         except Exception as e:
             if hasattr(self, 'progress_dialog') and self.progress_dialog:
@@ -583,6 +695,7 @@ class RunStopSection(QWidget):
                 self.progress_dialog = None
             QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
             self.job_in_progress = False
+            get_operation_lock().release(SCHEDULE)
             self.update_button_states()
 
     def reset_ui(self):
@@ -593,6 +706,9 @@ class RunStopSection(QWidget):
         Reference: Qt State Management - https://doc.qt.io/qt-5/qabstractbutton.html
         """
         self.job_in_progress = False
+        # Schedule no longer running (natural completion or stop) — release the
+        # hardware lock so priming/calibration can run again.
+        get_operation_lock().release(SCHEDULE)
         # Reset both button texts to initial state
         self.run_button.setText("Run")
         self.stop_button.setText("Stop")

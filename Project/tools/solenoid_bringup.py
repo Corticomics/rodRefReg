@@ -22,7 +22,10 @@ def _append_project_to_syspath() -> None:
 _append_project_to_syspath()
 
 
-from drivers.solenoid_controller import SolenoidController  # noqa: E402
+from drivers.solenoid_controller import (  # noqa: E402
+    IndependentSolenoidController,
+    SolenoidController,
+)
 from gpio.gpio_handler import RelayHandler  # noqa: E402
 from models.relay_unit_manager import RelayUnitManager  # noqa: E402
 
@@ -172,9 +175,16 @@ class Bringup:
         settings = {"num_hats": self.num_hats}
         manager = RelayUnitManager(settings)
         self._relay_handler = RelayHandler(manager, self.num_hats)
-        self._controller = SolenoidController(
-            self._relay_handler, self.master_relay_id, self.cage_to_relay
-        )
+        if self.no_master:
+            # A rig with no master valve: never drive the master relay, even
+            # by accident through the controller's master operations.
+            self._controller = IndependentSolenoidController(
+                self._relay_handler, self.cage_to_relay
+            )
+        else:
+            self._controller = SolenoidController(
+                self._relay_handler, self.master_relay_id, self.cage_to_relay
+            )
 
     def _log(self, msg: str) -> None:
         print(f"[bringup] {msg}")
@@ -287,7 +297,8 @@ class Bringup:
             try:
                 self._set_state("close_cage")
                 time.sleep(self.interval_s)
-                self._set_state("close_master")
+                if not self.no_master:
+                    self._set_state("close_master")
             finally:
                 self._log("Cleanup complete.")
 

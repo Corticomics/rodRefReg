@@ -1,0 +1,111 @@
+"""Instant deliveries route through the DeliveryStrategy, not the legacy path.
+
+Before v1.14.0, ``run_instant_cycle`` fired ``trigger_relay`` →
+``relay_handler.trigger_relays`` (legacy pump-trigger model), so on solenoid
+hardware instant deliveries ignored pulse width / valve calibration / the flow
+sensor and ran far slower than staggered. Now instant reuses ``_handle_delivery``
+(the same path as staggered), which dispatches per ``hardware_mode``:
+solenoid → ``strategy.deliver``, pump → ``trigger_relay``. ``_handle_delivery``
+is also window-optional so the one-shot instant volume is used directly.
+
+We exercise the real ``RelayWorker._handle_delivery`` by calling it with a
+lightweight stand-in ``self`` (a SimpleNamespace) — no QObject construction, so
+only a real ``QMutex`` is needed. Skips cleanly without PyQt5.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+from datetime import datetime
+from types import MethodType, SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+pytest.importorskip("PyQt5")
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+# _handle_delivery's solenoid branch ends with asyncio.set_event_loop(None)
+# (correct in the worker thread). On the test's main thread that leaves no
+# policy loop behind, which is fine: every async test in this suite runs its
+# coroutine under asyncio.run(), which owns and closes its own loop. A fixture
+# that used to "restore" a policy loop here leaked that loop (never closed)
+# and surfaced as an unclosed-event-loop ResourceWarning at session end.
+
+
+def _self(hardware_mode, *, animal_windows=None):
+    from PyQt5.QtCore import QMutex  # noqa: PLC0415
+
+    ns = SimpleNamespace(
+        _cancel_requested=threading.Event(),
+        schedule_id=42,
+        delivered_volumes={},
+        failed_deliveries={},
+        mutex=QMutex(),
+        hardware_mode=hardware_mode,
+        strategy=MagicMock(deliver=AsyncMock(return_value=True)),
+        trigger_relay=MagicMock(return_value=True),
+        database_handler=MagicMock(),
+        progress=MagicMock(),
+        volume_updated=MagicMock(),
+        schedule_retry=MagicMock(),
+    )
+    if animal_windows is not None:
+        ns.animal_windows = animal_windows
+    # _handle_delivery delegates its pre- and post-flight to two helpers it
+    # shares with execute_delivery; bind the real ones onto the stand-in so
+    # this test still exercises the production guard/compensation/logging.
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+
+    ns._as_delivery_result = RelayWorker._as_delivery_result  # staticmethod
+    ns._prepare_delivery = MethodType(RelayWorker._prepare_delivery, ns)
+    ns._quantize_to_pulses = MethodType(RelayWorker._quantize_to_pulses, ns)
+    ns._finalize_delivery = MethodType(RelayWorker._finalize_delivery, ns)
+    ns._ledger_context = MethodType(RelayWorker._ledger_context, ns)
+    return ns
+
+
+def _delivery(vol=0.5):
+    return {
+        "schedule_id": 42,
+        "animal_id": 1,
+        "relay_unit_id": 1,
+        "water_volume": vol,
+        "instant_time": datetime(2026, 6, 5, 9, 0, 0),
+        "triggers": None,
+    }
+
+
+def test_instant_solenoid_routes_to_strategy():
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+
+    me = _self("solenoid")  # no animal_windows -> instant (window-optional)
+    assert RelayWorker._handle_delivery(me, _delivery(0.5)) is True
+
+    me.strategy.deliver.assert_awaited_once()
+    kwargs = me.strategy.deliver.await_args.kwargs
+    assert kwargs["relay_unit_id"] == 1
+    assert kwargs["target_volume_ml"] == 0.5
+    me.trigger_relay.assert_not_called()
+
+
+def test_instant_pump_uses_trigger_relay():
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+
+    me = _self("pump")  # no animal_windows
+    assert RelayWorker._handle_delivery(me, _delivery(0.5)) is True
+
+    me.trigger_relay.assert_called_once_with(1, 0.5)
+    me.strategy.deliver.assert_not_called()
+
+
+def test_staggered_window_guard_still_holds():
+    """Window-optional refactor must not weaken the staggered over-delivery guard."""
+    from gpio.relay_worker import RelayWorker  # noqa: PLC0415
+
+    me = _self("solenoid", animal_windows={1: {"target_volume": 0.5}})
+    me.delivered_volumes = {1: 0.5}  # already at target
+    assert RelayWorker._handle_delivery(me, _delivery(0.5)) is True
+    me.strategy.deliver.assert_not_called()  # guard short-circuits, no delivery

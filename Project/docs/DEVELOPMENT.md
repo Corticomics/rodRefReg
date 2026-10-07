@@ -92,14 +92,10 @@ rodent-refreshment-regulator/
 │   ├── controllers/         # Business logic
 │   │   ├── system_controller.py
 │   │   ├── pump_controller.py
-│   │   ├── projects_controller.py
-│   │   ├── schedule_controller.py
-│   │   ├── delivery_queue_controller.py
-│   │   └── WateringController.py
+│   │   └── projects_controller.py
 │   ├── gpio/                # Hardware control
 │   │   ├── gpio_handler.py
-│   │   ├── relay_worker.py              # Worker thread; lazy hardware init
-│   │   └── mock_gpio_handler.py
+│   │   └── relay_worker.py              # Worker thread; lazy hardware init
 │   ├── strategies/          # Delivery strategies
 │   │   ├── solenoid_flow_strategy.py    # Solenoid + flow sensor
 │   │   └── (peristaltic legacy)
@@ -259,17 +255,17 @@ The scheduling system manages when water is delivered to each animal.
 ### Components:
 
 - `models/Schedule.py` — schedule data structure (per-animal volumes, windows, mode)
-- `controllers/schedule_controller.py` — runs schedules
-- `controllers/delivery_queue_controller.py` — queues and orders pulses
-- `controllers/WateringController.py` — orchestrates a single delivery pulse
-- `strategies/solenoid_flow_strategy.py` — closed-loop solenoid delivery using flow-sensor feedback
+- `gpio/relay_worker.py` — `RelayWorker` runs the schedule on its own thread
+  (`run_staggered_cycle` / `run_instant_cycle`); both modes route deliveries
+  through `_handle_delivery` → the active `DeliveryStrategy`
+- `strategies/` — `StrategyFactory` picks `SolenoidFlowStrategy` (flow-sensor /
+  pulse delivery) or `PumpStrategy` (legacy) by `hardware_mode`
 
 ### Delivery Modes:
 
-1. **Instant** — animals receive their target volume at one or more specific times; conflicts auto-queue
+1. **Instant** — animals receive their target volume at one or more specific times
 2. **Staggered** — total target volume is divided uniformly across a user-defined time window
-3. **Time-window guard** — `ScheduleController` validates the active window before each pulse
-4. **Per-valve calibration** — calibration factors per cage stored in the DB and applied at runtime
+3. **Per-valve calibration** — calibration factors per cage stored in the DB and applied at runtime
 
 ## Notification System
 
@@ -379,7 +375,7 @@ python test_relay_diagnostic.py  # Run diagnostics
 
 ### Mock Hardware:
 
-For development without physical hardware, use the mock hardware module by modifying the `gpio_handler.py` to use `mock_gpio_handler.py`.
+Without the relay library (a laptop, or CI) the app still starts. When neither `SM16relind` nor `sm_16relind` can be imported, `gpio/gpio_handler.py` prints `WARNING: SM16relind module not found`, `RelayHandler` initialises no relay hats (`Failed to initialize any relay hats`), and every relay write is a silent no-op that still reports success. Nothing is driven and no per-write line is printed. For tests, use `FakeRelayHandler` from `Project/tests/unit/conftest.py`: it records every write in order, so a test can assert the exact relay sequence.
 
 ## Testing Guidelines
 

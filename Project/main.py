@@ -20,7 +20,6 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from ui.gui import RodentRefreshmentGUI
-from ui.SettingsTab import SettingsTab
 from ui.style.theme import StyleManager
 from utils import paths, stop_sequence, updater
 from version import __version__
@@ -207,18 +206,6 @@ def setup():
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler,
-    )
-
-    gui.settings_tab = SettingsTab(
-        system_controller=system_controller,
-        suggest_callback=gui.suggest_settings_callback,
-        push_callback=gui.push_settings_callback,
-        save_slack_callback=gui.save_slack_credentials_callback,
-        run_stop_section=gui.run_stop_section,
-        login_system=login_system,
-        print_to_terminal=gui.print_to_terminal,
-        database_handler=database_handler,
         notification_handler=notification_handler,
     )
 
@@ -472,8 +459,10 @@ def cleanup():
                 pass
 
         if relay_handler:
-            relay_handler.set_all_relays(0)
-            print("[DEBUG] All relays deactivated")
+            if relay_handler.set_all_relays(0) is False:
+                print("[CLEANUP] CRITICAL: relays NOT confirmed off; a valve may still be open")
+            else:
+                print("[DEBUG] All relays deactivated")
 
         # Clear worker reference (deleteLater handles actual cleanup)
         worker = None
@@ -504,6 +493,22 @@ def cleanup():
 # =============================================================================
 # stop_program() – called when the user clicks "Stop."
 # =============================================================================
+def _warn_relays_not_confirmed_off():
+    """Stop could not confirm every relay off: the operator must cut the power."""
+    try:
+        from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+
+        QMessageBox.critical(
+            None,
+            "Relays Not Confirmed Off",
+            "The schedule stopped, but not every relay HAT confirmed OFF, so a valve "
+            "may still be OPEN.\n\nDisconnect the valve power supply now, then check "
+            "the relay HAT and its I²C connection.",
+        )
+    except Exception as exc:
+        print(f"[STOP] Could not show the relay warning: {exc}")
+
+
 def _show_stopping_dialog():
     """Modal indeterminate progress dialog while the worker tears down.
 
@@ -518,7 +523,7 @@ def _show_stopping_dialog():
         from PyQt5.QtWidgets import QProgressDialog  # noqa: PLC0415
 
         dialog = QProgressDialog(
-            "Stopping schedule…\nHardware is safe; closing the worker.",
+            "Stopping schedule…\nSwitching the relays off and closing the worker.",
             None,
             0,
             0,
@@ -551,6 +556,7 @@ def stop_program():
             thread,
             control_signals,
             dialog_factory=_show_stopping_dialog,
+            on_unsafe=_warn_relays_not_confirmed_off,
         )
     except Exception as exc:
         print(f"[ERROR] Stop sequence failed: {exc}")
@@ -618,6 +624,18 @@ def change_relay_hats():
         gui.projects_section.cages_tab.refresh()
     except Exception as exc:
         gui.print_to_terminal(f"Cages tab refresh failed: {exc}")
+    # The calibration table's rows follow the cage map too; SettingsTab
+    # shares the settings dict just mutated, so a repopulate is enough.
+    try:
+        gui.settings_tab.refresh_calibration_table()
+    except Exception as exc:
+        gui.print_to_terminal(f"Calibration table refresh failed: {exc}")
+    # Priming keeps its own relay handler: it must address the new count
+    # (CLOSE ALL RELAYS switches every HAT) and list its cages.
+    try:
+        gui.settings_tab.priming_widget.refresh_hardware()
+    except Exception as exc:
+        gui.print_to_terminal(f"Priming refresh failed: {exc}")
     gui.print_to_terminal(f"Relay hats updated to {num_hats} hats.")
 
 
@@ -655,7 +673,6 @@ def _create_gui_from_components(components: dict):
 
     # Import GUI components (deferred for faster splash display)
     from ui.gui import RodentRefreshmentGUI
-    from ui.SettingsTab import SettingsTab
 
     # Extract components from background initialization
     database_handler = components.get('database_handler')
@@ -676,18 +693,6 @@ def _create_gui_from_components(components: dict):
         database_handler=database_handler,
         login_system=login_system,
         relay_handler=relay_handler,
-        notification_handler=notification_handler,
-    )
-
-    gui.settings_tab = SettingsTab(
-        system_controller=system_controller,
-        suggest_callback=gui.suggest_settings_callback,
-        push_callback=gui.push_settings_callback,
-        save_slack_callback=gui.save_slack_credentials_callback,
-        run_stop_section=gui.run_stop_section,
-        login_system=login_system,
-        print_to_terminal=gui.print_to_terminal,
-        database_handler=database_handler,
         notification_handler=notification_handler,
     )
 

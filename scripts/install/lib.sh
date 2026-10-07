@@ -124,6 +124,33 @@ confirm() {
 }
 
 # Detect available I2C buses (prints numeric bus IDs, space-separated).
+# Stack levels (0-7) of the Sequent 16-relay HATs in `i2cdetect -y 1`
+# output read from stdin, one per line, ascending. A HAT answers at
+# 0x20 + (7 XOR level), so level 0 is 0x27 and level 4 is 0x23
+# (vendor manual p. 7; Project/docs/HARDWARE_SETUP.md §5.1).
+relay_hat_levels() {
+  awk '$1 == "20:" { for (i = 2; i <= 9; i++) if ($i ~ /^2[0-7]$/) print 7 - substr($i, 2, 1) }' |
+    sort -n
+}
+
+# Report which stack level the relay HAT answers at, using the i2cdetect at
+# $1. RRR drives HAT n at stack level n-1, so the first HAT must be at level
+# 0 (0x27); a HAT on another level is invisible to the app. Reports only:
+# never fails, so the install it runs in is never aborted by a scan.
+report_relay_hat_level() {
+  local i2cdetect=$1 levels
+  levels=$(sudo "$i2cdetect" -y 1 2>/dev/null | relay_hat_levels | tr '\n' ' ') || levels=""
+  levels=${levels% }
+  if [[ " $levels " == *" 0 "* ]]; then
+    verify "relay HAT at stack level 0 (0x27)" -- true
+  elif [[ -n "$levels" ]]; then
+    warn "relay HAT found at stack level(s) ${levels// /, }, not 0: RRR drives the first HAT at level 0 (0x27). Power off and remove the three stack-level jumpers on J2 (Project/docs/HARDWARE_SETUP.md §5.1)"
+  else
+    warn "no relay HAT answers on I2C bus 1 (0x20-0x27): check it is fully seated (Project/docs/HARDWARE_SETUP.md §5.3)"
+  fi
+  return 0
+}
+
 detect_i2c_buses() {
   local b out=""
   for b in /dev/i2c-*; do

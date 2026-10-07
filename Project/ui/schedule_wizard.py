@@ -14,15 +14,18 @@ Architecture:
 - Step 4: Review & Save
 
 Hardware Constraints:
-- Max cages per HAT: 15 (relay 16 reserved for master solenoid)
-- Multi-HAT: 15 × num_hats total cages available
-- Validation ensures no animal assigned to master relay
+- One relay in the stack (global_master_relay_id, default 16) is reserved: the
+  master solenoid on the shared manifold, unused on the independent topology.
+  15 cages on one HAT, 31 on two, 16 × num_hats − 1 in general
+- Cage ids and relay ids are different number spaces (cage 16 drives relay 17
+  on a second HAT); validation compares relay to relay via relay_for_cage()
 
 Reference: RSO NewSessionWizard pattern
 """
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -45,6 +48,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.topology import reserved_relay_reason
 
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
 from .components.wizard import WizardContainer, WizardStep
@@ -88,6 +92,39 @@ def create_step_header(icon: str, title: str, description: str) -> QWidget:
 
     layout.addLayout(text_layout, 1)
     return container
+
+
+# ============================================================================
+# DELIVERY-WINDOW SAFETY MATH
+# ============================================================================
+# Conservative pulse-delivery timing model (see solenoid_flow_strategy): roughly
+# 0.026 mL per 20 ms pulse, and each pulse cycle — valve open + settle + sensor
+# window + inter-pulse gap — takes ~0.52 s, plus per-cage prime/stabilise and the
+# inter-cage stagger. Deliveries run one cage at a time (one delivery worker),
+# so the minimum staggered window is the SUM across animals. Constants are
+# deliberately conservative; tune against on-device timing if needed.
+_ML_PER_PULSE = 0.026
+_PULSE_CYCLE_S = 0.52
+_PER_CAGE_OVERHEAD_S = 1.0
+_INTER_CAGE_STAGGER_S = 0.5
+
+
+def estimate_min_window_seconds(animal_configs) -> float:
+    """Lower bound (seconds) on the time needed to deliver every animal's volume.
+
+    Because cages fire sequentially, a staggered window must be at least the sum
+    of each delivery's duration or deliveries would overlap/queue past the
+    window. Pulse model: ``ceil(volume / mL-per-pulse)`` pulses at
+    ``_PULSE_CYCLE_S`` each, plus per-cage overhead and inter-cage stagger.
+    """
+    total = 0.0
+    for cfg in animal_configs.values():
+        volume = float(cfg.get("volume", 0) or 0)
+        if volume <= 0:
+            continue
+        pulses = math.ceil(volume / _ML_PER_PULSE)
+        total += _PER_CAGE_OVERHEAD_S + pulses * _PULSE_CYCLE_S + _INTER_CAGE_STAGGER_S
+    return total
 
 
 # ============================================================================
@@ -135,6 +172,175 @@ def get_available_cages(system_controller) -> Tuple[int, int, Set[int]]:
     except Exception as e:
         print(f"[Wizard] Error getting hardware limits: {e}")
         return 15, 16, set(range(1, 16))
+
+
+def _settings_of(system_controller) -> dict:
+    """The device settings, or {} without a controller (the wizard's defaults)."""
+    return getattr(system_controller, 'settings', None) or {}
+
+
+def relay_for_cage(system_controller, cage_id: int) -> Optional[int]:
+    """
+    The physical relay a cage id drives, or None if the cage does not exist.
+
+    Cage ids and relay ids are different number spaces: relay 16 is
+    reserved (the master on the shared manifold, unused on the independent
+    topology), so cage 16 (on a second HAT) drives relay 17. The stored
+    ``cage_relays`` map wins when present; otherwise cages are numbered
+    sequentially over every relay except the reserved one, exactly as the
+    delivery path builds its map.
+    """
+    settings = getattr(system_controller, 'settings', None) or {}
+    cage_relays = settings.get('cage_relays') or {}
+    if cage_relays:
+        relay = cage_relays.get(str(cage_id), cage_relays.get(cage_id))
+        return int(relay) if relay is not None else None
+
+    num_hats = int(settings.get('num_hats', 1))
+    master_id = int(settings.get('global_master_relay_id', 16))
+    sequential = [relay for relay in range(1, 16 * num_hats + 1) if relay != master_id]
+    if 1 <= int(cage_id) <= len(sequential):
+        return sequential[int(cage_id) - 1]
+    return None
+
+
+# ============================================================================
+# SCHEDULE BUILDER (shared by create + edit)
+# ============================================================================
+
+
+def build_schedule_from_config(
+    config: Dict[str, Any],
+    trainer: Optional[Dict[str, Any]],
+    system_controller,
+    schedule_id: Optional[int] = None,
+):
+    """Build a validated :class:`Schedule` from a wizard-style config dict.
+
+    Pure (no I/O) so it is shared by both the creation wizard and the
+    edit-schedule dialog: the wizard passes ``schedule_id=None`` and saves with
+    ``add_staggered_schedule``; the editor passes the existing id and saves with
+    ``update_staggered_schedule``. Cage assignments come from each animal's
+    ``cage_id`` (set via the Step-3 dropdown), falling back to sequential
+    assignment from the remaining valid cages.
+
+    Args:
+        config: ``{"schedule_type", "animals", "parameters": {"name",
+            "animal_configs": {animal_id: {"volume", "cage_id",
+            "start_time"/"end_time" or "delivery_time"}}}}``.
+        trainer: current trainer dict (``trainer_id``/``role``) or None.
+        system_controller: used for hardware cage limits.
+        schedule_id: existing id for an edit, or None to create.
+
+    Returns:
+        A populated ``Schedule`` with animals + cage assignments.
+
+    Raises:
+        ValueError: too many animals for available cages, or a cage that is the
+            master relay / invalid / already assigned to another animal.
+    """
+    from models.Schedule import Schedule
+
+    params = config["parameters"]
+    schedule_type = config["schedule_type"]
+    animals = config["animals"]
+    animal_configs = params.get("animal_configs", {})
+
+    trainer_id = trainer.get("trainer_id", 1) if trainer else 1
+    is_super = 1 if trainer and trainer.get("role") == "super" else 0
+
+    # Derive overall schedule bounds + total volume from the per-animal configs.
+    all_starts: List[datetime] = []
+    all_ends: List[datetime] = []
+    total_volume = 0.0
+    for cfg in animal_configs.values():
+        if schedule_type == "staggered":
+            all_starts.append(cfg.get("start_time", datetime.now()))
+            all_ends.append(cfg.get("end_time", datetime.now() + timedelta(hours=1)))
+        else:
+            delivery = cfg.get("delivery_time", datetime.now())
+            all_starts.append(delivery)
+            all_ends.append(delivery)
+        total_volume += cfg.get("volume", 1.0)
+
+    if all_starts:
+        schedule_start = min(all_starts)
+        schedule_end = max(all_ends)
+    else:
+        schedule_start = datetime.now()
+        schedule_end = datetime.now() + timedelta(hours=1)
+
+    schedule = Schedule(
+        schedule_id=schedule_id,
+        name=params.get("name", "Untitled Schedule"),
+        water_volume=total_volume,
+        start_time=schedule_start.isoformat()
+        if isinstance(schedule_start, datetime)
+        else schedule_start,
+        end_time=schedule_end.isoformat() if isinstance(schedule_end, datetime) else schedule_end,
+        created_by=trainer_id,
+        is_super_user=is_super,
+        delivery_mode=schedule_type,
+    )
+
+    max_cages, master_relay, valid_cages = get_available_cages(system_controller)
+    if len(animals) > max_cages:
+        raise ValueError(
+            f"Schedule has {len(animals)} animals but only {max_cages} cages available. "
+            f"Relay {master_relay} is {reserved_relay_reason(_settings_of(system_controller))}."
+        )
+
+    valid_cage_list = sorted(valid_cages)
+    used_cages: Set[int] = set()
+    for animal_id in animals:
+        animal_cfg = animal_configs.get(animal_id, {})
+        volume = animal_cfg.get("volume", 1.0)
+        cage_id = animal_cfg.get("cage_id")
+
+        if cage_id is None:
+            available = [c for c in valid_cage_list if c not in used_cages]
+            if not available:
+                raise ValueError(
+                    f"Cannot assign cage to animal {animal_id}: no more cages available. "
+                    f"Max cages: {max_cages}"
+                )
+            cage_id = available[0]
+
+        # Compare relay to relay, never cage id to relay id: on a second HAT
+        # cage 16 drives relay 17 and is a perfectly good cage.
+        if relay_for_cage(system_controller, cage_id) == master_relay:
+            raise ValueError(
+                f"Animal {animal_id} cannot be assigned to cage {cage_id}: it is wired "
+                f"to relay {master_relay}, which is "
+                f"{reserved_relay_reason(_settings_of(system_controller))}"
+            )
+        if cage_id not in valid_cages:
+            raise ValueError(
+                f"Animal {animal_id} assigned to invalid cage {cage_id}. "
+                f"Valid cages: {sorted(valid_cages)}"
+            )
+        if cage_id in used_cages:
+            raise ValueError(
+                f"Cage {cage_id} is already assigned to another animal. "
+                f"Each animal must have a unique cage."
+            )
+
+        used_cages.add(cage_id)
+        schedule.add_animal(animal_id, cage_id, volume)
+
+        # Instant mode: also record the per-animal delivery so add_schedule
+        # writes schedule_instant_deliveries (the table the runtime reads).
+        # Store the time as an ISO string — add_schedule inserts delivery
+        # ['datetime'] verbatim, and a datetime would trip the deprecated
+        # sqlite3 timestamp adapter (a hard error under filterwarnings=error).
+        if schedule_type == "instant":
+            delivery_time = animal_cfg.get("delivery_time") or datetime.now()
+            delivery_iso = (
+                delivery_time.isoformat() if isinstance(delivery_time, datetime) else delivery_time
+            )
+            schedule.add_instant_delivery(animal_id, delivery_iso, volume, cage_id)
+
+    return schedule
 
 
 # ============================================================================
@@ -232,8 +438,8 @@ class Step2SelectAnimals(QWidget):
     Step 2: Select animals/cages for the schedule.
 
     Hardware Constraints:
-    - Max selectable animals limited by available cages (15 per HAT)
-    - Cage 16 (master solenoid) is never assignable
+    - Max selectable animals limited by available cages (15 on one HAT, 31 on two)
+    - The master relay is never assignable as a cage (cage ids skip it)
     - Warning shown when selection exceeds limit
     """
 
@@ -285,7 +491,8 @@ class Step2SelectAnimals(QWidget):
 
         self._limit_label = QLabel(
             f"Maximum {self._max_cages} animals can be selected "
-            f"(Relay {self._master_relay} is reserved for master solenoid)"
+            f"(Relay {self._master_relay} is "
+            f"{reserved_relay_reason(_settings_of(self._system_controller))})"
         )
         self._limit_label.setStyleSheet("color: #92400E; font-size: 11px;")
         self._limit_label.setWordWrap(True)
@@ -378,7 +585,8 @@ class Step2SelectAnimals(QWidget):
                 self,
                 "Selection Limit Exceeded",
                 f"Maximum {self._max_cages} animals can be selected.\n\n"
-                f"Relay {self._master_relay} is reserved for the master solenoid "
+                f"Relay {self._master_relay} is "
+                f"{reserved_relay_reason(_settings_of(self._system_controller))} "
                 f"and cannot be assigned to animals.\n\n"
                 f"Please deselect {excess} animal(s).",
             )
@@ -500,7 +708,11 @@ class Step3ConfigureParameters(QWidget):
         # Will be populated when animals are set
         self._build_empty_state()
 
-    def set_animals(self, animals: List[Dict[str, Any]]) -> None:
+    def set_animals(
+        self,
+        animals: List[Dict[str, Any]],
+        preset_configs: Optional[Dict[int, Dict[str, Any]]] = None,
+    ) -> None:
         """
         Set selected animals for per-animal configuration.
 
@@ -508,6 +720,15 @@ class Step3ConfigureParameters(QWidget):
         - Loads cage options from database for dropdowns
         - Assigns default cages sequentially (animal 1 → cage 1, etc.)
         - Users can override cage assignments via dropdown
+
+        Args:
+            animals: ``[{"id", "lab_id", "name"}, ...]`` for the rows.
+            preset_configs: optional ``{animal_id: {"start_time", "end_time",
+                "volume", "cage_id", ...}}`` used to pre-fill the form when
+                **editing** an existing schedule. When omitted (the creation
+                wizard) each animal gets the usual defaults with a sequential
+                cage assignment. Any animal missing from ``preset_configs``
+                still falls back to those defaults.
         """
         self._selected_animals = animals
         self._animal_configs = {}
@@ -519,9 +740,14 @@ class Step3ConfigureParameters(QWidget):
         # Get list of valid cage IDs for sequential default assignment
         valid_cage_ids = [c['cage_id'] for c in self._cage_options]
 
-        # Initialize default config for each animal with sequential cage assignment
+        # Initialize config for each animal: a provided preset wins, otherwise
+        # the usual defaults with a sequential cage assignment.
         for idx, animal in enumerate(animals):
             animal_id = animal["id"]
+
+            if preset_configs and animal_id in preset_configs:
+                self._animal_configs[animal_id] = dict(preset_configs[animal_id])
+                continue
 
             # Default cage: sequential assignment (1, 2, 3, ...)
             # If more animals than cages, cycle back or leave unassigned
@@ -529,7 +755,7 @@ class Step3ConfigureParameters(QWidget):
 
             self._animal_configs[animal_id] = {
                 "start_time": datetime.now(),
-                "end_time": datetime.now() + timedelta(hours=12),
+                "end_time": datetime.now() + timedelta(hours=1),
                 "delivery_time": datetime.now() + timedelta(minutes=5),
                 "volume": 1.0,
                 "cage_id": default_cage_id,  # Cage assignment
@@ -570,12 +796,13 @@ class Step3ConfigureParameters(QWidget):
 
     def _generate_default_cage_options(self) -> List[Dict[str, Any]]:
         """Generate default cage options (fallback when database unavailable)."""
+        _max_cages, _master_relay, valid_cages = get_available_cages(self._system_controller)
         cages = []
-        for cage_id in range(1, 16):  # 1-15 (16 is master)
+        for cage_id in sorted(valid_cages):
             cages.append(
                 {
                     'cage_id': cage_id,
-                    'relay_id': cage_id,
+                    'relay_id': relay_for_cage(self._system_controller, cage_id),
                     'name': f"Cage {cage_id}",
                     'display_name': f"Cage {cage_id}",
                 }
@@ -635,8 +862,12 @@ class Step3ConfigureParameters(QWidget):
         global_layout.addWidget(self._global_start)
 
         self._global_end = QDateTimeEdit()
-        self._global_end.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
+        self._global_end.setDateTime(QDateTime.currentDateTime().addSecs(3600))
         self._global_end.setCalendarPopup(True)
+        self._global_end.setMinimumDateTime(self._global_start.dateTime().addSecs(60))
+        self._global_start.dateTimeChanged.connect(
+            lambda dt: self._global_end.setMinimumDateTime(dt.addSecs(60))
+        )
         global_layout.addWidget(QLabel("End:"))
         global_layout.addWidget(self._global_end)
 
@@ -768,7 +999,7 @@ class Step3ConfigureParameters(QWidget):
 
         # End time
         end_dt = QDateTimeEdit()
-        end_dt.setDateTime(QDateTime.currentDateTime().addSecs(3600 * 12))
+        end_dt.setDateTime(QDateTime.currentDateTime().addSecs(3600))
         end_dt.setCalendarPopup(True)
         end_dt.setMinimumWidth(140)
         end_dt.dateTimeChanged.connect(
@@ -776,6 +1007,9 @@ class Step3ConfigureParameters(QWidget):
                 aid, "end_time", dt.toPyDateTime()
             )
         )
+        # Keep the end strictly after the start so the window can't be inverted.
+        end_dt.setMinimumDateTime(start_dt.dateTime().addSecs(60))
+        start_dt.dateTimeChanged.connect(lambda dt, e=end_dt: e.setMinimumDateTime(dt.addSecs(60)))
         layout.addWidget(QLabel("End:"))
         layout.addWidget(end_dt)
 
@@ -1050,6 +1284,77 @@ class Step3ConfigureParameters(QWidget):
         """Get per-animal configurations."""
         return self._animal_configs.copy()
 
+    def load_for_edit(
+        self,
+        animals: List[Dict[str, Any]],
+        preset_configs: Dict[int, Dict[str, Any]],
+        name: str,
+        schedule_type: str = "staggered",
+    ) -> None:
+        """Populate the form from an existing schedule (edit-schedule dialog).
+
+        Builds the per-animal rows from ``preset_configs`` then restores the
+        saved name, times, volumes and cage selections into the widgets — the
+        same path the wizard uses for back-navigation, so the edit dialog and
+        the wizard stay behaviourally identical. Keeps all private-state access
+        inside this widget.
+        """
+        self.set_animals(animals, preset_configs=preset_configs)
+        self.set_schedule_type(schedule_type)
+        if hasattr(self, "_name_input") and self._name_input is not None:
+            self._name_input.setText(name or "")
+        self._restore_widget_values()
+        self._make_quick_apply_authoritative()
+
+    def _make_quick_apply_authoritative(self) -> None:
+        """Edit-mode: pre-fill the "Quick Apply to All" row and make it live.
+
+        In the creation wizard, Quick Apply only takes effect when the operator
+        clicks "Apply to All". When *editing* a schedule that is the wrong
+        default: the prominent top fields showed "now" (not the schedule's real
+        values) and changing them did nothing on Save unless the button was
+        clicked — so time edits silently appeared to do nothing.
+
+        Both modes effectively share their timing across animals (staggered
+        stores one window per schedule; instant here is one delivery per
+        animal), so "apply to all" is the right semantic. We pre-fill the Quick
+        Apply row from the schedule and wire it so any change flows straight to
+        every animal row (the per-animal rows remain available for fine-tuning).
+        """
+        if not self._animal_configs:
+            return
+        first = next(iter(self._animal_configs.values()))
+        volume = first.get("volume", 1.0)
+
+        # Pre-fill BEFORE connecting auto-apply so seeding the widgets doesn't
+        # clobber the per-animal presets.
+        if self._schedule_type == "staggered":
+            if not hasattr(self, "_global_start"):
+                return
+            start = first.get("start_time")
+            end = first.get("end_time")
+            # Setting start first lets the existing min-constraint handler bump
+            # the end's minimum so a real end isn't clamped.
+            if isinstance(start, datetime):
+                self._global_start.setDateTime(QDateTime(start))
+            if isinstance(end, datetime):
+                self._global_end.setDateTime(QDateTime(end))
+            self._global_volume.setValue(float(volume))
+            apply_all = self._apply_to_all_staggered
+            self._global_start.dateTimeChanged.connect(lambda *_: apply_all())
+            self._global_end.dateTimeChanged.connect(lambda *_: apply_all())
+        else:
+            if not hasattr(self, "_global_delivery_time"):
+                return
+            delivery = first.get("delivery_time")
+            if isinstance(delivery, datetime):
+                self._global_delivery_time.setDateTime(QDateTime(delivery))
+            self._global_volume.setValue(float(volume))
+            apply_all = self._apply_to_all_instant
+            self._global_delivery_time.dateTimeChanged.connect(lambda *_: apply_all())
+
+        self._global_volume.valueChanged.connect(lambda *_: apply_all())
+
     def _restore_widget_values(self) -> None:
         """
         Restore widget values from saved _animal_configs.
@@ -1065,40 +1370,52 @@ class Step3ConfigureParameters(QWidget):
                 self._name_input.setText(saved_name)
                 self._name_input.blockSignals(False)
 
-        # Restore per-animal widget values
+        # Restore per-animal widget values.
+        # NOTE: the staggered row stores its time widgets under the keys
+        # "start"/"end" (see _create_staggered_animal_row), not
+        # "start_time"/"end_time". A prior version checked the latter, so time
+        # restore was silently dead — back-navigation lost the times and the
+        # edit dialog could not pre-fill them. Keys are corrected here.
         for animal_id, widgets in self._animal_widgets.items():
             config = self._animal_configs.get(animal_id, {})
 
             if self._schedule_type == "staggered":
-                # Restore start time
-                if "start_time" in widgets and "start_time" in config:
-                    start = config["start_time"]
-                    if isinstance(start, datetime):
-                        widgets["start_time"].blockSignals(True)
-                        widgets["start_time"].setDateTime(QDateTime(start))
-                        widgets["start_time"].blockSignals(False)
-
-                # Restore end time
-                if "end_time" in widgets and "end_time" in config:
-                    end = config["end_time"]
-                    if isinstance(end, datetime):
-                        widgets["end_time"].blockSignals(True)
-                        widgets["end_time"].setDateTime(QDateTime(end))
-                        widgets["end_time"].blockSignals(False)
+                # Snapshot both times BEFORE touching either widget. Setting
+                # start bumps the end widget's minimum to start+60s, which can
+                # auto-clamp the end widget's current value and fire its
+                # dateTimeChanged — overwriting config["end_time"] in place. If
+                # we read config["end_time"] only after setting start we'd
+                # restore that clobbered value, collapsing the window to 60s.
+                start_val = config.get("start_time")
+                end_val = config.get("end_time")
+                if "start" in widgets and isinstance(start_val, datetime):
+                    widgets["start"].setDateTime(QDateTime(start_val))
+                if "end" in widgets and isinstance(end_val, datetime):
+                    widgets["end"].setDateTime(QDateTime(end_val))
             else:
                 # Restore delivery time (instant mode)
-                if "delivery_time" in widgets and "delivery_time" in config:
-                    delivery = config["delivery_time"]
-                    if isinstance(delivery, datetime):
-                        widgets["delivery_time"].blockSignals(True)
-                        widgets["delivery_time"].setDateTime(QDateTime(delivery))
-                        widgets["delivery_time"].blockSignals(False)
+                if "delivery_time" in widgets and isinstance(
+                    config.get("delivery_time"), datetime
+                ):
+                    widgets["delivery_time"].blockSignals(True)
+                    widgets["delivery_time"].setDateTime(QDateTime(config["delivery_time"]))
+                    widgets["delivery_time"].blockSignals(False)
 
             # Restore volume
             if "volume" in widgets and "volume" in config:
                 widgets["volume"].blockSignals(True)
                 widgets["volume"].setValue(config["volume"])
                 widgets["volume"].blockSignals(False)
+
+            # Restore cage selection (match the stored cage_id to its combo item)
+            if "cage" in widgets and config.get("cage_id") is not None:
+                combo = widgets["cage"]
+                for i in range(combo.count()):
+                    if combo.itemData(i) == config["cage_id"]:
+                        combo.blockSignals(True)
+                        combo.setCurrentIndex(i)
+                        combo.blockSignals(False)
+                        break
 
     def is_valid(self) -> bool:
         """Validate parameters."""
@@ -1298,7 +1615,7 @@ class ScheduleCreationWizard(QWidget):
         cancelled(): Emitted when wizard is cancelled
 
     Hardware Constraints:
-        - Max animals limited by available cages (15 per HAT)
+        - Max animals limited by available cages (15 on one HAT, 31 on two)
         - Master relay (default 16) excluded from cage assignment
     """
 
@@ -1467,15 +1784,65 @@ class ScheduleCreationWizard(QWidget):
         }
 
     def _on_complete(self) -> None:
-        """Handle wizard completion - create and run schedule."""
+        """Handle wizard completion - validate, then create the schedule."""
         config = self._build_config()
-
-        # Validate
         params = config.get("parameters", {})
+        schedule_type = config.get("schedule_type", "staggered")
+        animal_configs = params.get("animal_configs", {})
+
         if not params.get("name", "").strip():
             QMessageBox.warning(self, "Validation Error", "Please enter a schedule name.")
             self._wizard.set_current_step(2)
             return
+
+        if not animal_configs:
+            QMessageBox.warning(
+                self, "Validation Error", "Add at least one animal to the schedule."
+            )
+            self._wizard.set_current_step(1)
+            return
+
+        for cfg in animal_configs.values():
+            if float(cfg.get("volume", 0) or 0) <= 0:
+                QMessageBox.warning(
+                    self,
+                    "Validation Error",
+                    "Every animal needs a delivery volume greater than 0 mL.",
+                )
+                self._wizard.set_current_step(2)
+                return
+            if schedule_type == "staggered":
+                start, end = cfg.get("start_time"), cfg.get("end_time")
+                if start and end and start >= end:
+                    QMessageBox.warning(
+                        self,
+                        "Validation Error",
+                        "Each delivery window's end time must be after its start time.",
+                    )
+                    self._wizard.set_current_step(2)
+                    return
+
+        # Safety: a staggered window must physically fit the sequential delivery
+        # (valves fire one at a time, so the window must be at least the summed
+        # per-cage delivery time).
+        if schedule_type == "staggered":
+            need = estimate_min_window_seconds(animal_configs)
+            windows = [
+                (cfg["end_time"] - cfg["start_time"]).total_seconds()
+                for cfg in animal_configs.values()
+                if cfg.get("start_time") and cfg.get("end_time")
+            ]
+            if windows and min(windows) < need:
+                minutes = max(1, math.ceil(need / 60))
+                QMessageBox.warning(
+                    self,
+                    "Delivery window too short",
+                    f"{len(animal_configs)} cage(s) need at least about {minutes} "
+                    "minute(s) to deliver safely — valves fire one at a time. "
+                    "Extend the end time.",
+                )
+                self._wizard.set_current_step(2)
+                return
 
         # Create schedule in database
         try:
@@ -1487,114 +1854,12 @@ class ScheduleCreationWizard(QWidget):
 
     def _create_schedule(self, config: Dict[str, Any]) -> Optional[int]:
         """Create schedule in database using existing Schedule model and correct methods."""
-        from models.Schedule import Schedule
-
-        params = config["parameters"]
         schedule_type = config["schedule_type"]
         animals = config["animals"]
-        animal_configs = params.get("animal_configs", {})
 
+        # Build + validate the Schedule object (shared with the edit dialog).
         trainer = self._login_system.get_current_trainer()
-        trainer_id = trainer.get("trainer_id", 1) if trainer else 1
-        is_super = 1 if trainer and trainer.get("role") == "super" else 0
-
-        # Calculate overall schedule window from per-animal configs
-        all_starts = []
-        all_ends = []
-        total_volume = 0.0
-
-        for animal_id, cfg in animal_configs.items():
-            if schedule_type == "staggered":
-                start = cfg.get("start_time", datetime.now())
-                end = cfg.get("end_time", datetime.now() + timedelta(hours=12))
-                all_starts.append(start)
-                all_ends.append(end)
-            else:
-                delivery = cfg.get("delivery_time", datetime.now())
-                all_starts.append(delivery)
-                all_ends.append(delivery)
-            total_volume += cfg.get("volume", 1.0)
-
-        # Use earliest start and latest end as schedule bounds
-        if all_starts:
-            schedule_start = min(all_starts)
-            schedule_end = max(all_ends)
-        else:
-            schedule_start = datetime.now()
-            schedule_end = datetime.now() + timedelta(hours=12)
-
-        # Create Schedule object
-        schedule = Schedule(
-            schedule_id=None,  # Will be set by database
-            name=params.get("name", "Untitled Schedule"),
-            water_volume=total_volume,
-            start_time=schedule_start.isoformat()
-            if isinstance(schedule_start, datetime)
-            else schedule_start,
-            end_time=schedule_end.isoformat()
-            if isinstance(schedule_end, datetime)
-            else schedule_end,
-            created_by=trainer_id,
-            is_super_user=is_super,
-            delivery_mode=schedule_type,
-        )
-
-        # Get hardware limits for cage assignment validation
-        max_cages, master_relay, valid_cages = get_available_cages(self._system_controller)
-
-        # Validate we don't exceed available cages
-        if len(animals) > max_cages:
-            raise ValueError(
-                f"Schedule has {len(animals)} animals but only {max_cages} cages available. "
-                f"Relay {master_relay} is reserved for master solenoid."
-            )
-
-        # Add animals with user-selected cage assignments
-        # NEW: Uses cage_id from animal_configs (set via dropdown in Step 3)
-        # Falls back to sequential assignment if no cage selected
-        valid_cage_list = sorted(valid_cages)  # [1, 2, 3, ..., 15]
-        used_cages = set()  # Track which cages are already assigned
-
-        for idx, animal_id in enumerate(animals):
-            animal_cfg = animal_configs.get(animal_id, {})
-            volume = animal_cfg.get("volume", 1.0)
-
-            # Get user-selected cage_id, or use sequential fallback
-            cage_id = animal_cfg.get("cage_id")
-
-            if cage_id is None:
-                # Fallback: sequential assignment from remaining valid cages
-                available_cages = [c for c in valid_cage_list if c not in used_cages]
-                if not available_cages:
-                    raise ValueError(
-                        f"Cannot assign cage to animal {animal_id}: no more cages available. "
-                        f"Max cages: {max_cages}"
-                    )
-                cage_id = available_cages[0]
-
-            # Validate cage is valid and not the master relay
-            if cage_id == master_relay:
-                raise ValueError(
-                    f"Animal {animal_id} cannot be assigned to cage {cage_id} "
-                    f"(reserved for master solenoid)"
-                )
-
-            if cage_id not in valid_cages:
-                raise ValueError(
-                    f"Animal {animal_id} assigned to invalid cage {cage_id}. "
-                    f"Valid cages: {sorted(valid_cages)}"
-                )
-
-            # Check for duplicate cage assignment
-            if cage_id in used_cages:
-                raise ValueError(
-                    f"Cage {cage_id} is already assigned to another animal. "
-                    f"Each animal must have a unique cage."
-                )
-
-            used_cages.add(cage_id)
-            schedule.add_animal(animal_id, cage_id, volume)
-            print(f"[Wizard] Assigned animal {animal_id} → cage {cage_id}")
+        schedule = build_schedule_from_config(config, trainer, self._system_controller)
 
         # Save to database using the CORRECT method for each mode
         if schedule_type == "staggered":
@@ -1604,25 +1869,12 @@ class ScheduleCreationWizard(QWidget):
             print(f"[Wizard] Created staggered schedule {schedule_id} with {len(animals)} animals")
             print(f"[Wizard] desired_water_outputs: {schedule.desired_water_outputs}")
         else:
-            # For instant mode, use add_schedule and then add instant deliveries
+            # Instant mode: build_schedule_from_config already populated
+            # schedule.instant_deliveries, so add_schedule writes both
+            # schedule_animals and schedule_instant_deliveries in one go.
             self._database_handler.add_schedule(schedule)
             schedule_id = schedule.schedule_id  # add_schedule sets this on the object
-
-            if schedule_id:
-                for animal_id in animals:
-                    animal_cfg = animal_configs.get(animal_id, {})
-                    delivery_time = animal_cfg.get("delivery_time", datetime.now())
-                    volume = animal_cfg.get("volume", 1.0)
-
-                    self._database_handler.add_schedule_instant(
-                        schedule_id=schedule_id,
-                        animal_id=animal_id,
-                        delivery_time=delivery_time,
-                        water_volume=volume,
-                    )
-                print(
-                    f"[Wizard] Created instant schedule {schedule_id} with {len(animals)} animals"
-                )
+            print(f"[Wizard] Created instant schedule {schedule_id} with {len(animals)} animals")
 
         return schedule_id
 

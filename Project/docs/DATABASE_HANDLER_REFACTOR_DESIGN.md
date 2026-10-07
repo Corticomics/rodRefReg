@@ -22,9 +22,9 @@ Measured on `main` at the time of writing:
 | Size | **2245 LOC**, one class (`DatabaseHandler`), **52 methods** |
 | Tables | **15**: `animals`, `trainers`, `relay_units`, `schedules`, `schedule_animals`, `schedule_desired_outputs`, `schedule_instant_deliveries`, `schedule_staggered_windows`, `cycle_tracking`, `dispensing_history`, `logs`, `system_settings`, `valve_calibration`, `valve_calibration_history`, `cage_names` |
 | Connection model | `connect()` opens a **new** `sqlite3.connect(self.db_path)` per call, used as `with self.connect() as conn:`. No pool, no WAL, no `PRAGMA foreign_keys=ON`. |
-| Schema management | `create_tables()` runs on every `__init__` (idempotent `CREATE TABLE IF NOT EXISTS`). Schema changes are **ad-hoc** inline `ALTER TABLE … ADD COLUMN` wrapped in try/except (2 today: `dispensing_history`, `animals`). No `PRAGMA user_version`, no migration framework, no schema-version row. |
+| Schema management | `create_tables()` runs on every `__init__` (idempotent `CREATE TABLE IF NOT EXISTS`). Schema changes are **ad-hoc** inline `ALTER TABLE … ADD COLUMN` guarded by `PRAGMA table_info` (4 tables today: `dispensing_history`, `animals`, `valve_calibration`, `valve_calibration_history`). No `PRAGMA user_version`, no migration framework, no schema-version row. |
 | Construction | `DatabaseHandler()` is instantiated **independently in ≥4 places** (`main.py`, `projects_controller.py`, `ui/schedule_drop_area.py`, `ui/splash_screen.py`). Not a singleton; not consistently dependency-injected. Each instance re-runs `create_tables()`. |
-| Access discipline | **Good** — grep confirms **no** raw `sqlite3`/`import sqlite3` anywhere outside this file. The handler genuinely is the single DB access point already. |
+| Access discipline | **Good** — no raw `sqlite3` in app code outside this file. The one exception (since v1.21.0) is the bench tool `Project/tools/gravimetric_check.py`, which opens the database read-only (`?mode=ro`). |
 
 ### Method domains (the 52 methods cluster into ~7 concerns)
 
@@ -34,8 +34,8 @@ Measured on `main` at the time of writing:
 | Relay units | `add_relay_unit`, `get_all_relay_units`, `get_relay_units` | 3 |
 | Animals | `add_animal`, `update_animal`, `remove_animal`, `get_all_animals`, `get_animals_by_trainer`, `get_animal_by_id`, `update_animal_watering` | 7 |
 | Trainers / auth | `authenticate_trainer`, `get_trainer_by_id`, `add_trainer` | 3 |
-| Schedules (core) | `add_schedule`, `get_schedule_details`, `update_schedule`, `remove_schedule`, `get_all_schedules`, `get_schedules_by_trainer`, `update_schedule_status`, `get_active_schedules` | 8 |
-| Schedules (instant) | `add_schedule_instant`, `add_instant_schedule`, `get_pending_schedule_instants`, `mark_instant_completed`, `get_schedule_instant_deliveries` | 5 |
+| Schedules (core) | `add_schedule`, `get_schedule_details`, `update_staggered_schedule`, `update_instant_schedule`, `remove_schedule`, `get_all_schedules`, `get_schedules_by_trainer`, `update_schedule_status`, `get_active_schedules` | 9 |
+| Schedules (instant) | `get_schedule_instant_deliveries` | 1 |
 | Schedules (staggered + cycles) | `add_staggered_schedule`, `get_active_staggered_windows`, `create_staggered_delivery_window`, `update_staggered_window_progress`, `get_staggered_window_status`, `log_staggered_delivery`, `get_schedule_progress`, `track_cycle_progress`, `update_cycle_progress`, `get_schedule_staggered_windows`, `log_delivery` | 11 |
 | System settings (type-tagged) | `get_system_settings`, `update_system_setting`, `delete_system_setting` | 3 |
 | Valve calibration | `save_valve_calibration`, `get_valve_calibration`, `get_all_valve_calibrations`, `get_valve_calibration_history` | 4 |
@@ -81,7 +81,8 @@ The user asked to weigh all three. Here is the honest assessment of each.
 ### Axis C — Migration safety
 
 - **The most real risk.** Schema evolution is ad-hoc `ALTER TABLE … ADD
-  COLUMN` inside `create_tables`, guarded by bare try/except. There is:
+  COLUMN` inside `create_tables`, guarded by a `PRAGMA table_info`
+  check. There is:
   - no `PRAGMA user_version` / schema-version tracking,
   - no ordered, idempotent, testable migration sequence,
   - no down-migration or recovery story,
@@ -99,7 +100,7 @@ The user asked to weigh all three. Here is the honest assessment of each.
 
 ### Option 1 — Do nothing (status quo)
 - **Pro:** zero risk, zero churn; the access-point discipline already
-  holds (no raw sqlite3 elsewhere).
+  holds (no raw sqlite3 elsewhere in app code; only a read-only bench tool).
 - **Con:** all three pains persist; the next non-trivial schema change
   is still scary.
 - **When this is right:** if no schema change is on the horizon and the
@@ -298,6 +299,10 @@ project's own rule against landing code paths that aren't yet exercised.
 
 ## 10. R3 — Dependency-injection feasibility (the §-Q3 deep-dive)
 
+> **Done** in #94 (2026-05-29): the two sites marked **Fix** below now take
+> the handler as a parameter. The line numbers in this section are those of
+> the code when it was written.
+
 ### How hard: LOW. The backbone already exists.
 
 `main.py:162` already creates the canonical `database_handler` and
@@ -316,7 +321,7 @@ self-construct.
 | `ui/schedule_drop_area.py:30` | Yes | **Fix** → accept param; caller `run_stop_section.py:121` already holds `self.database_handler` (run_stop_section.py:51). |
 | `ui/splash_screen.py:54` | Yes | **Defer** — splash worker is disabled (`USE_SPLASH_SCREEN=False`); handle under Phase 5.2. |
 | `main.py:140` `DatabaseHandler().connect().close()` | Yes (throwaway) | **Keep** — `--selftest` health probe; a standalone instance is correct here. |
-| `tools/valve_calibration_tool.py:344` | Yes (`args.db_path`) | **Keep** — standalone CLI, intentionally independent of the app. |
+| ~~`tools/valve_calibration_tool.py:344`~~ | Yes (`args.db_path`) | **Removed in v1.21.0** — the CLI could not start (it imported `gpio.solenoid_controller`, which no longer exists); the in-app wizard is the calibration path. |
 
 So the *live-app* DI work is exactly **two** objects:
 `ProjectsController` and `ScheduleDropArea`.

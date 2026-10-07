@@ -3,7 +3,10 @@
 set -Eeuo pipefail
 
 REPO=${RRR_REPO:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}
-VENV="$REPO/.venv"
+# An installed device keeps one venv for every release (scripts/install/
+# layout.sh); a developer clone has its own .venv.
+VENV=${RRR_VENV:-${RRR_HOME:-$HOME/rrr}/shared/venv}
+[[ -x "$VENV/bin/python3" ]] || VENV="$REPO/.venv"
 
 hr() { printf '\n--- %s ---\n' "$*"; }
 
@@ -36,6 +39,13 @@ for b in /dev/i2c-*; do
   echo "bus ${b##*/i2c-}:"
   sudo i2cdetect -y "${b##*/i2c-}" 2>&1 || true
 done
+
+hr "Relay HATs (stack level = Id; RRR needs the first HAT at Id 0)"
+if command -v 16relind >/dev/null; then
+  16relind -list 2>&1 || true
+else
+  echo "16relind not installed"
+fi
 
 hr "Teensy"
 ls -l /dev/teensy_flow 2>/dev/null || echo "no /dev/teensy_flow"

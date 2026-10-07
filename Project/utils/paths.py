@@ -71,6 +71,26 @@ def pump_log_path():
     return os.path.join(_PROJECT_DIR, "pump_log.json")
 
 
+DEVICE_DATA_DIR = os.path.expanduser("~/rrr/shared/data")
+
+
+def bench_data_dir(explicit=None):
+    """The device data directory for a bench tool run outside the launcher.
+
+    Precedence: an explicit path (a tool's ``--data-dir``), then ``RRR_DATA``,
+    then the installed layout's ``~/rrr/shared/data`` when it exists. Returns
+    the absolute path, or None when none of those names an existing
+    directory. Never creates anything and never touches the environment: a
+    tool that reads the database directly must not be able to conjure an
+    empty one next to the code.
+    """
+    # A location that was named (flag or environment) but does not exist is
+    # an error for the caller to report, not a reason to try the next one.
+    named = explicit or os.environ.get("RRR_DATA") or DEVICE_DATA_DIR
+    path = os.path.abspath(os.path.expanduser(named))
+    return path if os.path.isdir(path) else None
+
+
 def debug_log_path():
     """Absolute path to the runtime debug log."""
     root = _data_root()
