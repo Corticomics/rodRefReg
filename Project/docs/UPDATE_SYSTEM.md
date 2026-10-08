@@ -726,11 +726,16 @@ gate → download → verify SHA256 → extract to `releases/<new>/` (staged, th
   If `fail_count` ≥ 2 and a `previous` release exists → **revert** `current` → `previous`,
   reset, and re-exec. Otherwise write `fail_count + 1` and launch.
 - The app, ~8 s after the GUI is up and the event loop is healthy, writes `fail_count: 0`.
-- A launch that finds this release already running (its single-instance key answers) hands
-  over and exits without starting, so it takes its count back
-  (`updater.undo_launch_count`). Without that, clicks on the RRR icon while RRR runs added
-  up: two made the next start roll back, and a third rolled back at once and started the
-  previous release beside the running one.
+- A launch that finds this release already running is not counted. Before it counts,
+  `launch.sh` connects to the release's single-instance socket
+  (`$TMPDIR/rrr_single_instance_<version>`, in `/tmp` when `TMPDIR` is unset); when RRR
+  answers, it skips the sentinel and starts the app, which hands over and exits. Without
+  that, clicks on the RRR icon while RRR runs added up: two made the next start roll back,
+  and a third rolled back at once and started the previous release beside the running one.
+  The app's own check comes too late to stop that, since it runs after main.py's imports
+  (seconds on a Pi). A launch that `launch.sh` did count gets `RRR_LAUNCH_COUNTED=1`; if
+  the app then hands over after all (the running RRR was still starting when `launch.sh`
+  looked), it takes that count back (`updater.undo_launch_count`).
 - Net effect: a release that never reaches "healthy" twice running is auto-rolled-back on
   the third launch. A healthy release keeps `fail_count` at 0–1.
 

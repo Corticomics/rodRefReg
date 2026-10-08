@@ -703,6 +703,12 @@ def _create_gui_from_components(components: dict):
 _single_instance_server = None
 
 
+def _close_single_instance_server():
+    """Stop answering launches: RRR is quitting (see _start_single_instance_server)."""
+    if _single_instance_server is not None:
+        _single_instance_server.close()
+
+
 def _start_single_instance_server(instance_key, gui):
     """Listen on ``instance_key`` so that a second launch finds this RRR.
 
@@ -715,6 +721,10 @@ def _start_single_instance_server(instance_key, gui):
     whole run. Referenced only by its own slot (a reference cycle), it was
     freed by the first garbage collection after start-up, which removed its
     socket, so a later launch found no answer and started a second RRR.
+
+    It stops listening when RRR quits. Kept until the interpreter exits, it
+    would answer during a slow shutdown, and a launch then handed over to an
+    RRR that was about to exit, leaving none running.
     """
     global _single_instance_server
 
@@ -750,6 +760,11 @@ def _start_single_instance_server(instance_key, gui):
             pass
 
     server.newConnection.connect(_handle_new_connection)
+    # Not server.close: a connection to the server's own method would hold the
+    # server too, and _single_instance_server is meant to be its one owner.
+    app = QGuiApplication.instance()
+    if app is not None:
+        app.aboutToQuit.connect(_close_single_instance_server)
     _single_instance_server = server
     return server
 
@@ -783,9 +798,11 @@ def main():
             socket.waitForBytesWritten(100)
         except Exception:
             pass
+        message = f"RRR v{__version__} is already running; asked it to show its window"
+        _dbg(message)
         # Handing over is not a failed start: take back the launcher's count.
-        _dbg(f"RRR v{__version__} is already running; asked it to come forward")
         updater.undo_launch_count()
+        print(message, file=sys.stderr)  # a launch from a terminal otherwise shows nothing
         return
     socket.abort()
 

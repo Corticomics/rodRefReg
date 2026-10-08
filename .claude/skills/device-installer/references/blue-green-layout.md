@@ -47,6 +47,12 @@ The stable shim `~/.local/bin/rrr` execs
    app: `~/rrr/shared/venv/bin/python3 ~/rrr/current/Project/main.py`.
 4. The app, once it has started cleanly, resets `fail_count` to 0.
 
+A launch that finds this release already running (its single-instance
+socket, `/tmp/rrr_single_instance_<version>`, answers) neither reads nor
+writes `boot.json`: it only execs the app, which hands over to the
+running RRR and exits. Clicks on the icon while RRR runs therefore never
+add up to a rollback.
+
 So a release that crashes during startup will only get two retries
 before the device falls back to the previous version. From the
 operator's point of view, the title bar reverts to the older version

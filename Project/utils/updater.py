@@ -438,13 +438,20 @@ def mark_boot_healthy():
 def undo_launch_count():
     """Take back the launcher's count for a launch that handed over.
 
-    launch.sh counts every launch towards the boot sentinel's auto-rollback,
-    and only a clean start clears the count. A launch that finds this release
+    launch.sh counts a launch towards the boot sentinel's auto-rollback, and
+    only a clean start clears the count. A launch that finds this release
     already running hands over to it and exits without starting, so it must
     not count. Otherwise two clicks on the RRR icon while RRR runs make its
     next start roll back to the previous release, and a third rolls back at
     once and starts that release beside the running one.
+
+    launch.sh skips the count when the running RRR answers it, and sets
+    ``RRR_LAUNCH_COUNTED=1`` for a launch it did count. main() can still hand
+    such a launch over, when that RRR was still starting as launch.sh looked.
+    Without the variable this launch added nothing, so nothing is taken back.
     """
+    if os.environ.get("RRR_LAUNCH_COUNTED") != "1":
+        return
     path = paths.boot_state_path()
     if not path:
         return
