@@ -274,7 +274,9 @@ class UpdatesTab(QWidget):
         if box.exec_() == QMessageBox.Yes:
             restarted, detail = updater.restart_app()
             if not restarted:
-                QMessageBox.information(self, "Restart", detail)
+                QMessageBox.information(
+                    self, "Restart", f"{detail}\n\nClose and reopen RRR to finish the update."
+                )
 
     def _open_release(self):
         if self._latest is not None:

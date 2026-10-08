@@ -40,7 +40,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Test a valve | Settings → Priming → select the cage → **Open Selected**, then **Close Selected** (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
 | Calibrate valves | Settings → Calibration → **Calibrate** on the cage's row (or **Calibrate All Uncalibrated**) |
 | Prime tubing | Settings → Priming → select cage → **Open Selected** → **Close Selected** once water flows (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
-| Change valve topology | Settings → Delivery → Valve Topology (logged in; refused while a schedule, priming or calibration runs). Priming cannot open a valve until RRR is closed and reopened; then recalibrate the cages marked Stale |
+| Change valve topology | Settings → Delivery → Valve Topology (logged in; refused while a schedule, priming or calibration runs). Confirm with **Restart RRR**: RRR restarts on the new topology. Log in again, then recalibrate the cages marked Stale |
 | Set up notifications | Settings → General → Slack Integration → enter the Slack Bot Token and Channel ID (each is saved when you press Enter or leave the field, and is used from the next message) |
 
 ## Troubleshooting Guide

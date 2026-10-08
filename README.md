@@ -229,7 +229,7 @@ Go to **Settings → Calibration**. The table lists every cage, with the custom 
 3. Asks for the volume you weighed
 4. Saves that cage's mL per pulse, with the valve topology it was measured under; every later delivery to the cage uses it. In solenoid pulse mode (the default), **Run** refuses a schedule that waters a cage with no calibration, an Invalid one or a Stale one
 
-Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used on its own any time you swap tubing, refill the reservoir or, on an independent rig, refill or replace a syringe. It is refused while a schedule or a calibration is running, and after a valve topology change Priming cannot open a valve until RRR is closed and reopened.
+Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used on its own any time you swap tubing, refill the reservoir or, on an independent rig, refill or replace a syringe. It is refused while a schedule or a calibration is running. Changing the valve topology restarts RRR, and Priming then shows the controls for the new topology; if RRR cannot restart itself, Priming cannot open a valve until RRR is closed and reopened.
 
 ### How do I resolve "i2c-1 not found" or other I²C errors?
 

@@ -441,6 +441,20 @@ def has_previous_release():
     return bool(previous and os.path.lexists(previous))
 
 
+def _relaunch_command(pid, shim, poll_s=0.2, max_wait_s=60):
+    """
+    A ``sh -c`` script that waits for process ``pid`` to exit, then runs
+    ``shim``. After ``max_wait_s`` it runs the shim anyway (a process that
+    never exits must not leave the device without a way back).
+    """
+    rounds = max(1, int(max_wait_s / poll_s))
+    return (
+        f"i=0; while kill -0 {int(pid)} 2>/dev/null && [ $i -lt {rounds} ]; do "
+        f"sleep {poll_s}; i=$((i+1)); done; "
+        f'exec "{shim}" </dev/null >/dev/null 2>&1'
+    )
+
+
 def restart_app():
     """Restart the application. Returns ``(restarted, message)``.
 
@@ -448,11 +462,13 @@ def restart_app():
     active — bounce it.
 
     Path B (default on most Pis): no systemd service. Launch the stable
-    shim (``~/.local/bin/rrr``) as a detached child process and tell the
-    running Qt app to quit. Because the single-instance lock is
-    version-keyed (``rrr_single_instance_<version>`` — see main.py), the
-    new launcher takes its own slot without colliding with us, even if
-    our process takes a moment to shut down.
+    shim (``~/.local/bin/rrr``) from a detached shell that first waits for
+    this process to exit, and tell the running Qt app to quit. The wait
+    matters when the version does not change (a valve topology change in
+    Settings): the single-instance lock is keyed by version
+    (``rrr_single_instance_<version>``, see main.py), so a new instance
+    started while this one still listens would hand over to it and exit,
+    leaving no RRR running once this one has quit.
     """
     # Path A: systemd user service.
     try:
@@ -472,18 +488,14 @@ def restart_app():
             return False, "Could not restart automatically: %s" % exc
 
     # Path B: spawn the shim detached, then schedule our own quit.
+    # Every failure message says why only: each caller (the in-app update,
+    # a valve topology change) tells the operator what to do next.
     shim = os.path.expanduser("~/.local/bin/rrr")
     if not os.path.isfile(shim):
-        return False, (
-            "Could not find the launcher at ~/.local/bin/rrr. "
-            "Please close and reopen RRR to finish the update."
-        )
+        return False, "Could not find the launcher at ~/.local/bin/rrr."
     try:
-        # Defer the actual exec by ~1 s via a shell wrapper so this
-        # process has time to close hardware handles. The new instance's
-        # version-keyed lock guarantees no collision even if we overlap.
         subprocess.Popen(
-            ["sh", "-c", f'sleep 1 && exec "{shim}" </dev/null ' '>/dev/null 2>&1'],
+            ["sh", "-c", _relaunch_command(os.getpid(), shim)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

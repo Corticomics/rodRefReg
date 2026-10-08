@@ -609,10 +609,11 @@ class SettingsTab(QWidget):
         self._show_valve_topology(topology_from(self.settings))
 
         note = QLabel(
-            "Must match how this rig is plumbed. After a change, calibrations measured "
-            "under the other topology show as Stale, and in solenoid pulse mode (the "
-            "default) a schedule watering a Stale cage will not start until that cage is "
-            "recalibrated. Priming cannot open a valve until RRR is closed and reopened."
+            "Must match how this rig is plumbed. Changing it restarts RRR, so priming, "
+            "calibration and schedules all use the new topology. After a change, "
+            "calibrations measured under the other topology show as Stale, and in solenoid "
+            "pulse mode (the default) a schedule watering a Stale cage will not start until "
+            "that cage is recalibrated."
         )
         note.setObjectName("HelpText")
         note.setWordWrap(True)
@@ -676,10 +677,12 @@ class SettingsTab(QWidget):
         Switch the device to the ``new`` topology if nothing is running and
         the operator confirms. Returns True once the change is saved.
 
-        Schedules and calibrations read the topology when they start, so
-        they pick the change up from the next start. Priming built its
-        panel for the old one and stays locked until RRR restarts; RRR is
-        not restarted from here.
+        A saved change restarts RRR (utils.updater.restart_app): Priming
+        builds its panel for the topology RRR started with, so only a
+        restart brings every part onto the new one. Where RRR cannot
+        restart itself (no launcher, as in a development checkout), the
+        change still holds: schedules and calibrations read the topology
+        when they start, and Priming stays locked until RRR is reopened.
         """
         old = topology_from(self.settings)
         if new == old:
@@ -729,18 +732,43 @@ class SettingsTab(QWidget):
 
         trainer = self.login_system.get_current_trainer() or {}
         who = trainer.get('username') or 'unknown user'
-        self._announce_valve_topology(
-            f"Valve topology changed in Settings: {old} -> {new} (by {who}). "
-            "Schedules and calibrations started from now on use it; "
-            "Priming waits for a restart."
+        # The Terminal tab goes with the restart, so the database keeps who
+        # changed the topology and when (the logs table, as calibrations do).
+        self.database_handler.log_action(
+            trainer.get('trainer_id') or 0, 'valve_topology', f"{old} -> {new} (by {who})"
         )
         if hasattr(self, 'calibration_table'):
             self._populate_calibration_table()  # the Stale badges follow the topology
         priming = getattr(self, 'priming_widget', None)
         if priming is not None:
-            priming.refresh_topology_state()
-        self._notify_valve_topology_changed(new)
+            priming.refresh_topology_state()  # locked until the restart takes over
+        # Announced before the restart: under rrr.service, systemctl stops this
+        # process as soon as it can, and the journal must still get the line.
+        self._announce_valve_topology(
+            f"Valve topology changed in Settings: {old} -> {new} (by {who}). "
+            "Restarting RRR to apply it."
+        )
+        restarted, detail = self._restart_for_valve_topology()
+        if not restarted:
+            self._announce_valve_topology(
+                f"RRR could not restart itself ({detail.rstrip('.')}): schedules and "
+                f"calibrations started from now on use {new}; Priming waits until RRR "
+                "is reopened."
+            )
+            self._notify_valve_topology_changed(new, detail)
         return True
+
+    def _restart_for_valve_topology(self):
+        """
+        Restart RRR so every part runs the new topology: ``(restarted,
+        detail)`` from utils.updater.restart_app, which the in-app update
+        uses too. Nothing is running at this point: the change is refused
+        while any hardware operation holds the lock or a job is unfinished.
+        """
+        try:
+            return updater.restart_app()
+        except Exception as exc:  # the saved change holds; say why there was no restart
+            return False, str(exc)
 
     def _refuse_valve_topology_change(self, old):
         reason = self._hardware_change_blocked_reason()
@@ -770,18 +798,25 @@ class SettingsTab(QWidget):
                 "every delivery, calibration and priming session.\n\n"
                 "Choose this only if a master valve feeds a shared manifold on this rig."
             )
-        answer = QMessageBox.question(
-            self,
-            "Change Valve Topology",
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Question)
+        box.setWindowTitle("Change Valve Topology")
+        box.setText(
             f"Change the valve topology from {old} to {new}?\n\n{effect}\n\n"
+            "RRR restarts to apply the change, so priming, calibration and schedules all "
+            "use the new topology. Log in again after the restart.\n\n"
             "Calibrations measured under the other topology will show as Stale, and in "
             "solenoid pulse mode (the default) Run refuses a schedule that waters a Stale "
-            "cage until that cage is recalibrated. Priming cannot open a valve until RRR "
-            "is closed and reopened.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            "cage until that cage is recalibrated."
         )
-        return answer == QMessageBox.Yes
+        restart = box.addButton("Restart RRR", QMessageBox.AcceptRole)
+        cancel = box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec_()
+        confirmed = box.clickedButton() is restart
+        box.deleteLater()
+        return confirmed
 
     def _save_valve_topology(self, old, new):
         """
@@ -830,14 +865,16 @@ class SettingsTab(QWidget):
             except (OSError, ValueError):
                 pass
 
-    def _notify_valve_topology_changed(self, new):
+    def _notify_valve_topology_changed(self, new, detail):
+        """Only when RRR could not restart itself after a saved change."""
         QMessageBox.information(
             self,
             "Valve Topology Changed",
-            f"This device now runs the {new} topology.\n\n"
-            "Schedules and calibrations started from now on use it. Valves calibrated "
-            "under the other topology are marked Stale in the Calibration tab.\n\n"
-            "Priming cannot open a valve until RRR is closed and reopened.",
+            f"This device now runs the {new} topology, but RRR could not restart "
+            f"itself: {detail}\n\n"
+            "Close and reopen RRR: until then Priming cannot open a valve. Schedules and "
+            "calibrations started from now on use the new topology, and valves calibrated "
+            "under the other one are marked Stale in the Calibration tab.",
         )
 
     def _auto_detect_teensy(self):
