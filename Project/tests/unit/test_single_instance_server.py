@@ -238,6 +238,9 @@ def test_rrr_stops_answering_once_it_quits(key, tmp_path):
     env = {**os.environ, "HOME": str(tmp_path), "QT_QPA_PLATFORM": "offscreen"}
     env.pop("RRR_HOME", None)  # no ~/rrr, no debug log outside tmp_path
     env.pop("RRR_DATA", None)
+    # CI's Ubuntu job installs the requirements into the user site under the real
+    # HOME; with HOME moved, the child must still import what this process imports.
+    env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
     result = subprocess.run(
         [sys.executable, "-c", _QUIT_THEN_LAUNCH, str(MAIN_PY.parent), key],
         env=env,
