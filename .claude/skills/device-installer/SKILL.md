@@ -72,7 +72,8 @@ After 25-layout, the device has:
 [`scripts/runtime/launch.sh`](scripts/runtime/launch.sh) reads `boot.json`,
 increments `fail_count` on each launch, and rolls `current` back to
 `previous` when `fail_count >= 2`. The app resets the counter to 0 once
-it starts cleanly.
+it starts cleanly. A launch that finds this release already running (its
+single-instance socket answers) is not counted.
 
 Details: [`references/blue-green-layout.md`](references/blue-green-layout.md).
 
