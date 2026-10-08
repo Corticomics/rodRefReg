@@ -699,6 +699,61 @@ def _create_gui_from_components(components: dict):
     return gui
 
 
+# The running RRR's single-instance server, set by _start_single_instance_server.
+_single_instance_server = None
+
+
+def _start_single_instance_server(instance_key, gui):
+    """Listen on ``instance_key`` so that a second launch finds this RRR.
+
+    main() probes the key before it starts anything: when this RRR answers,
+    the second copy sends ``b'raise'`` (this window comes forward) and exits
+    instead of running beside this one on the same relays. ``b'quit'`` makes
+    this RRR exit.
+
+    The server is kept in the module-level ``_single_instance_server`` for the
+    whole run. Referenced only by its own slot (a reference cycle), it was
+    freed by the first garbage collection after start-up, which removed its
+    socket, so a later launch found no answer and started a second RRR.
+    """
+    global _single_instance_server
+
+    server = QLocalServer()
+    try:
+        QLocalServer.removeServer(instance_key)
+    except Exception:
+        pass
+    if not server.listen(instance_key):
+        _dbg(f"single-instance server could not listen on {instance_key}: {server.errorString()}")
+
+    def _handle_new_connection():
+        conn = server.nextPendingConnection()
+        if not conn:
+            return
+        cmd = b''
+        try:
+            if conn.waitForReadyRead(100):
+                cmd = bytes(conn.readAll()).strip()
+            conn.disconnectFromServer()
+        except Exception:
+            pass
+        if cmd == b'quit':
+            _dbg("received 'quit' from peer; exiting")
+            SafeQApplication.instance().quit()
+            return
+        # Default + 'raise': bring our window forward.
+        try:
+            gui.show()
+            gui.raise_()
+            gui.activateWindow()
+        except Exception:
+            pass
+
+    server.newConnection.connect(_handle_new_connection)
+    _single_instance_server = server
+    return server
+
+
 def main():
     """
     Application entry point with optional splash screen.
@@ -780,7 +835,7 @@ def _main_with_splash(app, instance_key):
     app.processEvents()  # Force paint before any initialization
 
     # Keep references to prevent garbage collection
-    _state = {'server': None, 'redirector': None}
+    _state = {'redirector': None}
 
     def on_initialization_complete(components: dict):
         """Handle completion of background initialization."""
@@ -826,40 +881,7 @@ def _main_with_splash(app, instance_key):
         gui.show()
 
         # Setup single-instance server
-        _state['server'] = QLocalServer()
-        try:
-            QLocalServer.removeServer(instance_key)
-        except Exception:
-            pass
-        _state['server'].listen(instance_key)
-
-        def _handle_new_connection():
-            conn = _state['server'].nextPendingConnection()
-            if not conn:
-                return
-            cmd = b''
-            try:
-                if conn.waitForReadyRead(100):
-                    cmd = bytes(conn.readAll()).strip()
-                conn.disconnectFromServer()
-            except Exception:
-                pass
-            if cmd == b'quit':
-                # Used by updater.restart_app on systems without a systemd
-                # user service: the new launcher tells us to die so it can
-                # take over cleanly.
-                _dbg("received 'quit' from peer; exiting")
-                SafeQApplication.instance().quit()
-                return
-            # Default + 'raise': bring our window forward.
-            try:
-                gui.show()
-                gui.raise_()
-                gui.activateWindow()
-            except Exception:
-                pass
-
-        _state['server'].newConnection.connect(_handle_new_connection)
+        _start_single_instance_server(instance_key, gui)
 
     # Connect splash completion to GUI creation
     splash.initialization_complete.connect(on_initialization_complete)
@@ -921,37 +943,8 @@ def _main_without_splash(app, instance_key):
 
     gui.show()
 
-    # Local server
-    server = QLocalServer()
-    try:
-        QLocalServer.removeServer(instance_key)
-    except Exception:
-        pass
-    server.listen(instance_key)
-
-    def _handle_new_connection():
-        conn = server.nextPendingConnection()
-        if not conn:
-            return
-        cmd = b''
-        try:
-            if conn.waitForReadyRead(100):
-                cmd = bytes(conn.readAll()).strip()
-            conn.disconnectFromServer()
-        except Exception:
-            pass
-        if cmd == b'quit':
-            _dbg("received 'quit' from peer; exiting")
-            SafeQApplication.instance().quit()
-            return
-        try:
-            gui.show()
-            gui.raise_()
-            gui.activateWindow()
-        except Exception:
-            pass
-
-    server.newConnection.connect(_handle_new_connection)
+    # Single-instance server
+    _start_single_instance_server(instance_key, gui)
 
 
 if __name__ == "__main__":
