@@ -783,6 +783,9 @@ def main():
             socket.waitForBytesWritten(100)
         except Exception:
             pass
+        # Handing over is not a failed start: take back the launcher's count.
+        _dbg(f"RRR v{__version__} is already running; asked it to come forward")
+        updater.undo_launch_count()
         return
     socket.abort()
 

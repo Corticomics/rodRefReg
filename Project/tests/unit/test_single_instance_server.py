@@ -189,6 +189,35 @@ def test_the_no_splash_start_up_still_answers_after_a_garbage_collection(
     client.abort()
 
 
+def test_a_second_launch_brings_rrr_forward_and_takes_back_its_launch_count(
+    main, qapp, monkeypatch, dbg_lines
+):
+    """main() itself, as a second launch, while the 'running RRR' listens."""
+    version = f"t{uuid.uuid4().hex[:12]}"  # a key of this test's own
+    monkeypatch.setattr(main, "__version__", version)
+    key = f"rrr_single_instance_{version}"
+    window = _Window()
+    main._start_single_instance_server(key, window)
+    taken_back = []
+    monkeypatch.setattr(main.updater, "undo_launch_count", lambda: taken_back.append(True))
+
+    class _SecondRRR:
+        def __init__(self, *args):
+            raise AssertionError("main() started a second RRR instead of handing over")
+
+    monkeypatch.setattr(main, "SafeQApplication", _SecondRRR)
+
+    try:
+        assert main.main() is None
+        _process_events_until(qapp, lambda: window.calls)
+    finally:
+        QLocalServer.removeServer(key)
+
+    assert window.calls == ["show", "raise_", "activateWindow"]
+    assert taken_back == [True]
+    assert f"RRR v{version} is already running; asked it to come forward" in dbg_lines
+
+
 def _top_level_functions():
     tree = ast.parse(MAIN_PY.read_text())
     return {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}

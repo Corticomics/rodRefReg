@@ -114,7 +114,9 @@ on `main` but never released.
 - **Fix (safety):** starting RRR while it is already running (a second
   click on its icon, for example) brings the running window to the front,
   instead of opening a second RRR beside it that drives the same relays.
-  Before, RRR stopped noticing such a start shortly after it opened.
+  Before, RRR stopped noticing such a start shortly after it opened. Such
+  a start does not count as a failed one, so it cannot set off the
+  automatic rollback to the previous version.
 - **Add:** a **Valve Topology** choice in Settings > Delivery > Solenoid
   Mode Settings.
   - *Shared manifold (master valve)*: the production rig, where relay 16
