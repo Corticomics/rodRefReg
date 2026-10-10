@@ -31,7 +31,6 @@ from PyQt5.QtWidgets import (
 )
 from utils.operation_lock import (
     CALIBRATION,
-    EMERGENCY,
     PRIMING,
     SCHEDULE,
     get_operation_lock,
@@ -655,7 +654,7 @@ class PrimingControlWidget(QWidget):
         lock = get_operation_lock()
         lock.release(PRIMING)
         if self._stop_unconfirmed:
-            self._hold_until_safe(lock)
+            lock.hold_until_safe()
 
     def _on_close_cage_clicked(self):
         """Handle cage close button click."""
@@ -725,7 +724,7 @@ class PrimingControlWidget(QWidget):
                 # panel keeps showing what may be open, and the hardware
                 # stays locked.
                 self._stop_unconfirmed = True
-                self._hold_until_safe(lock)
+                lock.hold_until_safe()
                 self._log_error("⛔ EMERGENCY STOP - relays NOT confirmed off")
                 QMessageBox.critical(
                     self,
@@ -740,10 +739,9 @@ class PrimingControlWidget(QWidget):
             lock.release(PRIMING)
 
             if worker_alive:
-                # The Stop path releases the schedule's hold although its
-                # worker thread did not exit (it abandons one that will not
-                # die). That worker can still open a valve.
-                self._hold_until_safe(lock)
+                # Stop abandons a worker thread that will not exit; that
+                # worker can still open a valve.
+                lock.hold_until_safe()
                 self._log_error(
                     "⛔ EMERGENCY STOP - All relays closed; the delivery worker has not stopped"
                 )
@@ -760,7 +758,7 @@ class PrimingControlWidget(QWidget):
 
             if still_running:
                 # A panel with no way to stop a schedule: its hold stays.
-                self._hold_until_safe(lock)
+                lock.hold_until_safe()
                 self._log_warning(
                     "⛔ EMERGENCY STOP - All relays closed; a schedule is still running"
                 )
@@ -874,13 +872,6 @@ class PrimingControlWidget(QWidget):
         except Exception as exc:
             self._log_error(f"Emergency stop: the all-relays-off command failed: {exc}")
             return False
-
-    @staticmethod
-    def _hold_until_safe(lock) -> None:
-        """Keep the hardware locked. Whoever holds the lock keeps it; a free
-        lock is taken for the emergency stop itself."""
-        if not lock.is_busy():
-            lock.try_acquire(EMERGENCY)
 
     def _stop_running_schedule(self) -> bool:
         """Stop a running schedule through the callback Settings provides.

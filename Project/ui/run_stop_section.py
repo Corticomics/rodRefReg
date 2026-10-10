@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils import updater
 from utils.calibration_gate import (
     calibration_problems,
     format_problems,
@@ -64,6 +65,8 @@ class RunStopSection(QWidget):
         self.current_schedule = None
 
         self.job_in_progress = False
+        # Ties the start that Run queues to that Run; Stop clears it.
+        self._run_token = None
 
         self.init_ui()
 
@@ -295,7 +298,9 @@ class RunStopSection(QWidget):
         # Hardware mutual-exclusion: only one of schedule/priming/calibration may
         # run at a time (they drive the same relay HATs; see utils.operation_lock). Acquire here,
         # before any hardware work; release on every exit path (reset_ui /
-        # _reset_run_button / stop_program force-release).
+        # _reset_run_button), except where the hardware may not be safe: a Stop
+        # that could not confirm it, or a start refused beside a live worker,
+        # hands the hold to EMERGENCY instead (hold_until_safe).
         lock = get_operation_lock()
         if not lock.try_acquire(SCHEDULE):
             QMessageBox.warning(
@@ -323,11 +328,19 @@ class RunStopSection(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         # PHASE 2: Defer heavy work to next event loop iteration
         # ═══════════════════════════════════════════════════════════════════
-        QTimer.singleShot(0, self._prepare_and_execute_schedule)
+        # The token ties the queued start to this Run. A Stop clears it, so
+        # the start does not go ahead after that Stop, nor inside it (Stop's
+        # Stopping dialog pumps events, which can run the queued start).
+        token = self._run_token = object()
+        QTimer.singleShot(0, lambda: self._prepare_and_execute_schedule(token))
 
-    def _prepare_and_execute_schedule(self):
+    def _prepare_and_execute_schedule(self, token=None):
         """
         Prepare schedule data and execute (runs after UI update).
+
+        ``token`` is the one run_program queued this start with: when a Stop
+        has cleared it since, the start is cancelled. Called without one, the
+        start always goes ahead.
 
         Optimization: Uses cached schedule data where possible to minimize
         blocking database queries on the GUI thread.
@@ -335,6 +348,9 @@ class RunStopSection(QWidget):
         Qt Best Practice: Database I/O should ideally be on worker thread,
         but caching reduces impact on GUI responsiveness.
         """
+        if token is not None and token is not self._run_token:
+            print("[RUN] Start cancelled: Stop was pressed before the schedule started")
+            return
         try:
             schedule = self.schedule_drop_area.current_schedule
             mode = self.schedule_drop_area.get_mode()
@@ -606,6 +622,20 @@ class RunStopSection(QWidget):
         if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
             parent_gui.hide_execution_monitor()
 
+    # Shown when main.run_program started no worker (see _execute_program).
+    WORKER_ALIVE_AT_RUN_TEXT = (
+        "The previous schedule's delivery worker has not stopped and may open a valve again, "
+        "so this schedule was not started.\n\n"
+        "Run, priming and calibration stay unavailable while it may still run. Wait a few "
+        "seconds, then press CLOSE ALL RELAYS in Settings > Priming. If it says the worker has "
+        "still not stopped, disconnect the valve power supply and restart the Raspberry Pi "
+        "(RRR will not quit while that worker is alive)."
+    )
+    NOT_STARTED_TEXT = (
+        "This schedule was not started. RRR could not start its delivery worker; the Terminal "
+        "tab shows why. Press Run to try again."
+    )
+
     def _execute_program(self, schedule, mode, window_start, window_end):
         """
         Execute the schedule program via callback.
@@ -621,10 +651,35 @@ class RunStopSection(QWidget):
 
         Qt Best Practice: QObject creation and signal connections must be on main thread.
         Reference: https://doc.qt.io/qt-5/threads-qobject.html
+
+        run_program_callback (main.run_program) returns whether it started
+        the worker. It refuses while the previous schedule's worker thread is
+        still running: that worker may open a valve again, so the hardware
+        passes to EMERGENCY, as after a Stop that could not end it.
         """
         try:
             # Run on GUI thread - worker thread handles slow hardware init
-            self.run_program_callback(schedule, mode, window_start, window_end)
+            started = self.run_program_callback(schedule, mode, window_start, window_end)
+            if not started and updater.is_busy():
+                # Latch before the dialog: its event loop can run queued
+                # calls to reset_ui, which releases SCHEDULE.
+                self.job_in_progress = False
+                get_operation_lock().hold_until_safe(SCHEDULE)
+                self.run_button.setText("Run")
+                self.update_button_states()
+                parent_gui = self._get_parent_gui()
+                if parent_gui and hasattr(parent_gui, 'hide_execution_monitor'):
+                    parent_gui.hide_execution_monitor()
+                QMessageBox.critical(
+                    self, "Delivery Worker Did Not Stop", self.WORKER_ALIVE_AT_RUN_TEXT
+                )
+                return
+            if not started:
+                # No worker runs, so the job, the lock and the monitor must
+                # not stay as if one did.
+                self._reset_run_button()
+                QMessageBox.warning(self, "Schedule not started", self.NOT_STARTED_TEXT)
+                return
             self.run_button.setText("Running")
             print("[RUN] Schedule execution started")
         except Exception as e:
@@ -637,6 +692,9 @@ class RunStopSection(QWidget):
 
     def stop_program(self):
         try:
+            # A start that Run queued and that has not run yet is cancelled,
+            # even one that would run inside the Stopping dialog's event pump.
+            self._run_token = None
             if not self.job_in_progress:
                 return
 
@@ -647,18 +705,42 @@ class RunStopSection(QWidget):
 
             self.stop_button.setEnabled(False)
             self.stop_button.setText("Stopping...")
+            self.progress_dialog.show()
 
             self._execute_stop()
 
         except Exception as e:
-            self.job_in_progress = False
-            get_operation_lock().release(SCHEDULE)
+            # The stop sequence did not run, so the schedule may still be
+            # running: keep the job (Stop stays available) and its hold.
+            self.stop_button.setText("Stop")
             self.update_button_states()
-            QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to stop schedule: {str(e)}\n\n"
+                "The schedule may still be running: press Stop again.",
+            )
+
+    # Added to an unexpected error once the stop has run: how it ended is not
+    # known, so the hardware stays locked.
+    STOP_ERROR_HINT = (
+        "\n\nRun, priming and calibration stay unavailable until CLOSE ALL RELAYS in "
+        "Settings > Priming confirms every relay off; or close and reopen RRR."
+    )
 
     def _execute_stop(self):
         """
         Execute the stop operation.
+
+        ``stop_program_callback`` (main.stop_program) returns a
+        ``utils.stop_sequence.StopResult``. Unless every relay was confirmed
+        off and the delivery worker exited, the schedule's hold on the
+        hardware passes to EMERGENCY instead of being released, before
+        reset_ui, and before any dialog whose event loop could run the
+        worker's queued cleanup (which calls reset_ui): Run, Change Relay
+        Hats, priming and calibration then stay unavailable until CLOSE ALL
+        RELAYS confirms every relay off, or RRR restarts. One dialog says
+        what happened and what to do.
 
         Qt Best Practice: Avoid processEvents() - it can cause:
         1. Recursive event processing leading to GUI twitches
@@ -667,36 +749,81 @@ class RunStopSection(QWidget):
         Reference: https://doc.qt.io/qt-5/qcoreapplication.html#processEvents
         """
         try:
-            self.progress_dialog.show()
-
-            success = self.stop_program_callback()
+            result = self.stop_program_callback()
 
             if hasattr(self, 'progress_dialog') and self.progress_dialog:
                 self.progress_dialog.close()
                 self.progress_dialog.deleteLater()
                 self.progress_dialog = None
 
+            problem = self._stop_problem(result)
             self.job_in_progress = False
+            if problem:
+                get_operation_lock().hold_until_safe(SCHEDULE)
             self.update_button_states()
             self.reset_ui()
 
-            if not success:
-                QMessageBox.warning(
-                    self,
-                    "Warning",
-                    "The schedule stopped, but not everything shut down cleanly. "
-                    "Check the messages above and the Terminal tab.",
-                )
+            if problem:
+                title, text = problem
+                QMessageBox.critical(self, title, text)
 
         except Exception as e:
             if hasattr(self, 'progress_dialog') and self.progress_dialog:
                 self.progress_dialog.close()
                 self.progress_dialog.deleteLater()
                 self.progress_dialog = None
-            QMessageBox.critical(self, "Error", f"Failed to stop schedule: {str(e)}")
+            # How the stop ended is not known: keep the hardware locked, and
+            # latch before the dialog, whose event loop can run the worker's
+            # queued cleanup (its reset_ui releases SCHEDULE).
             self.job_in_progress = False
-            get_operation_lock().release(SCHEDULE)
+            get_operation_lock().hold_until_safe(SCHEDULE)
+            self.stop_button.setText("Stop")
             self.update_button_states()
+            QMessageBox.critical(
+                self, "Error", f"Failed to stop schedule: {str(e)}{self.STOP_ERROR_HINT}"
+            )
+
+    # Stop's one dialog when it could not confirm the hardware safe (see
+    # _stop_problem). Each says what to do now and what clears the lock.
+    RELAYS_NOT_OFF_TEXT = (
+        "The schedule stopped, but not every relay HAT confirmed OFF, so a valve may still "
+        "be OPEN.\n\n"
+        "Disconnect the valve power supply now, then check the relay HAT and its I²C "
+        "connection.\n\n"
+        "Run, priming and calibration stay unavailable until every relay is confirmed off. "
+        "Once the relay HAT answers, press CLOSE ALL RELAYS in Settings > Priming; or close "
+        "and reopen RRR."
+    )
+    WORKER_ALIVE_AT_STOP_TEXT = (
+        "All relays are off, but the schedule's delivery worker has not stopped and may open "
+        "a valve again.\n\n"
+        "Run, priming and calibration stay unavailable while it may still run. Wait a few "
+        "seconds, then press CLOSE ALL RELAYS in Settings > Priming. If it says the worker has "
+        "still not stopped, disconnect the valve power supply and restart the Raspberry Pi "
+        "(RRR will not quit while that worker is alive)."
+    )
+    RELAYS_NOT_OFF_AND_WORKER_ALIVE_TEXT = (
+        "The schedule's delivery worker has not stopped and may open a valve again, and not "
+        "every relay HAT confirmed OFF, so a valve may still be OPEN.\n\n"
+        "Disconnect the valve power supply now, then check the relay HAT and its I²C "
+        "connection.\n\n"
+        "Run, priming and calibration stay unavailable until every relay is confirmed off and "
+        "the worker has stopped. Once the relay HAT answers, press CLOSE ALL RELAYS in "
+        "Settings > Priming. If the worker still has not stopped, restart the Raspberry Pi "
+        "(RRR will not quit while that worker is alive)."
+    )
+
+    @staticmethod
+    def _stop_problem(result):
+        """The dialog for a stop that did not end safely, as (title, text), or
+        None when every relay was confirmed off and the worker exited."""
+        if result.safe:
+            return None
+        if result.relays_confirmed_off:
+            return "Delivery Worker Did Not Stop", RunStopSection.WORKER_ALIVE_AT_STOP_TEXT
+        if result.worker_exited:
+            return "Relays Not Confirmed Off", RunStopSection.RELAYS_NOT_OFF_TEXT
+        return "Relays Not Confirmed Off", RunStopSection.RELAYS_NOT_OFF_AND_WORKER_ALIVE_TEXT
 
     def reset_ui(self):
         """
