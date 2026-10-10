@@ -309,6 +309,17 @@ def test_the_relays_are_switched_off_again_once_the_worker_is_down():
     assert result.safe is True
 
 
+def test_the_relays_are_switched_off_again_after_a_thread_with_no_worker():
+    """main.cleanup drops the worker but keeps a thread that is still
+    running, and the delivery in it can still switch a relay on."""
+    order = []
+    handler, _, thread, signals, _ = _recorder(order, relays=(True, True))
+
+    stop_sequence.execute_stop_sequence(handler, None, thread, signals)
+
+    assert order == ["relays_off", "thread_wait", "relays_off"]
+
+
 def test_the_all_off_after_the_teardown_decides():
     order = []
     handler, worker, thread, signals, _ = _recorder(order, relays=(True, False))
