@@ -426,7 +426,12 @@ def test_the_self_test_ignores_python_caches_in_the_venv(selftest):
 # --- a pull that changes the installer restarts it ------------------------------------------------
 
 RESTART = "the pull changed the installer; restarting it from the updated checkout"
-FLAGS = ("-y", "--branch", "main", "--skip", "50-services")
+FLAGS = ("-y", "--branch", "main", "--skip", "40-hardware", "--skip", "50-services")
+# What the stand-in 20-repo prints for the restart of a run given FLAGS: every
+# flag came back, and the restart is a real install, not a dry run.
+FLAGS_RESTARTED = (
+    "flags: --dry-run=0 -y=1 --branch=main --skip=40-hardware 50-services RRR_INSTALL_REEXEC=1"
+)
 
 
 def _older_install_sh():
@@ -439,9 +444,9 @@ def _older_install_sh():
 def installer(lib_env, tmp_path):
     """Runs the real install.sh and helpers, whose modules are the real
     25-layout.sh and a stand-in 20-repo. The stand-in prints the flags the run
-    has, then "pulls": it renames today's install.sh over an older one, as git
-    does. It also turns run and step into no-ops, because the release that
-    25-layout.sh builds needs a Pi."""
+    has, then "pulls": it runs the given commands, once. Like git, they rename
+    each new file into place. It also turns run and step into no-ops, because
+    the release that 25-layout.sh builds needs a Pi."""
     repo = tmp_path / "repo"
     modules = repo / "scripts" / "install"
     shutil.copytree(REPO / "scripts" / "install", modules)
@@ -449,11 +454,9 @@ def installer(lib_env, tmp_path):
         if real_module.name != "25-layout.sh":
             real_module.unlink()
     (modules / "20-repo.sh").write_text(
-        'info "flags: -y=$YES --branch=$BRANCH --skip=${SKIP[*]:-}'
+        'info "flags: --dry-run=$DRY_RUN -y=$YES --branch=$BRANCH --skip=${SKIP[*]:-}'
         ' RRR_INSTALL_REEXEC=${RRR_INSTALL_REEXEC:-}"\n'
-        'if [[ -f "$REPO_ROOT/install.sh.pulled" ]]; then\n'
-        '  mv "$REPO_ROOT/install.sh.pulled" "$REPO_ROOT/install.sh"\n'
-        "fi\n"
+        'if [[ -f "$REPO_ROOT/pull" ]]; then source "$REPO_ROOT/pull"; rm "$REPO_ROOT/pull"; fi\n'
         "run() { :; }; step() { :; }\n"
     )
     (repo / "Project").mkdir()
@@ -463,12 +466,14 @@ def installer(lib_env, tmp_path):
     env = {**os.environ, **lib_env, "RRR_PLAIN": "1"}
     env.pop("RRR_INSTALL_REEXEC", None)
 
-    def run(older, flags=FLAGS, extra_env=None):
+    def run(older, flags=FLAGS, extra_env=None, pull=""):
         if older:  # a checkout from before the checksum; its pull brings today's
             (repo / "install.sh").write_text(_older_install_sh())
             (repo / "install.sh.pulled").write_text(INSTALL.read_text())
+            pull = f'mv "$REPO_ROOT/install.sh.pulled" "$REPO_ROOT/install.sh"\n{pull}'
         else:
             (repo / "install.sh").write_text(INSTALL.read_text())
+        (repo / "pull").write_text(f"{pull}\n")
         done = subprocess.run(
             [BASH, str(repo / "install.sh"), *flags],
             capture_output=True,
@@ -477,21 +482,11 @@ def installer(lib_env, tmp_path):
         )
         return done.returncode, done.stdout + done.stderr
 
+    run.modules = modules
     return run
 
 
-@pytest.mark.parametrize(
-    ("flags", "restarted_with"),
-    [
-        (FLAGS, "flags: -y=1 --branch=main --skip=50-services RRR_INSTALL_REEXEC=1"),
-        ((), "flags: -y=0 --branch= --skip= RRR_INSTALL_REEXEC=1"),
-    ],
-    ids=["with-flags", "without-flags"],
-)
-def test_a_run_started_by_an_older_install_sh_restarts_once_from_the_updated_checkout(
-    installer, flags, restarted_with
-):
-    code, out = installer(older=True, flags=flags)
+def _restarted_once(code, out, restarted_with=FLAGS_RESTARTED):
     assert code == 0, out
     assert out.count(RESTART) == 1, out
     assert out.count("flags:") == 2, out  # the run, then its restart
@@ -499,6 +494,29 @@ def test_a_run_started_by_an_older_install_sh_restarts_once_from_the_updated_che
     # The restart comes before the module's own work, and only the restart finishes.
     assert out.count("blue-green layout:") == 1, out
     assert out.count("-- next steps --") == 1, out
+
+
+@pytest.mark.parametrize(
+    ("flags", "restarted_with"),
+    [
+        (FLAGS, FLAGS_RESTARTED),
+        ((), "flags: --dry-run=0 -y=0 --branch= --skip= RRR_INSTALL_REEXEC=1"),
+    ],
+    ids=["with-flags", "without-flags"],
+)
+def test_a_run_started_by_an_older_install_sh_restarts_once_from_the_updated_checkout(
+    installer, flags, restarted_with
+):
+    code, out = installer(older=True, flags=flags)
+    _restarted_once(code, out, restarted_with)
+
+
+def test_a_pull_that_changes_only_a_helper_restarts_the_installer(installer):
+    """As #186 did: the pull changed lib.sh and left install.sh as it was, so
+    this run recorded a sum and only the helper's text differs from it."""
+    (installer.modules / "lib.sh.pulled").write_text(LIB.read_text() + "# newer\n")
+    code, out = installer(older=False, pull='mv "$MODULE_DIR/lib.sh.pulled" "$MODULE_DIR/lib.sh"')
+    _restarted_once(code, out)
 
 
 @pytest.mark.parametrize(
