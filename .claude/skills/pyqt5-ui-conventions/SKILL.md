@@ -67,6 +67,12 @@ left_layout.addWidget(self.login_gate)
 The pattern is: connect `login_system.login_status_changed` →
 widget refresh. Don't poll `is_logged_in()`.
 
+Log Out has a gate of its own: Stop needs a login, so while a schedule runs
+`UserTab` greys Log Out out and `UserTab.logout` refuses (**Schedule
+running**), reading the `schedule_running` callable `gui.py` passes (the
+Run/Stop section's `job_in_progress`) whenever the operation lock's
+`state_changed` fires.
+
 ## Signal/slot conventions
 
 - **Signals are defined on the class**, not on instances. Use type hints
