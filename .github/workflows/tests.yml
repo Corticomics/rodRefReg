@@ -10,7 +10,9 @@ on:
 
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: that label moves to Ubuntu 26 from
+    # 2026-10-19 (actions/runner-images#14748). Move the pin on purpose.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +51,7 @@ jobs:
     # forms, newer stdlib behaviour) would pass CI and fail on a Pi. This job
     # rebuilds the device's stack in a Debian Bookworm container and runs the
     # same suite on it.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: debian:bookworm
     steps:
       - name: Install the device's apt stack
