@@ -485,6 +485,8 @@ def test_close_all_is_greyed_from_the_run_click_to_the_end_of_stop(
     for button in (panel.emergency_btn, panel.cage_close_btn):
         assert button.isEnabled() is False
         assert button.toolTip() == RUNNING_TIP
+    # Change Relay Hats is greyed at the click too, not once the queued start runs.
+    assert section.relay_hats_button.isEnabled() is False
     panel._on_emergency_stop_clicked()
     assert relays.trace == [] and dialogs == [_refusal("CLOSE ALL RELAYS")]
 
@@ -538,6 +540,38 @@ def test_a_run_refused_by_a_priming_session_leaves_close_all_available(
     assert panel.emergency_btn.isEnabled() is True
     panel._on_emergency_stop_clicked()  # still ends the priming session
     assert lock.is_busy() is False
+
+
+@pytest.mark.parametrize(
+    "start, dialog",
+    [
+        (MagicMock(return_value=False), ("warning", "Schedule not started")),
+        (MagicMock(side_effect=RuntimeError("no thread")), ("critical", "Error")),
+    ],
+    ids=["no worker started", "the start raised"],
+)
+def test_a_start_that_did_not_happen_leaves_close_all_available(
+    relays, lock, dialogs, monkeypatch, system_controller, database_handler, start, dialog
+):
+    """Every end of a job lowers the job flag before it lets go of the lock:
+    the panel reads the flag only when the lock's state_changed arrives, so a
+    release that came first would leave CLOSE ALL RELAYS greyed out with
+    nothing left to refresh it. Here _reset_run_button (the path of every
+    refusal, and of No, before the start) and _execute_program's except
+    branch."""
+    section = _real_section(system_controller, database_handler, lambda: StopResult(True, True))
+    section.run_program_callback = start  # main.run_program
+    panel = _settings_tab(system_controller, database_handler, section).priming_widget
+    _press_run(section, monkeypatch)
+    assert panel.emergency_btn.isEnabled() is False
+
+    section._execute_program(SimpleNamespace(name="AM water"), "Staggered", 0, 1)
+
+    assert [shown[:2] for shown in dialogs] == [dialog]
+    assert section.job_in_progress is False and lock.is_busy() is False
+    for button in (panel.emergency_btn, panel.cage_close_btn):
+        assert button.isEnabled() is True
+        assert button.toolTip() == ""
 
 
 @pytest.mark.parametrize(
@@ -597,6 +631,52 @@ def test_after_a_stop_that_latched_close_all_is_available_and_clears_the_latch(
 
     assert lock.is_busy() is False
     assert section.run_button.isEnabled() is True
+    assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
+
+
+@pytest.mark.parametrize(
+    "latch, title",
+    [("run", "Delivery Worker Did Not Stop"), ("stop", "Error")],
+    ids=["a run refused beside a live worker", "a stop that raised"],
+)
+def test_the_other_latches_leave_close_all_available_to_clear_them(
+    relays, lock, dialogs, monkeypatch, system_controller, database_handler, latch, title
+):
+    """The two other hand-overs to EMERGENCY lower the job flag first, as
+    Stop's does: a Run refused beside a live worker, and a Stop that raised,
+    so how it ended is not known. A hand-over that came first would leave
+    CLOSE ALL RELAYS, the control their dialog says to press, greyed out
+    under EMERGENCY with nothing left to refresh it: the hardware would stay
+    locked until a restart."""
+    from utils import updater  # noqa: PLC0415
+
+    alive = {"worker": latch == "run"}
+    monkeypatch.setattr(updater, "_busy_check", lambda: alive["worker"])
+
+    def _stop_raises():
+        raise RuntimeError("stop failed")
+
+    section = _real_section(system_controller, database_handler, _stop_raises)
+    section.run_program_callback = MagicMock(return_value=False)  # refused: the worker lives
+    panel = _settings_tab(system_controller, database_handler, section).priming_widget
+    _press_run(section, monkeypatch)
+    assert panel.emergency_btn.isEnabled() is False
+
+    if latch == "run":
+        section._execute_program(SimpleNamespace(name="AM water"), "Staggered", 0, 1)
+    else:
+        section.stop_program()
+
+    assert [shown[:2] for shown in dialogs] == [("critical", title)]
+    assert section.job_in_progress is False and lock.held_by("emergency")
+    for button in (panel.emergency_btn, panel.cage_close_btn):
+        assert button.isEnabled() is True
+        assert button.toolTip() == ""
+
+    alive["worker"] = False  # the worker has exited
+    panel._on_emergency_stop_clicked()
+
+    assert lock.is_busy() is False
     assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
 
 
