@@ -915,10 +915,10 @@ class PrimingControlWidget(QWidget):
         the lock does, so it is checked after the Close controls.
         """
         running = self._schedule_running()
-        tip = self._SCHEDULE_RUNNING_TOOLTIP if running else ""
+        close_tip = self._SCHEDULE_RUNNING_TOOLTIP if running else ""
         self.emergency_btn.setEnabled(not running)
-        self.emergency_btn.setToolTip(tip)
-        self.cage_close_btn.setToolTip(tip)
+        self.emergency_btn.setToolTip(close_tip)
+        self.cage_close_btn.setToolTip(close_tip)
         self._update_cage_button_states()
         if self._topology_changed_since_start():
             for button in (self.master_open_btn, self.cage_open_btn):
