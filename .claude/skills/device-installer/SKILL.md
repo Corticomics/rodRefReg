@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/Corticomics/rodRefReg/main/bootstra
 | 00 | [`00-preflight.sh`](scripts/install/00-preflight.sh) | OS = Bookworm check, arch, disk space, network |
 | 10 | [`10-apt.sh`](scripts/install/10-apt.sh) | `apt install` PyQt5, pandas, numpy, RPi.GPIO, etc. |
 | 20 | [`20-repo.sh`](scripts/install/20-repo.sh) | Sync the checkout to the requested branch (never auto-stashes) |
-| 25 | [`25-layout.sh`](scripts/install/25-layout.sh) | Build the blue-green tree under `~/rrr/` |
+| 25 | [`25-layout.sh`](scripts/install/25-layout.sh) | Restart the installer once if 20's pull changed it; build the blue-green tree under `~/rrr/` |
 | 30 | [`30-python.sh`](scripts/install/30-python.sh) | `venv --system-site-packages` + `pip install -r requirements.txt` |
 | 40 | [`40-hardware.sh`](scripts/install/40-hardware.sh) | Enable I²C, install SM16relind driver, install udev rule for `/dev/teensy_flow` |
 | 50 | [`50-services.sh`](scripts/install/50-services.sh) | Launcher at `~/.local/bin/rrr`, desktop entry, optional systemd `--user` unit |

@@ -44,6 +44,11 @@ git checkout.
 [`scripts/install/25-layout.sh`](scripts/install/25-layout.sh) — build
 the blue-green `~/rrr/` tree.
 
+- First restarts the installer, once, when 20-repo's pull changed the
+  text or the name of `install.sh` or any `scripts/install/*.sh`: the
+  running installer still has the old `lib.sh` and module list. Keep the
+  check as this module's first statement; a module placed between 20 and
+  25 runs before it.
 - Creates `~/rrr/releases/v<__version__>/` and rsync's the working
   checkout into it.
 - Atomically repoints `~/rrr/current` to the new release (and `previous`
