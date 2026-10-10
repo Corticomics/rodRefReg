@@ -7,11 +7,12 @@ Line references are to f36d5223 (v1.21.0) unless stated. Companion to
 [MAINTENANCE.md](MAINTENANCE.md) (releases).
 
 This doc records the v2.0.0 design: Stop becomes the only way to end a
-running schedule, every run is recorded per animal, and the Animals tab
-shows each animal's last run. It lands before the code, so the owner and
-every code PR's reviewers see the contract and the version decision first.
-A code PR that refines a contract here updates its section in the same PR;
-the docs PR (PR 13) reconciles the rest and sets the Status line.
+running schedule, every run that starts delivering is recorded per animal,
+and the Animals tab shows each animal's last run. It lands before the code,
+so the owner and every code PR's reviewers see the contract and the version
+decision first. A code PR that refines a contract here updates its section
+in the same PR; the docs PR (PR 13) reconciles the rest and sets the Status
+line.
 
 ---
 
@@ -53,7 +54,7 @@ reused, and the delivery and Stop hot paths kept simple and cheap (§5):
 ## 3. Decisions
 
 The owner's answers of 2026-10-09 to the approved plan's 13 questions,
-verbatim, and the decisions D1–D12 the PRs implement:
+verbatim apart from typo fixes, and the decisions D1–D12 the PRs implement:
 
 | Q | Question | Answer | Decision |
 |---|---|---|---|
@@ -225,7 +226,7 @@ RELAYS' safety duties.
 | | Change | Fixes |
 |---|---|---|
 | S1 | Cancel the worker right after the first all-off, before the dialog pumps events | a pulse starting after the all-off |
-| S2 | All relays off again after the teardown (when a worker or thread existed); that last command decides "confirmed off" | `cleanup()`'s later all-off is only printed (`main.py:462`) |
+| S2 | All relays off again after the teardown (when a worker or thread existed); that last command decides "confirmed off" | `cleanup()` switches the relays off again later, but its result is only printed (`main.py:462`) |
 | S3 | The latch: when `not result.safe`, SCHEDULE passes to EMERGENCY in one step (`OperationLock.hold_until_safe`), before `reset_ui` and any dialog. Run, Change Relay Hats, priming, calibration and topology changes stay refused until a confirmed CLOSE ALL RELAYS or a restart | `reset_ui` releasing the lock regardless |
 | S4 | One dialog: **Relays Not Confirmed Off** or **Delivery Worker Did Not Stop** | two dialogs, or none |
 | S5 | Run refuses beside a live worker thread, keeps its reference and latches (**Delivery Worker Did Not Stop**); another failed start says **Schedule not started**; `main.cleanup` keeps a running thread | dropping a running QThread |
@@ -260,12 +261,13 @@ staggered run waiting for its window, to the end of the run or of Stop.
 | Stale SCHEDULE hold | False | SCHEDULE | enabled (force-release failsafe) | enabled |
 
 - **Two layers** (`operation_lock.py:19-23`): greyed with the tooltip "A
-  schedule is running: press Stop to end it", and refused first thing in
-  each handler (**Schedule running**). The predicate,
-  `RunStopSection.job_in_progress`, replaces `PrimingControlWidget`'s
-  `stop_schedule` (as `schedule_running`) and reaches `UserTab`
-  (`gui.py:182`); PR 3 sets it **before** `try_acquire(SCHEDULE)`. Stop
-  needs a login (`run_stop_section.py:233`), hence D3.
+  schedule is running: press Stop to end it" (Log Out's adds ", then log
+  out"), and refused first thing in each handler (**Schedule running**).
+  The predicate, `RunStopSection.job_in_progress`, replaces
+  `PrimingControlWidget`'s `stop_schedule` (as `schedule_running`) and
+  reaches `UserTab` (`gui.py:182`); PR 3 sets it **before**
+  `try_acquire(SCHEDULE)`. Stop needs a login (`run_stop_section.py:233`),
+  hence D3.
 - **CLOSE ALL RELAYS no longer stops a schedule;** its all-off, fresh
   handler, latch and failsafe stay, and Close Master is unchanged. The
   `[VALVE CRITICAL]` alarms end "Check the rig; the Stop button switches
@@ -441,8 +443,10 @@ scheduled"), and says to create a new schedule for the remaining amount.
 | T | Tag `v2.0.0` on the validated SHA, at the owner's go | — | — |
 | later | Palette B | its own series | **2.1.0**, merged after the tag |
 
-- **PR 3 never merges before PR 2** (the latch and the second all-off). A
-  partial train is never tagged; the smallest safe release is PRs 1–4.
+- **PR 3 never merges before PR 2** (the latch and the second all-off),
+  and is never tagged without it. The train is tagged whole; if it must be
+  cut short, the smallest safe release is PRs 1–4 plus their notes (still
+  2.0.0, MAJOR), and PRs 5–11 then follow as 2.1.0, palette B as 2.2.0.
 - **One bump per release:** only PR 2 edits `version.py`; the other PRs add
   their lines under `## 2.0.0`, as v1.21.0's train did. PR 1 writes this
   into MAINTENANCE §3a. A code fix found while validating the merged
