@@ -176,6 +176,10 @@ git checkout -b <type>/<short-slug>          # e.g. fix/calibration-csv-export
 # 3. make your code changes; commit incrementally if useful
 
 # 4. bump the version — ALWAYS for a release-bound change
+#    A release built from several PRs takes one bump: the first release-bound
+#    PR sets the version, at the highest level the release needs, and opens
+#    its CHANGELOG entry; the release's other PRs add their lines under it.
+#    A code fix found while validating the merged release follows §3b.
 $EDITOR Project/version.py                   # SemVer per §2
 
 # 4b. add the release to CHANGELOG.md (newest first), as "## <version> — …".
