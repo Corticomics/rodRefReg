@@ -247,7 +247,7 @@ def run_path(qapp, database_handler, system_controller, monkeypatch):
     )
     started = []
     section = RunStopSection(
-        lambda *args: started.append(args),
+        lambda *args: started.append(args) or True,  # main.run_program: started
         MagicMock(),
         MagicMock(),
         system_controller=system_controller,

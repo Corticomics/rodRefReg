@@ -214,6 +214,11 @@ def setup():
 # run_program() – create a new worker and thread and start it.
 # =============================================================================
 def run_program(schedule, mode, window_start, window_end):
+    """Start ``schedule`` on a new worker thread.
+
+    Returns True once the thread has started, False when RRR refused (the
+    previous schedule's worker thread is still running) or failed to start it.
+    """
     global thread, worker, notification_handler, controller, system_controller, database_handler
     try:
         print("\nDEBUG - run_program:")
@@ -297,7 +302,9 @@ def run_program(schedule, mode, window_start, window_end):
         print(f"Desired outputs: {worker_settings.get('desired_water_outputs')}")
         print(f"Relay assignments: {worker_settings.get('relay_unit_assignments')}\n")
 
-        # Cleanup any previous thread/worker safely
+        # Cleanup any previous thread/worker safely. A previous worker thread
+        # that is still running is never dropped: it may still open a valve,
+        # and losing the last reference to a running QThread can abort RRR.
         global thread, worker
         if thread is not None:
             try:
@@ -306,6 +313,12 @@ def run_program(schedule, mode, window_start, window_end):
                     if thread.isRunning():
                         thread.quit()
                         thread.wait(5000)  # 5 second timeout
+                        if thread.isRunning():
+                            print(
+                                "[RUN] Refused: the previous schedule's delivery worker "
+                                "is still running"
+                            )
+                            return False
             except RuntimeError:
                 # Thread was already deleted, ignore
                 pass
@@ -432,12 +445,14 @@ def run_program(schedule, mode, window_start, window_end):
         thread.start()
 
         print("Program Started")
+        return True
     except Exception as e:
         print(f"Failed to run program: {e}")
         if notification_handler:
             notification_handler.send_slack_notification(
                 f"[RRR v{__version__}] Program error: {e}"
             )
+        return False
 
 
 # =============================================================================
@@ -468,16 +483,25 @@ def cleanup():
         worker = None
 
         # Safely handle thread cleanup
+        still_running = False
         if thread is not None:
             try:
                 if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
                     if thread.isRunning():
                         thread.quit()
                         thread.wait(5000)
+                        still_running = thread.isRunning()
             except RuntimeError:
                 # Thread was already deleted
                 pass
-        thread = None
+        if still_running:
+            # Never drop a running QThread: losing the last reference to it
+            # can abort RRR. Kept, it still counts as a running schedule
+            # (_schedule_is_running), so Run, an update and quitting stay
+            # refused while it may open a valve.
+            print("[CLEANUP] The delivery worker thread is still running; keeping it")
+        else:
+            thread = None
 
         # Reset the UI (only once)
         if gui and hasattr(gui, 'run_stop_section'):

@@ -5,17 +5,21 @@ sequence reported: with a relay HAT that did not confirm OFF, or a delivery
 worker thread abandoned still running, Run, priming and calibration were
 available again at once. It showed two dialogs for unconfirmed relays
 (Relays Not Confirmed Off, then a vague Warning) and none for a worker that
-did not stop.
+did not stop. Run could then start a second worker beside one still running,
+and a Stop pressed while Run was still "Starting..." let the start go ahead.
 
 Now the hold passes to EMERGENCY until CLOSE ALL RELAYS confirms every relay
 off (or RRR restarts), and one dialog says what happened and what to do. A
 Stop that never reached the stop sequence leaves the job and Stop available.
+Run refuses to start beside a live worker, and holds the hardware the same
+way; a Stop cancels a start Run has queued.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -315,6 +319,162 @@ def test_a_failure_before_the_stop_callback_keeps_the_job_and_stop(
     assert section.stop_button.text() == "Stop"
 
 
+# --- Run when no worker could be started ------------------------------------------------
+
+
+NOT_STARTED = (
+    "warning",
+    "Schedule not started",
+    "This schedule was not started. RRR could not start its delivery worker; the Terminal tab "
+    "shows why. Press Run to try again.",
+)
+WORKER_AT_RUN_TEXT = (
+    "The previous schedule's delivery worker has not stopped and may open a valve again, so "
+    "this schedule was not started.\n\nRun, priming and calibration stay unavailable while it "
+    "may still run. Wait a few seconds, then press CLOSE ALL RELAYS in Settings > Priming. If "
+    "it says the worker has still not stopped, disconnect the valve power supply and restart "
+    "the Raspberry Pi (RRR will not quit while that worker is alive)."
+)
+
+
+def test_a_run_that_did_not_start_is_not_shown_running(
+    lock, dialogs, system_controller, database_handler
+):
+    run = MagicMock(return_value=False)
+    section = _section(system_controller, database_handler, run=run)
+    _running(section, lock)
+
+    section._execute_program(SimpleNamespace(name="t"), "Staggered", 0.0, 1.0)
+
+    run.assert_called_once()
+    assert dialogs == [NOT_STARTED]
+    assert section.run_button.text() == "Run"
+    assert section.job_in_progress is False
+    assert lock.is_busy() is False
+
+
+def test_a_run_that_started_shows_running(lock, dialogs, system_controller, database_handler):
+    section = _section(system_controller, database_handler)
+    _running(section, lock)
+
+    section._execute_program(SimpleNamespace(name="t"), "Staggered", 0.0, 1.0)
+
+    assert dialogs == []
+    assert section.run_button.text() == "Running"
+    assert lock.held_by("schedule")
+
+
+def test_a_run_refused_beside_a_live_worker_latches_and_says_so(
+    lock, monkeypatch, system_controller, database_handler
+):
+    """main.run_program refuses while the previous schedule's worker thread
+    is alive. That worker may still open a valve, so the hardware is held as
+    after a Stop that could not end it, not freed for priming and
+    calibration; and held before the dialog opens."""
+    from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
+    from utils import updater  # noqa: PLC0415
+
+    monkeypatch.setattr(updater, "_busy_check", lambda: True)  # the old thread is alive
+    opened = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "critical",
+        staticmethod(lambda *a, **k: opened.append((a[1], a[2], lock.active_operation()))),
+    )
+    section = _section(system_controller, database_handler, run=MagicMock(return_value=False))
+    _running(section, lock)
+
+    section._execute_program(SimpleNamespace(name="t"), "Staggered", 0.0, 1.0)
+
+    assert opened == [("Delivery Worker Did Not Stop", WORKER_AT_RUN_TEXT, "emergency")]
+    assert lock.held_by("emergency")
+    assert section.job_in_progress is False
+    assert section.run_button.text() == "Run"
+    assert section.run_button.isEnabled() is False
+    assert section.run_button.toolTip() == (
+        "Unavailable while an unconfirmed emergency stop is in progress"
+    )
+    assert lock.try_acquire("priming") is False and lock.try_acquire("calibration") is False
+
+
+# --- Stop while Run is still "Starting..." ------------------------------------------------
+
+
+def _load_a_schedule(section, monkeypatch, database_handler):
+    """A staggered schedule an hour ahead in the queue, ready to start (the
+    calibration gate is test_calibration_gate.py's)."""
+    now = datetime.now()
+    section.schedule_drop_area.current_schedule = SimpleNamespace(
+        name="t",
+        schedule_id=1,
+        delivery_mode="staggered",
+        water_volume=0.6,
+        animals=[1],
+        relay_unit_assignments={"1": 1},
+        desired_water_outputs={"1": 0.6},
+        start_time=(now + timedelta(hours=1)).isoformat(),
+        end_time=(now + timedelta(hours=2)).isoformat(),
+    )
+    monkeypatch.setattr(
+        database_handler, "get_schedule_staggered_windows", lambda _sid: [{"window": 1}]
+    )
+    monkeypatch.setattr(section, "_passes_calibration_gate", lambda *_a: True)
+    monkeypatch.setattr(section, "show_progress_tracker", lambda _schedule: None)
+
+
+def test_run_starts_the_schedule_it_queued(
+    lock, dialogs, monkeypatch, system_controller, database_handler
+):
+    """Unchanged: with no Stop, the start Run queues goes ahead."""
+    from PyQt5.QtWidgets import QApplication  # noqa: PLC0415
+
+    run = MagicMock(return_value=True)
+    section = _section(system_controller, database_handler, run=run)
+    _load_a_schedule(section, monkeypatch, database_handler)
+
+    section.run_program()
+    QApplication.processEvents()
+
+    run.assert_called_once()
+    assert dialogs == []
+    assert section.run_button.text() == "Running"
+    assert lock.held_by("schedule")
+
+
+@pytest.mark.parametrize("when", ["before", "inside"])
+def test_a_stop_during_starting_cancels_the_start(
+    lock, dialogs, monkeypatch, capsys, system_controller, database_handler, when
+):
+    """Run queues the start; a Stop pressed before it runs cancels it. That
+    includes a start run inside the Stop: the Stopping dialog pumps events,
+    and job_in_progress is still True in there. Started anyway, the worker
+    would run with the lock free and Stop greyed, and nothing could end it."""
+    from PyQt5.QtWidgets import QApplication  # noqa: PLC0415
+
+    def stop():
+        if when == "inside":
+            QApplication.processEvents()  # as main._show_stopping_dialog does
+        return StopResult(True, True)
+
+    run = MagicMock(return_value=True)
+    section = _section(system_controller, database_handler, stop=stop, run=run)
+    _load_a_schedule(section, monkeypatch, database_handler)
+
+    section.run_program()  # the Run click: job, lock, the start queued
+    assert section.job_in_progress is True and lock.held_by("schedule")
+    section.stop_program()  # dispatched before the queued start
+    QApplication.processEvents()
+
+    run.assert_not_called()
+    assert lock.is_busy() is False
+    assert section.job_in_progress is False
+    assert section.run_button.text() == "Run"
+    assert (
+        "[RUN] Start cancelled: Stop was pressed before the schedule started"
+        in capsys.readouterr().out
+    )
+
+
 # --- the latch, as the Settings tab explains it -------------------------------------------
 
 
@@ -364,7 +524,7 @@ def test_a_hardware_change_refused_under_the_latch_names_close_all(
     ), "unchanged for an operation that ends by itself"
 
 
-# --- through main.stop_program -------------------------------------------------------------
+# --- through main.run_program, main.cleanup and main.stop_program --------------------------
 
 
 @pytest.fixture
@@ -377,6 +537,72 @@ def main_module(monkeypatch):
     monkeypatch.setattr(main, "controller", SimpleNamespace(pump_controller=None), raising=False)
     monkeypatch.setattr(main, "notification_handler", None, raising=False)
     return main
+
+
+def _staggered():
+    return SimpleNamespace(
+        name="t",
+        schedule_id=1,
+        water_volume=0.6,
+        relay_unit_assignments={"1": 1},
+        desired_water_outputs={"1": 0.6},
+    )
+
+
+def test_run_program_refuses_while_the_previous_worker_thread_runs(
+    main_module, monkeypatch, capsys
+):
+    alive = MagicMock()
+    alive.isRunning.return_value = True
+    alive.wait.return_value = False
+    old_worker = object()
+    monkeypatch.setattr(main_module, "thread", alive)
+    monkeypatch.setattr(main_module, "worker", old_worker)
+
+    assert main_module.run_program(_staggered(), "Staggered", 0.0, 1.0) is False
+
+    alive.wait.assert_called_once_with(5000)
+    assert main_module.thread is alive, "a running QThread is never dropped"
+    assert main_module.worker is old_worker
+    assert (
+        "[RUN] Refused: the previous schedule's delivery worker is still running"
+        in capsys.readouterr().out
+    )
+
+
+def test_run_program_reports_a_failed_start(main_module, monkeypatch):
+    """system_controller must be a QObject: the start fails, and says so."""
+    monkeypatch.setattr(main_module, "thread", None)
+    monkeypatch.setattr(main_module, "worker", None)
+
+    assert main_module.run_program(_staggered(), "Staggered", 0.0, 1.0) is False
+
+
+def test_cleanup_keeps_a_thread_that_is_still_running(main_module, monkeypatch, capsys):
+    """Dropping the last reference to a running QThread can abort RRR, and
+    without it _schedule_is_running() reports idle beside a live worker:
+    Run, an update and quitting would no longer be refused."""
+    alive = MagicMock()
+    alive.isRunning.return_value = True
+    alive.wait.return_value = False
+    monkeypatch.setattr(main_module, "thread", alive)
+    monkeypatch.setattr(main_module, "worker", None)
+    monkeypatch.setattr(main_module, "relay_handler", None, raising=False)
+    monkeypatch.setattr(main_module, "gui", None, raising=False)
+
+    main_module.cleanup()
+
+    alive.wait.assert_called_once_with(5000)
+    assert main_module.thread is alive
+    assert main_module._schedule_is_running() is True
+    assert (
+        "[CLEANUP] The delivery worker thread is still running; keeping it"
+        in capsys.readouterr().out
+    )
+
+    alive.isRunning.return_value = False  # it has exited: the next cleanup lets it go
+    main_module.cleanup()
+    assert main_module.thread is None
 
 
 def test_stop_program_passes_the_result_on(main_module, monkeypatch):

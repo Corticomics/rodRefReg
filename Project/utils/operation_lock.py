@@ -29,8 +29,10 @@ A fourth holder, ``EMERGENCY``, is not an operation. The Stop button and
 Priming's CLOSE ALL RELAYS take it (:meth:`OperationLock.hold_until_safe`) when
 they could not confirm every relay off, or a delivery worker did not stop, so
 no operation can start onto a valve that may be open. Stop hands the
-schedule's hold over to it; CLOSE ALL RELAYS takes it when nothing else holds
-the lock. A later confirmed CLOSE ALL RELAYS, or a restart, clears it.
+schedule's hold over to it, as Run does when it refuses to start beside a
+delivery worker that is still running; CLOSE ALL RELAYS takes it when nothing
+else holds the lock. A later confirmed CLOSE ALL RELAYS, or a restart, clears
+it.
 """
 
 from __future__ import annotations
@@ -105,10 +107,10 @@ class OperationLock(QObject):
         safe: every relay off, and no delivery worker left running.
 
         A free lock is taken for ``EMERGENCY``, and a hold by ``handing_over``
-        (the Stop button passes ``SCHEDULE``) becomes ``EMERGENCY`` in one
-        step, so the lock is never free in between. Any other holder keeps
-        it. Only a confirmed CLOSE ALL RELAYS (:meth:`force_release`), or a
-        restart, clears ``EMERGENCY``.
+        (Stop, and a Run refused beside a live worker, pass ``SCHEDULE``)
+        becomes ``EMERGENCY`` in one step, so the lock is never free in
+        between. Any other holder keeps it. Only a confirmed CLOSE ALL RELAYS
+        (:meth:`force_release`), or a restart, clears ``EMERGENCY``.
         """
         changed = False
         with self._mutex:
