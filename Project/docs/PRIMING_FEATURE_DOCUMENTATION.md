@@ -97,7 +97,7 @@ Project/gpio/
 priming_widget = PrimingControlWidget(
     settings=self.settings,                      # Injected configuration
     print_callback=self.print_to_terminal,       # Injected logging
-    stop_schedule=self._stop_running_schedule,   # Stops a running schedule the way Stop does
+    schedule_running=self._schedule_running,     # Close controls greyed out while a schedule runs
 )
 ```
 
@@ -159,7 +159,7 @@ self.priming_control = PrimingControlWidget(...)
 - **Graceful degradation**: UI remains functional even if hardware fails
 - **User feedback**: Clear error messages via QMessageBox
 - **Logging**: All operations logged for debugging
-- **Fail-safe**: Emergency stop always accessible
+- **Fail-safe**: Emergency stop available whenever no schedule runs (Stop ends a schedule)
 
 ---
 
@@ -204,7 +204,7 @@ reset() -> None
 
 **Public API**:
 ```python
-__init__(settings: Dict, print_callback=None, stop_schedule=None)
+__init__(settings: Dict, print_callback=None, schedule_running=None)
 cleanup() -> None  # Call when widget is destroyed
 ```
 
@@ -228,7 +228,7 @@ def _create_priming_control(self):
     priming_widget = PrimingControlWidget(
         settings=self.settings,
         print_callback=self.print_to_terminal,
-        stop_schedule=self._stop_running_schedule,
+        schedule_running=self._schedule_running,
     )
     priming_widget.status_message.connect(self.print_to_terminal)
     return priming_widget
@@ -304,11 +304,11 @@ change itself is refused while a priming session is open, so no valve can
 be left open across it.
 
 #### 3. **Emergency Stop**
-- Click **"CLOSE ALL RELAYS"** at any time
+- Click **"CLOSE ALL RELAYS"** whenever no schedule is running. From **Run** to the end of the run or of **Stop**, it and **Close Selected** are greyed out with the tooltip *"A schedule is running: press Stop to end it"*, and a click is refused (*Schedule running*): **Stop** ends a schedule
 - Switches every relay on every HAT off: the master, where there is one, and every cage valve
-- Stops a running schedule the way the **Stop** button does, then switches the relays off once more. The message then reads *All relays have been closed. The running schedule was stopped.* The schedule does not resume: animals it had not finished watering get no more water from it, and **Run** starts it over (staggered: every animal's whole dose again; instant: delivery times that have passed are skipped), so check what each animal has received before running it again
 - If a HAT does not confirm the command, **Emergency Stop Failed** appears instead of *All relays have been closed*: disconnect the valve power supply, then check the relay HAT and its I²C connection. The panel keeps showing what may be open, and Run and calibration stay unavailable until a later **CLOSE ALL RELAYS** is confirmed or RRR is closed and reopened
-- Use if unexpected behavior occurs
+- After a **Stop** that could not confirm every relay off, or whose delivery worker did not stop, Run and calibration stay unavailable (*an unconfirmed emergency stop*) until a **CLOSE ALL RELAYS** is confirmed: press it once the relay HAT answers
+- Use if unexpected behavior occurs while no schedule runs
 
 ### Safety Features
 
@@ -323,8 +323,8 @@ be left open across it.
    - A cage valve that does not confirm closed is named in a *Hardware Error*; the master is still closed to cut its supply, and the priming session stays open until that valve is closed: use **Close Selected** or **CLOSE ALL RELAYS**, and cut the valve power if water still flows
 
 3. **Emergency Stop**
-   - Direct hardware call first (bypasses software layers), then stops a running schedule and switches the relays off once more
-   - Always accessible regardless of state
+   - Direct hardware call first (bypasses software layers)
+   - Available whenever no schedule runs; greyed out and refused while one does (Stop ends a schedule)
    - Frees the hardware lock only when every relay is confirmed off and nothing that can open a valve is still running
 
 4. **Visual Feedback**
@@ -360,13 +360,13 @@ be left open across it.
 #### Constructor
 
 ```python
-PrimingControlWidget(settings: Dict, print_callback=None, stop_schedule=None)
+PrimingControlWidget(settings: Dict, print_callback=None, schedule_running=None)
 ```
 
 **Parameters**:
 - `settings`: System settings dict from SystemController
 - `print_callback`: Optional logging function (e.g., `print_to_terminal`)
-- `stop_schedule`: Optional callable that stops a running schedule the way the Stop button does and returns True if one was running; CLOSE ALL RELAYS calls it
+- `schedule_running`: Optional callable, True while a schedule run is in progress (Settings passes the Run/Stop section's job flag, from the Run click to the end of the run or of Stop). CLOSE ALL RELAYS and Close Selected are greyed out and refused then. Without it, a schedule that holds the hardware lock counts as running
 
 #### Methods
 
@@ -389,9 +389,10 @@ PrimingControlWidget(settings: Dict, print_callback=None, stop_schedule=None)
 
 **Test files** (unit, no hardware; run with `pytest`):
 
-- `Project/tests/unit/test_operation_gating.py`: priming takes and releases the hardware lock, and is refused, with its Open buttons greyed out, while a schedule holds it
-- `Project/tests/unit/test_relay_write_failures.py`: an unconfirmed CLOSE ALL RELAYS says to cut the power and keeps the priming session; Close Master closes the master even when a cage did not close
-- `Project/tests/unit/test_emergency_stop.py`: CLOSE ALL RELAYS stops a running schedule and frees the hardware lock only when every relay is confirmed off and nothing is still running
+- `Project/tests/unit/test_operation_gating.py`: priming takes and releases the hardware lock, and is refused, with its Open buttons greyed out, while a schedule holds it; CLOSE ALL RELAYS and Close Selected follow the Run/Stop job flag, not the lock holder, and Close Master is out of reach during a run
+- `Project/tests/unit/test_relay_write_failures.py`: an unconfirmed CLOSE ALL RELAYS says to cut the power and keeps the priming session; Close Master closes the master even when a cage did not close; the `[VALVE CRITICAL]` alarms name the Stop button
+- `Project/tests/unit/test_emergency_stop.py`: CLOSE ALL RELAYS and Close Selected are greyed out and refused from Run to the end of the run or of Stop; at other times CLOSE ALL RELAYS frees the hardware lock only when every relay is confirmed off and nothing is still running, including the hold an unconfirmed Stop takes
+- `Project/tests/unit/test_danger_button_disabled_qss.py`: a greyed-out CLOSE ALL RELAYS looks greyed out in both themes
 - `Project/tests/unit/test_settings_tab_valve_topology.py`: after a topology change in Settings, neither a shared nor an independent panel opens a valve until restart
 - `Project/tests/unit/test_topology_construction_sites.py`: the panel builds the shared or the independent controller for its topology
 
@@ -405,7 +406,7 @@ There is no hardware integration test; use the manual checklist below on a rig.
 - [ ] Independent topology: no Master Solenoid Control group, a cage opens directly, and the daily syringe-line reminder shows
 - [ ] Confirming a topology change in Settings restarts RRR, and Priming then shows the controls for the new topology (no master group on independent)
 - [ ] Where RRR cannot restart itself, Open Master and Open Selected stay greyed out until RRR is closed and reopened; Close and CLOSE ALL RELAYS still work
-- [ ] Emergency stop closes all relays; pressed while a schedule runs it stops the schedule (Run comes back, no valve opens afterwards); with the relay HAT disconnected (power the Pi and the valve supply off to disconnect it, then start RRR) it shows **Emergency Stop Failed** and Run stays greyed out
+- [ ] CLOSE ALL RELAYS and Close Selected are greyed out from Run to the end of the run or of Stop (tooltip *A schedule is running: press Stop to end it*) and live again afterwards; outside a run CLOSE ALL RELAYS closes all relays; with the relay HAT disconnected (power the Pi and the valve supply off to disconnect it, then start RRR) it shows **Emergency Stop Failed** and Run stays greyed out
 - [ ] The main Terminal tab shows timestamped `[Priming HH:MM:SS]` messages
       when a valve is opened or closed and on emergency stop
 - [ ] Button states update correctly
@@ -440,8 +441,9 @@ open. Before v1.21.0 the panel said "All relays have been closed" regardless.
 - Run and calibration stay unavailable until **CLOSE ALL RELAYS** is
   confirmed: press it again once the HAT answers, or close and reopen RRR. An
   open priming session stays open, and closing its valves does not free the
-  hardware (the tooltip then names *an unconfirmed emergency stop*). A
-  schedule that was running has been stopped
+  hardware (the tooltip then names *an unconfirmed emergency stop*). The
+  same hold follows a **Stop** that could not confirm every relay off:
+  press **CLOSE ALL RELAYS** once the HAT answers
 
 #### 2. **"Master solenoid must be open before opening cage relays"**
 
@@ -467,7 +469,7 @@ RRR fills in the default map.
 - **Hardware**: Check 12V power supply to relay HAT
 - **Software**: Verify `SM16relind` library installed
 - **Permissions**: Ensure user in `dialout` and `i2c` groups
-- **Emergency**: Use "CLOSE ALL RELAYS" to reset hardware state
+- **Emergency**: during a schedule press **Stop**; otherwise use "CLOSE ALL RELAYS" to reset hardware state
 
 #### 5. **Widget not appearing in Settings**
 

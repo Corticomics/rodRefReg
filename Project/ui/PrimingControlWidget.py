@@ -31,6 +31,7 @@ from PyQt5.QtWidgets import (
 )
 from utils.operation_lock import (
     CALIBRATION,
+    EMERGENCY,
     PRIMING,
     SCHEDULE,
     get_operation_lock,
@@ -138,24 +139,26 @@ class PrimingControlWidget(QWidget):
     # Signals for parent widget integration
     status_message = pyqtSignal(str)  # For logging to parent terminal
 
-    def __init__(self, settings: Dict, print_callback=None, stop_schedule=None):
+    def __init__(self, settings: Dict, print_callback=None, schedule_running=None):
         """
         Initialize priming control widget.
 
         Args:
             settings: System settings dictionary from SystemController
             print_callback: Optional callback for status messages (e.g., print_to_terminal)
-            stop_schedule: Optional callable that stops a running schedule the
-                way the Stop button does and returns True if one was running.
-                CLOSE ALL RELAYS calls it: a schedule left running opens its
-                valves again at its next pulse.
+            schedule_running: Optional callable, True while a schedule run is
+                in progress: from the Run click to the end of the run or of
+                Stop (Settings passes the Run/Stop section's job flag). CLOSE
+                ALL RELAYS and Close Selected are unavailable then: Stop ends
+                a schedule. Without it, a schedule that holds the hardware
+                lock counts as running.
         """
         super().__init__()
 
         # Store settings and callback
         self.settings = settings
         self._print_callback = print_callback or (lambda x: None)
-        self._stop_schedule = stop_schedule
+        self._schedule_running = schedule_running or self._schedule_holds_the_lock
 
         # Valve topology: on the independent topology there is no master
         # valve, so the master controls are hidden, a cage valve is primed
@@ -182,7 +185,8 @@ class PrimingControlWidget(QWidget):
         self._model.cage_state_changed.connect(self._on_cage_state_changed)
 
         # Grey out the Open controls when another hardware operation (schedule
-        # or calibration) holds the lock; refresh on every lock state change.
+        # or calibration) holds the lock, and the Close controls while a
+        # schedule runs; refresh on every lock state change.
         get_operation_lock().state_changed.connect(self._refresh_lock_state)
         self._refresh_lock_state()
 
@@ -339,8 +343,8 @@ class PrimingControlWidget(QWidget):
     def _get_relay_handler(self, quiet=False):
         """Lazy initialization of relay handler (Dependency Injection pattern).
 
-        ``quiet`` skips the error dialog: the emergency stop must not wait
-        behind one before it stops the schedule.
+        ``quiet`` skips the error dialog: the emergency stop says in its own
+        dialog that the relays could not be confirmed off.
         """
         self._drop_stale_hardware()
         if self._relay_handler is None:
@@ -658,6 +662,8 @@ class PrimingControlWidget(QWidget):
 
     def _on_close_cage_clicked(self):
         """Handle cage close button click."""
+        if self._refused_while_a_schedule_runs("Close Selected"):
+            return
         try:
             controller = self._get_solenoid_controller()
             if not controller:
@@ -684,39 +690,34 @@ class PrimingControlWidget(QWidget):
     def _on_emergency_stop_clicked(self):
         """Handle emergency stop button click.
 
-        Switches every relay off, stops a running schedule (left running, it
-        would open its valves again at its next pulse), then switches the
-        relays off once more. The operation lock is cleared only when every
-        relay is confirmed off and nothing that can open a valve is still
-        running. Otherwise the hardware stays locked: whoever holds the lock
-        keeps it, and when nobody does the panel takes it (EMERGENCY), until
-        a later press is confirmed or RRR is restarted.
+        Switches every relay off and ends the priming session. Unavailable
+        while a schedule runs: Stop ends a schedule. The operation lock is
+        cleared only when every relay is confirmed off and nothing that can
+        open a valve is still running. Otherwise the hardware stays locked:
+        whoever holds the lock keeps it, and when nobody does the panel takes
+        it (EMERGENCY), until a later press is confirmed or RRR is restarted.
         """
+        if self._refused_while_a_schedule_runs("CLOSE ALL RELAYS"):
+            return
         try:
-            if self._stop_unconfirmed:
-                # The last press could not confirm every relay off. A HAT
-                # that did not answer when this panel's handler was built
-                # has no slot in it, so a HAT reseated since would never be
-                # found: build a fresh handler for this press.
+            lock = get_operation_lock()
+            if self._stop_unconfirmed or lock.held_by(EMERGENCY):
+                # The last press, or a Stop, could not confirm every relay
+                # off. A HAT that did not answer when this panel's handler
+                # was built has no slot in it, so a HAT reseated since would
+                # never be found: build a fresh handler for this press.
                 self._relay_handler = None
                 self._solenoid_controller = None
-            # Built without a dialog: a panel that cannot reach the relays
-            # must still stop the schedule, which has a handler of its own.
+            # Built without a dialog: Emergency Stop Failed below says what
+            # to do when the relays cannot be reached.
             relay_handler = self._get_relay_handler(quiet=True)
 
             # Direct hardware call for fastest response
             all_off = self._all_relays_off(relay_handler)
-
-            schedule_stopped = self._stop_running_schedule()
-            if schedule_stopped:
-                # The schedule may have pulsed once more before it stopped.
-                all_off = self._all_relays_off(relay_handler)
-            still_running = self._delivery_may_be_running()
-            # With a stop callback, "still running" is a delivery worker that
-            # did not exit: nothing in the app can end it (Stop is greyed
-            # out), and RRR refuses to quit while it is alive.
-            worker_alive = still_running and self._stop_schedule is not None
-            lock = get_operation_lock()
+            # A delivery worker Stop could not end can still open a valve;
+            # nothing in the app can end it, and RRR refuses to quit while
+            # it is alive.
+            worker_alive = self._delivery_may_be_running()
 
             if not all_off:
                 # A HAT missing or not answering: its relays are in an
@@ -729,7 +730,7 @@ class PrimingControlWidget(QWidget):
                 QMessageBox.critical(
                     self,
                     "Emergency Stop Failed",
-                    self._unconfirmed_text(schedule_stopped, still_running, worker_alive, lock),
+                    self._unconfirmed_text(worker_alive, lock),
                 )
                 return
 
@@ -756,20 +757,6 @@ class PrimingControlWidget(QWidget):
                 )
                 return
 
-            if still_running:
-                # A panel with no way to stop a schedule: its hold stays.
-                lock.hold_until_safe()
-                self._log_warning(
-                    "⛔ EMERGENCY STOP - All relays closed; a schedule is still running"
-                )
-                QMessageBox.warning(
-                    self,
-                    "Emergency Stop",
-                    "All relays have been closed, but a schedule is still running and will "
-                    "open its valves again.\n\nPress Stop to end it.",
-                )
-                return
-
             if lock.held_by(CALIBRATION):
                 # Not known to be stale. The wizard is modal, so this button
                 # should be out of reach while a calibration pulses; a hold
@@ -787,31 +774,12 @@ class PrimingControlWidget(QWidget):
                 )
                 return
 
-            # The failsafe for a hold nothing is using: a running schedule
-            # has just been stopped and its worker is gone, or an earlier
-            # unconfirmed stop is now confirmed.
+            # The failsafe for a hold nothing is using: an unconfirmed stop
+            # (this button's or Stop's) that is now confirmed, or a stale
+            # hold left by a run that has ended.
             lock.force_release()
-            self._log_warning(
-                "⛔ EMERGENCY STOP - All relays closed"
-                + ("; the running schedule was stopped" if schedule_stopped else "")
-            )
-            QMessageBox.information(
-                self,
-                "Emergency Stop",
-                "All relays have been closed."
-                + (
-                    # Run does not continue a stopped schedule: the worker
-                    # it builds starts every animal from zero. Telling the
-                    # operator to "press Run again" would double the dose of
-                    # every animal already watered.
-                    " The running schedule was stopped.\n\nIt does not resume. Run starts "
-                    "the schedule over: a staggered schedule gives every animal its whole "
-                    "dose again, and an instant schedule skips the delivery times that have "
-                    "passed. Check what each animal has received before running it again."
-                    if schedule_stopped
-                    else ""
-                ),
-            )
+            self._log_warning("⛔ EMERGENCY STOP - All relays closed")
+            QMessageBox.information(self, "Emergency Stop", "All relays have been closed.")
 
         except Exception as e:
             self._log_error(f"Emergency stop error: {e}")
@@ -822,9 +790,9 @@ class PrimingControlWidget(QWidget):
             )
 
     @staticmethod
-    def _unconfirmed_text(schedule_stopped, still_running, worker_alive, lock) -> str:
-        """The Emergency Stop Failed dialog: what to do now, what became of
-        the schedule, and what clears the lock."""
+    def _unconfirmed_text(worker_alive, lock) -> str:
+        """The Emergency Stop Failed dialog: what to do now, whether a
+        delivery worker may still open a valve, and what clears the lock."""
         text = (
             "Not every relay HAT confirmed the command, so a valve may still be OPEN.\n\n"
             "Disconnect the valve power supply now, then check the relay HAT and its I²C "
@@ -834,10 +802,6 @@ class PrimingControlWidget(QWidget):
             text += (
                 "\n\nThe schedule's delivery worker has not stopped and may open a valve again."
             )
-        elif schedule_stopped:
-            text += "\n\nThe running schedule was stopped."
-        elif still_running:
-            text += "\n\nA schedule is still running: press Stop to end it."
         if lock.held_by(PRIMING):
             text += (
                 "\n\nThe priming session stays open. Run and calibration stay unavailable "
@@ -873,30 +837,37 @@ class PrimingControlWidget(QWidget):
             self._log_error(f"Emergency stop: the all-relays-off command failed: {exc}")
             return False
 
-    def _stop_running_schedule(self) -> bool:
-        """Stop a running schedule through the callback Settings provides.
+    @staticmethod
+    def _schedule_holds_the_lock() -> bool:
+        """The schedule test of a panel built without the Run/Stop section's
+        job flag: a schedule that holds the hardware lock counts as running."""
+        return get_operation_lock().held_by(SCHEDULE)
 
-        True if one was running. Never raises: the relays are already off,
-        and the rest of the emergency stop must still run.
-        """
-        if self._stop_schedule is None:
+    _SCHEDULE_RUNNING_TOOLTIP = "A schedule is running: press Stop to end it"
+
+    def _refused_while_a_schedule_runs(self, control: str) -> bool:
+        """CLOSE ALL RELAYS and Close Selected are for priming: greyed out
+        while a schedule runs, and a click that still arrives is refused here,
+        before anything touches the relays (building this panel's relay
+        handler alone switches every relay off). Stop ends a schedule."""
+        if not self._schedule_running():
             return False
-        try:
-            return bool(self._stop_schedule())
-        except Exception as exc:
-            self._log_error(f"Emergency stop could not stop the schedule: {exc}")
-            return False
+        QMessageBox.information(
+            self,
+            "Schedule running",
+            f"A schedule is running, so {control} is not available.\n\n"
+            "To end the schedule, press the Stop button: Stop switches every relay off "
+            "and stops the schedule.",
+        )
+        return True
 
     def _delivery_may_be_running(self) -> bool:
-        """Whether a schedule's delivery worker may still open a valve.
+        """Whether a schedule's delivery worker thread is still alive.
 
-        The worker thread itself decides, whoever holds the lock: the Stop
-        path releases the schedule's hold even when its worker did not exit.
-        A panel with no way to stop a schedule assumes one that holds the
-        lock is live.
+        This button is unavailable while a schedule runs, so a live worker
+        here is one Stop could not end (Stop abandons a thread that will not
+        exit). It can still open a valve.
         """
-        if self._stop_schedule is None:
-            return get_operation_lock().held_by(SCHEDULE)
         from utils import updater  # noqa: PLC0415
 
         return updater.is_busy()
@@ -931,13 +902,24 @@ class PrimingControlWidget(QWidget):
         schedule run or calibration) holds the operation lock; restore the
         normal valve/selection-driven state otherwise.
 
-        Close + Emergency are intentionally left to their normal logic so the
-        operator can always shut valves. The Phase-1 guard still refuses on
-        click regardless — this is purely the visual layer.
+        CLOSE ALL RELAYS and Close Selected are greyed out while a schedule
+        runs (Stop ends a schedule) and live at every other time, whoever
+        holds the lock: during priming, after an unconfirmed stop (a
+        confirmed press clears it) and with a stale hold. The run's job flag
+        changes only next to a lock state change (Run sets it before taking
+        the lock, and every end clears it before letting go), so this
+        refresh follows it. The click guards refuse regardless: this is
+        purely the visual layer.
 
         A topology change in Settings greys Open out until restart, whatever
-        the lock does, so it is checked first.
+        the lock does, so it is checked after the Close controls.
         """
+        running = self._schedule_running()
+        close_tip = self._SCHEDULE_RUNNING_TOOLTIP if running else ""
+        self.emergency_btn.setEnabled(not running)
+        self.emergency_btn.setToolTip(close_tip)
+        self.cage_close_btn.setToolTip(close_tip)
+        self._update_cage_button_states()
         if self._topology_changed_since_start():
             for button in (self.master_open_btn, self.cage_open_btn):
                 button.setEnabled(False)
@@ -983,7 +965,8 @@ class PrimingControlWidget(QWidget):
         schedule run would re-enable Open under an "Unavailable" tooltip.
         The shared path is unchanged: there an open master already means
         PRIMING holds the lock. A topology change in Settings keeps Open
-        greyed until restart.
+        greyed until restart. Close Selected stays greyed while a schedule
+        runs, whatever the selector does.
         """
         has_selection = self.cage_selector.count() > 0
         master_is_open = self._model.is_master_open
@@ -992,7 +975,7 @@ class PrimingControlWidget(QWidget):
         blocked = blocked or self._topology_changed_since_start()
 
         self.cage_open_btn.setEnabled(master_is_open and has_selection and not blocked)
-        self.cage_close_btn.setEnabled(has_selection)
+        self.cage_close_btn.setEnabled(has_selection and not self._schedule_running())
 
     # ==================== Logging Methods ====================
 

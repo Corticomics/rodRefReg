@@ -304,8 +304,10 @@ def test_a_valve_that_never_closes_raises_the_alarm(fake_relay_handler, monkeypa
     assert result.pulses == 1
     out = capsys.readouterr().out
     assert "[VALVE CRITICAL] cage 1: the cage valve close did not reach its relay" in out
-    # The button the alarm names also ends the run: the operator is told before pressing it.
-    assert "CLOSE ALL RELAYS switches every relay off again and stops the schedule." in out
+    # The alarm fires during a schedule run, while CLOSE ALL RELAYS is greyed out: it names
+    # Stop, the one control that ends the run, and says so before the operator presses it.
+    assert "Check the rig; the Stop button switches every relay off and stops the schedule." in out
+    assert "CLOSE ALL RELAYS" not in out
     assert fake_relay_handler.energized() == {CAGE}, "the fake shows what the alarm says"
 
 
@@ -956,7 +958,8 @@ def test_a_pump_relay_that_does_not_switch_off_is_retried_then_alarmed(monkeypat
     assert handler.last_trigger_counts == {1: 1}
     out = capsys.readouterr().out
     assert "[VALVE CRITICAL] relay unit 1: relay(s) 3 did not switch off" in out
-    assert "CLOSE ALL RELAYS switches every relay off again and stops the schedule." in out
+    assert "rig; the Stop button switches every relay off and stops the schedule." in out
+    assert "CLOSE ALL RELAYS" not in out
 
 
 def test_a_pump_relay_that_does_not_answer_cannot_be_confirmed_off(monkeypatch, capsys):
