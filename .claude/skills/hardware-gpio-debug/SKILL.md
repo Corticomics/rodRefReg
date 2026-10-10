@@ -66,12 +66,15 @@ In solenoid pulse mode (the default) the delivery stops with
 `partial` (some water got through) or `failed`. A cage
 or master valve whose close did not get through, or whose relay has not
 answered since the run started, raises `[VALVE CRITICAL] … OPEN`. A Stop
-whose all-off command a HAT did not confirm shows **Relays Not Confirmed
-Off**; the Priming panel's **CLOSE ALL RELAYS** button (which also stops a
-running schedule) shows **Emergency Stop Failed** and keeps the operation
-lock held: by the open priming session (which hands it to `EMERGENCY` when
-it ends), or else by the `EMERGENCY` holder, until a later press is
-confirmed or RRR is restarted. That later press builds a fresh
+whose all-off command a HAT did not confirm, or whose delivery worker did
+not stop, shows one dialog (**Relays Not Confirmed Off** or **Delivery
+Worker Did Not Stop**) and hands the operation lock to `EMERGENCY` until a
+confirmed CLOSE ALL RELAYS or a restart; with a HAT missing since start-up,
+every Stop does. The Priming panel's **CLOSE ALL RELAYS** button (which
+also stops a running schedule) shows **Emergency Stop Failed** and keeps
+the operation lock held: by the open priming session (which hands it to
+`EMERGENCY` when it ends), or else by the `EMERGENCY` holder, until a later
+press is confirmed or RRR is restarted. That later press builds a fresh
 `RelayHandler`, so a HAT reseated since the first press is found.
 The schedule path sets up its HATs when RRR starts (and again only on
 Change Relay Hats): after fixing one, close and reopen RRR.
@@ -114,10 +117,11 @@ def _initialize_hardware(self):
 Schedule deliveries drive the relays from `RelayWorker`'s `QThread`. Some
 hardware calls deliberately run elsewhere: Stop (`utils.stop_sequence`)
 first calls `set_all_relays(0)`, then `worker.request_cancel()`, directly on
-the GUI thread; `main.cleanup()` switches the relays off again on the GUI
-thread; the Priming panel drives its own `RelayHandler` from its buttons,
-on the GUI thread; and Calibration pulses on its own
-`_CalibrationPulseWorker` thread. Signals between the worker and the GUI use
+the GUI thread, and `set_all_relays(0)` again after the worker's teardown;
+`main.cleanup()` switches the relays off again on the GUI thread; the
+Priming panel drives its own `RelayHandler` from its buttons, on the GUI
+thread; and Calibration pulses on its own `_CalibrationPulseWorker` thread.
+Signals between the worker and the GUI use
 `Qt.QueuedConnection`; don't move the Stop calls behind a queued signal. The
 pattern is at
 [Project/main.py:399, 416, 429](Project/main.py#L399). One connection is

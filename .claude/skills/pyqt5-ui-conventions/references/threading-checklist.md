@@ -58,21 +58,36 @@ def _initialize_hardware(self):
     ...
 ```
 
-## 5. Stop order: hardware off → cancel → signal → bounded wait
+## 5. Stop order: hardware off → cancel → signal → bounded wait → off again
 
 Stop goes through `utils.stop_sequence.execute_stop_sequence`:
 
-1. `relay_handler.set_all_relays(0)` first. If it returns False, a HAT did
-   not confirm OFF: tell the operator to disconnect the valve power supply,
-   then check the relay HAT and its I²C connection (**Relays Not Confirmed
-   Off**, shown once the teardown ends).
-2. Call `worker.request_cancel()` directly (thread-safe; the worker is
-   usually blocked in a delivery and cannot run a queued slot), then emit
-   `stop_requested` to the worker (QueuedConnection).
-3. `thread.wait(3000)`; on timeout `terminate()` and `wait(1000)`; then
+1. `relay_handler.set_all_relays(0)` first, before touching the worker
+   thread.
+2. Call `worker.request_cancel()` directly and at once, before the Stopping
+   dialog opens: that dialog pumps the GUI event loop. The call is
+   thread-safe; the worker is usually blocked in a delivery and cannot run a
+   queued slot.
+3. Open the dialog, emit `stop_requested` to the worker (QueuedConnection),
+   then `thread.wait(3000)`; on timeout `terminate()` and `wait(1000)`; then
    abandon. Never an unbounded `wait()`.
+4. With a worker or a thread to tear down, `set_all_relays(0)` again: a pulse
+   begun before the cancel may have switched a relay on. This last command
+   gives `relays_confirmed_off`.
 
-`main.cleanup()` switches the relays off again when the worker finishes.
+It returns `StopResult(relays_confirmed_off, worker_exited)`. When that is
+not `.safe`, `RunStopSection._execute_stop` calls
+`OperationLock.hold_until_safe(SCHEDULE)` before `reset_ui` and before any
+dialog (a dialog's event loop can run the worker's queued `main.cleanup`,
+whose `reset_ui` releases SCHEDULE), then shows one dialog: **Relays Not
+Confirmed Off** (disconnect the valve power supply, then check the relay HAT
+and its I²C connection) or **Delivery Worker Did Not Stop**. Run, priming and
+calibration stay unavailable until a confirmed CLOSE ALL RELAYS or a restart.
+
+`main.cleanup()` switches the relays off again when the worker finishes. It
+keeps a worker thread that is still running after its wait (dropping the
+last reference to a running `QThread` can abort the app), and
+`main.run_program` refuses to start beside one.
 
 ## 6. No `QMessageBox.exec_()` from worker-connected slots without `QueuedConnection`
 
