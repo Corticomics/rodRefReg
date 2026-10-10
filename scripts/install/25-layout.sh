@@ -24,8 +24,11 @@ if [[ "${DRY_RUN:-0}" != "1" && -z "${RRR_INSTALL_REEXEC:-}" ]]; then
     info "the pull changed the installer; restarting it from the updated checkout"
     export RRR_INSTALL_REEXEC=1
     # install.sh clears every flag when it starts and exports neither ONLY
-    # nor SKIP, so all of them go back in as arguments.
+    # nor SKIP, so all of them go back in as arguments. --dry-run too: a dry
+    # run does not restart today, but a restart must never turn one into a
+    # real install.
     _rrr_args=()
+    [[ "${DRY_RUN:-0}" == "1" ]] && _rrr_args+=(--dry-run)
     [[ "${YES:-0}" == "1" ]] && _rrr_args+=(-y)
     [[ -n "${BRANCH:-}" ]] && _rrr_args+=(--branch "$BRANCH")
     [[ -n "${ONLY:-}" ]] && _rrr_args+=(--only "$ONLY")
