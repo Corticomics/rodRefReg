@@ -18,8 +18,25 @@ not listed here.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
+**Before you update**
+
+- **Stop is the one way to end a running schedule.** Tell everyone who
+  runs schedules before updating: CLOSE ALL RELAYS and Close Selected
+  (Settings > Priming) are greyed out from Run to the end of the run or of
+  Stop, and a `[VALVE CRITICAL]` alarm now says to press Stop. 1.21.0 had
+  made CLOSE ALL RELAYS stop a running schedule; this release undoes that.
+
 **What changes on the device**
 
+- **Change (safety):** CLOSE ALL RELAYS and Close Selected (Settings >
+  Priming) are greyed out from Run to the end of the run or of Stop, with
+  the tooltip *A schedule is running: press Stop to end it*; a click is
+  refused (**Schedule running**). At every other time they work as before;
+  after a Stop that could not confirm every relay off, CLOSE ALL RELAYS
+  clears the hardware lock once every relay is confirmed off, looking for
+  the HATs again so a reseated one is found.
+- **Change:** `[VALVE CRITICAL]` alarms say *Check the rig; the Stop button
+  switches every relay off and stops the schedule.*
 - **Fix (safety):** Stop is safer.
   - Stop switches every relay off and cancels the delivery at once (before,
     a pulse could still start while the *Stopping* window opened), then
@@ -43,6 +60,8 @@ not listed here.
     (**Schedule not started**) instead of showing *Running*.
   - A Stop pressed while Run still shows *Starting…* cancels that start.
     Before, the start could still go ahead after the Stop.
+- **Fix:** a disabled red button (CLOSE ALL RELAYS, Close Master) is
+  greyed out like any other; it looked pressable.
 
 **If something goes wrong**
 
@@ -71,6 +90,11 @@ not listed here.
   beside a live worker thread and keeps its reference, as `main.cleanup`
   now does. `RunStopSection` ties the start that Run queues to a token
   that Stop clears.
+- `PrimingControlWidget(settings, print_callback=None, schedule_running=None)`
+  replaces `stop_schedule`; `SettingsTab._stop_running_schedule` is gone.
+  `RunStopSection.job_in_progress` is set before `try_acquire(SCHEDULE)`, so
+  the lock's `state_changed` greys the Close controls with the flag already
+  set. CLOSE ALL RELAYS and Close Selected refuse in their handlers too.
 
 ## 1.21.0 — valve topology, calibration gate, relay-failure reporting
 

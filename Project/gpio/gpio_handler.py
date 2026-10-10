@@ -360,8 +360,7 @@ class RelayHandler:
             )
         message = (
             f"[VALVE CRITICAL] relay unit {relay_unit.unit_id}: {'; '.join(parts)}. Check the "
-            "rig; Settings > Priming > CLOSE ALL RELAYS switches every relay off again and "
-            "stops the schedule."
+            "rig; the Stop button switches every relay off and stops the schedule."
         )
         _say(message, flush=True)
         logging.error(message)
