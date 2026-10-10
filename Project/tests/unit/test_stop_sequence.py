@@ -215,7 +215,11 @@ def test_force_hardware_safe_state_reports_relays_not_confirmed_off(capsys):
     assert "HARDWARE SAFE" not in out
 
 
-def test_an_unconfirmed_stop_warns_after_teardown_and_returns_false():
+def test_an_unconfirmed_stop_is_reported_once_the_worker_is_down():
+    """Replaces test_an_unconfirmed_stop_warns_after_teardown_and_returns_false:
+    the sequence no longer shows the warning itself (on_unsafe is gone);
+    RunStopSection shows one dialog from the result it returns, after the
+    teardown by construction (test_stop_button.py)."""
     order = []
     handler = MagicMock()
     handler.set_all_relays.side_effect = lambda *_a: order.append("relays_off") or False
@@ -223,29 +227,145 @@ def test_an_unconfirmed_stop_warns_after_teardown_and_returns_false():
     thread.isRunning.return_value = True
     thread.wait.side_effect = lambda *_a: order.append("thread_wait") or True
 
-    result = stop_sequence.execute_stop_sequence(
-        handler, MagicMock(), thread, _make_signals(),
-        on_unsafe=lambda: order.append("warn"),
-    )
+    result = stop_sequence.execute_stop_sequence(handler, MagicMock(), thread, _make_signals())
 
-    assert result is False
-    assert order[0] == "relays_off", "the relays are still dropped first"
-    assert order[-1] == "warn", "the operator is told once the worker is down"
+    assert result == stop_sequence.StopResult(relays_confirmed_off=False, worker_exited=True)
+    assert result.safe is False
+    assert order == ["relays_off", "thread_wait", "relays_off"], "off first, and again at the end"
 
 
-def test_a_confirmed_stop_does_not_warn():
+def test_a_confirmed_stop_is_safe():
+    """Replaces test_a_confirmed_stop_does_not_warn."""
     handler = MagicMock()
     handler.set_all_relays.return_value = True
-    warn = MagicMock()
-    assert stop_sequence.execute_stop_sequence(
-        handler, None, None, _make_signals(), on_unsafe=warn
-    ) is True
-    warn.assert_not_called()
+    result = stop_sequence.execute_stop_sequence(handler, None, None, _make_signals())
+    assert result == stop_sequence.StopResult(relays_confirmed_off=True, worker_exited=True)
+    assert result.safe is True
 
 
 def test_no_handler_is_not_an_unconfirmed_stop():
-    warn = MagicMock()
+    result = stop_sequence.execute_stop_sequence(None, None, None, _make_signals())
+    assert result.relays_confirmed_off is True
+    assert result.safe is True
+
+
+# ---------------------------------------------------------------------------
+# Stop hardening (v2.0.0): cancel at once, off again at the end, StopResult
+# ---------------------------------------------------------------------------
+
+
+def _recorder(order, *, thread_exits=(True,), relays=(True,)):
+    """Mocks that log every step; ``thread_exits`` are the wait() results,
+    ``relays`` the set_all_relays results, in call order."""
+    exits, offs = list(thread_exits), list(relays)
+    handler = MagicMock()
+    handler.set_all_relays.side_effect = lambda *_a: order.append("relays_off") or offs.pop(0)
+    worker = MagicMock()
+    worker.request_cancel.side_effect = lambda: order.append("cancel")
+    thread = MagicMock()
+    thread.isRunning.return_value = True
+    thread.wait.side_effect = lambda *_a: order.append("thread_wait") or exits.pop(0)
+    thread.terminate.side_effect = lambda: order.append("terminate")
+    signals = _make_signals()
+    signals.stop_requested.emit.side_effect = lambda: order.append("stop_emit")
+    dialog = MagicMock()
+    dialog.close.side_effect = lambda: order.append("dialog_close")
+
+    def factory():
+        order.append("dialog")  # the real one pumps the GUI event loop
+        return dialog
+
+    return handler, worker, thread, signals, factory
+
+
+def test_the_worker_is_cancelled_before_the_stopping_dialog_opens():
+    """The dialog's processEvents() must not run while the worker can still
+    start a pulse: the cancel follows the all-off at once."""
+    order = []
+    handler, worker, thread, signals, factory = _recorder(order, relays=(True, True))
+
+    stop_sequence.execute_stop_sequence(handler, worker, thread, signals, dialog_factory=factory)
+
+    assert order[:3] == ["relays_off", "cancel", "dialog"]
+
+
+def test_the_relays_are_switched_off_again_once_the_worker_is_down():
+    order = []
+    handler, worker, thread, signals, factory = _recorder(order, relays=(True, True))
+
+    result = stop_sequence.execute_stop_sequence(
+        handler, worker, thread, signals, dialog_factory=factory
+    )
+
+    assert order == [
+        "relays_off",
+        "cancel",
+        "dialog",
+        "stop_emit",
+        "thread_wait",
+        "relays_off",
+        "dialog_close",
+    ]
+    assert result.safe is True
+
+
+def test_the_all_off_after_the_teardown_decides():
+    order = []
+    handler, worker, thread, signals, _ = _recorder(order, relays=(True, False))
     assert stop_sequence.execute_stop_sequence(
-        None, None, None, _make_signals(), on_unsafe=warn
-    ) is True
-    warn.assert_not_called()
+        handler, worker, thread, signals
+    ).relays_confirmed_off is False, "a HAT stopped answering during the stop"
+
+    order = []
+    handler, worker, thread, signals, _ = _recorder(order, relays=(False, True))
+    assert stop_sequence.execute_stop_sequence(
+        handler, worker, thread, signals
+    ).relays_confirmed_off is True, "every HAT took the last command"
+
+
+def test_an_abandoned_worker_is_reported():
+    order = []
+    handler, worker, thread, signals, _ = _recorder(
+        order, thread_exits=(False, False), relays=(True, True)
+    )
+
+    result = stop_sequence.execute_stop_sequence(handler, worker, thread, signals)
+
+    assert result == stop_sequence.StopResult(relays_confirmed_off=True, worker_exited=False)
+    assert order[-1] == "relays_off", "switched off again even beside a live worker"
+
+
+def test_a_terminated_worker_has_exited():
+    order = []
+    handler, worker, thread, signals, _ = _recorder(
+        order, thread_exits=(False, True), relays=(True, True)
+    )
+    result = stop_sequence.execute_stop_sequence(handler, worker, thread, signals)
+    assert "terminate" in order
+    assert result.worker_exited is True
+
+
+def test_a_deleted_or_finished_thread_has_exited():
+    handler = MagicMock()
+    gone = MagicMock()
+    gone.isRunning.side_effect = RuntimeError("wrapped C/C++ object has been deleted")
+    assert stop_sequence.execute_stop_sequence(
+        handler, MagicMock(), gone, _make_signals()
+    ).worker_exited is True
+    finished = MagicMock()
+    finished.isRunning.return_value = False
+    assert stop_sequence.execute_stop_sequence(
+        handler, MagicMock(), finished, _make_signals()
+    ).worker_exited is True
+    finished.wait.assert_not_called()
+
+
+def test_the_relays_are_switched_off_again_even_when_the_teardown_raises():
+    order = []
+    handler, worker, thread, signals, _ = _recorder(order, relays=(True, True))
+    signals.stop_requested.emit.side_effect = ValueError("unexpected")
+    try:
+        stop_sequence.execute_stop_sequence(handler, worker, thread, signals)
+    except ValueError:
+        pass
+    assert order == ["relays_off", "cancel", "relays_off"]

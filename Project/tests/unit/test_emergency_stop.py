@@ -26,6 +26,8 @@ pytest.importorskip("PyQt5")
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from utils.stop_sequence import StopResult  # noqa: E402
+
 MASTER = 16
 CAGE = 1
 SETTINGS = {"num_hats": 1, "global_master_relay_id": MASTER}
@@ -439,7 +441,7 @@ def test_the_whole_path_with_the_real_run_stop_section(
     stops = []
     section = RunStopSection(
         MagicMock(),
-        lambda: stops.append(1) or True,  # main.stop_program
+        lambda: stops.append(1) or StopResult(True, True),  # main.stop_program
         MagicMock(),
         system_controller=system_controller,
         database_handler=database_handler,
@@ -475,13 +477,15 @@ def _real_section(system_controller, database_handler, stop_sequence):
 def test_the_real_stop_path_with_a_worker_that_does_not_exit(
     relays, lock, dialogs, monkeypatch, system_controller, database_handler
 ):
-    """The Stop button's flow releases the schedule's hold whether or not the
-    worker thread exited. The emergency stop then holds the lock itself, and
-    Run stays greyed out."""
+    """The Stop button's flow hands the schedule's hold to EMERGENCY when the
+    worker thread did not exit (test_stop_button.py). The emergency stop
+    keeps the hardware locked, and Run stays greyed out."""
     from utils import updater  # noqa: PLC0415
 
     monkeypatch.setattr(updater, "_busy_check", lambda: True)  # the thread is still alive
-    section = _real_section(system_controller, database_handler, lambda: True)
+    section = _real_section(
+        system_controller, database_handler, lambda: StopResult(True, worker_exited=False)
+    )
     tab = _settings_tab(system_controller, database_handler, section)
     assert lock.try_acquire("schedule")  # as Run does
     section.job_in_progress = True
@@ -501,7 +505,9 @@ def test_the_real_stop_path_with_a_worker_that_does_not_exit(
 def test_an_unconfirmed_stop_greys_out_run_until_it_is_confirmed(
     relays, lock, dialogs, system_controller, database_handler
 ):
-    section = _real_section(system_controller, database_handler, lambda: False)
+    section = _real_section(
+        system_controller, database_handler, lambda: StopResult(False, worker_exited=True)
+    )
     tab = _settings_tab(system_controller, database_handler, section)
     assert lock.try_acquire("schedule")
     section.job_in_progress = True

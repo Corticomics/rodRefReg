@@ -739,9 +739,8 @@ class PrimingControlWidget(QWidget):
             lock.release(PRIMING)
 
             if worker_alive:
-                # The Stop path releases the schedule's hold although its
-                # worker thread did not exit (it abandons one that will not
-                # die). That worker can still open a valve.
+                # Stop abandons a worker thread that will not exit; that
+                # worker can still open a valve.
                 lock.hold_until_safe()
                 self._log_error(
                     "⛔ EMERGENCY STOP - All relays closed; the delivery worker has not stopped"

@@ -25,11 +25,12 @@ Two enforcement layers use this:
 The lock is *advisory*: it gates the three known user entry points, not the I²C
 bus itself. Those three are the only initiators of hardware operations.
 
-A fourth holder, ``EMERGENCY``, is not an operation. Priming's CLOSE ALL RELAYS
-takes it when it could not confirm every relay off (or a delivery worker did
-not stop) and nothing else holds the lock, so no operation can start onto a
-valve that may be open. A later confirmed CLOSE ALL RELAYS, or a restart,
-clears it.
+A fourth holder, ``EMERGENCY``, is not an operation. The Stop button and
+Priming's CLOSE ALL RELAYS take it (:meth:`OperationLock.hold_until_safe`) when
+they could not confirm every relay off, or a delivery worker did not stop, so
+no operation can start onto a valve that may be open. Stop hands the
+schedule's hold over to it; CLOSE ALL RELAYS takes it when nothing else holds
+the lock. A later confirmed CLOSE ALL RELAYS, or a restart, clears it.
 """
 
 from __future__ import annotations

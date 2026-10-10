@@ -493,22 +493,6 @@ def cleanup():
 # =============================================================================
 # stop_program() – called when the user clicks "Stop."
 # =============================================================================
-def _warn_relays_not_confirmed_off():
-    """Stop could not confirm every relay off: the operator must cut the power."""
-    try:
-        from PyQt5.QtWidgets import QMessageBox  # noqa: PLC0415
-
-        QMessageBox.critical(
-            None,
-            "Relays Not Confirmed Off",
-            "The schedule stopped, but not every relay HAT confirmed OFF, so a valve "
-            "may still be OPEN.\n\nDisconnect the valve power supply now, then check "
-            "the relay HAT and its I²C connection.",
-        )
-    except Exception as exc:
-        print(f"[STOP] Could not show the relay warning: {exc}")
-
-
 def _show_stopping_dialog():
     """Modal indeterminate progress dialog while the worker tears down.
 
@@ -547,6 +531,10 @@ def stop_program():
     the Qt dialog factory. The safety-critical ordering and bounded-wait
     policy live in that module so they can be unit-tested without Qt or
     hardware. See the v1.8.0 incident write-up there.
+
+    Returns its :class:`utils.stop_sequence.StopResult` and never raises;
+    RunStopSection keeps the hardware locked and tells the operator when it
+    is not safe.
     """
     global thread, worker, relay_handler
     try:
@@ -556,12 +544,14 @@ def stop_program():
             thread,
             control_signals,
             dialog_factory=_show_stopping_dialog,
-            on_unsafe=_warn_relays_not_confirmed_off,
         )
     except Exception as exc:
         print(f"[ERROR] Stop sequence failed: {exc}")
         traceback.print_exc()
-        return False
+        # Nothing confirmed the relays off: keep the hardware locked.
+        return stop_sequence.StopResult(
+            relays_confirmed_off=False, worker_exited=not _schedule_is_running()
+        )
 
 
 # =============================================================================
