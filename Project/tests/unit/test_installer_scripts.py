@@ -519,6 +519,17 @@ def test_a_pull_that_changes_only_a_helper_restarts_the_installer(installer):
     _restarted_once(code, out)
 
 
+def test_a_pull_that_only_renames_a_module_restarts_the_installer(installer):
+    """The texts and their order stay the same, so only the names show that this
+    run's module list is out of date: it would still source 60-verify.sh."""
+    (installer.modules / "60-verify.sh").write_text('info "verify ran"\n')
+    code, out = installer(
+        older=False, pull='mv "$MODULE_DIR/60-verify.sh" "$MODULE_DIR/65-verify.sh"'
+    )
+    _restarted_once(code, out)
+    assert out.count("verify ran") == 1, out
+
+
 @pytest.mark.parametrize(
     ("older", "flags", "extra_env"),
     [
