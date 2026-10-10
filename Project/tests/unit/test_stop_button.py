@@ -150,11 +150,17 @@ def test_an_unsafe_stop_latches_the_hardware_and_says_so_once(
 ):
     section = _section(system_controller, database_handler, stop=lambda: result)
     _running(section, lock)
+    # Every change of holder during the Stop. reset_ui releases SCHEDULE, so a
+    # latch taken after it would leave the lock free in between, and priming
+    # or calibration could start there.
+    holders = []
+    lock.state_changed.connect(lambda: holders.append(lock.active_operation()))
 
     section.stop_program()
 
     assert dialogs == [("critical", title, text)], "one dialog, not two"
     assert lock.held_by("emergency")
+    assert holders == ["emergency"], "SCHEDULE handed to EMERGENCY in one step, before reset_ui"
     assert section.job_in_progress is False
     for button in (section.run_button, section.relay_hats_button, section.stop_button):
         assert button.isEnabled() is False
