@@ -76,7 +76,8 @@ the next start.
   target (an exact half rounds up), or within one pulse above it with
   `round_doses_up`. The rounding is `utils/dose_rounding.whole_pulses`,
   the one rule for every planned figure: the planner
-  (`RelayWorker._quantize_to_pulses`) and `tools/gravimetric_check.py`'s
+  (`RelayWorker._quantize_to_pulses`), the run record's plan
+  (`RelayWorker._build_run_plan`) and `tools/gravimetric_check.py`'s
   planner verdict call it, and so must anything new that plans a dose in
   pulses.
 

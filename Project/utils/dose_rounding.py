@@ -2,7 +2,8 @@
 
 Water leaves a valve in whole pulses of the cage's calibrated volume (q). The
 delivery planner (RelayWorker._quantize_to_pulses) rounds every ask with
-whole_pulses(), and the bench tool's planner verdict
+whole_pulses(), the run record plans each animal's dose with it
+(RelayWorker._build_run_plan), and the bench tool's planner verdict
 (tools/gravimetric_check.py) judges a fired pulse count by the same function.
 Anything else that plans a dose in whole pulses must use it too, so a planned
 figure is what a normal run delivers.

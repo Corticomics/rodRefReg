@@ -85,7 +85,7 @@ Unit tests use `FakeRelayHandler` from `Project/tests/unit/conftest.py`.
 **Do not** add new hardware imports at module top-level — they break boot
 on a dev Mac and the headless smoke test. Follow the lazy-import pattern in
 `RelayWorker._initialize_hardware`
-([Project/gpio/relay_worker.py:256](Project/gpio/relay_worker.py#L256)):
+([Project/gpio/relay_worker.py:285](Project/gpio/relay_worker.py#L285)):
 
 ```python
 def _initialize_hardware(self):

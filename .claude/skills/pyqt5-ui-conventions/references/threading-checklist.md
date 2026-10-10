@@ -48,7 +48,7 @@ by reading the slot body — does it call `setText`, `addItem`, `show`,
 Don't top-level-import `RPi.GPIO`, `sm_16relind`, or `pyserial` from a UI
 module. Import inside the method body so `test_gui_smoke.py` can construct
 the widget without hardware deps. Pattern from
-[Project/gpio/relay_worker.py:256](Project/gpio/relay_worker.py#L256) (`RelayWorker._initialize_hardware`):
+[Project/gpio/relay_worker.py:285](Project/gpio/relay_worker.py#L285) (`RelayWorker._initialize_hardware`):
 
 ```python
 def _initialize_hardware(self):

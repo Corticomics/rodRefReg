@@ -40,7 +40,7 @@ control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L429
 ## What "lazy import" means here
 
 `RelayWorker._initialize_hardware` defers the flow-sensor imports until
-the method actually runs ([Project/gpio/relay_worker.py:256](Project/gpio/relay_worker.py#L256)).
+the method actually runs ([Project/gpio/relay_worker.py:285](Project/gpio/relay_worker.py#L285)).
 Two reasons:
 
 1. **Boot speed** — the GUI starts before hardware drivers initialize, so
