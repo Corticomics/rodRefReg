@@ -12,14 +12,14 @@ worker = MyWorker(...)              # QObject subclass
 thread = QThread()
 worker.moveToThread(thread)
 thread.started.connect(worker.run)
-worker.finished.connect(thread.quit, Qt.DirectConnection)  # quit() is thread-safe; see main.py:335-345
+worker.finished.connect(thread.quit, Qt.DirectConnection)  # quit() is thread-safe; see main.py:348-358
 worker.finished.connect(worker.deleteLater)
 thread.finished.connect(thread.deleteLater)
 thread.start()
 ```
 
 Reference: [Project/main.py](Project/main.py) `run_program()` around the
-`RelayWorker` construction (~L320-L430). [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py)
+`RelayWorker` construction (~L333-L443). [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py)
 `RelayWorker(QObject)`.
 
 ## 2. Every cross-thread signal uses `Qt.QueuedConnection`
@@ -31,9 +31,9 @@ intermittent crashes. Always be explicit.
 Real call sites:
 
 ```python
-worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)   # main.py:L399
-worker.finished.connect(_on_finished, Qt.QueuedConnection)               # main.py:L416
-control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.py:L429
+worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)   # main.py:L412
+worker.finished.connect(_on_finished, Qt.QueuedConnection)               # main.py:L429
+control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.py:L442
 ```
 
 ## 3. No widget touch from the worker thread
