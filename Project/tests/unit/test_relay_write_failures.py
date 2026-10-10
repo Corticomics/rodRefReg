@@ -1722,6 +1722,71 @@ def test_a_master_hold_that_does_not_open_prints_the_stop_line(
     ) in out
 
 
+# --- a Stop around the manifold prime (v2.0.0) -----------------------------------------------
+#
+# The stop sequence switches every relay off first, then cancels. The prime
+# had no cancel check, so a Stop during it, or just before it, reopened the
+# master for the 0.3 s hold (and, before the prime, for the prime itself)
+# after the all-off.
+
+
+def _stop_at(fake, strategy, monkeypatch, when):
+    """Run the stop sequence's first two steps (all relays off, then the
+    cancel) at the first sleep where ``when(trace)`` holds."""
+    fake_sleep = asyncio.sleep  # the fake clock's
+
+    async def _sleep(seconds):
+        if when(fake.trace) and not strategy._check_cancelled():
+            fake.set_all_relays(0)
+            strategy.request_cancel()
+        await fake_sleep(seconds)
+
+    monkeypatch.setattr(asyncio, 'sleep', _sleep)
+
+
+def test_a_stop_during_the_prime_does_not_open_the_master_again(fake_relay_handler, monkeypatch):
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    _stop_at(fake_relay_handler, strategy, monkeypatch, lambda t: t == [((MASTER,), 1)])
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 0
+    after_stop = fake_relay_handler.trace[fake_relay_handler.trace.index((("all",), 0)) :]
+    assert all(state == 0 for _ids, state in after_stop), after_stop
+    assert fake_relay_handler.energized() == set()
+
+
+def test_a_stop_before_the_prime_opens_no_valve(fake_relay_handler, monkeypatch):
+    """The cancel landed after deliver() checked, e.g. during a sensor restart."""
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    pulse_mode = strategy._deliver_pulse_mode
+
+    async def _stopped_first(cage_id, volume_ml):
+        fake_relay_handler.set_all_relays(0)
+        strategy.request_cancel()
+        return await pulse_mode(cage_id, volume_ml)
+
+    monkeypatch.setattr(strategy, '_deliver_pulse_mode', _stopped_first)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 0
+    assert fake_relay_handler.trace == [(("all",), 0)], "no valve opened after the all-off"
+
+
+def test_a_stop_during_the_hold_closes_the_master_without_a_pulse(fake_relay_handler, monkeypatch):
+    """Unchanged: the loop's first check ends a delivery stopped during the hold."""
+    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    hold = [((MASTER,), 1), ((MASTER,), 0), ((MASTER,), 1)]
+    _stop_at(fake_relay_handler, strategy, monkeypatch, lambda t: t == hold)
+
+    result = _deliver(strategy, 9)
+
+    assert result.success is False and result.pulses == 0
+    assert ((CAGE,), 1) not in fake_relay_handler.trace, "no pulse fired"
+    assert fake_relay_handler.energized() == set()
+
+
 # --- the pulse and time limits print the stop line too (last review) ---------------------------
 #
 # Four ways a pulse delivery fails without any relay fault: two refusals
