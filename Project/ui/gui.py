@@ -178,8 +178,12 @@ class RodentRefreshmentGUI(QWidget):
             notification_handler=self.notification_handler,
         )
 
-        # Profile Tab
-        self.user_tab = UserTab(self.login_system)
+        # Profile Tab. Log Out is unavailable while a schedule runs: Stop
+        # needs a logged-in user.
+        self.user_tab = UserTab(
+            self.login_system,
+            schedule_running=lambda: self.run_stop_section.job_in_progress,
+        )
         self.user_tab.login_signal.connect(self.on_login)
         self.user_tab.logout_signal.connect(self.on_logout)
 
