@@ -60,6 +60,7 @@ def _append_project_to_syspath() -> None:
 
 _append_project_to_syspath()
 
+from utils.dose_rounding import whole_pulses  # noqa: E402
 from utils.paths import DEVICE_DATA_DIR, bench_data_dir  # noqa: E402
 
 DB_NAME = 'rrr_database.db'
@@ -175,8 +176,9 @@ def planner_verdict(
     """How the fired pulse count relates to the dose that was asked for.
 
     Mirrors RelayWorker._quantize_to_pulses for a single-shot (instant)
-    request: nearest is round-half-up, ``int(dose / q + 0.5)``; up is
-    ``ceil(dose / q - 1e-9)``. See the module docstring for the labels.
+    request, through the same utils.dose_rounding.whole_pulses: nearest
+    rounds an exact half up, and up takes the next whole pulse. See the
+    module docstring for the labels.
     """
     if status != 'completed':
         return ''
@@ -190,8 +192,8 @@ def planner_verdict(
         return ''
     if delivery_mode == 'staggered':
         return 'carry'
-    nearest = int(dose / q + 0.5)
-    up = int(math.ceil(dose / q - 1e-9))
+    nearest = whole_pulses(dose, q)
+    up = whole_pulses(dose, q, round_up=True)
     if policy == 'nearest':
         return 'ok' if pulses == nearest else 'mismatch'
     if policy == 'up':

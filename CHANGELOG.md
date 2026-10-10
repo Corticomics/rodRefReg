@@ -69,6 +69,11 @@ not listed here.
     Before, the start could still go ahead after the Stop.
 - **Fix:** a disabled red button (CLOSE ALL RELAYS, Close Master) is
   greyed out like any other; it looked pressable.
+- **Fix:** with nearest rounding, a dose exactly half a pulse over a whole
+  number of pulses now always gets the extra pulse. Floating-point
+  arithmetic could round it either way, and a staggered window could land
+  on either side depending on how its chunks added up. Only calibrations
+  with few digits (for example 0.04 mL per pulse) meet such doses.
 
 **If something goes wrong**
 

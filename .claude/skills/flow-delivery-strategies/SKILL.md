@@ -73,7 +73,12 @@ the next start.
   (10–500 ms wide) at the cage's calibrated width and rest. Doses are
   planned in whole pulses of the cage's calibrated volume (about 0.034 mL
   on the production valve), so a window lands within half a pulse of its
-  target, or within one pulse above it with `round_doses_up`.
+  target (an exact half rounds up), or within one pulse above it with
+  `round_doses_up`. The rounding is `utils/dose_rounding.whole_pulses`,
+  the one rule for every planned figure: the planner
+  (`RelayWorker._quantize_to_pulses`) and `tools/gravimetric_check.py`'s
+  planner verdict call it, and so must anything new that plans a dose in
+  pulses.
 
 Per-cage pulse profiles live in the `valve_calibration` table, written by
 the calibration wizard through `DatabaseHandler.save_valve_calibration`;
