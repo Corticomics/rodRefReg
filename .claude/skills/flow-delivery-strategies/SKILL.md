@@ -62,7 +62,7 @@ and what each mode requires: [`references/strategy-selection.md`](references/str
 
 Auto-selected from `settings['use_pulse_delivery']`.
 `SystemController.ensure_solenoid_defaults()` runs at every start
-(main.py:168) and sets it back to True, so continuous mode lasts only until
+(main.py:170) and sets it back to True, so continuous mode lasts only until
 the next start.
 
 - **Continuous mode** (Lee Company LHD valves, legacy) — open the

@@ -126,9 +126,9 @@ thread; and Calibration pulses on its own `_CalibrationPulseWorker` thread.
 Signals between the worker and the GUI use
 `Qt.QueuedConnection`; don't move the Stop calls behind a queued signal. The
 pattern is at
-[Project/main.py:412, 429, 442](Project/main.py#L412). One connection is
+[Project/main.py:370, 423, 440, 453](Project/main.py#L370). One connection is
 deliberately `Qt.DirectConnection`: `worker.finished → thread.quit`
-(main.py:348-358). `QThread.quit` is thread-safe, and a queued quit would
+(main.py:355-365). `QThread.quit` is thread-safe, and a queued quit would
 wait behind Stop's `thread.wait()` on the GUI thread. Breaking these rules
 manifests as intermittent crashes or a hung Stop, seen only under real
 schedules.

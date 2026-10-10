@@ -12,14 +12,14 @@ worker = MyWorker(...)              # QObject subclass
 thread = QThread()
 worker.moveToThread(thread)
 thread.started.connect(worker.run)
-worker.finished.connect(thread.quit, Qt.DirectConnection)  # quit() is thread-safe; see main.py:348-358
+worker.finished.connect(thread.quit, Qt.DirectConnection)  # quit() is thread-safe; see main.py:355-365
 worker.finished.connect(worker.deleteLater)
 thread.finished.connect(thread.deleteLater)
 thread.start()
 ```
 
 Reference: [Project/main.py](Project/main.py) `run_program()` around the
-`RelayWorker` construction (~L333-L443). [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py)
+`RelayWorker` construction (~L339-L454). [Project/gpio/relay_worker.py](Project/gpio/relay_worker.py)
 `RelayWorker(QObject)`.
 
 ## 2. Every cross-thread signal uses `Qt.QueuedConnection`
@@ -31,10 +31,18 @@ intermittent crashes. Always be explicit.
 Real call sites:
 
 ```python
-worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)   # main.py:L412
-worker.finished.connect(_on_finished, Qt.QueuedConnection)               # main.py:L429
-control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.py:L442
+worker.finished.connect(partial(_on_run_finished, worker), Qt.QueuedConnection)  # main.py:L370
+worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)   # main.py:L423
+worker.finished.connect(_on_finished, Qt.QueuedConnection)               # main.py:L440
+control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.py:L453
 ```
+
+A handler that needs the worker that finished is bound to it with
+`functools.partial`, as `_on_run_finished` is, and connected before
+`cleanup`, which sets the global `worker` to None. It runs after
+`deleteLater` has deleted the worker's Qt side: read only attributes the
+worker's `__init__` set. Those still read, but a missing one raises
+`RuntimeError`, not `AttributeError`, so a `getattr` default does not help.
 
 ## 3. No widget touch from the worker thread
 

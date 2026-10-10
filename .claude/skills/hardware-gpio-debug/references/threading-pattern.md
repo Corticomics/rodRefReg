@@ -18,15 +18,26 @@ Reference call sites in [Project/main.py](Project/main.py):
 ```python
 # The one deliberate DirectConnection: QThread.quit is thread-safe, and a
 # queued quit would wait behind Stop's thread.wait() on the GUI thread
-worker.finished.connect(thread.quit, Qt.DirectConnection)               # ~L345 (see the comment there)
+worker.finished.connect(thread.quit, Qt.DirectConnection)               # ~L365 (see the comment there)
+
+# The run's record closes on the GUI thread: bound to THIS worker, since
+# cleanup() sets the global to None, and connected before cleanup
+worker.finished.connect(partial(_on_run_finished, worker), Qt.QueuedConnection)  # ~L370
 
 # Volume updates flow UI ← worker thread
-worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)  # ~L399
-worker.finished.connect(_on_finished, Qt.QueuedConnection)              # ~L416
+worker.volume_updated.connect(_on_volume_updated, Qt.QueuedConnection)  # ~L423
+worker.finished.connect(_on_finished, Qt.QueuedConnection)              # ~L440
 
 # Stop requests cross the other way
-control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L429
+control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L453
 ```
+
+The bound hook runs after `worker.deleteLater` has deleted the worker's Qt
+side. It reads only attributes `RelayWorker.__init__` sets: those still
+read, but a missing one raises `RuntimeError`, not `AttributeError`, so a
+`getattr` default does not help. An operator Stop is recorded by
+`stop_program` instead, once the stop sequence has its result: the queued
+hook can run inside that sequence's event pump, and leaves the record to it.
 
 ## Why it matters
 

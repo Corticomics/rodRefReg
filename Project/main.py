@@ -5,6 +5,7 @@
 import sys
 import traceback
 from datetime import datetime
+from functools import partial
 
 from controllers.projects_controller import ProjectsController
 from controllers.pump_controller import PumpController
@@ -15,7 +16,7 @@ from models.database_handler import DatabaseHandler
 from models.login_system import LoginSystem
 from models.relay_unit_manager import RelayUnitManager
 from notifications.notifications import NotificationHandler
-from PyQt5.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QInputDialog
@@ -159,6 +160,7 @@ def setup():
         system_controller
 
     database_handler = DatabaseHandler()
+    _mark_interrupted_runs(database_handler)
     system_controller = SystemController(database_handler)
     # Use a distinct global settings dictionary.
     app_settings = system_controller.settings
@@ -240,6 +242,10 @@ def run_program(schedule, mode, window_start, window_end):
                 'database_handler': database_handler,
                 'pump_controller': controller.pump_controller,
                 'schedule_id': schedule.schedule_id,
+                # For the run history: the schedule's name (kept with the run,
+                # since the schedule can be deleted later) and who pressed Run.
+                'schedule_name': schedule.name,
+                'started_by': _current_trainer().get('trainer_id'),
             }
         )
 
@@ -343,6 +349,7 @@ def run_program(schedule, mode, window_start, window_end):
         # Connect the worker's finished signal to:
         #   • thread.quit() – so the thread stops,
         #   • worker.deleteLater() – so the worker cleans itself up,
+        #   • _on_run_finished(worker) – so the run's record is closed,
         #   • cleanup() – our centralized cleanup function (only once).
         #
         # thread.quit() MUST use DirectConnection. finished is emitted from
@@ -357,6 +364,10 @@ def run_program(schedule, mode, window_start, window_end):
         # exits cleanly instead of being force-terminated.
         worker.finished.connect(thread.quit, Qt.DirectConnection)
         worker.finished.connect(worker.deleteLater)
+        # Close the run's record on the GUI thread, bound to THIS worker:
+        # cleanup() below sets the global to None. Connected before cleanup
+        # so the record is written before the UI resets.
+        worker.finished.connect(partial(_on_run_finished, worker), Qt.QueuedConnection)
         worker.finished.connect(cleanup)
         thread.finished.connect(thread.deleteLater)
         worker.progress.connect(lambda message: print(message))
@@ -515,6 +526,154 @@ def cleanup():
 
 
 # =============================================================================
+# The run history: how each run ended, per animal (schedule_runs)
+# =============================================================================
+def _current_trainer():
+    """The logged-in trainer's dict, or {} (guest, or before setup())."""
+    try:
+        return login_system.get_current_trainer() or {}
+    except Exception:
+        return {}
+
+
+def _mark_interrupted_runs(db):
+    """At start-up, a run still recorded as running was cut off by a crash or a
+    power cut while RRR was running: record it as interrupted.
+
+    Called at start-up only, before the GUI is built (setup(), and the splash
+    path's _create_gui_from_components). Not from create_tables: --selftest
+    and tools/set_valve_topology.py open the database while RRR may be
+    running. Never raises.
+
+    Its line is printed before stdout goes to the Terminal tab, so it reaches
+    only the console (the journal under rrr.service): the debug log keeps it
+    too.
+    """
+    try:
+        count = db.mark_interrupted_schedule_runs()
+    except Exception as exc:
+        message = f"[RUN] Could not check for runs cut off when RRR last closed: {exc}"
+    else:
+        if not count:
+            return
+        message = (
+            f"[RUN] {count} schedule run(s) were still running when RRR last closed; they "
+            "are now recorded as interrupted. What they delivered is in the delivery log "
+            "(tools/gravimetric_check.py daily)."
+        )
+    print(message)
+    _dbg(message)
+
+
+def _on_run_finished(w):
+    """worker.finished, queued to the GUI thread and bound to its worker: a run
+    that ended on its own (completed, circuit breaker, error). An operator Stop
+    is recorded by stop_program once the stop sequence has its result: this
+    queued call can run inside that sequence's event pump, before it has one.
+    """
+    try:
+        operator_stop = w.stop_reason == 'operator'
+    except Exception:
+        operator_stop = False
+    if not operator_stop:
+        _record_run_end(w)
+
+
+def _yes_no(value):
+    return 'unknown' if value is None else ('yes' if value else 'no')
+
+
+def _record_run_end(w, stop_result=None):
+    """Close worker ``w``'s run record, once: each animal's delivered volume and
+    outcome, and how the run ended. On an operator Stop, also write one
+    'schedule_stopped' row to the logs table.
+
+    GUI thread only. Reads only attributes RelayWorker.__init__ sets: once
+    deleteLater has deleted the Qt side, those still read, but a missing one
+    raises RuntimeError (not AttributeError, so getattr defaults do not
+    help). Never takes w.mutex: the worker can hold it through a SQLite
+    write. Never raises, so Stop always completes.
+
+    An animal is completed when its credited volume reached the plan's
+    complete_ml (RelayWorker._build_run_plan); otherwise it is stopped
+    (operator Stop) or incomplete (the run ended short on its own). The
+    figures come from the plan even when the database did not take the
+    record, so the Stop's audit row still says what each animal got.
+    """
+    if w is None:
+        return
+    run_id = None
+    try:
+        if w.run_end_recorded:
+            return
+        w.run_end_recorded = True
+        operator = w.stop_reason == 'operator'
+        trainer = _current_trainer() if operator else {}
+        run_id = w.run_id
+        results, figures = {}, []
+        if w.run_plan:
+            # A copy, not the live dict; keys are str (staggered) or int (instant).
+            delivered = {int(k): float(v) for k, v in dict(w.delivered_volumes).items()}
+            for animal_id, plan in w.run_plan.items():
+                got = delivered.get(animal_id, 0.0)
+                if got + 1e-9 >= plan['complete_ml']:
+                    outcome = 'completed'
+                else:
+                    outcome = 'stopped' if operator else 'incomplete'
+                results[animal_id] = (round(got, 6), outcome)
+                figures.append(
+                    f"animal {animal_id} {got:.3f} of {plan['planned_ml']:.3f} mL planned"
+                )
+        if run_id is not None:
+            if all(outcome == 'completed' for _, outcome in results.values()):
+                end_reason = 'completed'
+            else:
+                end_reason = 'stopped' if operator else 'ended_short'
+            closed = database_handler.finish_schedule_run(
+                run_id,
+                end_reason,
+                results,
+                stopped_by=trainer.get('trainer_id') if operator else None,
+                relays_confirmed_off=getattr(stop_result, 'relays_confirmed_off', None),
+                worker_exited=getattr(stop_result, 'worker_exited', None),
+            )
+            if not closed:
+                print(
+                    "[RUN] Could not record how this run ended: the database did not accept "
+                    "it. The Animals tab shows it as running until RRR restarts; each "
+                    "delivery is in the delivery log."
+                )
+        if operator:
+            run = f"schedule {w.schedule_id}"
+            if run_id is not None:
+                run += f", run {run_id}"
+            what = "; ".join(figures) if figures else "before its first delivery"
+            database_handler.log_action(
+                trainer.get('trainer_id') or 0,
+                'schedule_stopped',
+                f"{w.schedule_name} ({run}) stopped by "
+                f"{trainer.get('username') or 'unknown user'}: {what}. Relays confirmed "
+                f"off: {_yes_no(getattr(stop_result, 'relays_confirmed_off', None))}; "
+                f"worker exited: {_yes_no(getattr(stop_result, 'worker_exited', None))}",
+            )
+    except Exception as exc:
+        print(
+            f"[RUN] Could not record how this run ended: {exc}. Each delivery is in the "
+            "delivery log."
+        )
+    if run_id is not None:
+        # Deferred: inside Stop this runs before RunStopSection latches an
+        # unsafe stop, and a failed load opens a modal box whose event loop
+        # would run the worker's queued cleanup (and its reset_ui) first.
+        # load_animals reads the logged-in trainer itself, where
+        # gui.load_animals_tab() would clear the trainer filter.
+        try:
+            QTimer.singleShot(0, gui.projects_section.animals_tab.load_animals)
+        except Exception as exc:
+            print(f"[RUN] Could not refresh the Animals tab: {exc}")
+
+
+# =============================================================================
 # stop_program() – called when the user clicks "Stop."
 # =============================================================================
 def _show_stopping_dialog():
@@ -558,13 +717,20 @@ def stop_program():
 
     Returns its :class:`utils.stop_sequence.StopResult` and never raises;
     RunStopSection keeps the hardware locked and tells the operator when it
-    is not safe.
+    is not safe. With that result it then closes the run's record and
+    writes the Stop's row to the logs table (:func:`_record_run_end`).
     """
     global thread, worker, relay_handler
+    # The sequence's dialog pumps events, where a queued cleanup() can set the
+    # global worker to None: keep this run's worker. Marked first, so that its
+    # queued finished leaves the record to this Stop.
+    w = worker
+    if w is not None:
+        w.stop_reason = 'operator'
     try:
-        return stop_sequence.execute_stop_sequence(
+        result = stop_sequence.execute_stop_sequence(
             relay_handler,
-            worker,
+            w,
             thread,
             control_signals,
             dialog_factory=_show_stopping_dialog,
@@ -573,9 +739,11 @@ def stop_program():
         print(f"[ERROR] Stop sequence failed: {exc}")
         traceback.print_exc()
         # Nothing confirmed the relays off: keep the hardware locked.
-        return stop_sequence.StopResult(
+        result = stop_sequence.StopResult(
             relays_confirmed_off=False, worker_exited=not _schedule_is_running()
         )
+    _record_run_end(w, result)
+    return result
 
 
 # =============================================================================
@@ -690,6 +858,7 @@ def _create_gui_from_components(components: dict):
 
     # Extract components from background initialization
     database_handler = components.get('database_handler')
+    _mark_interrupted_runs(database_handler)
     system_controller = components.get('system_controller')
     relay_handler = components.get('relay_handler')
     notification_handler = components.get('notification_handler')

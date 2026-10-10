@@ -85,7 +85,8 @@ surveyed windows, all ties).
 **One rounding rule (PR 6, as merged).**
 `utils/dose_rounding.whole_pulses(volume_ml, q_ml, round_up=False)` is the
 whole-pulse rule of the planner (`RelayWorker._quantize_to_pulses`), of the
-run plan (PR 7) and of `tools/gravimetric_check.py`'s planner verdict.
+run plan (`RelayWorker._build_run_plan`, PR 7) and of
+`tools/gravimetric_check.py`'s planner verdict.
 Nearest is `int(v / q + 0.5 + 1e-9)`: an exact half rounds up even where
 floating point lands it a hair below (0.15 / 0.1 is 1.4999999999999998).
 Round-up is `ceil(v / q - 1e-9)`, as before: an exact multiple that lands a
@@ -170,6 +171,10 @@ returns the same dict plus `lab_animal_id`.
 
 ## 5. Recording a run (PR 7)
 
+As merged (PR 7): the worker side is `RelayWorker._open_run_record` and
+`_build_run_plan` (`gpio/relay_worker.py`), the GUI side `_record_run_end`,
+`_on_run_finished` and `_mark_interrupted_runs` (`main.py`).
+
 ```
 Run click   job_in_progress = True → try_acquire(SCHEDULE) → singleShot(prepare, token)
             ↳ CLOSE ALL RELAYS, Close Selected, Log Out: greyed and refused from here
@@ -182,23 +187,36 @@ end         natural, circuit breaker, error: worker.finished (queued, bound to w
             Stop: main.stop_program(): w = worker; w.stop_reason = 'operator';
             execute_stop_sequence() → StopResult → _record_run_end(w, result) + one logs row
 close       _record_run_end (GUI thread, once per worker, never raises)
-            → finish_schedule_run() → deferred Animals-tab reload
-next start  main.setup() / _create_gui_from_components(): mark_interrupted_schedule_runs()
-            before the GUI is built (never in create_tables)
+            → finish_schedule_run() (a run that opened) → deferred Animals-tab reload
+next start  main.setup() / _create_gui_from_components(): _mark_interrupted_runs(db)
+            → mark_interrupted_schedule_runs() before the GUI is built (never in create_tables)
 ```
 
 - **Opens at the first due delivery,** the only first-dispatch path being
   `_handle_delivery` (`relay_worker.py:1759`): a run stopped before
-  anything was due leaves the previous record. A failed write prints a
-  Terminal line, and the deliveries go on. `run_plan` = `{animal_id:
+  anything was due leaves the previous record. `run_plan` = `{animal_id:
   {relay_unit_id, requested_ml, planned_ml, q_ml, complete_ml}}` covers
   every instant delivery, past ones included, or each staggered animal
-  with a target above 0 (`relay_worker.py:590-599`).
+  with a target above 0 (`relay_worker.py:590-599`). Planned uses
+  `whole_pulses` (§3), and the planner and the plan take the cage's pulse
+  from one helper, `_pulse_quantum`. A write that raises or returns None
+  prints one Terminal line and the deliveries go on; the plan is kept, so a
+  Stop's audit row still gives each animal's figures.
 - **Closes once per worker** (`run_end_recorded`). An operator Stop is
   recorded by `stop_program` with its StopResult, since the queued
   `finished` can run inside Stop's event pump (`main.py:536`).
-  Reconciliation stays out of `create_tables`, which `--selftest`
+  `finish_schedule_run` is called only for a run that opened; when it
+  returns False (a lock held over about 5 s), a Terminal line says so, and
+  the tab shows the run as Running until the next start marks it
+  `interrupted`. The Animals-tab reload is deferred
+  (`QTimer.singleShot(0, …animals_tab.load_animals)`): inside Stop, a modal
+  error box from the load would run the worker's queued `cleanup` before
+  the latch. `load_animals` reads the logged-in trainer itself;
+  `gui.load_animals_tab()` would clear the trainer filter.
+- **Reconciliation** stays out of `create_tables`, which `--selftest`
   (`main.py:139`) and `tools/set_valve_topology.py` run while RRR may be up.
+  Its line is printed before stdout reaches the Terminal tab, so it goes to
+  the console (the journal under `rrr.service`) and to `rrr_app_debug.log`.
 - **Hot-path cost:** one attribute check per delivery, and one INSERT
   transaction at a run's first dispatch on the worker thread, as the ledger
   writes are [SD-card cost NEEDS CONFIRMATION]. Stop adds one UPDATE and
@@ -227,11 +245,23 @@ dispatch. An animal below its threshold is `stopped` (operator Stop) or
 
 **Audit row.** One `logs` row per operator Stop, through
 `log_action(trainer_id or 0, 'schedule_stopped', details)`
-(`database_handler.py:1015`); none for a Stop during "Starting…":
+(`database_handler.py:1015`); none for a Stop during "Starting…". Animals
+are named by `animal_id`. Without a run id (the database did not take the
+record) the parenthesis names the schedule alone, and with no plan (Stop
+before anything was due) the figures are "before its first delivery":
 
 ```
 AM water (schedule 12, run 41) stopped by alice: animal 3 0.410 of 0.410 mL planned; animal 5 0.410 of 0.991 mL planned. Relays confirmed off: yes; worker exited: yes
+AM water (schedule 12) stopped by alice: before its first delivery. Relays confirmed off: yes; worker exited: yes
 ```
+
+**Terminal lines** (no dialogs):
+
+| Where | Line |
+|---|---|
+| Worker, at the first due delivery | `Could not record this run in the run history: {exc}. Deliveries continue, and each one is still in the delivery log.` / `… the database did not accept it. …` |
+| `main`, at the close | `[RUN] Could not record how this run ended: {exc}. Each delivery is in the delivery log.` / `[RUN] Could not record how this run ended: the database did not accept it. The Animals tab shows it as running until RRR restarts; each delivery is in the delivery log.` |
+| Start-up (console, journal, `rrr_app_debug.log`) | `[RUN] {n} schedule run(s) were still running when RRR last closed; they are now recorded as interrupted. What they delivered is in the delivery log (tools/gravimetric_check.py daily).` / `[RUN] Could not check for runs cut off when RRR last closed: {exc}` |
 
 ---
 
