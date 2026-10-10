@@ -1527,6 +1527,8 @@ def _build_content() -> Dict[str, HelpContent]:
                 "volume wrong",
                 "delivery",
                 "dialout",
+                "logout",
+                "log out",
             ],
             related_topics=[
                 "Safety Features",

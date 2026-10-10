@@ -318,3 +318,13 @@ def test_logout_is_allowed_after_a_stop_that_latched_and_a_new_login_brings_clos
     assert lock.is_busy() is False
     assert section.run_button.isEnabled() is True
     assert slot_errors == []
+
+
+def test_a_help_search_for_logout_finds_why_log_out_is_greyed_out():
+    """Operators type "logout" as one word; the Help search must still lead
+    them to the Troubleshooting entry that says why Log Out is greyed out."""
+    from utils.help_content_manager import HelpContentManager  # noqa: PLC0415
+
+    found = [key for key, _snippet in HelpContentManager().search("logout")]
+
+    assert "Troubleshooting" in found

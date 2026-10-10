@@ -69,9 +69,11 @@ widget refresh. Don't poll `is_logged_in()`.
 
 Log Out has a gate of its own: Stop needs a login, so while a schedule runs
 `UserTab` greys Log Out out and `UserTab.logout` refuses (**Schedule
-running**), reading the `schedule_running` callable `gui.py` passes (the
-Run/Stop section's `job_in_progress`) whenever the operation lock's
-`state_changed` fires.
+running**). Both read the `schedule_running` callable `gui.py` passes (the
+Run/Stop section's `job_in_progress`): the button is refreshed whenever the
+operation lock's `state_changed` fires, and `logout()` asks the callable
+again when it is called, so a stale button state can never let a logout
+through.
 
 ## Signal/slot conventions
 
