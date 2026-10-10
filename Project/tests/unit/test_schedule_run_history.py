@@ -7,8 +7,9 @@ existing database without touching its rows and creating them again is a
 no-op; a run opens, closes once and is never reopened; a run a crash left
 open is closed as interrupted with its delivered amount unknown; the animal
 readers return each animal's latest run - by run order, not by clock - in
-the one query they already ran, still in animal_id order; and Run's reader
-returns each animal's latest run of one schedule, whatever ran since.
+the one query they already ran, still one row per animal, in animal_id order
+and with every animal field as before; and Run's reader returns each
+animal's latest run of one schedule, whatever ran since.
 """
 
 from __future__ import annotations
@@ -373,9 +374,10 @@ def test_the_readers_return_each_animals_latest_run_by_run_order(database_handle
             (second,),
         )
 
-    animals = {a.animal_id: a for a in database_handler.get_all_animals()}
+    rows = database_handler.get_all_animals()
+    animals = {a.animal_id: a for a in rows}
 
-    assert list(animals) == sorted(animals), "rows keep the animal_id order"
+    assert [a.animal_id for a in rows] == [a1, a2, never], "one row per animal, by animal_id"
     assert animals[a1].last_run['run_id'] == second
     assert animals[a1].last_run['schedule_name'] == 'PM water'
     assert animals[a2].last_run['run_id'] == first
@@ -407,6 +409,28 @@ def test_animals_come_back_in_id_order_with_or_without_a_run(database_handler, m
     assert [a.animal_id for a in everyone] == [10, 20, 30, 40]
     assert [a.last_run is not None for a in everyone] == [True, False, True, False]
     assert [a.animal_id for a in mine] == [10, 20, 30]
+
+
+def test_the_readers_return_every_animal_field_as_before(database_handler):
+    # The readers now share one SELECT and one row mapper. Export Animals
+    # writes Sex, Initial Weight and Last Weight by attribute, so each column
+    # must still land in its own field.
+    fern = Animal(
+        lab_animal_id='F-1',
+        name='Fern',
+        initial_weight=21.5,
+        last_weight=23.0,
+        last_weighted='2026-10-01T09:00:00',
+        last_watering='2026-10-02T10:00:00',
+        sex='female',
+    )
+    fern_id = database_handler.add_animal(fern, 1)
+    expected = dict(fern.to_dict(), animal_id=fern_id)
+
+    [everyone] = database_handler.get_all_animals()
+    [mine] = database_handler.get_animals_by_trainer(1)
+    assert everyone.to_dict() == expected
+    assert mine.to_dict() == expected
 
 
 def test_a_deleted_schedule_keeps_its_runs(database_handler):
