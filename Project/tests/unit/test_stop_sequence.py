@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from utils import stop_sequence
 
 
@@ -372,11 +374,11 @@ def test_a_deleted_or_finished_thread_has_exited():
 
 
 def test_the_relays_are_switched_off_again_even_when_the_teardown_raises():
+    """The error must still reach main.stop_program, which turns it into an
+    unsafe StopResult, so Stop keeps the hardware locked."""
     order = []
     handler, worker, thread, signals, _ = _recorder(order, relays=(True, True))
     signals.stop_requested.emit.side_effect = ValueError("unexpected")
-    try:
+    with pytest.raises(ValueError, match="unexpected"):
         stop_sequence.execute_stop_sequence(handler, worker, thread, signals)
-    except ValueError:
-        pass
     assert order == ["relays_off", "cancel", "relays_off"]
