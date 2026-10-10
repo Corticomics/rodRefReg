@@ -68,9 +68,10 @@ not listed here.
 - **Relays Not Confirmed Off**, **Delivery Worker Did Not Stop**,
   **Emergency Stop Failed** or `[VALVE CRITICAL]`: disconnect the valve
   power supply first, then check the relay HAT and its I²C connection.
-  Run, priming and calibration come back after CLOSE ALL RELAYS (Settings >
-  Priming) confirms every relay off, or after RRR is restarted (if RRR will
-  not quit, restart the Raspberry Pi).
+  During a run, press Stop (CLOSE ALL RELAYS is greyed out while a schedule
+  runs). Run, priming and calibration come back after CLOSE ALL RELAYS
+  (Settings > Priming) confirms every relay off, or after RRR is restarted
+  (if RRR will not quit, restart the Raspberry Pi).
 - With a relay HAT missing since RRR started, every Stop shows **Relays
   Not Confirmed Off** and keeps the hardware locked. Restart RRR, then fix
   the HAT and restart again, or set the number of HATs the rig has with
