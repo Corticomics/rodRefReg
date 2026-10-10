@@ -10,6 +10,12 @@ from datetime import datetime
 from models.animal import Animal
 from models.relay_unit import RelayUnit
 from models.Schedule import Schedule
+from models.schedule_runs_repo import (
+    LAST_RUN_COLUMNS,
+    LAST_RUN_JOIN,
+    ScheduleRunsRepo,
+    last_run_from_row,
+)
 from utils import paths
 
 
@@ -17,6 +23,7 @@ class DatabaseHandler:
     def __init__(self, db_path=None):
         # db_path=None -> resolve via paths (RRR_DATA, or legacy location).
         self.db_path = db_path or paths.database_path()
+        self._schedule_runs = ScheduleRunsRepo(self.connect)
         self.create_tables()
 
     def connect(self):
@@ -330,6 +337,53 @@ class DatabaseHandler:
                     ):
                         if column not in columns:
                             cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {decl}')
+
+                # Schedule run history (v2.0.0; queries in
+                # models/schedule_runs_repo.py): one row per run that started
+                # delivering, and one per animal in it. The run keeps its own
+                # copy of what it needs (schedule name, mode, amounts) because
+                # the schedule, the animal and the cage can be edited or
+                # deleted later; schedule_id, animal_id and relay_unit_id are
+                # therefore not foreign keys. New tables need no migration:
+                # IF NOT EXISTS adds them to an existing database, and an
+                # older release never reads them.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_runs (
+                        run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        schedule_id INTEGER NOT NULL,
+                        schedule_name TEXT NOT NULL,
+                        delivery_mode TEXT NOT NULL,
+                        started_at TEXT NOT NULL,
+                        ended_at TEXT,
+                        end_reason TEXT,
+                        started_by INTEGER,
+                        stopped_by INTEGER,
+                        relays_confirmed_off INTEGER,
+                        worker_exited INTEGER,
+                        app_version TEXT,
+                        FOREIGN KEY(started_by) REFERENCES trainers(trainer_id),
+                        FOREIGN KEY(stopped_by) REFERENCES trainers(trainer_id)
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_run_animals (
+                        run_id INTEGER NOT NULL,
+                        animal_id INTEGER NOT NULL,
+                        relay_unit_id INTEGER,
+                        requested_ml REAL NOT NULL,
+                        planned_ml REAL NOT NULL,
+                        delivered_ml REAL,
+                        outcome TEXT NOT NULL,
+                        PRIMARY KEY (run_id, animal_id),
+                        FOREIGN KEY(run_id) REFERENCES schedule_runs(run_id)
+                    )
+                ''')
+                # Each animal's latest run (MAX(run_id) per animal) for the
+                # Animals tab; the primary key serves the per-run lookups.
+                cursor.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_schedule_run_animals_animal_run
+                    ON schedule_run_animals (animal_id, run_id)
+                ''')
 
                 conn.commit()
                 print("Database schema created/updated successfully.")
@@ -945,64 +999,65 @@ class DatabaseHandler:
             print(f"Error removing animal with lab ID {lab_animal_id}: {e}")
             traceback.print_exc()
 
+    # The animal list readers' query: every animal column they return plus the
+    # animal's latest schedule run (Animal.last_run), in the one query a tab
+    # load already ran. Each reader adds ORDER BY a.animal_id, the order the
+    # Animals tab, the schedule wizard and the animal export have always shown.
+    _ANIMALS_WITH_LAST_RUN = f'''
+        SELECT a.animal_id, a.lab_animal_id, a.name, a.initial_weight,
+               a.last_weight, a.last_weighted, a.last_watering, a.sex,
+               {LAST_RUN_COLUMNS}
+        FROM animals a
+        {LAST_RUN_JOIN}
+    '''
+
+    @staticmethod
+    def _animal_from_row(row):
+        """A row of _ANIMALS_WITH_LAST_RUN as an Animal."""
+        return Animal(
+            animal_id=row[0],
+            lab_animal_id=row[1],
+            name=row[2],
+            initial_weight=row[3],
+            last_weight=row[4],
+            last_weighted=row[5],
+            last_watering=row[6],
+            sex=row[7],
+            last_run=last_run_from_row(row[8:]),
+        )
+
     def get_all_animals(self):
-        """Retrieve all animals in the database, regardless of trainer."""
+        """Retrieve all animals in the database, regardless of trainer, by animal_id.
+
+        Each Animal carries its latest schedule run as ``last_run`` (a dict, see
+        models/schedule_runs_repo.py), or None if it never ran.
+        """
         animals = []
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute('''
-                    SELECT animal_id, lab_animal_id, name, initial_weight, 
-                           last_weight, last_weighted, last_watering, sex 
-                    FROM animals
-                ''')
-                rows = cursor.fetchall()
-                for row in rows:
-                    animal = Animal(
-                        animal_id=row[0],
-                        lab_animal_id=row[1],
-                        name=row[2],
-                        initial_weight=row[3],
-                        last_weight=row[4],
-                        last_weighted=row[5],
-                        last_watering=row[6],
-                        sex=row[7],
-                    )
-                    animals.append(animal)
+                cursor.execute(self._ANIMALS_WITH_LAST_RUN + ' ORDER BY a.animal_id')
+                animals = [self._animal_from_row(row) for row in cursor.fetchall()]
         except sqlite3.Error as e:
             print(f"Error retrieving all animals: {e}")
             traceback.print_exc()
         return animals
 
     def get_animals_by_trainer(self, trainer_id):
-        """Retrieve animals belonging to a specific trainer."""
+        """Retrieve animals belonging to a specific trainer, by animal_id (with ``last_run``)."""
         animals = []
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    '''SELECT animal_id, lab_animal_id, name, initial_weight, 
-                              last_weight, last_weighted, last_watering, sex 
-                       FROM animals 
-                       WHERE trainer_id = ?''',
+                    self._ANIMALS_WITH_LAST_RUN + ' WHERE a.trainer_id = ? ORDER BY a.animal_id',
                     (int(trainer_id),),
                 )
                 rows = cursor.fetchall()
                 print(
                     f"Retrieved {len(rows)} animals from the database for trainer_id {trainer_id}"
                 )
-                for row in rows:
-                    animal = Animal(
-                        animal_id=row[0],
-                        lab_animal_id=row[1],
-                        name=row[2],
-                        initial_weight=row[3],
-                        last_weight=row[4],
-                        last_weighted=row[5],
-                        last_watering=row[6],
-                        sex=row[7],
-                    )
-                    animals.append(animal)
+                animals = [self._animal_from_row(row) for row in rows]
         except sqlite3.Error as e:
             print(f"Error retrieving animals for trainer_id {trainer_id}: {e}")
             traceback.print_exc()
@@ -2408,3 +2463,39 @@ class DatabaseHandler:
                 cage_id += 1
 
         return cages
+
+    # --- Schedule run history (models/schedule_runs_repo.py) -----------------
+    # The facade: callers use these; the queries live in the repo.
+
+    def start_schedule_run(self, schedule_id, schedule_name, delivery_mode, started_by, animals):
+        """See ScheduleRunsRepo.start_schedule_run."""
+        return self._schedule_runs.start_schedule_run(
+            schedule_id, schedule_name, delivery_mode, started_by, animals
+        )
+
+    def finish_schedule_run(
+        self,
+        run_id,
+        end_reason,
+        results,
+        stopped_by=None,
+        relays_confirmed_off=None,
+        worker_exited=None,
+    ):
+        """See ScheduleRunsRepo.finish_schedule_run."""
+        return self._schedule_runs.finish_schedule_run(
+            run_id,
+            end_reason,
+            results,
+            stopped_by=stopped_by,
+            relays_confirmed_off=relays_confirmed_off,
+            worker_exited=worker_exited,
+        )
+
+    def mark_interrupted_schedule_runs(self):
+        """See ScheduleRunsRepo.mark_interrupted_schedule_runs."""
+        return self._schedule_runs.mark_interrupted_schedule_runs()
+
+    def get_latest_runs_of_schedule(self, schedule_id, animal_ids):
+        """See ScheduleRunsRepo.get_latest_runs_of_schedule."""
+        return self._schedule_runs.get_latest_runs_of_schedule(schedule_id, animal_ids)

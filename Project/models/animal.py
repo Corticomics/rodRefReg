@@ -17,6 +17,7 @@ class Animal:
         last_weighted=None,
         last_watering=None,
         sex=None,
+        last_run=None,
     ):
         """
         Initialize an Animal instance.
@@ -30,6 +31,10 @@ class Animal:
             last_weighted (str, optional): Date of last weighing (ISO format).
             last_watering (str, optional): Date of last watering (ISO format).
             sex (str, optional): Sex of the animal ('M' or 'F').
+            last_run (dict, optional): The animal's latest schedule run, as
+                DatabaseHandler.get_all_animals / get_animals_by_trainer read
+                it (models/schedule_runs_repo.py); None if it never ran or
+                was not read.
         """
         self.animal_id = animal_id
         self.lab_animal_id = lab_animal_id
@@ -39,6 +44,7 @@ class Animal:
         self.last_weighted = last_weighted
         self.last_watering = last_watering
         self.sex = sex
+        self.last_run = last_run
         self.water_history = []
         self.recommended_volume = None
 
