@@ -99,6 +99,7 @@ table of contents you need to bookmark.
 | [TOPOLOGY_VALIDATION.md](Project/docs/TOPOLOGY_VALIDATION.md) | Proving an independent (one syringe per animal) rig against the manifold rig: pre-declared criteria C1–C9, bench recipe, and the tools that grade the weighings. |
 | [DEVELOPMENT.md](Project/docs/DEVELOPMENT.md) | Software architecture, modules, data flow, and dev-environment setup. |
 | [DATABASE.md](Project/docs/DATABASE.md) / [DATABASE_ARCHITECTURE.md](Project/docs/DATABASE_ARCHITECTURE.md) | SQLite schema, ERD, and `DatabaseHandler` reference. |
+| [STOP_AND_PARTIAL_DELIVERY.md](Project/docs/STOP_AND_PARTIAL_DELIVERY.md) | Design of v2.0.0's Stop, CLOSE ALL RELAYS availability, run history and the Animals tab's last-run column (for maintainers). |
 | [MAINTENANCE.md](Project/docs/MAINTENANCE.md) | Release, versioning (SemVer for RRR), tagging, and recovery procedures. |
 | [UPDATE_SYSTEM.md](Project/docs/UPDATE_SYSTEM.md) | Full design of the in-app update pipeline (bundle format, blue-green layout, boot sentinel). |
 | [CLAUDE.md](CLAUDE.md) | One-page hard-rules summary for maintainers and AI assistants. |
