@@ -58,7 +58,8 @@ _LABELS = {
 class OperationLock(QObject):
     """Single-holder, re-entrant-per-owner hardware operation lock."""
 
-    # Emitted whenever the busy/idle state changes (free→held or held→free).
+    # Emitted whenever the busy/idle state changes (free→held or held→free),
+    # and when a stop hands a hold over to EMERGENCY (hold_until_safe).
     state_changed = pyqtSignal()
 
     def __init__(self) -> None:
@@ -96,6 +97,25 @@ class OperationLock(QObject):
                 self._active = None
                 changed = True
         if changed:
+            self.state_changed.emit()
+
+    def hold_until_safe(self, handing_over: Optional[str] = None) -> None:
+        """Keep the hardware locked after a stop that could not confirm it is
+        safe: every relay off, and no delivery worker left running.
+
+        A free lock is taken for ``EMERGENCY``, and a hold by ``handing_over``
+        (the Stop button passes ``SCHEDULE``) becomes ``EMERGENCY`` in one
+        step, so the lock is never free in between. Any other holder keeps
+        it. Only a confirmed CLOSE ALL RELAYS (:meth:`force_release`), or a
+        restart, clears ``EMERGENCY``.
+        """
+        changed = False
+        with self._mutex:
+            if self._active is None or (handing_over is not None and self._active == handing_over):
+                changed = self._active != EMERGENCY
+                self._active = EMERGENCY
+        if changed:
+            self._log.warning("Hardware held: a stop could not confirm it is safe")
             self.state_changed.emit()
 
     def force_release(self) -> None:
