@@ -6,7 +6,37 @@
 #
 # Idempotent: a re-run refreshes the release for the current version and
 # leaves already-migrated data untouched.
+#
+# First, it restarts the installer when 20-repo's pull changed it.
 
+# ---- restart the installer if the pull changed it -----------------------
+# install.sh loaded lib.sh and listed the modules before the pull, so the
+# rest of this run would mix new modules with the old helpers and the old
+# list: a new module calling a helper the old lib.sh lacks stops the install
+# with "command not found". This is the first module sourced after the
+# pull, and every checkout since v1.3.0 has it, so the check also covers an
+# install.sh from before it recorded a checksum. The restarted installer
+# repeats 00-20, which are idempotent, and RRR_INSTALL_REEXEC allows one
+# restart. A dry run pulls nothing.
+if [[ "${DRY_RUN:-0}" != "1" && -z "${RRR_INSTALL_REEXEC:-}" ]]; then
+  _rrr_sum=$(cat "$REPO_ROOT/install.sh" "$MODULE_DIR"/*.sh 2>/dev/null | cksum) || true
+  if [[ "$_rrr_sum" != "${_RRR_INSTALLER_SUM:-}" ]]; then
+    info "the pull changed the installer; restarting it from the updated checkout"
+    export RRR_INSTALL_REEXEC=1
+    # install.sh clears every flag when it starts and exports neither ONLY
+    # nor SKIP, so all of them go back in as arguments.
+    _rrr_args=()
+    [[ "${YES:-0}" == "1" ]] && _rrr_args+=(-y)
+    [[ -n "${BRANCH:-}" ]] && _rrr_args+=(--branch "$BRANCH")
+    [[ -n "${ONLY:-}" ]] && _rrr_args+=(--only "$ONLY")
+    for _rrr_skip in "${SKIP[@]:-}"; do
+      [[ -n "$_rrr_skip" ]] && _rrr_args+=(--skip "$_rrr_skip")
+    done
+    exec "$BASH" "$REPO_ROOT/install.sh" "${_rrr_args[@]}"
+  fi
+fi
+
+# ---- read the version from the checkout ---------------------------------
 VERSION=$(python3 -c "exec(open('$REPO_ROOT/Project/version.py').read()); print(__version__)") \
   || die "cannot read version from Project/version.py"
 [[ -n "$VERSION" ]] || die "empty version in Project/version.py"

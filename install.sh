@@ -29,6 +29,10 @@ MODULE_DIR="$REPO_ROOT/scripts/install"
 # shellcheck source=scripts/install/lib.sh
 source "$MODULE_DIR/lib.sh"
 
+# The installer as this run loaded it. 25-layout.sh compares it after
+# 20-repo's pull and restarts the installer when the pull changed it.
+_RRR_INSTALLER_SUM=$(cat "$REPO_ROOT/install.sh" "$MODULE_DIR"/*.sh 2>/dev/null | cksum) || true
+
 # ---- Flags ---------------------------------------------------------------
 DRY_RUN=0
 YES=0

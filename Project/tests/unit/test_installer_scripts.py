@@ -14,6 +14,11 @@ Found on a real Raspberry Pi (lab validation, 2026-10-06):
   dry run unfinished: it looked for a message the installer stopped printing in
   May 2026. It also failed on any Pi where RRR was installed, because it
   required the paths a real install writes to be absent.
+
+Found reading the code (2026-10-09): the first ``install.sh`` run on a checkout
+from before those fixes pulled them in, then stopped at the final check with
+"report_relay_hat_level: command not found". It had loaded the old ``lib.sh``
+before the pull. The installer now restarts itself when the pull changed it.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[3]
+INSTALL = REPO / "install.sh"
 UI = REPO / "scripts" / "install" / "ui.sh"
 LIB = REPO / "scripts" / "install" / "lib.sh"
 DIAGNOSE = REPO / "scripts" / "runtime" / "diagnose.sh"
@@ -415,3 +421,98 @@ def test_the_self_test_ignores_python_caches_in_the_venv(selftest):
     code, out = selftest(f"sleep 0.1; mkdir -p {cache}; touch {cache}/x.pyc\n" + _finish())
     assert code == 0, out
     assert f"PASS  {selftest.home}/rrr/shared/venv unchanged (it was there before)" in out
+
+
+# --- a pull that changes the installer restarts it ------------------------------------------------
+
+RESTART = "the pull changed the installer; restarting it from the updated checkout"
+FLAGS = ("-y", "--branch", "main", "--skip", "50-services")
+
+
+def _older_install_sh():
+    """install.sh as it was before it recorded the installer it loaded."""
+    lines = INSTALL.read_text().splitlines(keepends=True)
+    return "".join(ln for ln in lines if not ln.startswith("_RRR_INSTALLER_SUM="))
+
+
+@pytest.fixture
+def installer(lib_env, tmp_path):
+    """Runs the real install.sh and helpers, whose modules are the real
+    25-layout.sh and a stand-in 20-repo. The stand-in prints the flags the run
+    has, then "pulls": it renames today's install.sh over an older one, as git
+    does. It also turns run and step into no-ops, because the release that
+    25-layout.sh builds needs a Pi."""
+    repo = tmp_path / "repo"
+    modules = repo / "scripts" / "install"
+    shutil.copytree(REPO / "scripts" / "install", modules)
+    for real_module in modules.glob("[0-9][0-9]-*.sh"):
+        if real_module.name != "25-layout.sh":
+            real_module.unlink()
+    (modules / "20-repo.sh").write_text(
+        'info "flags: -y=$YES --branch=$BRANCH --skip=${SKIP[*]:-}'
+        ' RRR_INSTALL_REEXEC=${RRR_INSTALL_REEXEC:-}"\n'
+        'if [[ -f "$REPO_ROOT/install.sh.pulled" ]]; then\n'
+        '  mv "$REPO_ROOT/install.sh.pulled" "$REPO_ROOT/install.sh"\n'
+        "fi\n"
+        "run() { :; }; step() { :; }\n"
+    )
+    (repo / "Project").mkdir()
+    (repo / "Project" / "version.py").write_text('__version__ = "1.0.0"\n')
+    (repo / "dist").mkdir()
+    (repo / "dist" / "rrr-1.0.0.rrrupdate").write_text("bundle\n")
+    env = {**os.environ, **lib_env, "RRR_PLAIN": "1"}
+    env.pop("RRR_INSTALL_REEXEC", None)
+
+    def run(older, flags=FLAGS, extra_env=None):
+        if older:  # a checkout from before the checksum; its pull brings today's
+            (repo / "install.sh").write_text(_older_install_sh())
+            (repo / "install.sh.pulled").write_text(INSTALL.read_text())
+        else:
+            (repo / "install.sh").write_text(INSTALL.read_text())
+        done = subprocess.run(
+            [BASH, str(repo / "install.sh"), *flags],
+            capture_output=True,
+            text=True,
+            env={**env, **(extra_env or {})},
+        )
+        return done.returncode, done.stdout + done.stderr
+
+    return run
+
+
+@pytest.mark.parametrize(
+    ("flags", "restarted_with"),
+    [
+        (FLAGS, "flags: -y=1 --branch=main --skip=50-services RRR_INSTALL_REEXEC=1"),
+        ((), "flags: -y=0 --branch= --skip= RRR_INSTALL_REEXEC=1"),
+    ],
+    ids=["with-flags", "without-flags"],
+)
+def test_a_run_started_by_an_older_install_sh_restarts_once_from_the_updated_checkout(
+    installer, flags, restarted_with
+):
+    code, out = installer(older=True, flags=flags)
+    assert code == 0, out
+    assert out.count(RESTART) == 1, out
+    assert out.count("flags:") == 2, out  # the run, then its restart
+    assert restarted_with in out, out
+    # The restart comes before the module's own work, and only the restart finishes.
+    assert out.count("blue-green layout:") == 1, out
+    assert out.count("-- next steps --") == 1, out
+
+
+@pytest.mark.parametrize(
+    ("older", "flags", "extra_env"),
+    [
+        (False, FLAGS, None),  # the run after the update: the pull changes nothing
+        (True, FLAGS, {"RRR_INSTALL_REEXEC": "1"}),  # this run is the restart
+        (True, ("--dry-run", *FLAGS), None),  # even if its checkout changed
+    ],
+    ids=["unchanged", "restarted-already", "dry-run"],
+)
+def test_the_installer_does_not_restart(installer, older, flags, extra_env):
+    code, out = installer(older, flags, extra_env)
+    assert code == 0, out
+    assert RESTART not in out, out
+    assert out.count("flags:") == 1, out
+    assert out.count("-- next steps --") == 1, out
