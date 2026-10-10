@@ -317,16 +317,25 @@ The last column, **Last schedule delivered amount**, shows `last_run`
 
 ## 9. Run warnings (PRs 10, 11)
 
-At most one question per Run, after the **Expired Schedule** refusal, in
-plain text with Cancel as the default and Esc button; every Cancel goes
-through `_reset_run_button`. The words live in Qt-free `utils/run_warnings.py`.
+Run asks at most one question, after the **Expired Schedule** refusal: the
+window note and a last-run paragraph go inside it, never into a second
+dialog. Each question is plain text with Cancel as the default and Esc
+button; every Cancel goes through `_reset_run_button`. The words live in
+Qt-free `utils/run_warnings.py`.
 
-| Mode | Times passed? | Last run of this schedule ended early? | Question |
+| Mode | Times passed? | Last run of this schedule | Question |
 |---|---|---|---|
-| Staggered | start passed | no | **Schedule Start Time Passed** (unchanged) |
-| Staggered | either | yes | **Last Run Ended Early**, with the window note when the start passed |
-| Instant | some passed | either | **Some Deliveries Passed**, with a last-run paragraph when there is one |
-| Instant | none passed | yes | **Last Run Ended Early** |
+| Staggered | start passed | none, or no water went out | **Schedule Start Time Passed** (unchanged) |
+| Staggered | either | ended early (any animal) | **Last Run Ended Early**, with the window note when the start has passed |
+| Staggered | either | completed (no animal ended early) | the completed-run question (PR 11 words it), with the window note when the start has passed |
+| Instant | some passed | any | **Some Deliveries Passed**, with a last-run paragraph when the last run ended early or completed |
+| Instant | none passed | ended early or completed | **Last Run Ended Early**, or the completed-run question |
+
+Any other case asks nothing. An instant schedule whose last run completed
+has all its delivery times behind it, so **Expired Schedule** refuses it
+first (`run_stop_section.py:492-500`). Only an edit that moves its times
+brings it to the instant rows: the edited schedule keeps its `schedule_id`,
+and so its run history (`schedules_hub.py:288, :298`).
 
 **Some Deliveries Passed** (D6; **Start Run** / Cancel) replaces today's
 Yes/No question (`run_stop_section.py:502-516`). RRR creates one delivery
@@ -354,9 +363,9 @@ scheduled"), and says to create a new schedule for the remaining amount.
 - **Instant schedules:** re-running skips the passed times
   (`relay_worker.py:496-527`), so their lines carry no remainder and add
   "Passed deliveries are skipped, never repeated."
-- **A completed last run** also gets a question (the owner's choice on
-  refinement 7; PR 11 words it): Run would give a staggered schedule's full
-  amount again unasked.
+- **A completed last run** gets the completed-run question (the owner's
+  choice on refinement 7; PR 11 words it), placed as the table shows: Run
+  would otherwise give every animal its full amount again unasked.
 - **One indexed read** (`get_latest_runs_of_schedule`) per Run; if it
   fails, a Terminal line is printed and the question skipped.
 
@@ -426,7 +435,7 @@ scheduled"), and says to create a new schedule for the remaining amount.
 | 8 | 8 Animals-tab column, red cell, Help (§8) | `feat/animals-last-schedule-column` | adds lines |
 | 9 | 9 CSV export columns (§8) | `feat/export-last-schedule` | adds lines |
 | 10 | 10 Some Deliveries Passed (§9) | `feat/warn-instant-passed-deliveries` | adds lines |
-| 11 | 11 Last Run Ended Early (§9) | `feat/run-warns-stopped-schedule` | adds lines |
+| 11 | 11 Last Run Ended Early and the completed-run question (§9) | `feat/run-warns-stopped-schedule` | adds lines |
 | 12 | 12 Headless integration test | `chore/stop-partial-delivery-integration-test` | none (test-only) |
 | 13 | 13 Operator docs, smoke test, release notes | `docs/v2-0-0-operator-docs` | finalises the entry |
 | T | Tag `v2.0.0` on the validated SHA, at the owner's go | — | — |
