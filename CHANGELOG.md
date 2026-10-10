@@ -16,6 +16,62 @@ not listed here.
 
 ---
 
+## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
+
+**What changes on the device**
+
+- **Fix (safety):** Stop is safer.
+  - Stop switches every relay off and cancels the delivery at once (before,
+    a pulse could still start while the *Stopping* window opened), then
+    switches every relay off again once the delivery has stopped. That
+    second command decides whether the relays count as confirmed off. A
+    delivery stopped while the master valve was being primed no longer
+    opens the master again.
+  - When Stop cannot confirm every relay off, or the delivery does not
+    stop, one dialog says what happened and what to do (**Relays Not
+    Confirmed Off** or **Delivery Worker Did Not Stop**; the second
+    **Warning** box is gone). Run, Change Relay Hats, priming and
+    calibration then stay unavailable ("Unavailable while an unconfirmed
+    emergency stop is in progress") until CLOSE ALL RELAYS confirms every
+    relay off, or RRR is restarted. Before, Run was available again at
+    once. A change of hardware mode or valve topology is refused meanwhile,
+    and the refusal says what clears it.
+  - Run refuses to start while the previous schedule's delivery has not
+    stopped (**Delivery Worker Did Not Stop**), instead of starting a
+    second delivery beside it, and keeps the hardware locked the same way.
+    A Run that could not start its delivery for another reason says so
+    (**Schedule not started**) instead of showing *Running*.
+  - A Stop pressed while Run still shows *Starting…* cancels that start.
+    Before, the start could still go ahead after the Stop.
+
+**If something goes wrong**
+
+- **Relays Not Confirmed Off**, **Delivery Worker Did Not Stop**,
+  **Emergency Stop Failed** or `[VALVE CRITICAL]`: disconnect the valve
+  power supply first, then check the relay HAT and its I²C connection.
+  Run, priming and calibration come back after CLOSE ALL RELAYS (Settings >
+  Priming) confirms every relay off, or after RRR is restarted (if RRR will
+  not quit, restart the Raspberry Pi).
+- With a relay HAT missing since RRR started, every Stop shows **Relays
+  Not Confirmed Off** and keeps the hardware locked. Restart RRR, then fix
+  the HAT and restart again, or set the number of HATs the rig has with
+  Change Relay Hats.
+
+**Developer notes**
+
+- 2.0.0 is MAJOR under MAINTENANCE.md §2: with this release, operators must
+  end a run with Stop and cannot log out during one. Design:
+  `Project/docs/STOP_AND_PARTIAL_DELIVERY.md`.
+- `utils/stop_sequence.execute_stop_sequence` returns
+  `StopResult(relays_confirmed_off, worker_exited)`. It cancels right after
+  the first all-off, and a second all-off after teardown decides
+  "confirmed". An unconfirmed Stop swaps the SCHEDULE hold for EMERGENCY in
+  one step (`OperationLock.hold_until_safe`), before any dialog.
+- `main.run_program` returns whether it started the worker. It refuses
+  beside a live worker thread and keeps its reference, as `main.cleanup`
+  now does. `RunStopSection` ties the start that Run queues to a token
+  that Stop clears.
+
 ## 1.21.0 — valve topology, calibration gate, relay-failure reporting
 
 This release also carries 1.18.1, 1.19.0 and 1.20.0, which were numbered
