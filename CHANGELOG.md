@@ -91,6 +91,13 @@ not listed here.
   **?** with the command that lists what the cage received. Long column
   headers now wrap instead of being cut off, and a refresh keeps the
   filter and the selected animal.
+- **Add:** Export Animals to CSV (Settings > General) adds each animal's
+  last schedule run: the schedule, its result (Completed, Stopped,
+  Incomplete, Interrupted or Running), the scheduled, planned and
+  delivered amounts in mL, as numbers a spreadsheet can add up, and when
+  the run started and ended. An amount that was not recorded is left
+  empty, never 0, and an interrupted run has no end time, because RRR
+  closed during it.
 
 **If something goes wrong**
 

@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
 )
 from utils import updater
 from utils.calibration_gate import calibration_is_usable, gate_applies
+from utils.last_run_text import outcome_word
 from utils.operation_lock import CALIBRATION, EMERGENCY, get_operation_lock
 from utils.topology import (
     DEFAULT_MASTER_RELAY_ID,
@@ -2082,19 +2083,30 @@ class SettingsTab(QWidget):
                 QMessageBox.information(self, "Export Info", "No animals found to export")
                 return
 
+            def excel_time(timestamp):
+                """A stored ISO timestamp in an Excel-friendly format; '' when missing."""
+                return (
+                    datetime.fromisoformat(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                    if timestamp
+                    else ''
+                )
+
+            def millilitres(value):
+                """A volume as a number (3 decimals), so a spreadsheet can add it up;
+                empty when it was not recorded, never 0."""
+                return round(value, 3) if value is not None else None
+
             data = []
             for animal in animals:
                 # Format dates in Excel-friendly format
-                last_weighted = (
-                    datetime.fromisoformat(animal.last_weighted).strftime('%Y-%m-%d %H:%M:%S')
-                    if animal.last_weighted
-                    else ''
-                )
-                last_watering = (
-                    datetime.fromisoformat(animal.last_watering).strftime('%Y-%m-%d %H:%M:%S')
-                    if animal.last_watering
-                    else ''
-                )
+                last_weighted = excel_time(animal.last_weighted)
+                last_watering = excel_time(animal.last_watering)
+                # The animal's latest schedule run, as the Animals tab shows it.
+                run = animal.last_run or {}
+                # An interrupted run's stored end is when the next start found it
+                # open, not when it stopped: the tab dates it by its start, and
+                # its end stays empty here.
+                ended_at = run.get('ended_at') if run.get('outcome') != 'interrupted' else None
 
                 data.append(
                     {
@@ -2109,6 +2121,13 @@ class SettingsTab(QWidget):
                         else '',
                         'Last Weighted': last_weighted,
                         'Last Watering': last_watering,
+                        'Last Schedule': run.get('schedule_name', ''),
+                        'Last Schedule Result': outcome_word(run.get('outcome')),
+                        'Last Schedule Scheduled (mL)': millilitres(run.get('requested_ml')),
+                        'Last Schedule Planned (mL)': millilitres(run.get('planned_ml')),
+                        'Last Schedule Delivered (mL)': millilitres(run.get('delivered_ml')),
+                        'Last Schedule Started': excel_time(run.get('started_at')),
+                        'Last Schedule Ended': excel_time(ended_at),
                     }
                 )
 
@@ -2138,6 +2157,7 @@ class SettingsTab(QWidget):
                     encoding='utf-8-sig',  # BOM for Excel Mac
                     sep=',',
                     date_format='%Y-%m-%d %H:%M:%S',
+                    float_format='%.3f',  # the mL columns; weights are already text
                 )
 
             self.print_to_terminal(f"Successfully exported {len(animals)} animals to {file_path}")

@@ -3,9 +3,10 @@
 Animal.last_run is the animal's latest schedule run that started delivering
 (models/schedule_runs_repo.py), or None. last_run_cell() turns it into the
 Animals tab's "Last schedule delivered amount" cell: its text, its tooltip
-and whether it is red. remaining_ml() and delivery_log_command() serve
-anything else that describes a run, so every screen gives the same remainder
-and the same command.
+and whether it is red. outcome_word(), remaining_ml() and
+delivery_log_command() serve anything else that describes a run, such as the
+animal export, so every screen gives the same word, the same remainder and
+the same command.
 
 Red follows the outcome the run recorded, never a comparison of delivered
 with scheduled: whole-pulse rounding makes a completed run differ from its
@@ -38,6 +39,15 @@ _SMALLEST_REMAINDER_ML = 0.0005
 def _ml(volume):
     """A volume to three decimals, or "?" when it was not recorded."""
     return "?" if volume is None else f"{volume:.3f}"
+
+
+def outcome_word(outcome):
+    """How the run ended for the animal, in one word: Running, Completed,
+    Stopped, Incomplete or Interrupted. The cell starts with it, except a
+    completed one, which shows only the amount. An outcome that a newer
+    release wrote, read after a revert, shows by name; "" when there is no
+    run."""
+    return str(outcome).capitalize() if outcome else ""
 
 
 def remaining_ml(last_run):
@@ -129,7 +139,7 @@ def last_run_cell(last_run, when):
     if outcome == 'running':
         lines = [f'Schedule "{name}" is running. It started {when(last_run.get("started_at"))}.']
         lines += amounts + ["The delivered amount appears here when the schedule ends."]
-        return f"Running · {planned} mL planned", "\n".join(lines), False
+        return f"{outcome_word(outcome)} · {planned} mL planned", "\n".join(lines), False
 
     red = outcome != 'completed'
     if not red:
@@ -138,7 +148,7 @@ def last_run_cell(last_run, when):
     else:
         # Stopped, incomplete, interrupted, or an outcome that a newer release
         # wrote before a revert: red, which errs towards a check.
-        text = f"{str(outcome).capitalize()} · {_ml(delivered)} / {planned} mL"
+        text = f"{outcome_word(outcome)} · {_ml(delivered)} / {planned} mL"
         if outcome == 'interrupted':
             # Dated by its start: its end is when the next start found it open.
             lines = [
