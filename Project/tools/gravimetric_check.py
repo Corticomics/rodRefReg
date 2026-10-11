@@ -28,7 +28,10 @@ daily-total and row-status criteria; no sqlite3 command needed).
 Planner verdict, for a completed delivery of an instant schedule:
   ok        the pulse count is what the recorded rounding policy gives for
             the dose asked for
-  mismatch  it is not: a code regression, never a hardware finding
+  mismatch  it is not: a code regression, never a hardware finding (a row
+            written before 2.0.0 at an exact half pulse is the one exception:
+            that release could round the half down; see TOPOLOGY_VALIDATION.md
+            §3.3)
 Rows written before the policy was recorded show which policy the count is
 consistent with instead (nearest, up, both, or mismatch). A staggered chunk
 shows 'carry': its count depends on the window's running carry, so it is
@@ -60,6 +63,7 @@ def _append_project_to_syspath() -> None:
 
 _append_project_to_syspath()
 
+from utils.dose_rounding import whole_pulses  # noqa: E402
 from utils.paths import DEVICE_DATA_DIR, bench_data_dir  # noqa: E402
 
 DB_NAME = 'rrr_database.db'
@@ -175,8 +179,9 @@ def planner_verdict(
     """How the fired pulse count relates to the dose that was asked for.
 
     Mirrors RelayWorker._quantize_to_pulses for a single-shot (instant)
-    request: nearest is round-half-up, ``int(dose / q + 0.5)``; up is
-    ``ceil(dose / q - 1e-9)``. See the module docstring for the labels.
+    request, through the same utils.dose_rounding.whole_pulses: nearest
+    rounds an exact half up, and up takes the next whole pulse. See the
+    module docstring for the labels.
     """
     if status != 'completed':
         return ''
@@ -190,8 +195,8 @@ def planner_verdict(
         return ''
     if delivery_mode == 'staggered':
         return 'carry'
-    nearest = int(dose / q + 0.5)
-    up = int(math.ceil(dose / q - 1e-9))
+    nearest = whole_pulses(dose, q)
+    up = whole_pulses(dose, q, round_up=True)
     if policy == 'nearest':
         return 'ok' if pulses == nearest else 'mismatch'
     if policy == 'up':

@@ -182,6 +182,18 @@ def test_planner_verdict(gravimetric, dose, pulses, policy, status, mode, verdic
     )
 
 
+def test_planner_verdict_follows_the_planner_at_an_exact_half_pulse(gravimetric):
+    """0.15 mL at 0.1 mL/pulse is 1.4999999999999998 pulses in floating point.
+    The planner fires 2 (utils.dose_rounding); the verdict must not call that
+    a planner regression."""
+    assert (
+        gravimetric.planner_verdict(
+            0.15, 2, 0.1, policy='nearest', status='completed', delivery_mode='instant'
+        )
+        == 'ok'
+    )
+
+
 def test_water_density_table_and_interpolation(gravimetric):
     assert gravimetric.water_density(20) == pytest.approx(0.99821)
     assert gravimetric.water_density(21.5) == pytest.approx((0.99799 + 0.99777) / 2)

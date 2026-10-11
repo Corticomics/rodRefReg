@@ -55,7 +55,7 @@ Two controls set the profile, and both are stored with the calibration:
 
 ## Dose rounding policy
 
-Water leaves the valve in whole pulses, so a dose can only ever land within one pulse of its target — at 33 µL per pulse, a 0.3 mL dose is 9.1 pulses and the app must fire 9 or 10. The default rounds to the **nearest** pulse: the dose lands within half a pulse either side of its target, and which side depends on the arithmetic (9.1 → 9, under; 8.8 → 9, over).
+Water leaves the valve in whole pulses, so a dose can only ever land within one pulse of its target — at 33 µL per pulse, a 0.3 mL dose is 9.1 pulses and the app must fire 9 or 10. The default rounds to the **nearest** pulse: the dose lands within half a pulse either side of its target, and which side depends on the arithmetic (9.1 → 9, under; 8.8 → 9, over; an exact half, 8.5, rounds up to 9).
 
 **Settings → Delivery → Pulse Mode → "Round doses up to the next whole pulse"** flips that: any dose that is not an exact number of pulses gets the next whole pulse, so the plan never falls below its target and lands up to one pulse over. The rounding stays cumulative within a schedule window — a 0.6 mL window split into three chunks fires `ceil(0.6 ÷ mL/pulse)` pulses in total, not one extra per chunk.
 
