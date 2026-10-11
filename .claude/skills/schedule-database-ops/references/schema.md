@@ -1,10 +1,10 @@
 # Schema reference
 
 Authoritative source: [`Project/models/database_handler.py`](Project/models/database_handler.py)
-`create_tables` (line 26). This file is a fast lookup; if it disagrees with
+`create_tables` (line 33). This file is a fast lookup; if it disagrees with
 `create_tables`, the code wins.
 
-## trainers (L102)
+## trainers (L109)
 
 | col | type | notes |
 |---|---|---|
@@ -14,7 +14,7 @@ Authoritative source: [`Project/models/database_handler.py`](Project/models/data
 | `password` | TEXT NOT NULL | hash (not plaintext) |
 | `role` | TEXT DEFAULT 'normal' | `'normal'` or `'super'` |
 
-## animals (L113)
+## animals (L120)
 
 | col | type | notes |
 |---|---|---|
@@ -29,14 +29,14 @@ Authoritative source: [`Project/models/database_handler.py`](Project/models/data
 | `trainer_id` | INTEGER → trainers | owner |
 | `sex` | TEXT CHECK IN ('male','female') | added via ALTER on existing installs |
 
-## relay_units (L130)
+## relay_units (L137)
 
 | col | type | notes |
 |---|---|---|
 | `relay_unit_id` | INTEGER PRIMARY KEY AUTOINCREMENT | |
 | `relay_ids` | TEXT NOT NULL | JSON list of physical relay numbers |
 
-## schedules (L138)
+## schedules (L145)
 
 | col | type | notes |
 |---|---|---|
@@ -50,7 +50,7 @@ Authoritative source: [`Project/models/database_handler.py`](Project/models/data
 | `delivery_mode` | TEXT DEFAULT 'staggered' | `'staggered'` or `'instant'` |
 | `dispensing_status` | TEXT DEFAULT 'pending' | `'pending'` / `'active'` / `'completed'` / `'failed'` |
 
-## schedule_animals (L154)
+## schedule_animals (L161)
 
 Junction. PRIMARY KEY (schedule_id, animal_id).
 
@@ -60,7 +60,7 @@ Junction. PRIMARY KEY (schedule_id, animal_id).
 | `animal_id` | INTEGER → animals | |
 | `relay_unit_id` | INTEGER → relay_units | nullable; set at execution time |
 
-## schedule_desired_outputs (L167, staggered mode)
+## schedule_desired_outputs (L174, staggered mode)
 
 Per-animal target. PRIMARY KEY (schedule_id, animal_id).
 
@@ -70,7 +70,7 @@ Per-animal target. PRIMARY KEY (schedule_id, animal_id).
 | `interval_minutes` | INTEGER DEFAULT 60 | between deliveries |
 | `volume_per_interval` | REAL | computed = desired_output / N intervals |
 
-## schedule_instant_deliveries (L181, instant mode)
+## schedule_instant_deliveries (L188, instant mode)
 
 | col | type | notes |
 |---|---|---|
@@ -80,7 +80,7 @@ Per-animal target. PRIMARY KEY (schedule_id, animal_id).
 | `relay_unit_id` | INTEGER → relay_units | nullable |
 | `completed` | BOOLEAN DEFAULT 0 | never set: no code has ever written it (`mark_instant_completed`, removed in v1.14.1, updated `schedule_time_instants`, a table that does not exist); attempts are in `dispensing_history` |
 
-## schedule_staggered_windows (L209)
+## schedule_staggered_windows (L216)
 
 Per-window state for staggered mode.
 
@@ -92,7 +92,7 @@ Per-window state for staggered mode.
 | `delivered_volume` | REAL DEFAULT 0 | running total |
 | `status` | TEXT DEFAULT 'pending' | `'pending'` / `'active'` / `'completed'` |
 
-## cycle_tracking (L225)
+## cycle_tracking (L232)
 
 Per-cycle progress within a staggered window.
 
@@ -104,11 +104,11 @@ Per-cycle progress within a staggered window.
 | `status` | TEXT DEFAULT 'pending' | |
 | `completed_at` | TEXT | ISO when status flipped to completed |
 
-## dispensing_history (L39)
+## dispensing_history (L46)
 
 Append-only audit log; one row per delivery attempt, failed ones included.
 Written by `DatabaseHandler.log_delivery`. On an existing install the
-columns after `status` are added by the `PRAGMA table_info` checks at L66-L98.
+columns after `status` are added by the `PRAGMA table_info` checks at L73-L105.
 
 | col | type | notes |
 |---|---|---|
@@ -136,7 +136,44 @@ The v1.21.0 context columns are NULL on older rows ("not recorded"). The
 `sensor_failure` row carries only `topology`, `delivery_mode` and
 `app_version` of that context.
 
-## logs (L197)
+## schedule_runs (L351) and schedule_run_animals (L369)
+
+Run history (v2.0.0): one `schedule_runs` row per run that started
+delivering, one `schedule_run_animals` row per animal in it. Queries in
+`Project/models/schedule_runs_repo.py`, reached through `DatabaseHandler`.
+Never deleted; `schedule_id`, `animal_id` and `relay_unit_id` are copies,
+not FKs, so a run outlives its schedule and animal. The animal readers
+return each animal's latest run (highest `run_id`) as `Animal.last_run`:
+`run_id`, `schedule_name`, `delivery_mode`, `started_at`, `ended_at` and
+the animal's `outcome`, `relay_unit_id` and three amounts. The audit fields
+stay in `schedule_runs`.
+
+| col | type | notes |
+|---|---|---|
+| `run_id` | INTEGER PRIMARY KEY AUTOINCREMENT | start order; the latest run is the highest `run_id` (not the clock) |
+| `schedule_id` | INTEGER NOT NULL | the schedule run (not a FK) |
+| `schedule_name` / `delivery_mode` | TEXT NOT NULL | copied at the start; `'staggered'` / `'instant'` |
+| `started_at` | TEXT NOT NULL | ISO; the run's first delivery |
+| `ended_at` | TEXT | NULL while running; for `interrupted`, when the next start closed it |
+| `end_reason` | TEXT | `'completed'` / `'stopped'` / `'ended_short'` / `'interrupted'` |
+| `started_by` / `stopped_by` | INTEGER → trainers | the trainer logged in at Run / at an operator Stop |
+| `relays_confirmed_off` / `worker_exited` | INTEGER | 1 / 0 on an operator Stop, else NULL |
+| `app_version` | TEXT | RRR version that ran it |
+
+`schedule_run_animals`, PRIMARY KEY (run_id, animal_id), index
+`idx_schedule_run_animals_animal_run` on (animal_id, run_id):
+
+| col | type | notes |
+|---|---|---|
+| `run_id` | INTEGER NOT NULL → schedule_runs | the run |
+| `animal_id` | INTEGER NOT NULL | the animal (a copy, not a FK) |
+| `relay_unit_id` | INTEGER | relay unit (the cage in solenoid mode) |
+| `requested_ml` | REAL NOT NULL | scheduled: what the schedule asks |
+| `planned_ml` | REAL NOT NULL | whole pulses x the cage's mL/pulse (= requested outside pulse mode) |
+| `delivered_ml` | REAL | credited (sum of the run's ledger `volume_actual_ml`); NULL = running or unknown |
+| `outcome` | TEXT NOT NULL | `'running'` / `'completed'` / `'stopped'` / `'incomplete'` / `'interrupted'` |
+
+## logs (L204)
 
 | col | type | notes |
 |---|---|---|
@@ -144,7 +181,7 @@ The v1.21.0 context columns are NULL on older rows ("not recorded"). The
 | `timestamp` / `action` / `details` | TEXT | |
 | `super_user_id` | INTEGER → trainers | |
 
-## system_settings (L243) — Phase 2.5a typed K/V
+## system_settings (L250) — Phase 2.5a typed K/V
 
 | col | type | notes |
 |---|---|---|
@@ -153,7 +190,7 @@ The v1.21.0 context columns are NULL on older rows ("not recorded"). The
 | `setting_type` | TEXT NOT NULL | `'bool'` / `'int'` / `'float'` / `'str'` / `'json'` |
 | `updated_at` | TEXT NOT NULL | ISO |
 
-## valve_calibration (L253) and valve_calibration_history (L273)
+## valve_calibration (L260) and valve_calibration_history (L280)
 
 Per-cage pulse-to-volume calibration. The non-`_history` table holds the
 current calibration; every save also appends to history.
@@ -173,7 +210,7 @@ current calibration; every save also appends to history.
 | `inter_pulse_interval_ms` | INTEGER | rest between pulses the calibration used (v1.16.0; NULL = legacy timing) |
 | `topology` | TEXT | valve topology measured under (v1.21.0; NULL = before it was recorded, read as `shared_manifold`) |
 
-## cage_names (L296)
+## cage_names (L303)
 
 | col | type | notes |
 |---|---|---|

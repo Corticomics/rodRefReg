@@ -105,6 +105,14 @@ not listed here.
   before `try_acquire(SCHEDULE)`, so the lock's `state_changed` greys the
   Close controls and Log Out with the flag already set. CLOSE ALL RELAYS,
   Close Selected and Log Out refuse in their handlers too.
+- Run history: two new tables, `schedule_runs` and `schedule_run_animals`,
+  created at start-up (older releases ignore them), written and read
+  through four `DatabaseHandler` methods (`start_schedule_run`,
+  `finish_schedule_run`, `mark_interrupted_schedule_runs`,
+  `get_latest_runs_of_schedule`) whose queries live in
+  `models/schedule_runs_repo.py`. `get_all_animals` and
+  `get_animals_by_trainer` return each animal's latest run as
+  `Animal.last_run`, in the same query, by `animal_id`.
 
 ## 1.21.0 — valve topology, calibration gate, relay-failure reporting
 

@@ -8,32 +8,39 @@ Recipes operators and developers actually need. All go through existing
 ```python
 schedules = db.get_schedules_by_trainer(trainer_id)
 # returns list of Schedule objects with delivery_mode, status, animal IDs
-# implementation: database_handler.py:688
+# implementation: database_handler.py:742
 ```
 
-## "What's the dispensing history for a specific animal?"
-
-There's no direct method. The canonical pattern is to pull the animal,
-then walk schedules:
+## "What did each animal get in its last schedule run?"
 
 ```python
-# Higher-level query — preferred path
-for sched in db.get_all_schedules():
-    progress = db.get_schedule_progress(sched.schedule_id)
-    # progress is a dict keyed by animal_id with delivered_volume, status
+for animal in db.get_all_animals():          # or get_animals_by_trainer(id)
+    run = animal.last_run                     # None: the animal never ran
+    # run['requested_ml'], run['planned_ml'], run['delivered_ml'] (None while
+    # running or after a crash), run['outcome'], run['schedule_name'], ...
+# Each animal's latest run of one schedule (what Run reads before it starts
+# that schedule over): the same dict plus 'lab_animal_id'.
+latest = db.get_latest_runs_of_schedule(schedule_id, [3, 5])  # {animal_id: dict}
+# implementation: models/schedule_runs_repo.py (through DatabaseHandler)
 ```
 
-`get_schedule_progress` is at [`database_handler.py:1588`](Project/models/database_handler.py#L1588).
-If you genuinely need a flat `dispensing_history` query, add a method on
-`DatabaseHandler` — don't run raw SQL from the UI.
+How a run ended for the audit (`end_reason`, `started_by`, `stopped_by`,
+`relays_confirmed_off`, `worker_exited`, `app_version`) is not in that
+dict: it stays on the `schedule_runs` row. Every run stays in
+`schedule_runs` / `schedule_run_animals`. For the
+per-attempt ledger (`dispensing_history`), the bench tool
+`tools/gravimetric_check.py daily` sums `volume_actual_ml` per animal and
+day. `get_schedule_progress` is unused: it sums only the planned volume of
+`completed` rows. If you genuinely need a flat `dispensing_history` query,
+add a method on `DatabaseHandler` — don't run raw SQL from the UI.
 
 ## "What's running right now?"
 
-```python
-active = db.get_active_schedules()
-# returns rows where dispensing_status = 'active'
-# implementation: database_handler.py:1066
-```
+Nothing in the database says so: `get_active_schedules()` (unused) looks
+for `dispensing_status = 'active'`, which nothing sets. In the app,
+`RunStopSection.job_in_progress` is true from Run to the end of the run or
+Stop. The run history shows a run that has started delivering as
+`outcome = 'running'` until it ends.
 
 ## "Get the instant deliveries of a schedule"
 
@@ -41,7 +48,7 @@ active = db.get_active_schedules()
 rows = db.get_schedule_instant_deliveries(schedule_id)
 # tuples: (animal_id, lab_animal_id, name, delivery_datetime,
 #          water_volume, completed, relay_unit_id), ordered by time
-# implementation: database_handler.py:1094
+# implementation: database_handler.py:1149
 ```
 
 Nothing sets `completed`: RelayWorker skips deliveries whose time has
@@ -55,7 +62,7 @@ only the rest (v1.21.0).
 cal = db.get_valve_calibration(cage_id=7)
 # dict with pulse_width_ms, volume_per_pulse_ml, inter_pulse_interval_ms,
 # topology, stddev_ml, etc., or None if the cage was never calibrated.
-# implementation: database_handler.py:1998
+# implementation: database_handler.py:2053
 # Is it usable on this device? utils.calibration_gate.calibration_problems([7],
 #   db.get_all_valve_calibrations(), settings) -> [] when it is, or when the
 #   gate does not apply (pump or continuous mode)
@@ -92,7 +99,7 @@ The persist path is in
 ```python
 trainer = db.authenticate_trainer(username, password)
 # returns dict {trainer_id, role} on success, None on failure
-# database_handler.py:782
+# database_handler.py:836
 ```
 
 ## "Add a new schedule"
@@ -101,8 +108,8 @@ trainer = db.authenticate_trainer(username, password)
 schedule_id = db.add_schedule(schedule)
 # staggered or instant: a Schedule with delivery_mode='instant' also writes
 # its schedule_instant_deliveries rows.
-# implementation: database_handler.py:417 (instant rows at :454);
-# edit with db.update_instant_schedule(schedule) (:1338)
+# implementation: database_handler.py:471 (instant rows at :508);
+# edit with db.update_instant_schedule(schedule) (:1393)
 ```
 
 ## Cage names for the UI dropdown
