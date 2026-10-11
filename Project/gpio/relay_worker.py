@@ -797,7 +797,8 @@ class RelayWorker(QObject):
         chunk (+78% measured on the bench, +0.6% agreement with prediction).
 
         Instead: track the cumulative volume this window has asked for, and
-        fire round(deficit / q) pulses where deficit = asked − actually
+        fire whole_pulses(deficit, q) pulses (utils.dose_rounding: nearest,
+        an exact half rounding up) where deficit = asked − actually
         delivered. Zero is a legal answer. The window total then lands
         within half a pulse of its cumulative target — the theoretical
         floor — with nothing carried across the window boundary, and a

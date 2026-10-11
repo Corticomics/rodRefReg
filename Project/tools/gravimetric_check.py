@@ -28,7 +28,10 @@ daily-total and row-status criteria; no sqlite3 command needed).
 Planner verdict, for a completed delivery of an instant schedule:
   ok        the pulse count is what the recorded rounding policy gives for
             the dose asked for
-  mismatch  it is not: a code regression, never a hardware finding
+  mismatch  it is not: a code regression, never a hardware finding (a row
+            written before 2.0.0 at an exact half pulse is the one exception:
+            that release could round the half down; see TOPOLOGY_VALIDATION.md
+            §3.3)
 Rows written before the policy was recorded show which policy the count is
 consistent with instead (nearest, up, both, or mismatch). A staggered chunk
 shows 'carry': its count depends on the window's running carry, so it is

@@ -89,10 +89,10 @@ run plan (PR 7) and of `tools/gravimetric_check.py`'s planner verdict.
 Nearest is `int(v / q + 0.5 + 1e-9)`: an exact half rounds up even where
 floating point lands it a hair below (0.15 / 0.1 is 1.4999999999999998).
 Round-up is `ceil(v / q - 1e-9)`, as before: an exact multiple that lands a
-hair above (0.14 / 0.02 is 7.000000000000001) buys no pulse. A tie now gets
-one pulse more than before, at most q: 74 of those 6000 windows and 26 of
-6000 single instant doses on the same grid, all at few-digit calibrations
-(§14, item 2). The production 0.034164 and 0.032936 mL per pulse make no
+hair above (0.14 / 0.02 is 7.000000000000001) buys no pulse. A tie that
+floating point rounded down now gets one pulse more, at most q: 74 of those
+6000 windows and 26 of 6000 single instant doses on the same grid (of 225
+ties under nearest), all at few-digit calibrations (§14, item 2). The production 0.034164 and 0.032936 mL per pulse make no
 dose of up to three decimals a tie.
 
 **D2.** `completed` when delivered is within RRR's own whole-pulse
