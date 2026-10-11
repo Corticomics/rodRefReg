@@ -32,12 +32,13 @@ worker.finished.connect(_on_finished, Qt.QueuedConnection)              # ~L440
 control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # ~L453
 ```
 
-The bound hook runs after `worker.deleteLater` has deleted the worker's Qt
-side. It reads only attributes `RelayWorker.__init__` sets: those still
-read, but a missing one raises `RuntimeError`, not `AttributeError`, so a
-`getattr` default does not help. An operator Stop is recorded by
-`stop_program` instead, once the stop sequence has its result: the queued
-hook can run inside that sequence's event pump, and leaves the record to it.
+The bound hook can run after `worker.deleteLater` has deleted the worker's
+Qt side: its queued call races the worker thread's exit. It reads only
+attributes `RelayWorker.__init__` sets: those still read, but a missing one
+raises `RuntimeError`, not `AttributeError`, so a `getattr` default does
+not help. An operator Stop is recorded by `stop_program` instead, once the
+stop sequence has its result: the queued hook can run inside that
+sequence's event pump, and leaves the record to it.
 
 ## Why it matters
 

@@ -39,7 +39,7 @@ control_signals.stop_requested.connect(worker.stop, Qt.QueuedConnection) # main.
 
 A handler that needs the worker that finished is bound to it with
 `functools.partial`, as `_on_run_finished` is, and connected before
-`cleanup`, which sets the global `worker` to None. It runs after
+`cleanup`, which sets the global `worker` to None. It can run after
 `deleteLater` has deleted the worker's Qt side: read only attributes the
 worker's `__init__` set. Those still read, but a missing one raises
 `RuntimeError`, not `AttributeError`, so a `getattr` default does not help.

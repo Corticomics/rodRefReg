@@ -200,29 +200,35 @@ next start  main.setup() / _create_gui_from_components(): _mark_interrupted_runs
   with a target above 0 (`relay_worker.py:590-599`). Planned uses
   `whole_pulses` (§3), and the planner and the plan take the cage's pulse
   from one helper, `_pulse_quantum`. A write that raises or returns None
-  prints one Terminal line and the deliveries go on; the plan is kept, so a
-  Stop's audit row still gives each animal's figures.
+  prints a Terminal line (after the database's own error line and
+  traceback, when the database refused it) and the deliveries go on; the
+  plan is kept, so a Stop's audit row still gives each animal's figures.
 - **Closes once per worker** (`run_end_recorded`). An operator Stop is
   recorded by `stop_program` with its StopResult, since the queued
   `finished` can run inside Stop's event pump (`main.py:536`).
   `finish_schedule_run` is called only for a run that opened; when it
-  returns False (a lock held over about 5 s), a Terminal line says so, and
-  the tab shows the run as Running until the next start marks it
-  `interrupted`. The Animals-tab reload is deferred
-  (`QTimer.singleShot(0, …animals_tab.load_animals)`): inside Stop, a modal
-  error box from the load would run the worker's queued `cleanup` before
-  the latch. `load_animals` reads the logged-in trainer itself;
-  `gui.load_animals_tab()` would clear the trainer filter.
+  returns False (a lock held over about 5 s), a Terminal line says so,
+  after the database's own error line, and the tab shows the run as
+  Running until the next start marks it `interrupted`. The Animals-tab
+  reload is deferred (`QTimer.singleShot(0, …animals_tab.load_animals)`):
+  inside Stop, a modal error box from the load would run the worker's
+  queued `cleanup` before the latch. `load_animals` reads the logged-in
+  trainer itself; `gui.load_animals_tab()` would clear the trainer filter.
 - **Reconciliation** stays out of `create_tables`, which `--selftest`
   (`main.py:139`) and `tools/set_valve_topology.py` run while RRR may be up.
   Its line is printed before stdout reaches the Terminal tab, so it goes to
   the console (the journal under `rrr.service`) and to `rrr_app_debug.log`.
+  A database error in the sweep (a lock held over about 5 s, a read-only
+  card) gives neither line: the repository prints its own, on the console
+  only, and returns 0, so the open runs stay Running until a later start
+  closes them.
 - **Hot-path cost:** one attribute check per delivery, and one INSERT
   transaction at a run's first dispatch on the worker thread, as the ledger
   writes are [SD-card cost NEEDS CONFIRMATION]. Stop adds one UPDATE and
   one `logs` INSERT after the relays are off, Run one indexed read (§9).
-  The pulse loop gains only S6's two cancel checks; `log_delivery` is
-  unchanged.
+  At a natural end, `cleanup`'s all-off and UI reset wait for the close's
+  UPDATE, since the hook is connected first. The pulse loop gains only S6's
+  two cancel checks; `log_delivery` is unchanged.
 
 **The outcome rule** (D2), per animal; `complete_ml` is fixed at the first
 dispatch. An animal below its threshold is `stopped` (operator Stop) or

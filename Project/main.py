@@ -365,8 +365,8 @@ def run_program(schedule, mode, window_start, window_end):
         worker.finished.connect(thread.quit, Qt.DirectConnection)
         worker.finished.connect(worker.deleteLater)
         # Close the run's record on the GUI thread, bound to THIS worker:
-        # cleanup() below sets the global to None. Connected before cleanup
-        # so the record is written before the UI resets.
+        # cleanup() below sets the global to None. Connected before cleanup,
+        # so its all-off and UI reset come after the record of a natural end.
         worker.finished.connect(partial(_on_run_finished, worker), Qt.QueuedConnection)
         worker.finished.connect(cleanup)
         thread.finished.connect(thread.deleteLater)
@@ -547,7 +547,9 @@ def _mark_interrupted_runs(db):
 
     Its line is printed before stdout goes to the Terminal tab, so it reaches
     only the console (the journal under rrr.service): the debug log keeps it
-    too.
+    too. A database error prints neither line: the repository prints its own,
+    to the console only, and returns 0; the runs stay open until a later
+    start closes them.
     """
     try:
         count = db.mark_interrupted_schedule_runs()
