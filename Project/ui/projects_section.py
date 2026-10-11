@@ -104,6 +104,16 @@ class ProjectsSection(QWidget):
 
         self.layout.addWidget(self.tab_widget)
 
+        # Reload the Animals tab whenever it is selected, so its Last schedule column
+        # shows a run that started delivering while another tab was open.
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, index: int) -> None:
+        """Reload the Animals tab when it is selected; the reload keeps the
+        operator's filter and selection."""
+        if index == self.animals_tab_index:
+            self.animals_tab.load_animals()
+
     def _switch_to_wizard(self) -> None:
         """
         Switch to the Wizard tab.

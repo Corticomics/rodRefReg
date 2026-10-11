@@ -442,7 +442,10 @@ def _build_content() -> Dict[str, HelpContent]:
         # ----------------------------------------------------------------
         "Adding & Managing Animals": HelpContent(
             title="Adding and Managing Animals",
-            summary="Use the Animals tab to register subjects, update weights, and search records.",
+            summary=(
+                "Use the Animals tab to register subjects, update weights, search records "
+                "and see what each animal's last schedule delivered."
+            ),
             content="""
 <div class='help-section'>
   <h1>Adding and Managing Animals</h1>
@@ -460,6 +463,9 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><strong>Last Weighted</strong> — timestamp of last weighing (shown as relative
     time, e.g., "2 days ago").</li>
     <li><strong>Last Watering</strong> — timestamp of the most recent water delivery.</li>
+    <li><strong>Last schedule delivered amount</strong> — the water the animal received in
+    its most recent schedule run.  A <strong>red</strong> cell means it did not get its full
+    amount (see below).</li>
   </ul>
 
   <h2>Adding an Animal</h2>
@@ -467,7 +473,8 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Click <strong>Add Animal</strong>.</li>
     <li>Fill in: Lab Animal ID (required), Name (required), Initial Weight (required),
     Last Weight, Last Weighted, Last Watering, and Sex.</li>
-    <li>Click <strong>Save</strong>.  The animal appears in the table immediately.</li>
+    <li>Click <strong>Save</strong>.  The animal appears in the table immediately, unless
+    the filter hides it.</li>
   </ol>
 
   <h2>Editing an Animal</h2>
@@ -482,8 +489,43 @@ def _build_content() -> Dict[str, HelpContent]:
   is permanent.</p>
 
   <h2>Filtering</h2>
-  <p>Use the <strong>Search</strong> field above the table to filter animals by any
+  <p>Use the <strong>Filter</strong> field above the table to filter animals by any
   column value in real time.</p>
+
+  <h2>Last Schedule Delivered Amount</h2>
+  <p>Each animal shows its most recent schedule run.  Point at the cell to see the
+  schedule, when it ran, and three amounts:</p>
+  <ul>
+    <li><strong>Scheduled</strong> — what the schedule asks for.</li>
+    <li><strong>Planned</strong> — the amount RRR plans to give: in pulse mode, the
+    scheduled amount rounded to whole valve pulses at the cage's calibration.</li>
+    <li><strong>Delivered</strong> — what RRR recorded as dispensed (in pulse mode, the
+    pulses that fired × the cage's calibration; it is not weighed).</li>
+  </ul>
+  <p>A red cell names why the animal did not get its full amount and shows
+  <em>delivered / planned</em> mL:</p>
+  <ul>
+    <li><strong>Stopped</strong> — someone pressed <strong>Stop</strong> before the run
+    finished.</li>
+    <li><strong>Incomplete</strong> — the run ended without the full amount: some
+    deliveries failed, or their times had already passed when the schedule was started.</li>
+    <li><strong>Interrupted</strong> — RRR closed unexpectedly or lost power during the run,
+    so the delivered amount was not recorded and shows <strong>?</strong>.</li>
+  </ul>
+  <p><strong>Running</strong> means the schedule is still running, and a dash means no
+  schedule run has been recorded for the animal yet.</p>
+  <p>RRR does not resume a schedule.  Running a staggered schedule again starts it over and
+  gives every animal its full amount again; running an instant schedule again skips the
+  delivery times that have passed.  To deliver only what is missing, create a new schedule
+  for that amount: for a staggered run the red cell's tooltip shows it; for an instant run,
+  check the delivery log first.</p>
+  <p>After an <strong>Interrupted</strong> run, the delivery log shows what each cage
+  received.  Open a terminal on the Pi and run
+  <code>cd ~/rrr/current/Project &amp;&amp; ~/rrr/shared/venv/bin/python3
+  tools/gravimetric_check.py daily --since YYYY-MM-DD --cage N</code> with the run's date
+  and cage (the tooltip gives the exact command).</p>
+  <p>To list the animals whose last schedule ended short, type <strong>Stopped</strong>,
+  <strong>Incomplete</strong> or <strong>Interrupted</strong> in the filter.</p>
 
   <h2>Access and Modes</h2>
   <ul>
