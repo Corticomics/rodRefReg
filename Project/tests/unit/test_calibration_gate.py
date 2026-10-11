@@ -254,6 +254,10 @@ def run_path(qapp, database_handler, system_controller, monkeypatch):
         database_handler=database_handler,
     )
     monkeypatch.setattr(section, "show_progress_tracker", lambda _schedule: None)
+    # Run's own questions (passed instant deliveries; utils.run_warnings) are a
+    # QMessageBox with its own buttons, whose exec_() waits for a click: answer
+    # Start here. test_run_warnings.py tests them.
+    monkeypatch.setattr(section, "_confirm_start", lambda *_args: True)
 
     def run(schedule):
         section.schedule_drop_area.current_schedule = schedule

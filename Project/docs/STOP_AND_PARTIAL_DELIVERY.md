@@ -450,6 +450,17 @@ This run delivers 0.600 of the 1.150 mL scheduled. For the animals above, the An
 Start the 2 deliveries still ahead?
 ```
 
+As merged (PR 10): `passed_deliveries_message` (`utils/run_warnings.py`)
+words it, and `RunStopSection._confirm_start(title, text, start_label)`
+asks: a Warning icon, plain text, Cancel the default and the Esc button.
+The volumes are the scheduled ones, and Start Run still hands the worker
+every delivery, passed ones included. In a schedule with several
+deliveries for one animal, which RRR cannot create today, an animal with
+some still ahead reads "…: 08:00, 09:00 passed; 0.250 of 0.750 mL still
+to deliver". A line lists at most 4 times ("and N more"), the dialog at
+most 10 animals ("...and N more animals"), and a time not today carries
+its date.
+
 **Last Run Ended Early** (D5; **Start Over** / Cancel) appears when an
 animal's latest run **of this schedule** is `stopped`, `incomplete`,
 `interrupted` or a leftover `running`, and some water went out (delivered

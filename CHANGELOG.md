@@ -98,6 +98,12 @@ not listed here.
   the run started and ended. An amount that was not recorded is left
   empty, never 0, and an interrupted run has no end time, because RRR
   closed during it.
+- **Change:** when some of an instant schedule's delivery times have
+  passed, **Some Deliveries Passed** now lists them for each animal, shows
+  how much of the scheduled water the run can still deliver, and says the
+  Animals tab will show the run in red as incomplete. Its buttons are
+  **Start Run** and **Cancel** (the default; Enter and Esc cancel). Passed
+  deliveries are skipped, as before, and never made up.
 
 **If something goes wrong**
 
