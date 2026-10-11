@@ -60,6 +60,9 @@ def _self(hardware_mode, *, animal_windows=None):
     from gpio.relay_worker import RelayWorker  # noqa: PLC0415
 
     ns._as_delivery_result = RelayWorker._as_delivery_result  # staticmethod
+    # The run-history hook _handle_delivery calls first; with no
+    # _run_open_tried on the stand-in it records nothing.
+    ns._open_run_record = MethodType(RelayWorker._open_run_record, ns)
     ns._prepare_delivery = MethodType(RelayWorker._prepare_delivery, ns)
     ns._quantize_to_pulses = MethodType(RelayWorker._quantize_to_pulses, ns)
     ns._finalize_delivery = MethodType(RelayWorker._finalize_delivery, ns)
