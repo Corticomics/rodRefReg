@@ -7,8 +7,9 @@ delivered amounts as numbers (mL, three decimals, so a spreadsheet can add
 them up), and when the run started and ended. They follow the Animals tab:
 the result is the word its cell starts with (utils.last_run_text.outcome_word;
 Completed for a completed run, whose cell shows only the amount); an amount
-that was not recorded is empty, never 0; an interrupted run has no end,
-because its stored end is when the next start found it open. An animal that
+that was not recorded is empty, never 0, and one recorded as 0 is 0.000; an
+interrupted run has no end, because its stored end is when the next start
+found it open. An animal that
 never ran has the seven cells empty. The runs are recorded through the
 DatabaseHandler facade, as RRR records them.
 """
@@ -157,20 +158,29 @@ def test_the_export_adds_each_animals_last_schedule(
     interrupted = _add_animal(database_handler, "M-014", "Fennel")
     running = _add_animal(database_handler, "M-015", "Ginger")
     _add_animal(database_handler, "M-016", "Juniper")  # never ran
+    not_reached = _add_animal(database_handler, "M-017", "Lovage")
 
     # "AM water", staggered: Stop was pressed after one animal had its full
     # amount. The close gave no figure for a third, so its amount is not known.
+    # Stop came before a fourth's turn: it got nothing, and the close records
+    # 0 for it, as main._record_run_end does.
     clock("2026-10-09T07:00:00")
     am_water = database_handler.start_schedule_run(
         12,
         "AM water",
         'staggered',
         None,
-        [_plan(stopped, 3), _plan(completed, 4), _plan(not_recorded, 7)],
+        [_plan(stopped, 3), _plan(completed, 4), _plan(not_recorded, 7), _plan(not_reached, 8)],
     )
     clock("2026-10-09T07:30:12")
     assert database_handler.finish_schedule_run(
-        am_water, 'stopped', {stopped: (0.4, 'stopped'), completed: (0.991, 'completed')}
+        am_water,
+        'stopped',
+        {
+            stopped: (0.4, 'stopped'),
+            completed: (0.991, 'completed'),
+            not_reached: (0.0, 'stopped'),
+        },
     )
     # "PM water", instant: RRR closed during it, and the next start found it open.
     clock("2026-10-09T08:00:00")
@@ -191,7 +201,7 @@ def test_the_export_adds_each_animals_last_schedule(
     assert ("information", "Success") in dialogs
     assert header == COLUMNS_BEFORE + LAST_SCHEDULE_COLUMNS
     row = {cells[0]: cells for cells in rows}
-    assert list(row) == ["M-011", "M-012", "M-013", "M-014", "M-015", "M-016"]
+    assert list(row) == ["M-011", "M-012", "M-013", "M-014", "M-015", "M-016", "M-017"]
     # The first seven columns are as before.
     assert row["M-011"][:7] == [
         "M-011",
@@ -229,6 +239,17 @@ def test_the_export_adds_each_animals_last_schedule(
         "1.000",
         "0.991",
         "",
+        "2026-10-09 07:00:00",
+        "2026-10-09 07:30:12",
+    ]
+    # One recorded as 0 is 0.000, never empty: the animal got nothing, which
+    # the file must not confuse with an amount nobody knows.
+    assert row["M-017"][7:] == [
+        "AM water",
+        "Stopped",
+        "1.000",
+        "0.991",
+        "0.000",
         "2026-10-09 07:00:00",
         "2026-10-09 07:30:12",
     ]
