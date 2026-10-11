@@ -669,8 +669,8 @@ def _record_run_end(w, stop_result=None):
         # gui.load_animals_tab() would clear the trainer filter.
         try:
             QTimer.singleShot(0, gui.projects_section.animals_tab.load_animals)
-        except Exception as exc:
-            print(f"[RUN] Could not refresh the Animals tab: {exc}")
+        except Exception:
+            pass  # without the GUI there is no tab to refresh
 
 
 # =============================================================================

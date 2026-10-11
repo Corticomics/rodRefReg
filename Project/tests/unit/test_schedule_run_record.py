@@ -698,6 +698,22 @@ def test_a_refused_finish_prints_the_line(monkeypatch, main_module, capsys):
     )
 
 
+def test_the_record_does_not_depend_on_the_animals_tab(monkeypatch, main_module, capsys):
+    """The reload has its own try: with no tab to reload, the record is still
+    written, nothing raises, and the Terminal gets no line."""
+    main, db, _tab = main_module
+    monkeypatch.setattr(main, "gui", None)
+    worker = _worker(monkeypatch, 'instant')
+    worker.delivery_instants = _instants((5, 2, 0.3, 1))
+    worker._handle_delivery(_delivery(5, 0.3, 2))
+    capsys.readouterr()  # the delivery's own lines
+
+    main._on_run_finished(worker)
+
+    db.finish_schedule_run.assert_called_once()
+    assert capsys.readouterr().out == ""
+
+
 def test_a_run_the_database_refused_still_records_the_stop_figures(monkeypatch, main_module, qapp):
     """start_schedule_run returned None: there is no run to close, but water
     went out, so the Stop's audit row gives the figures, not "before its first
