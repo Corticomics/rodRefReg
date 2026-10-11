@@ -413,8 +413,8 @@ def test_an_instant_run_that_ends_by_itself_is_completed_1_to_1(
     assert reason == 'completed'
 
 
-def test_an_operator_stop_is_recorded_once_with_one_audit_row(monkeypatch, main_module):
-    main, db, _tab = main_module
+def test_an_operator_stop_is_recorded_once_with_one_audit_row(monkeypatch, main_module, qapp):
+    main, db, animals_tab = main_module
     worker = _worker(monkeypatch, 'staggered')
     worker.animal_windows = {
         '3': {'target_volume': 0.4, 'relay_unit': 1},
@@ -442,6 +442,10 @@ def test_an_operator_stop_is_recorded_once_with_one_audit_row(monkeypatch, main_
         "planned; animal 5 0.410 of 0.991 mL planned. Relays confirmed off: yes; "
         "worker exited: yes",
     )
+    # The Stop reloads the Animals tab too, so a tab on screen shows the
+    # stopped run at once: deferred, and once however often the close repeats.
+    animals_tab.load_animals.assert_not_called()
+    assert _reloads(qapp, animals_tab) == 1
 
 
 def test_a_stop_before_the_first_delivery_writes_only_the_audit_row(
@@ -652,7 +656,7 @@ def test_the_record_is_written_after_the_worker_is_deleted(monkeypatch, main_mod
     worker = _worker(monkeypatch, 'instant')
     worker.delivery_instants = _instants((5, 2, 0.3, 1))
     worker._handle_delivery(_delivery(5, 0.3, 2))
-    sip.delete(worker)  # deleteLater has run by the time the queued slot does
+    sip.delete(worker)  # deleteLater can run before the queued slot does
 
     main._on_run_finished(worker)
 
@@ -721,13 +725,13 @@ def test_a_run_the_database_refused_still_records_the_stop_figures(monkeypatch, 
 
 
 def test_a_finished_signal_during_the_stop_sequence_leaves_the_record_to_stop(
-    monkeypatch, main_module
+    monkeypatch, main_module, qapp
 ):
     """The worker's queued finished can run inside the Stopping dialog's event
     pump, before the stop sequence has its result. It must leave the record
     to stop_program, which writes it with that result: here the relays were
     not confirmed off."""
-    main, db, _tab = main_module
+    main, db, animals_tab = main_module
     worker = _worker(monkeypatch, 'instant')
     worker.delivery_instants = _instants((5, 2, 0.3, 1), (6, 1, 0.5, 2))
     worker._handle_delivery(_delivery(5, 0.3, 2))  # animal 6's time has not come
@@ -748,6 +752,7 @@ def test_a_finished_signal_during_the_stop_sequence_leaves_the_record_to_stop(
     assert results == {5: (round(9 * Q, 6), 'completed'), 6: (0.0, 'stopped')}
     assert kwargs == {'stopped_by': 3, 'relays_confirmed_off': False, 'worker_exited': True}
     assert db.log_action.call_args.args[2].endswith("Relays confirmed off: no; worker exited: yes")
+    assert _reloads(qapp, animals_tab) == 1, "one reload, from the Stop's record"
 
 
 # --- the hooks in main.py -----------------------------------------------------------
