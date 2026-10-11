@@ -2,16 +2,15 @@
 
 Settings > General > Data Import/Export > Export Animals to CSV
 (SettingsTab.export_animals) writes seven more columns after Last Watering:
-the schedule, how its run ended for the animal, the scheduled, planned and
+the schedule, the run's result for the animal, the scheduled, planned and
 delivered amounts as numbers (mL, three decimals, so a spreadsheet can add
 them up), and when the run started and ended. They follow the Animals tab:
 the result is the word its cell starts with (utils.last_run_text.outcome_word;
 Completed for a completed run, whose cell shows only the amount); an amount
 that was not recorded is empty, never 0, and one recorded as 0 is 0.000; an
 interrupted run has no end, because its stored end is when the next start
-found it open. An animal that
-never ran has the seven cells empty. The runs are recorded through the
-DatabaseHandler facade, as RRR records them.
+found it open. An animal that never ran has the seven cells empty. The runs
+are recorded through the DatabaseHandler facade, as RRR records them.
 """
 
 from __future__ import annotations

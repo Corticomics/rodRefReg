@@ -42,7 +42,7 @@ def _ml(volume):
 
 
 def outcome_word(outcome):
-    """How the run ended for the animal, in one word: Running, Completed,
+    """How the run stands for the animal, in one word: Running, Completed,
     Stopped, Incomplete or Interrupted. The cell starts with it, except a
     completed one, which shows only the amount. An outcome that a newer
     release wrote, read after a revert, shows by name; "" when there is no
