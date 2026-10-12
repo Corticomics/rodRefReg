@@ -531,9 +531,14 @@ Start "AM water" over?
   early, the run's end is the Stop, not when the animal completed. An older
   run may have been stopped too, so its completed line says when that run
   started instead ("…, complete in the run started 2026-10-09 06:00").
-- **The remainder** is scheduled − delivered (`last_run_text.remaining_ml`,
-  as on the Animals tab), offered from 0.0005 mL. Under round-up, a new
-  schedule for it fires exactly the pulses that did not fire.
+- **The remainder** is scheduled − delivered (`last_run_text.remaining_ml`;
+  `owed_ml` offers it from 0.0005 mL, as on the Animals tab). Under
+  round-up, that exact amount plans the pulses that did not fire. The
+  amount typed for a new schedule can differ: the schedule wizard takes
+  0.1 mL or more, to two decimals. Typed to two decimals, it can fire one
+  pulse more or fewer when the remainder lies within about 0.005 mL of a
+  whole number of pulses, and a remainder under 0.1 mL cannot be scheduled
+  (at q = 0.034164, doses 0.10–1.50 mL: about 7 % and 12 % of the stops).
 - **An outcome a newer release wrote** (read after a revert) counts as
   ended short, as the Animals tab shows it red.
 - **The window note** gives the minutes and the end that **Schedule Start
