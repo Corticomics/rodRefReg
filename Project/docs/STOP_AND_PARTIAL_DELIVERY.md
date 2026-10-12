@@ -490,7 +490,9 @@ As merged (PR 11): `last_run_lines` and `completed_run_lines`
 reads the history once per Run and returns both lists of lines, at most
 one of them non-empty, so one question says it all: the last-run question
 carries the window note, and **Some Deliveries Passed** the last-run
-paragraph. Staggered, its start passed, after a Stop:
+paragraph. `_confirm_start` makes each question's text selectable with the
+mouse, whatever the Qt style, so a delivery-log command can be copied.
+Staggered, its start passed, after a Stop:
 
 ```
 The last run of "AM water" ended early. These animals already got water in it:
