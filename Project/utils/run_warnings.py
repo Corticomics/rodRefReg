@@ -185,15 +185,17 @@ def _runs(latest, animal_ids):
     return runs
 
 
-def _line(run, now, dated, timed):
+def _line(run, now, older, timed):
     """What one animal got in its latest run of this schedule, and how that run
     ended for it.
 
-    ``dated`` gives each time on the line its date: the run is older than the
-    schedule's last one. ``timed`` says when a completed run ended; a line in
-    a run that ended early does not, as that end is when the run was stopped,
-    not when this animal completed. None-safe: an amount or a time that was
-    not recorded is said to be so, so one odd row does not lose the warning.
+    ``older``: the run is older than the schedule's last one, so each time on
+    the line carries its date. ``timed`` says when a completed run ended. A
+    completed line does not say it in a run that ended early, as that end is
+    when the run was stopped, not when this animal completed; nor in an older
+    run, which may have been stopped too: its line says when that run
+    started. None-safe: an amount or a time that was not recorded is said to
+    be so, so one odd row does not lose the warning.
     """
     label = _label(run.get('lab_animal_id'), run.get('relay_unit_id'))
     planned = run.get('planned_ml')
@@ -208,16 +210,22 @@ def _line(run, now, dated, timed):
             if outcome == 'interrupted'
             else "the end of that run was not recorded"
         )
-        started = _time(run.get('started_at'), now, dated)
+        started = _time(run.get('started_at'), now, older)
         if started:
             what += f" (started {started})"
         return f"{label}: {what}; {in_the_log}"
     got = None
     if delivered is not None:
         got = f"{delivered:.3f}{of_plan}" if of_plan else f"{delivered:.3f} mL"
-    ended = _time(run.get('ended_at'), now, dated)
+    ended = _time(run.get('ended_at'), now, older)
     if outcome == 'completed':
-        how = f"completed at {ended}" if timed and ended else "complete"
+        how = "complete"
+        if older:
+            started = _time(run.get('started_at'), now, dated=True)
+            if started:
+                how += f" in the run started {started}"
+        elif timed and ended:
+            how = f"completed at {ended}"
         return f"{label}: {got}, {how}" if got else f"{label}: {how} (amount not recorded)"
     how = "stopped" if outcome == 'stopped' else "ended short"
     if ended:
@@ -250,7 +258,7 @@ def _lines(runs, now, timed):
         if delivered is not None and delivered <= 0:
             continue
         older = newest is not None and run.get('run_id') is not None and run['run_id'] < newest
-        lines.append(_line(run, now, dated=older, timed=timed or older))
+        lines.append(_line(run, now, older, timed))
     return lines
 
 

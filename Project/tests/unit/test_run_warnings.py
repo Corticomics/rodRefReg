@@ -308,23 +308,48 @@ def test_a_plan_or_a_time_that_was_not_recorded_is_left_out():
 def test_a_line_from_an_older_run_of_the_schedule_carries_its_date():
     """An animal that was not in the schedule's last run (taken off the
     schedule and put back) keeps its own latest run of it: its line says
-    when, with the date even when it is today."""
+    when, with the date even when it is today. Run 3 was stopped at 07:10
+    after M-12 had completed, so M-12's line says when that run started: its
+    end was the Stop, not when M-12 completed."""
+    run_3 = {'run_id': 3, 'started_at': "2026-10-09T06:00:00", 'ended_at': "2026-10-09T07:10:00"}
+    run_2 = {'run_id': 2, 'started_at': "2026-10-09T05:00:00", 'ended_at': None}
     runs = {
         1: _last('stopped', 0.41),  # the last run of the schedule, run 5
-        2: _last('completed', 0.991, cage=4, lab="M-12", run_id=3, ended_at="2026-10-09T09:10"),
-        3: _last('stopped', 0.2, cage=5, lab="M-13", run_id=3, ended_at="2026-10-09T09:10"),
-        4: _last('interrupted', None, cage=6, lab="M-14", run_id=2, ended_at=None),
+        2: _last('completed', 0.991, cage=4, lab="M-12", **run_3),
+        3: _last('stopped', 0.2, cage=5, lab="M-13", **run_3),
+        4: _last('interrupted', None, cage=6, lab="M-14", **run_2),
     }
     assert last_run_lines(runs, [1, 2, 3, 4], NOW) == [
         "M-11, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; "
         "remaining 0.590 of the 1.000 mL scheduled",
-        "M-12, cage 4: 0.991 of the planned 0.991 mL, completed at 2026-10-09 09:10",
-        "M-13, cage 5: 0.200 of the planned 0.991 mL, stopped at 2026-10-09 09:10; "
+        "M-12, cage 4: 0.991 of the planned 0.991 mL, complete in the run started "
+        "2026-10-09 06:00",
+        "M-13, cage 5: 0.200 of the planned 0.991 mL, stopped at 2026-10-09 07:10; "
         "remaining 0.800 of the 1.000 mL scheduled",
-        "M-14, cage 6: RRR closed during that run (started 2026-10-09 08:00); how much of "
+        "M-14, cage 6: RRR closed during that run (started 2026-10-09 05:00); how much of "
         f"the planned 0.991 mL it delivered is in the delivery log: {LOG} --since 2026-10-09 "
         "--cage 6",
     ]
+
+
+def test_a_completed_line_from_an_older_run_says_when_that_run_started():
+    """In Last Run Completed too: an older run of the schedule may have been
+    stopped after the animal completed, so its end does not say when the
+    animal completed. The schedule's last run completed, so its lines do."""
+    run_3 = {'run_id': 3, 'started_at': "2026-10-09T06:00:00", 'ended_at': "2026-10-09T07:10:00"}
+    runs = {
+        1: _last('completed', 0.991),  # the last run of the schedule, run 5
+        2: _last('completed', 0.991, cage=4, lab="M-12", **run_3),
+        3: _last('completed', None, cage=5, lab="M-13", **run_3),
+        4: _last('completed', 0.991, cage=6, lab="M-14", run_id=3, started_at=None),
+    }
+    assert completed_run_lines(runs, [1, 2, 3, 4], NOW) == [
+        "M-11, cage 3: 0.991 of the planned 0.991 mL, completed at 10:32",
+        "M-12, cage 4: 0.991 of the planned 0.991 mL, complete in the run started "
+        "2026-10-09 06:00",
+        "M-13, cage 5: complete in the run started 2026-10-09 06:00 (amount not recorded)",
+        "M-14, cage 6: 0.991 of the planned 0.991 mL, complete",
+    ], "a start that was not recorded is left out"
 
 
 def test_ids_are_matched_as_numbers():

@@ -527,7 +527,10 @@ Start "AM water" over?
 - **Times:** a time not today carries its date. A line from an older run of
   the schedule (an animal that was not in its last run) always does. A
   completed animal's line says when the run completed only in **Last Run
-  Completed**: in a run that ended early, the run's end is the Stop.
+  Completed**, and only for the schedule's last run: in a run that ended
+  early, the run's end is the Stop, not when the animal completed. An older
+  run may have been stopped too, so its completed line says when that run
+  started instead ("…, complete in the run started 2026-10-09 06:00").
 - **The remainder** is scheduled − delivered (`last_run_text.remaining_ml`,
   as on the Animals tab), offered from 0.0005 mL. Under round-up, a new
   schedule for it fires exactly the pulses that did not fire.
