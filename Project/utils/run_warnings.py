@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from utils.last_run_text import delivery_log_command, remaining_ml
+from utils.last_run_text import delivery_log_command, owed_ml
 
 PASSED_TITLE = "Some Deliveries Passed"
 LAST_RUN_TITLE = "Last Run Ended Early"
@@ -38,10 +38,6 @@ ENDED_EARLY = frozenset({'stopped', 'incomplete', 'interrupted', 'running'})
 
 MAX_TIMES = 4  # delivery times listed for one animal
 MAX_ANIMALS = 10  # animals listed in one dialog
-
-# A smaller remainder shows as 0.000 mL, so it is not offered for a new
-# schedule (the Animals tab's red cell does the same).
-_SMALLEST_REMAINDER_ML = 0.0005
 
 
 def _times(moments, now):
@@ -233,16 +229,12 @@ def _line(run, now, older, timed):
     if got is None:
         return f"{label}: {how}; {in_the_log}"
     line = f"{label}: {got}, {how}"
-    remaining = remaining_ml(run)
+    owed = owed_ml(run)
     # Re-running an instant schedule skips its passed times, so its lines
     # give no remainder; the Animals tab sends the operator to the delivery
-    # log first.
-    if (
-        run.get('delivery_mode') != 'instant'
-        and remaining is not None
-        and remaining >= _SMALLEST_REMAINDER_ML
-    ):
-        line += f"; remaining {remaining:.3f} of the {run['requested_ml']:.3f} mL scheduled"
+    # log first. The remainder offered is the Animals tab's, by one rule.
+    if run.get('delivery_mode') != 'instant' and owed is not None:
+        line += f"; remaining {owed:.3f} of the {run['requested_ml']:.3f} mL scheduled"
     return line
 
 

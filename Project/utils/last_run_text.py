@@ -3,10 +3,10 @@
 Animal.last_run is the animal's latest schedule run that started delivering
 (models/schedule_runs_repo.py), or None. last_run_cell() turns it into the
 Animals tab's "Last schedule delivered amount" cell: its text, its tooltip
-and whether it is red. outcome_word(), remaining_ml() and
+and whether it is red. outcome_word(), remaining_ml(), owed_ml() and
 delivery_log_command() serve anything else that describes a run, such as the
-animal export, so every screen gives the same word, the same remainder and
-the same command.
+animal export and Run's questions (utils.run_warnings), so every screen gives
+the same word, the same remainder and the same command.
 
 Red follows the outcome the run recorded, never a comparison of delivered
 with scheduled: whole-pulse rounding makes a completed run differ from its
@@ -65,6 +65,16 @@ def remaining_ml(last_run):
     return max(0.0, requested - delivered)
 
 
+def owed_ml(last_run):
+    """The remainder offered for a new schedule: remaining_ml(), or None when
+    the delivered amount was not recorded or the remainder would show as
+    0.000 mL."""
+    remaining = remaining_ml(last_run)
+    if remaining is None or remaining < _SMALLEST_REMAINDER_ML:
+        return None
+    return remaining
+
+
 def delivery_log_command(started_at, relay_unit_id):
     """The command, typed in a terminal on the Pi, that totals what a cage
     received per day from the run's day on (tools/gravimetric_check.py daily).
@@ -93,16 +103,15 @@ def _delivery_log_lines(last_run):
 
 def _next_steps(last_run):
     """How to give the rest of a run that ended short, for its delivery mode."""
-    remaining = remaining_ml(last_run)
-    owed = remaining is not None and remaining >= _SMALLEST_REMAINDER_ML
+    owed = owed_ml(last_run)
     if last_run.get('delivery_mode') == 'instant':
         # A run started late counts the deliveries whose times had passed as
         # not delivered, even when an earlier run gave them: the delivery log
         # tells, before a new schedule gives them twice.
         lines = [SKIPS_PASSED_INSTANT]
-        if owed:
+        if owed is not None:
             lines += [
-                f"{remaining:.3f} mL was not delivered in this run. If it started after some "
+                f"{owed:.3f} mL was not delivered in this run. If it started after some "
                 "delivery times had passed, an earlier run may already have given them. "
                 "Check the delivery log first, then create a new schedule for what is "
                 "missing:",
@@ -110,9 +119,9 @@ def _next_steps(last_run):
             ]
         return lines
     lines = [STARTS_OVER_STAGGERED]
-    if owed:
+    if owed is not None:
         lines.append(
-            f"To deliver only the remaining {remaining:.3f} mL, create a new schedule for "
+            f"To deliver only the remaining {owed:.3f} mL, create a new schedule for "
             "that amount."
         )
     return lines

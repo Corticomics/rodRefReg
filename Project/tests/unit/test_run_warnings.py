@@ -27,7 +27,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from utils.dose_rounding import whole_pulses
-from utils.last_run_text import remaining_ml
+from utils.last_run_text import last_run_cell, remaining_ml
 from utils.run_warnings import (
     COMPLETED_RUN_TITLE,
     LAST_RUN_TITLE,
@@ -246,6 +246,22 @@ def test_the_remainder_is_what_was_scheduled_less_what_was_delivered():
     assert last_run_lines({1: short}, [1], NOW) == [
         "M-11, cage 3: 1.000 of the planned 1.025 mL, stopped at 10:32"
     ], "a remainder that shows as 0.000 mL is not offered, as on the Animals tab"
+
+
+@pytest.mark.parametrize(
+    ("delivered", "remaining"), [(0.41, "0.590"), (0.9994, "0.001"), (0.9996, None)]
+)
+def test_run_offers_the_remainder_the_animals_tab_offers(delivered, remaining):
+    """One rule for both (last_run_text.owed_ml): the same figure, and a
+    remainder that would show as 0.000 mL offered by neither."""
+    run = _last('stopped', delivered)
+    (line,) = last_run_lines({1: run}, [1], NOW)
+    _text, tooltip, _red = last_run_cell(run, str)
+    if remaining is None:
+        assert "remaining" not in line and "remaining" not in tooltip
+    else:
+        assert line.endswith(f"; remaining {remaining} of the 1.000 mL scheduled")
+        assert f"To deliver only the remaining {remaining} mL," in tooltip
 
 
 @pytest.mark.parametrize(
