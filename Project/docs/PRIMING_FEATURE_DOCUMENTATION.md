@@ -304,7 +304,7 @@ change itself is refused while a priming session is open, so no valve can
 be left open across it.
 
 #### 3. **Emergency Stop**
-- Click **"CLOSE ALL RELAYS"** whenever no schedule is running. From **Run** to the end of the run or of **Stop**, it and **Close Selected** are greyed out with the tooltip *"A schedule is running: press Stop to end it"*, and a click is refused (*Schedule running*): **Stop** ends a schedule
+- Click **"CLOSE ALL RELAYS"** whenever no schedule is running. From **Run** to the end of the run or of **Stop**, it and **Close Selected** are greyed out with the tooltip *"A schedule is running: press Stop to end it"*, and a click is refused (*Schedule running*): **Stop** ends a schedule. A stopped schedule does not resume: **Run** starts it over, and asks first, listing what each animal got in the stopped run
 - Switches every relay on every HAT off: the master, where there is one, and every cage valve
 - If a HAT does not confirm the command, **Emergency Stop Failed** appears instead of *All relays have been closed*: disconnect the valve power supply, then check the relay HAT and its I²C connection. The panel keeps showing what may be open, and Run and calibration stay unavailable until a later **CLOSE ALL RELAYS** is confirmed or RRR is closed and reopened
 - After a **Stop** that could not confirm every relay off, or whose delivery worker did not stop, Run and calibration stay unavailable (*an unconfirmed emergency stop*) until a **CLOSE ALL RELAYS** is confirmed: press it once the relay HAT answers

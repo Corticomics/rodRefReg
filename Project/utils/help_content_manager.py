@@ -403,7 +403,9 @@ def _build_content() -> Dict[str, HelpContent]:
   All relay units are deactivated and the event is logged in System Messages.  A stopped
   schedule does not resume: <strong>Run</strong> starts it over (a staggered schedule gives
   every animal its whole dose again; an instant schedule skips the delivery times that have
-  passed), so check what each animal has received before running it again.  If a relay
+  passed).  Run asks first and lists what each animal got in the stopped run; the Animals tab
+  shows it too (<strong>Last schedule delivered amount</strong>).  To deliver only the
+  missing water, create a new schedule for that amount.  If a relay
   HAT does not confirm OFF, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may
   still be open: disconnect the valve power supply, then check the relay HAT and its I²C
   connection.  If the schedule's delivery worker does not stop, <em>Delivery Worker Did Not
@@ -818,7 +820,7 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Stopping a Schedule</h2>
   <p>Press <strong>Stop</strong> in the Run/Stop section at any time.  The monitor
   updates card statuses immediately and the 10-second hide timer begins.  A stopped schedule
-  does not resume: Run starts it over.</p>
+  does not resume: Run starts it over, and asks first, listing what each animal got.</p>
 
   <div class='help-note'>
     <strong>Note:</strong> All delivery events and errors are also logged in the
@@ -903,7 +905,7 @@ def _build_content() -> Dict[str, HelpContent]:
     (<strong>CLOSE ALL RELAYS</strong> in Settings → Priming is greyed out while a schedule
     runs).  The schedule does not resume: Run starts it over (a staggered schedule gives every
     animal its whole dose again; an instant schedule skips the delivery times that have
-    passed), so check what each animal has received before running it again.  If a later
+    passed), and asks first, listing what each animal got in the stopped run.  If a later
     close gets through, <code>[VALVE OK]</code> says the alarm is cleared.  In pump mode the
     same alarm names the relay unit and says its relays may still be ON.</li>
     <li>A relay HAT that was not found when RRR started stays unusable until RRR is closed and
@@ -1503,6 +1505,16 @@ def _build_content() -> Dict[str, HelpContent]:
     this run can still deliver.  <strong>Start Run</strong> skips the passed deliveries (they
     are never made up) and the Animals tab shows the run in red as incomplete for those
     animals; <strong>Cancel</strong> starts nothing.</li>
+    <li><em>Last Run Ended Early</em>: the last run of this schedule was stopped, ended short,
+    or RRR closed during it, after some water went out.  The dialog lists what each animal got
+    of its planned amount.  Run does not resume a schedule: <strong>Start Over</strong> gives
+    those animals their full amount again.  To deliver only the missing water, press
+    <strong>Cancel</strong> and create a new schedule for that amount.</li>
+    <li><em>Last Run Completed</em>: the last run of this schedule gave every animal its full
+    amount.  The dialog lists what each animal got and when; <strong>Start Over</strong> gives
+    it again, on top of what it got.  Either dialog also says what is left of the window when
+    the start time has passed.  An instant schedule some of whose times have passed gets
+    <em>Some Deliveries Passed</em> instead, which then lists the last run too.</li>
     <li>Confirm all required animals have been added and have valid weights.</li>
     <li>Check that cage assignments are valid (no animal on the reserved relay R16).</li>
     <li>Verify volumes are positive and within safe limits.</li>
@@ -1520,7 +1532,7 @@ def _build_content() -> Dict[str, HelpContent]:
     relay is not answering.  Check the rig.  During a schedule press <strong>Stop</strong>
     (CLOSE ALL RELAYS is greyed out while a schedule runs); otherwise press
     <strong>CLOSE ALL RELAYS</strong> (Settings → Priming).  Run does not resume a stopped
-    schedule but starts it over, so check what each animal has received first.</li>
+    schedule but starts it over, and asks first, listing what each animal got in it.</li>
     <li><em>Relays Not Confirmed Off</em> or <em>Emergency Stop Failed</em> — disconnect the
     valve power supply now, then check the relay HAT and its I²C connection.</li>
     <li><em>Delivery Worker Did Not Stop</em> — every relay is off, but the schedule's

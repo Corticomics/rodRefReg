@@ -104,6 +104,18 @@ not listed here.
   Animals tab will show the run in red as incomplete. Its buttons are
   **Start Run** and **Cancel** (the default; Enter and Esc cancel). Passed
   deliveries are skipped, as before, and never made up.
+- **Add (safety):** Run asks before it starts over a schedule whose last run
+  gave some water. Run does not resume a schedule: **Start Over** gives every
+  animal its full amount again, on top of what it already got. When that run
+  ended early (stopped, ended short, or RRR closed during it), **Last Run
+  Ended Early** lists what each animal got of its planned amount and, for a
+  staggered schedule, what it did not get; to deliver only the missing
+  water, press **Cancel** and create a new schedule for that amount. When
+  every animal completed, **Last Run Completed** lists what each one got and
+  when. **Cancel** is the default (Enter and Esc cancel). When the start
+  time has passed too, the same dialog says so: one question, not two. An
+  instant schedule some of whose times have passed gets **Some Deliveries
+  Passed**, which then lists the last run too.
 
 **If something goes wrong**
 

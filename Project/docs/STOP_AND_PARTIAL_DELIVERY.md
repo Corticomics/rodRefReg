@@ -425,9 +425,9 @@ Qt-free `utils/run_warnings.py`.
 |---|---|---|---|
 | Staggered | start passed | none, or no water went out | **Schedule Start Time Passed** (unchanged) |
 | Staggered | either | ended early (any animal) | **Last Run Ended Early**, with the window note when the start has passed |
-| Staggered | either | completed (no animal ended early) | the completed-run question (PR 11 words it), with the window note when the start has passed |
+| Staggered | either | completed (no animal ended early) | **Last Run Completed**, with the window note when the start has passed |
 | Instant | some passed | any | **Some Deliveries Passed**, with a last-run paragraph when the last run ended early or completed |
-| Instant | none passed | ended early or completed | **Last Run Ended Early**, or the completed-run question |
+| Instant | none passed | ended early or completed | **Last Run Ended Early**, or **Last Run Completed** |
 
 Any other case asks nothing. An instant schedule whose last run completed
 has all its delivery times behind it, so **Expired Schedule** refuses it
@@ -469,14 +469,73 @@ too, since Start Over doses them again ("M-011, cage 3: 0.410 of the
 planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL
 scheduled"), and says to create a new schedule for the remaining amount.
 
+**Last Run Completed** (**Start Over** / Cancel) appears when every one of
+those runs completed and some water went out (the owner's choice on
+refinement 7, §14): Run would otherwise give every animal its full amount
+again unasked. It lists what each animal got of its plan and when that run
+completed, and says that starting over gives it again, on top.
+
 - **Instant schedules:** re-running skips the passed times
-  (`relay_worker.py:496-527`), so their lines carry no remainder and add
-  "Passed deliveries are skipped, never repeated."
-- **A completed last run** gets the completed-run question (the owner's
-  choice on refinement 7; PR 11 words it), placed as the table shows: Run
-  would otherwise give every animal its full amount again unasked.
+  (`relay_worker.py:496-527`), so their lines carry no remainder (the
+  Animals tab sends the operator to the delivery log first). Inside
+  **Some Deliveries Passed**, the last-run paragraph is followed by its own
+  paragraph, "Passed deliveries are skipped, never repeated."
 - **One indexed read** (`get_latest_runs_of_schedule`) per Run; if it
   fails, a Terminal line is printed and the question skipped.
+
+As merged (PR 11): `last_run_lines` and `completed_run_lines`
+(`utils/run_warnings.py`) write the lines from that read,
+`last_run_message` and `completed_run_message` word the two questions, and
+`start_over_question` picks one. `RunStopSection._last_run_lines(schedule)`
+reads the history once per Run and returns both lists of lines, at most
+one of them non-empty, so one question says it all: the last-run question
+carries the window note, and **Some Deliveries Passed** the last-run
+paragraph. Staggered, its start passed, after a Stop:
+
+```
+The last run of "AM water" ended early. These animals already got water in it:
+• M-011, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled
+• M-012, cage 4: 0.991 of the planned 0.991 mL, complete
+
+Run does not resume a schedule: it starts this one over, so the animals above get their full amount again, on top of what they already got. If the missing water has not been given since, press Cancel and create a new schedule for the remaining amount.
+
+The scheduled start time (2026-10-09 08:00) has already passed: the full amount goes out in the 480 minutes left until 20:00.
+
+Start "AM water" over?
+```
+
+Staggered, its window moved to a new day, after a run that completed:
+
+```
+The last run of "AM water" completed. These animals already got their full amount in it:
+• M-011, cage 3: 0.991 of the planned 0.991 mL, completed at 2026-10-08 20:00
+• M-012, cage 4: 0.991 of the planned 0.991 mL, completed at 2026-10-08 20:00
+
+Run starts this schedule over, so the animals above get their full amount again, on top of what they already got.
+
+Start "AM water" over?
+```
+
+- **Other line forms:** "…, ended short at 10:32; remaining …"; "…: RRR
+  closed during that run (started 08:00); how much of the planned 0.991
+  mL it delivered is in the delivery log: <the §8 command>"; for a leftover
+  `running`, "…: the end of that run was not recorded (started 08:00); how
+  much …". An amount not recorded reads "…: stopped at 10:32; how much …
+  is in the delivery log: <command>", or "…: complete (amount not
+  recorded)". Each line is written on its own, so a value missing from one
+  row never loses the question.
+- **Times:** a time not today carries its date. A line from an older run of
+  the schedule (an animal that was not in its last run) always does. A
+  completed animal's line says when the run completed only in **Last Run
+  Completed**: in a run that ended early, the run's end is the Stop.
+- **The remainder** is scheduled − delivered (`last_run_text.remaining_ml`,
+  as on the Animals tab), offered from 0.0005 mL. Under round-up, a new
+  schedule for it fires exactly the pulses that did not fire.
+- **An outcome a newer release wrote** (read after a revert) counts as
+  ended short, as the Animals tab shows it red.
+- **The window note** gives the minutes and the end that **Schedule Start
+  Time Passed** gives. That question still appears, unchanged, when the
+  schedule never gave water.
 
 ---
 
@@ -544,7 +603,7 @@ scheduled"), and says to create a new schedule for the remaining amount.
 | 8 | 8 Animals-tab column, red cell, Help (§8) | `feat/animals-last-schedule-column` | adds lines |
 | 9 | 9 CSV export columns (§8) | `feat/export-last-schedule` | adds lines |
 | 10 | 10 Some Deliveries Passed (§9) | `feat/warn-instant-passed-deliveries` | adds lines |
-| 11 | 11 Last Run Ended Early and the completed-run question (§9) | `feat/run-warns-stopped-schedule` | adds lines |
+| 11 | 11 Last Run Ended Early and Last Run Completed (§9) | `feat/run-warns-stopped-schedule` | adds lines |
 | 12 | 12 Headless integration test | `chore/stop-partial-delivery-integration-test` | none (test-only) |
 | 13 | 13 Operator docs, smoke test, release notes | `docs/v2-0-0-operator-docs` | finalises the entry |
 | T | Tag `v2.0.0` on the validated SHA, at the owner's go | — | — |

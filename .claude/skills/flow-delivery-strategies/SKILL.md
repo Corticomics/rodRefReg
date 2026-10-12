@@ -146,8 +146,9 @@ selector with Open Selected / Close Selected. A valve stays open until the
 operator closes it or presses CLOSE ALL RELAYS (which frees the operation
 lock only when every relay is confirmed off and no delivery worker is
 alive). CLOSE ALL RELAYS and Close Selected are greyed out and refused while
-a schedule runs: Stop ends a schedule (a stopped schedule does not resume,
-Run starts it over). On the independent topology
+a schedule runs: Stop ends a schedule (a stopped schedule does not resume:
+Run starts it over, and asks first, listing what each animal got in the
+stopped run; `utils/run_warnings.py`). On the independent topology
 the master group is hidden and a cage valve is primed directly. A valve
 topology change in Settings restarts RRR (`utils.updater.restart_app`), since
 the panel is built for the topology RRR started with; where RRR cannot restart
