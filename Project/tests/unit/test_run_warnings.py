@@ -797,6 +797,18 @@ def _record(
     return run_id
 
 
+def _count_reads(database_handler, monkeypatch):
+    """The calls Run makes to the run-history reader, which still reads."""
+    read = database_handler.get_latest_runs_of_schedule
+    reads = []
+    monkeypatch.setattr(
+        database_handler,
+        "get_latest_runs_of_schedule",
+        lambda *args: reads.append(args) or read(*args),
+    )
+    return reads
+
+
 def _staggered(animals, start_in_hours=1.0):
     """Staggered schedule 7 for ``animals`` (cage = id + 2), 1.0 mL each, over
     three hours from ``start_in_hours`` from now."""
@@ -828,14 +840,19 @@ def staggered_run(run, database_handler, monkeypatch):
     return run
 
 
-def test_a_stopped_schedule_asks_once_to_start_over(staggered_run, database_handler):
-    """Its start has passed too: one question, with the window note in it."""
+def test_a_stopped_schedule_asks_once_to_start_over(
+    staggered_run, database_handler, monkeypatch
+):
+    """Its start has passed too: one question, with the window note in it,
+    from one read of the run history."""
     run = staggered_run
     a, b = _animals(database_handler, "M-11", "M-12")
     _record(database_handler, 7, [(a, a + 2, 0.41, 'stopped'), (b, b + 2, 0.991, 'completed')])
+    reads = _count_reads(database_handler, monkeypatch)
 
     section = run.start(_staggered([a, b], start_in_hours=-1))
 
+    assert reads == [(7, [a, b])], "one read per Run, of this schedule and its animals"
     ((title, text, label),) = run.asked
     assert (title, label) == (LAST_RUN_TITLE, START_OVER)
     assert f"\n• M-11, cage {a + 2}: 0.410 of the planned 0.991 mL, stopped at " in text
@@ -991,7 +1008,7 @@ def test_a_history_that_cannot_be_read_does_not_block_run(
     ids=["stopped", "completed"],
 )
 def test_an_instant_rerun_with_passed_deliveries_asks_one_question_with_the_last_run(
-    run, database_handler, outcome, header
+    run, database_handler, monkeypatch, outcome, header
 ):
     schedule = _instant(database_handler, [("M-011", 3, -1, 0.25), ("M-012", 4, 1, 0.3)])
     a, b = schedule.animals
@@ -1004,9 +1021,11 @@ def test_an_instant_rerun_with_passed_deliveries_asks_one_question_with_the_last
         requested=0.25,
         planned=0.239,
     )
+    reads = _count_reads(database_handler, monkeypatch)
 
     run.start(schedule)
 
+    assert reads == [(schedule.schedule_id, [a, b])], "one read per Run"
     ((title, text, label),) = run.asked
     assert (title, label) == (PASSED_TITLE, START_RUN)
     assert f"\n\n{header}" in text
@@ -1052,13 +1071,7 @@ def test_an_expired_schedule_is_refused_before_its_last_run_is_read(
     """An instant schedule whose last run completed has every time behind
     it, so Expired Schedule refuses it first, as it refuses a staggered one
     whose window has ended."""
-    read = database_handler.get_latest_runs_of_schedule
-    reads = []
-    monkeypatch.setattr(
-        database_handler,
-        "get_latest_runs_of_schedule",
-        lambda *args: reads.append(args) or read(*args),
-    )
+    reads = _count_reads(database_handler, monkeypatch)
     monkeypatch.setattr(
         database_handler, "get_schedule_staggered_windows", lambda _sid: [{"window": 1}]
     )
