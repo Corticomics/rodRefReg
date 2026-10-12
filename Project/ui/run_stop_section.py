@@ -678,6 +678,8 @@ class RunStopSection(QWidget):
         SettingsTab._confirm_valve_topology. Cancel is the default and the
         Esc button, so Enter or Esc never starts a run by mistake. Plain
         text: the schedule's name is the operator's own and is not markup.
+        The text can be selected with the mouse whatever the Qt style, so a
+        delivery-log command in it can be copied rather than retyped.
         On False the caller resets the Run button, the job flag and the
         operation lock (_reset_run_button), as for every refusal.
         """
@@ -686,6 +688,7 @@ class RunStopSection(QWidget):
         box.setWindowTitle(title)
         box.setTextFormat(Qt.PlainText)
         box.setText(text)
+        box.setTextInteractionFlags(Qt.TextSelectableByMouse)
         start = box.addButton(start_label, QMessageBox.AcceptRole)
         cancel = box.addButton("Cancel", QMessageBox.RejectRole)
         box.setDefaultButton(cancel)

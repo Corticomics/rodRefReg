@@ -708,6 +708,61 @@ def test_the_question_names_its_buttons_and_defaults_to_cancel(
     assert seen['format'] == Qt.PlainText and seen['text'] == text, "a schedule name is not markup"
 
 
+@pytest.mark.parametrize("key", ["Return", "Escape"])
+def test_the_question_text_can_be_selected_and_enter_or_esc_still_cancel(
+    qapp, database_handler, system_controller, monkeypatch, key
+):
+    """A line can carry the delivery-log command, typed in a terminal on the
+    Pi: the text is selectable with the mouse whatever the Qt style (Fusion
+    allows it, the Windows style does not), so it can be copied. A key that
+    reaches the selected text still answers Cancel: the real box runs."""
+    from PyQt5.QtCore import Qt, QTimer  # noqa: PLC0415
+    from PyQt5.QtTest import QTest  # noqa: PLC0415
+    from PyQt5.QtWidgets import QLabel, QMessageBox  # noqa: PLC0415
+    from ui.run_stop_section import RunStopSection  # noqa: PLC0415
+
+    seen = {}
+    exec_ = QMessageBox.exec_
+
+    def run_the_box(box):
+        label = box.findChild(QLabel, "qt_msgbox_label")
+        assert label is not None, "QMessageBox's own text label"
+        seen['flags'] = int(box.textInteractionFlags())
+
+        def press():
+            label.setSelection(0, len("The last run"))
+            seen['selected'] = label.selectedText()
+            QTest.keyClick(label, getattr(Qt, f"Key_{key}"))
+
+        QTimer.singleShot(0, press)
+        # Never hang: a box still open after 2 s closes without a click. The
+        # timer is the box's child, so it goes with the box.
+        guard = QTimer(box)
+        guard.setSingleShot(True)
+        guard.timeout.connect(lambda: box.done(0))
+        guard.start(2000)
+        result = exec_(box)
+        clicked = box.clickedButton()
+        seen['clicked'] = clicked.text() if clicked is not None else None
+        return result
+
+    monkeypatch.setattr(QMessageBox, "exec_", run_the_box)
+    section = RunStopSection(
+        MagicMock(),
+        MagicMock(),
+        MagicMock(),
+        system_controller=system_controller,
+        database_handler=database_handler,
+    )
+    line = "M-13, cage 5: RRR closed during that run; how much it delivered is in the "
+    text = last_run_message("AM water", [f"{line}delivery log: {LOG} --cage 5"])
+
+    assert section._confirm_start(LAST_RUN_TITLE, text, START_OVER) is False
+    assert seen['clicked'] == "Cancel"
+    assert seen['flags'] == int(Qt.TextSelectableByMouse), "set, not left to the style"
+    assert seen['selected'] == "The last run"
+
+
 # --- the last run, on the Run path ---------------------------------------------------------------
 
 
