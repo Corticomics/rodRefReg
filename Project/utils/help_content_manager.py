@@ -403,9 +403,9 @@ def _build_content() -> Dict[str, HelpContent]:
   All relay units are deactivated and the event is logged in System Messages.  A stopped
   schedule does not resume: <strong>Run</strong> starts it over (a staggered schedule gives
   every animal its whole dose again; an instant schedule skips the delivery times that have
-  passed).  Run asks first and lists what each animal got in the stopped run; the Animals tab
-  shows it too (<strong>Last schedule delivered amount</strong>).  To deliver only the
-  missing water, create a new schedule for that amount.  If a relay
+  passed).  Run asks first and lists what each animal got in the stopped run; to deliver
+  only the missing water, create a new schedule for that amount.  The Animals tab
+  (<strong>Last schedule delivered amount</strong>) shows what each animal got.  If a relay
   HAT does not confirm OFF, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may
   still be open: disconnect the valve power supply, then check the relay HAT and its I²C
   connection.  If the schedule's delivery worker does not stop, <em>Delivery Worker Did Not
