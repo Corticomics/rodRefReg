@@ -302,7 +302,12 @@ class RunStopSection(QWidget):
         # that could not confirm it, or a start refused beside a live worker,
         # hands the hold to EMERGENCY instead (hold_until_safe).
         lock = get_operation_lock()
+        # The job flag goes up before the lock is taken: the lock's
+        # state_changed is what greys out Priming's CLOSE ALL RELAYS and
+        # Close Selected, and it must find the flag already set.
+        self.job_in_progress = True
         if not lock.try_acquire(SCHEDULE):
+            self.job_in_progress = False
             QMessageBox.warning(
                 self,
                 "Hardware busy",
@@ -313,7 +318,6 @@ class RunStopSection(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         # PHASE 1: Immediate UI feedback (must complete < 16ms)
         # ═══════════════════════════════════════════════════════════════════
-        self.job_in_progress = True
         self.run_button.setEnabled(False)
         self.run_button.setText("Starting...")
         self.stop_button.setEnabled(True)

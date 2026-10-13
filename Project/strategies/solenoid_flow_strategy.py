@@ -718,8 +718,8 @@ class SolenoidFlowStrategy:
                 "confirmed closed; it may be OPEN"
             )
         message = (
-            f"[VALVE CRITICAL] cage {cage_id}: {situation}. Check the rig; Settings > Priming > "
-            "CLOSE ALL RELAYS switches every relay off again and stops the schedule."
+            f"[VALVE CRITICAL] cage {cage_id}: {situation}. Check the rig; the Stop button "
+            "switches every relay off and stops the schedule."
         )
         self._alarmed.add(key)
         self._logger.critical(message)

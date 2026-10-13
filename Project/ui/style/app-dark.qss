@@ -276,6 +276,14 @@ QPushButton[variant="danger"]:pressed {
     background: #DC2626;
     border-color: #DC2626;
 }
+/* Greyed out like every other disabled button: the red alone must not say
+   "press me" when the control is unavailable (CLOSE ALL RELAYS while a
+   schedule runs, Close Master while the master is closed). */
+QPushButton[variant="danger"]:disabled {
+    background: #1A2028;
+    border-color: #2D3748;
+    color: #4A5568;
+}
 
 /* ============================================
    TABS
