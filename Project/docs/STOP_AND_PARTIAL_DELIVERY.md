@@ -78,8 +78,22 @@ cage's mL per pulse under the rounding policy, per staggered window or per
 instant delivery; = scheduled in pump and continuous modes. **Delivered** =
 the credited Σ `volume_actual_ml` of the run's ledger rows. A completed run
 delivers the plan 1:1 once the planner and the plan share one rounding
-rule, an exact half rounding up (PR 6; today's `int(deficit / q + 0.5)`,
-`relay_worker.py:888`, misses it in 76 of 6000 surveyed windows, all ties).
+rule, an exact half rounding up (PR 6, below; v1.21.0's
+`int(deficit / q + 0.5)`, `relay_worker.py:888`, missed it in 76 of 6000
+surveyed windows, all ties).
+
+**One rounding rule (PR 6, as merged).**
+`utils/dose_rounding.whole_pulses(volume_ml, q_ml, round_up=False)` is the
+whole-pulse rule of the planner (`RelayWorker._quantize_to_pulses`), of the
+run plan (PR 7) and of `tools/gravimetric_check.py`'s planner verdict.
+Nearest is `int(v / q + 0.5 + 1e-9)`: an exact half rounds up even where
+floating point lands it a hair below (0.15 / 0.1 is 1.4999999999999998).
+Round-up is `ceil(v / q - 1e-9)`, as before: an exact multiple that lands a
+hair above (0.14 / 0.02 is 7.000000000000001) buys no pulse. A tie that
+floating point rounded down now gets one pulse more, at most q: 74 of those
+6000 windows and 26 of 6000 single instant doses on the same grid (of 225
+ties under nearest), all at few-digit calibrations (§14, item 2). The production 0.034164 and 0.032936 mL per pulse make no
+dose of up to three decimals a tie.
 
 **D2.** `completed` when delivered is within RRR's own whole-pulse
 tolerance, per mode (§5): staggered, the worker's completion test; instant

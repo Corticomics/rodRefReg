@@ -94,6 +94,8 @@ With **"Round doses up" off**:
    ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py weigh 1235 --net 0.5988            # balance tared
    ```
    `list` shows, per row, the topology, the dose asked for and the rounding policy, the pulses fired, mL/pulse, the plan (pulses × mL/pulse), the planner verdict, the calibration row and, once weighed, the measured volume and the shortfall. The verdict is `ok` when the pulse count is what the recorded policy gives for the dose and `mismatch` when it is not; a staggered chunk shows `carry` and a delivery that did not complete shows nothing. `weigh` keeps the raw gross and tare, the water temperature and the density it used, and a snapshot of the delivery row in `~/rrr/shared/data/gravimetric_checks.csv`. A second reading for the same row is refused unless you pass `--replace`.
+
+   From 2.0.0 the planner and `gravimetric_check.py` round with one function (`utils/dose_rounding.whole_pulses`), so a dose exactly half a pulse over a whole count gets the extra pulse on both. Only a calibration with few digits meets such a dose (at 0.02 mL per pulse, 1.17 mL is 58.5 pulses); the production calibrations make no dose of up to three decimals a tie. A row written before 2.0.0 at such a tie can show `mismatch`, because that release could round the half down: it is not a regression. Update both rigs the same day, so that no set mixes the two releases.
 4. Do the same doses on the manifold rig (same day where possible). Its rows carry `shared_manifold` and are the baseline side.
 
 ### 3.4 Grade
@@ -145,7 +147,7 @@ Only after C1–C8 pass on the cages concerned, and per the lab's welfare protoc
 
 | Observation | Meaning | Next step |
 |---|---|---|
-| `mismatch` in the planner column | The pulse count is not what the recorded rounding policy gives for the dose asked for | Code regression: stop, record the row id and report it. Not a hardware finding |
+| `mismatch` in the planner column | The pulse count is not what the recorded rounding policy gives for the dose asked for | Code regression: stop, record the row id and report it. Not a hardware finding. The one exception is a row written before 2.0.0 at an exact half pulse (§3.3) |
 | C3 FAIL with the planner column all `ok` and `[up]` in brackets | The set ran with "Round doses up" on, but `--policy nearest` requires nearest rounding (the failure line says so) | Turn the setting off and repeat the set; the rows are correct for the policy they ran under |
 | `precision_vs_reference` FAIL | The independent rig's pooled within-cage SD is larger than chance allows next to the manifold's (the failure line gives the ratio and the bound) | Look at the per-cage rows: one noisy cage points at that valve or line (re-prime, re-run C1); every cage wide points at the rig's plumbing or the balance |
 | `RESULT: INCOMPLETE` | A dose ran on one rig but not, or without ten readings in a cage, on the other; or one of the files had no gradable rows (no manifold rows, or no rows from the rig under validation: check both devices' `valve_topology`, and that the second file really came from the second rig) | Run the missing set on the other rig; the comparison is not a pass until every dose has run on both. For one rig on its own, use `--reference none` |

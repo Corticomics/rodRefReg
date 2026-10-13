@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import math
 import threading
 import time
 from datetime import datetime, timedelta
@@ -10,6 +9,7 @@ from PyQt5.QtCore import QMutex, QMutexLocker, QObject, QTimer, pyqtSignal, pyqt
 from strategies.delivery_strategy import DeliveryResult
 from strategies.factory import StrategyFactory
 from utils.calibration import CalibrationStore
+from utils.dose_rounding import whole_pulses
 from utils.topology import build_solenoid_controller, topology_from
 from utils.volume_calculator import VolumeCalculator
 from version import __version__
@@ -797,7 +797,8 @@ class RelayWorker(QObject):
         chunk (+78% measured on the bench, +0.6% agreement with prediction).
 
         Instead: track the cumulative volume this window has asked for, and
-        fire round(deficit / q) pulses where deficit = asked − actually
+        fire whole_pulses(deficit, q) pulses (utils.dose_rounding: nearest,
+        an exact half rounding up) where deficit = asked − actually
         delivered. Zero is a legal answer. The window total then lands
         within half a pulse of its cumulative target — the theoretical
         floor — with nothing carried across the window boundary, and a
@@ -879,13 +880,9 @@ class RelayWorker(QObject):
             ask = float(delivery_data.get('requested_ml', requested))
             deficit = ask - float(delivery_data.get('_dispensed_ml', 0.0))
 
+        # One whole-pulse rounding for every planned figure (utils.dose_rounding).
         round_up = self._rounds_doses_up()
-        if round_up:
-            # The small subtraction keeps an exact multiple of q (which
-            # floating point can land a hair above) from buying a pulse.
-            n_pulses = max(0, math.ceil(deficit / q - 1e-9))
-        else:
-            n_pulses = max(0, int(deficit / q + 0.5))
+        n_pulses = whole_pulses(deficit, q, round_up)
 
         # Anti-burst clamp: after repeated failures the deficit can span
         # several slots; catching up all at once would defeat the
