@@ -227,17 +227,21 @@ RELAYS' safety duties.
 |---|---|---|
 | S1 | Cancel the worker right after the first all-off, before the dialog pumps events | a pulse starting after the all-off |
 | S2 | All relays off again after the teardown (when a worker or thread existed); that last command decides "confirmed off" | `cleanup()` switches the relays off again later, but its result is only printed (`main.py:462`) |
-| S3 | The latch: when `not result.safe`, SCHEDULE passes to EMERGENCY in one step (`OperationLock.hold_until_safe`), before `reset_ui` and any dialog. Run, Change Relay Hats, priming, calibration and topology changes stay refused until a confirmed CLOSE ALL RELAYS or a restart | `reset_ui` releasing the lock regardless |
+| S3 | The latch: when `not result.safe`, SCHEDULE passes to EMERGENCY in one step (`OperationLock.hold_until_safe(SCHEDULE)`), before `reset_ui` and any dialog, whose event loop can run the worker's queued `cleanup` (its `reset_ui` releases SCHEDULE); an error after the stop ran latches the same way. Run, Change Relay Hats, priming, calibration and hardware-mode and topology changes stay refused until a confirmed CLOSE ALL RELAYS or a restart, and the Settings refusals say so | `reset_ui` releasing the lock regardless |
 | S4 | One dialog: **Relays Not Confirmed Off** or **Delivery Worker Did Not Stop** | two dialogs, or none |
-| S5 | Run refuses beside a live worker thread, keeps its reference and latches (**Delivery Worker Did Not Stop**); another failed start says **Schedule not started**; `main.cleanup` keeps a running thread | dropping a running QThread |
+| S5 | `main.run_program` refuses beside a live worker thread and keeps its reference; Run then latches before its dialog (**Delivery Worker Did Not Stop**). Another failed start resets Run (**Schedule not started**); `main.cleanup` keeps a thread still running after its wait | dropping a running QThread; a second worker beside the first |
 | S6 | A cancel check before the manifold prime and before the master hold | a Stop reopening the master (`solenoid_flow_strategy.py:1125, :1208-1210`) |
-| S8 | A Stop during "Starting…" cancels the queued start (a run token) | a start that launches after the Stop, which nothing could end once CLOSE ALL no longer stops schedules |
+| S8 | A Stop during "Starting…" cancels the queued start: Run queues it with a token (`RunStopSection._run_token`) that Stop clears first, so it cannot launch after the Stop, nor inside the Stopping dialog's event pump | a start that launches after the Stop, which nothing could end once CLOSE ALL no longer stops schedules |
 
 - `execute_stop_sequence(handler, worker_obj, thread_obj, signals,
   dialog_factory=None)` returns `StopResult(relays_confirmed_off,
   worker_exited)` with `.safe`; `on_unsafe` goes. `main.run_program`
   returns whether the thread started; `main.stop_program` never raises. A
   Stop that fails before the sequence runs leaves the job and Stop live.
+- With a configured relay HAT missing since start-up, `set_all_relays`
+  never confirms (`gpio_handler.py:206-213`), so every Stop latches. A
+  restart clears the latch; then Change Relay Hats sets the count the rig
+  has, or the HAT is fixed and RRR restarted again.
 - S7 of the approved plan (Stop without a login) is dropped for D3. No
   valve stays open after Stop returns, but one may still open briefly (the
   hold, or one pulse of at most 30 ms) before the worker's next check

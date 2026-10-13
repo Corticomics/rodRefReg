@@ -1123,6 +1123,12 @@ class SolenoidFlowStrategy:
         # topology has no master and nothing to prime: the cage valve is the
         # whole fluid path, so the delivery goes straight to the pulses.
         if self._has_master:
+            # A Stop that landed after deliver() checked (during the sensor
+            # restart above, say) has already switched every relay off: the
+            # prime must not open the master again.
+            if self._check_cancelled():
+                self._logger.info(f"Pulse delivery cancelled for cage {cage_id} before the prime")
+                return False
             try:
                 self._logger.debug("Priming manifold...")
                 self._valve(self._valves.open_master)
@@ -1206,6 +1212,13 @@ class SolenoidFlowStrategy:
         try:
             # Open master valve for delivery (stays open during pulses)
             if self._has_master:
+                # A Stop during the prime or the calibration lookup has already
+                # switched every relay off: do not open the master for the hold.
+                if self._check_cancelled():
+                    self._logger.info(
+                        f"Pulse delivery cancelled for cage {cage_id}; closing valves"
+                    )
+                    return False
                 self._valve(self._valves.open_master)
                 await asyncio.sleep(0.3)  # Let manifold stabilize
 

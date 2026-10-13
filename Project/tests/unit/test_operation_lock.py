@@ -111,3 +111,68 @@ def test_singleton_is_stable(qapp):
     from utils.operation_lock import get_operation_lock  # noqa: PLC0415
 
     assert get_operation_lock() is get_operation_lock()
+
+
+# --- hold_until_safe: the latch after a stop that could not confirm it is safe ----------
+
+
+def _recorded(lock):
+    seen = []
+    lock.state_changed.connect(lambda: seen.append(lock.active_operation()))
+    return seen
+
+
+def test_hold_until_safe_takes_a_free_lock(qapp):
+    from utils.operation_lock import EMERGENCY  # noqa: PLC0415
+
+    lock = _lock()
+    seen = _recorded(lock)
+    lock.hold_until_safe()
+    assert lock.held_by(EMERGENCY) and seen == [EMERGENCY]
+    assert lock.active_label() == "an unconfirmed emergency stop"
+
+
+def test_hold_until_safe_hands_the_schedule_over_in_one_step(qapp):
+    """Never free in between: priming or calibration could start there."""
+    from utils.operation_lock import EMERGENCY, PRIMING, SCHEDULE  # noqa: PLC0415
+
+    lock = _lock()
+    lock.try_acquire(SCHEDULE)
+    seen = _recorded(lock)
+    lock.hold_until_safe(SCHEDULE)
+    assert seen == [EMERGENCY], "one change, straight to EMERGENCY"
+    lock.release(SCHEDULE)  # what reset_ui and the worker's cleanup do
+    assert lock.held_by(EMERGENCY)
+    assert lock.try_acquire(SCHEDULE) is False and lock.try_acquire(PRIMING) is False
+
+
+def test_hold_until_safe_leaves_another_holder_alone(qapp):
+    from utils.operation_lock import CALIBRATION, PRIMING, SCHEDULE  # noqa: PLC0415
+
+    lock = _lock()
+    lock.try_acquire(PRIMING)
+    seen = _recorded(lock)
+    lock.hold_until_safe(SCHEDULE)
+    assert lock.held_by(PRIMING) and seen == []
+
+    lock = _lock()
+    lock.try_acquire(SCHEDULE)
+    lock.hold_until_safe()  # CLOSE ALL RELAYS' call: whoever holds it keeps it
+    assert lock.held_by(SCHEDULE)
+
+    lock = _lock()
+    lock.try_acquire(CALIBRATION)
+    lock.hold_until_safe(SCHEDULE)
+    assert lock.held_by(CALIBRATION)
+
+
+def test_hold_until_safe_is_idempotent_and_force_release_clears_it(qapp):
+    from utils.operation_lock import EMERGENCY  # noqa: PLC0415
+
+    lock = _lock()
+    lock.hold_until_safe()
+    seen = _recorded(lock)
+    lock.hold_until_safe()
+    assert seen == [] and lock.held_by(EMERGENCY)
+    lock.force_release()
+    assert lock.is_busy() is False and seen == [None]

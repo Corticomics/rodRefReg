@@ -57,12 +57,21 @@ runnable on any machine.
 There is no `RelayHandler.cleanup()`. Stop runs
 `utils.stop_sequence.execute_stop_sequence` (main.py `stop_program`),
 **hardware safe first**: `set_all_relays(0)` before touching the worker
-thread. Then `worker.request_cancel()` is called directly (thread-safe; it
-breaks the delivery loop the worker is blocked in), `stop_requested` is
-emitted over `QueuedConnection`, and the thread gets bounded `wait()` calls
-(3 s, then `terminate()` and 1 s, then it is abandoned). If
-`set_all_relays(0)` returned False, a HAT did not confirm OFF, and after the
-teardown the operator sees **Relays Not Confirmed Off** (disconnect the valve
-power supply, then check the relay HAT and its I²C connection). When the worker finishes, `main.cleanup()` switches all relays
+thread. Then `worker.request_cancel()` is called directly and at once, before
+the Stopping dialog pumps events (thread-safe; it breaks the delivery loop
+the worker is blocked in), `stop_requested` is emitted over
+`QueuedConnection`, and the thread gets bounded `wait()` calls (3 s, then
+`terminate()` and 1 s, then it is abandoned). With a worker or a thread to
+tear down, `set_all_relays(0)` runs again after the teardown, and that last
+command decides whether the relays count as confirmed off. The sequence
+returns `StopResult(relays_confirmed_off, worker_exited)`. When it is not
+safe, the Run/Stop section hands the schedule's hold on the operation lock to
+`EMERGENCY` before any dialog, then the operator sees one dialog: **Relays
+Not Confirmed Off** (disconnect the valve power supply, then check the relay
+HAT and its I²C connection) or **Delivery Worker Did Not Stop**. Run,
+priming and calibration stay unavailable until a confirmed CLOSE ALL RELAYS
+or a restart. When the worker finishes, `main.cleanup()` switches all relays
 off again and prints `[CLEANUP] CRITICAL: relays NOT confirmed off` if that
-fails. Never add an unbounded `thread.wait()`: that was the v1.8.0 incident.
+fails; a worker thread still running after its wait is kept, not dropped,
+and Run refuses to start beside it. Never add an unbounded `thread.wait()`:
+that was the v1.8.0 incident.

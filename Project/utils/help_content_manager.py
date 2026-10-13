@@ -406,7 +406,10 @@ def _build_content() -> Dict[str, HelpContent]:
   passed), so check what each animal has received before running it again.  If a relay
   HAT does not confirm OFF, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may
   still be open: disconnect the valve power supply, then check the relay HAT and its I²C
-  connection.</p>
+  connection.  If the schedule's delivery worker does not stop, <em>Delivery Worker Did Not
+  Stop</em> says so.  Either way Run, priming and calibration stay unavailable until
+  <strong>CLOSE ALL RELAYS</strong> (Settings → Priming) confirms every relay off, or RRR is
+  restarted.</p>
 
   <div class='help-tip'>
     <strong>Tip:</strong> Switch to <strong>Super Mode</strong> (Settings → General →
@@ -828,10 +831,14 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Stop Button</h2>
   <p>The <strong>Stop</strong> button in the Run/Stop section immediately halts all
-  hardware activity.  All relay outputs are driven to off.  If a relay HAT does not confirm the
-  command, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may still be open:
-  disconnect the valve power supply, then check the relay HAT and its I²C connection.  Use
-  Stop whenever an unexpected situation arises.</p>
+  hardware activity.  All relay outputs are driven to off, and again once the schedule's
+  delivery worker has stopped.  If a relay HAT does not confirm the command, a <em>Relays Not
+  Confirmed Off</em> dialog warns that a valve may still be open: disconnect the valve power
+  supply, then check the relay HAT and its I²C connection.  If the delivery worker does not
+  stop, <em>Delivery Worker Did Not Stop</em> says so.  Either way Run, priming and
+  calibration stay unavailable until <strong>CLOSE ALL RELAYS</strong> (Settings → Priming)
+  confirms every relay off, or RRR is restarted.  Use Stop whenever an unexpected situation
+  arises.</p>
 
   <h2>System Messages Alerts</h2>
   <p>Every error, warning, and key event is timestamped and logged to the
@@ -1434,9 +1441,10 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Run greyed out or <em>Hardware busy</em>: a priming session or a calibration is using
     the valves.  Finish it first (Close Master on a shared-manifold rig, close every cage valve
     on an independent rig).  If the message names <em>an unconfirmed emergency stop</em>,
-    CLOSE ALL RELAYS could not confirm every relay off, or a schedule's delivery worker had
-    not stopped: press CLOSE ALL RELAYS again once the relay HAT answers, or close and reopen
-    RRR.</li>
+    Stop or CLOSE ALL RELAYS could not confirm every relay off, or a schedule's delivery
+    worker had not stopped: press CLOSE ALL RELAYS (Settings → Priming) once the relay HAT
+    answers, or close and reopen RRR (if RRR will not quit, that worker is still running:
+    restart the Raspberry Pi).</li>
     <li><em>Expired Schedule</em>: the whole window, or every instant delivery time, has
     passed; create a schedule with future times.  If only the start has passed, RRR offers to
     run the rest.</li>
@@ -1459,6 +1467,10 @@ def _build_content() -> Dict[str, HelpContent]:
     resume it but starts it over, so check what each animal has received first.</li>
     <li><em>Relays Not Confirmed Off</em> or <em>Emergency Stop Failed</em> — disconnect the
     valve power supply now, then check the relay HAT and its I²C connection.</li>
+    <li><em>Delivery Worker Did Not Stop</em> — every relay is off, but the schedule's
+    delivery worker did not end and may open a valve again.  Wait a few seconds and press
+    CLOSE ALL RELAYS (Settings → Priming); if it says the worker has still not stopped,
+    disconnect the valve power supply and restart the Raspberry Pi.</li>
   </ul>
 
   <h2>Slack Notifications Not Arriving</h2>
@@ -1475,10 +1487,10 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Press <strong>Stop</strong> in the Run/Stop section (<strong>CLOSE ALL RELAYS</strong>
     in Settings → Priming also stops the schedule and switches every relay off).</li>
     <li>If Stop does not respond within a few seconds, or a <em>Relays Not Confirmed
-    Off</em> dialog appears, disconnect the valve power supply, then check the relay HAT
-    and its I²C connection.</li>
-    <li>Restart the application.  Review the System Messages terminal for the error that
-    caused the hang.</li>
+    Off</em> or <em>Delivery Worker Did Not Stop</em> dialog appears, disconnect the valve
+    power supply, then check the relay HAT and its I²C connection.</li>
+    <li>Restart the application (if it will not quit, restart the Raspberry Pi).  Review the
+    System Messages terminal for the error that caused the hang.</li>
   </ol>
 
   <div class='help-tip'>

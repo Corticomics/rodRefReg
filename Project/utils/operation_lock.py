@@ -25,11 +25,14 @@ Two enforcement layers use this:
 The lock is *advisory*: it gates the three known user entry points, not the I²C
 bus itself. Those three are the only initiators of hardware operations.
 
-A fourth holder, ``EMERGENCY``, is not an operation. Priming's CLOSE ALL RELAYS
-takes it when it could not confirm every relay off (or a delivery worker did
-not stop) and nothing else holds the lock, so no operation can start onto a
-valve that may be open. A later confirmed CLOSE ALL RELAYS, or a restart,
-clears it.
+A fourth holder, ``EMERGENCY``, is not an operation. The Stop button and
+Priming's CLOSE ALL RELAYS take it (:meth:`OperationLock.hold_until_safe`) when
+they could not confirm every relay off, or a delivery worker did not stop, so
+no operation can start onto a valve that may be open. Stop hands the
+schedule's hold over to it, as Run does when it refuses to start beside a
+delivery worker that is still running; CLOSE ALL RELAYS takes it when nothing
+else holds the lock. A later confirmed CLOSE ALL RELAYS, or a restart, clears
+it.
 """
 
 from __future__ import annotations
@@ -58,7 +61,8 @@ _LABELS = {
 class OperationLock(QObject):
     """Single-holder, re-entrant-per-owner hardware operation lock."""
 
-    # Emitted whenever the busy/idle state changes (free→held or held→free).
+    # Emitted whenever the busy/idle state changes (free→held or held→free),
+    # and when a stop hands a hold over to EMERGENCY (hold_until_safe).
     state_changed = pyqtSignal()
 
     def __init__(self) -> None:
@@ -96,6 +100,25 @@ class OperationLock(QObject):
                 self._active = None
                 changed = True
         if changed:
+            self.state_changed.emit()
+
+    def hold_until_safe(self, handing_over: Optional[str] = None) -> None:
+        """Keep the hardware locked after a stop that could not confirm it is
+        safe: every relay off, and no delivery worker left running.
+
+        A free lock is taken for ``EMERGENCY``, and a hold by ``handing_over``
+        (Stop, and a Run refused beside a live worker, pass ``SCHEDULE``)
+        becomes ``EMERGENCY`` in one step, so the lock is never free in
+        between. Any other holder keeps it. Only a confirmed CLOSE ALL RELAYS
+        (:meth:`force_release`), or a restart, clears ``EMERGENCY``.
+        """
+        changed = False
+        with self._mutex:
+            if self._active is None or (handing_over is not None and self._active == handing_over):
+                changed = self._active != EMERGENCY
+                self._active = EMERGENCY
+        if changed:
+            self._log.warning("Hardware held: a stop could not confirm it is safe")
             self.state_changed.emit()
 
     def force_release(self) -> None:

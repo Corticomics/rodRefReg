@@ -28,7 +28,7 @@ from PyQt5.QtWidgets import (
 )
 from utils import updater
 from utils.calibration_gate import calibration_is_usable, gate_applies
-from utils.operation_lock import CALIBRATION, get_operation_lock
+from utils.operation_lock import CALIBRATION, EMERGENCY, get_operation_lock
 from utils.topology import (
     DEFAULT_MASTER_RELAY_ID,
     INDEPENDENT,
@@ -555,7 +555,7 @@ class SettingsTab(QWidget):
                 self,
                 "Cannot Change Mode",
                 f"The hardware mode cannot change while {reason}.\n\n"
-                "Wait for it to finish, then try again.",
+                f"{self._hardware_change_retry_hint()}",
             )
             # Revert to previous mode
             old_mode = self.settings.get('hardware_mode', 'solenoid')
@@ -647,6 +647,18 @@ class SettingsTab(QWidget):
         if updater.is_busy() or getattr(self.run_stop_section, 'job_in_progress', False):
             return "a schedule is running"
         return None
+
+    @staticmethod
+    def _hardware_change_retry_hint():
+        """The refusal's advice. Waiting never clears the latch of a stop
+        that could not confirm every relay off (EMERGENCY): only a confirmed
+        CLOSE ALL RELAYS, or a restart, does."""
+        if get_operation_lock().held_by(EMERGENCY):
+            return (
+                "Once every relay HAT answers, press CLOSE ALL RELAYS in Settings > Priming, "
+                "or close and reopen RRR; then try again."
+            )
+        return "Wait for it to finish, then try again."
 
     def _apply_hardware_settings_lock_state(self):
         """Grey out the hardware mode and the topology choice while a change
@@ -779,7 +791,7 @@ class SettingsTab(QWidget):
             self,
             "Cannot Change Topology",
             f"The valve topology cannot change while {reason}.\n\n"
-            "Wait for it to finish, then try again.",
+            f"{self._hardware_change_retry_hint()}",
         )
         return True
 
