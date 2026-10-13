@@ -41,6 +41,23 @@ Methods:
 """
 
 
+def _pulse_quantum(strategy, cage_id):
+    """The cage's volume per pulse in mL, or None when the strategy does not
+    dispense in pulses (pump, continuous) or reports no usable quantum.
+
+    Only a positive real number counts: test doubles and misbehaving
+    strategies can return objects that coerce to a float but are not volumes.
+    The planner and the run record both take the quantum from here.
+    """
+    quantum_of = getattr(strategy, 'pulse_volume_for', None)
+    if quantum_of is None:
+        return None
+    q = quantum_of(cage_id)
+    if not isinstance(q, (int, float)) or isinstance(q, bool) or q <= 0:
+        return None
+    return float(q)
+
+
 class RelayWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
@@ -188,6 +205,18 @@ class RelayWorker(QObject):
         self.schedule_id = settings.get('schedule_id')
         if not self.schedule_id:
             raise ValueError("schedule_id is required in settings")
+
+        # This run's entry in the run history (schedule_runs): opened at the
+        # run's first due delivery (_open_run_record), closed once on the GUI
+        # thread by main._record_run_end. Plain attributes, so they can still
+        # be read after deleteLater has deleted the Qt side of the worker.
+        self.schedule_name = settings.get('schedule_name') or f"Schedule {self.schedule_id}"
+        self.started_by = settings.get('started_by')
+        self.run_plan = {}
+        self.run_id = None
+        self.stop_reason = None  # 'operator' once Stop is pressed (main.stop_program)
+        self._run_open_tried = False
+        self.run_end_recorded = False
 
         # Get system-wide settings from system_controller (which is expected to have a .settings attribute)
         system_settings = self.system_controller.settings
@@ -819,18 +848,9 @@ class RelayWorker(QObject):
         in pulses (pump/continuous) or no calibration is resolvable — the
         caller then keeps the legacy mL behaviour.
         """
-        strategy = getattr(self, 'strategy', None)
-        quantum_of = getattr(strategy, 'pulse_volume_for', None)
-        if quantum_of is None:
+        q = _pulse_quantum(getattr(self, 'strategy', None), delivery_data['relay_unit_id'])
+        if q is None:
             return None
-        # Accept only a positive real quantum; anything else means the
-        # strategy is not (or not verifiably) dispensing in pulses. An
-        # isinstance check rather than float(): test doubles and misbehaving
-        # strategies can return objects that coerce but are not volumes.
-        q = quantum_of(delivery_data['relay_unit_id'])
-        if not isinstance(q, (int, float)) or isinstance(q, bool) or q <= 0:
-            return None
-        q = float(q)
 
         requested = float(delivery_data['water_volume'])
         animal_id = delivery_data['animal_id']
@@ -966,6 +986,112 @@ class RelayWorker(QObject):
                 **self._ledger_context(),
             }
         )
+
+    def _open_run_record(self):
+        """Open this run's entry in the run history, once, at its first due delivery.
+
+        Not at Run: a staggered run can wait days for its window, and a Stop
+        before anything was due must leave each animal's previous run on the
+        Animals tab. Runs on the worker thread, like every ledger write.
+        Never raises: a run that cannot be recorded still delivers. The plan
+        is kept even then, so a Stop's audit row still says what each animal
+        got (main._record_run_end).
+        """
+        if getattr(self, '_run_open_tried', True) or self._cancel_requested.is_set():
+            return  # opened (or tried) already, a test stand-in, or Stop was pressed
+        self._run_open_tried = True
+        if not self.database_handler:
+            return
+        try:
+            self.run_plan = self._build_run_plan()
+            if not self.run_plan:
+                return
+            self.run_id = self.database_handler.start_schedule_run(
+                schedule_id=self.schedule_id,
+                schedule_name=self.schedule_name,
+                delivery_mode=self.mode,
+                started_by=self.started_by,
+                animals=[
+                    {
+                        'animal_id': animal_id,
+                        'relay_unit_id': entry['relay_unit_id'],
+                        'requested_ml': round(entry['requested_ml'], 6),
+                        'planned_ml': round(entry['planned_ml'], 6),
+                    }
+                    for animal_id, entry in self.run_plan.items()
+                ],
+            )
+        except Exception as exc:
+            self.progress.emit(
+                f"Could not record this run in the run history: {exc}. Deliveries "
+                "continue, and each one is still in the delivery log."
+            )
+            return
+        if self.run_id is None:
+            # start_schedule_run returns None, with nothing written, when the
+            # database refused the write.
+            self.progress.emit(
+                "Could not record this run in the run history: the database did not "
+                "accept it. Deliveries continue, and each one is still in the delivery log."
+            )
+
+    def _build_run_plan(self):
+        """Per animal (int id): its cage, the volume the schedule asks
+        (requested_ml), what whole pulses at the cage's calibration deliver
+        (planned_ml), the pulse (q_ml, None when not dispensing in pulses), and
+        complete_ml, the credited volume at or above which it counts as
+        completed (docs/STOP_AND_PARTIAL_DELIVERY.md §5).
+
+        Staggered: the window's whole target, rounded once, as the planner's
+        carry lands it; completed as the worker's own completion pass judges
+        it (check_final_completion), so the record never contradicts the
+        Terminal. Instant: every delivery of the schedule, past ones included
+        (they are part of what was scheduled; the run ends incomplete without
+        them), each rounded on its own as the planner does; completed within
+        half a pulse of the plan, or within the worker's own tolerance of the
+        ask: a retry re-plans the ask minus what was already dispensed, so a
+        credit off the pulse grid can land short of the plan but on the ask.
+        """
+        round_up = self._rounds_doses_up()
+        plan = {}
+        if self.mode == 'instant':
+            for delivery in self.delivery_instants:
+                animal_id = int(delivery['animal_id'])
+                cage = int(delivery['relay_unit_id'])
+                volume = float(delivery['water_volume'])
+                q = _pulse_quantum(self.strategy, cage)
+                entry = plan.setdefault(
+                    animal_id,
+                    {'relay_unit_id': cage, 'requested_ml': 0.0, 'planned_ml': 0.0, 'q_ml': q},
+                )
+                entry['requested_ml'] += volume
+                entry['planned_ml'] += (
+                    volume if q is None else whole_pulses(volume, q, round_up) * q
+                )
+            for entry in plan.values():
+                q = entry['q_ml']
+                if q is None:
+                    entry['complete_ml'] = entry['planned_ml'] - 0.01
+                else:
+                    # What _completion_tolerance_ml gives a cage with a known
+                    # pulse; it cannot look up an instant run's cages itself.
+                    tolerance = 1e-6 if round_up else max(0.01, q / 2.0)
+                    entry['complete_ml'] = min(
+                        entry['planned_ml'] - q / 2.0, entry['requested_ml'] - tolerance
+                    )
+        else:
+            for animal_id, window in getattr(self, 'animal_windows', {}).items():
+                cage = int(window['relay_unit'])
+                target = float(window['target_volume'])
+                q = _pulse_quantum(self.strategy, cage)
+                plan[int(animal_id)] = {
+                    'relay_unit_id': cage,
+                    'requested_ml': target,
+                    'planned_ml': target if q is None else whole_pulses(target, q, round_up) * q,
+                    'q_ml': q,
+                    'complete_ml': target - self._completion_tolerance_ml(animal_id),
+                }
+        return plan
 
     def _rounds_doses_up(self):
         """Whether the operator chose to round every dose UP to a whole pulse."""
@@ -1764,6 +1890,9 @@ class RelayWorker(QObject):
         synchronous relay call).
         """
         try:
+            # Every run's first delivery comes through here (a retry follows
+            # a delivery that did), so this is where the run is recorded.
+            self._open_run_record()
             prepared = self._prepare_delivery(delivery_data)
             if not prepared['proceed']:
                 return prepared['result']

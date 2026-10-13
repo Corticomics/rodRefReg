@@ -20,7 +20,7 @@ Delivery Hardware Mode
 greyed out, and a change refused, while a schedule, priming session or
 calibration runs, and a settings backup never changes it.
 `SystemController.ensure_solenoid_defaults()`, run at every start
-(main.py:168), sets it back to `'solenoid'`, so pump mode lasts only until
+(main.py:170), sets it back to `'solenoid'`, so pump mode lasts only until
 the next start.
 
 ## Pump mode — what it needs
@@ -124,6 +124,6 @@ Do you have solenoid valves?
 
 Some lab rigs ship with only the relay HAT, so `PumpStrategy` is still
 kept and tested. But `SystemController.ensure_solenoid_defaults()` sets
-`hardware_mode` back to `'solenoid'` at every start (main.py:168), so pump
+`hardware_mode` back to `'solenoid'` at every start (main.py:170), so pump
 mode lasts only until the next start; a pump-only rig would need that
 start-up default changed first. `SolenoidFlowStrategy` is what rigs run.
