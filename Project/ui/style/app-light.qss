@@ -356,6 +356,15 @@ QTableView::item:hover, QTableWidget::item:hover {
     background: #F8FAFB;
 }
 
+/* Animals tab: the "Last schedule delivered amount" cell of a run that ended short
+   (Stopped, Incomplete, Interrupted) is filled with alertFill and written in alertText
+   by AnimalsTab's delegate. White on #DC2626 is 4.83:1 (WCAG AA); the fill is 4.83:1
+   on the light table. */
+QWidget#AnimalsTab {
+    qproperty-alertFill: #DC2626;
+    qproperty-alertText: #FFFFFF;
+}
+
 /* ============================================
    PROGRESS BARS
    ============================================ */

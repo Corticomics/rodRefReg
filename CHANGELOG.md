@@ -80,6 +80,17 @@ not listed here.
   how the run ended: completed, stopped, ended short, or interrupted when
   RRR closed or lost power during it. Each Stop is also written to the log
   with who pressed it.
+- **Add:** the Animals tab shows each animal's **Last schedule delivered
+  amount**: what its latest schedule run delivered, or *Running · … mL
+  planned* while the run delivers (the tab refreshes when you open it). A
+  run that ended short is a red cell that says why (**Stopped**,
+  **Incomplete**, **Interrupted**) and shows delivered / planned mL; point
+  at it for the schedule, when it ran, its scheduled, planned and
+  delivered amounts, and how to deliver the rest (for an instant schedule,
+  check the delivery log first). An amount that was not recorded shows
+  **?** with the command that lists what the cage received. Long column
+  headers now wrap instead of being cut off, and a refresh keeps the
+  filter and the selected animal.
 
 **If something goes wrong**
 

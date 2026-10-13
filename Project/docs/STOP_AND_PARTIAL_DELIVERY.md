@@ -336,8 +336,12 @@ staggered run waiting for its window, to the end of the run or of Stop.
 
 ## 8. Animals tab and export (PRs 8, 9)
 
-The last column, **Last schedule delivered amount**, shows `last_run`
-(D4), volumes to three decimals:
+As merged (PR 8): the words are in the Qt-free `utils/last_run_text.py`
+(`last_run_cell`; `remaining_ml` and `delivery_log_command` are there for
+D5 too), the drawing and the layout in `ui/animals_tab.py`, the reload on
+selection in `ui/projects_section.py`, and Help's "Adding and Managing
+Animals" explains the column. The last column, **Last schedule delivered
+amount**, shows `last_run` (D4), volumes to three decimals:
 
 | Outcome | Cell | Red |
 |---|---|---|
@@ -349,23 +353,52 @@ The last column, **Last schedule delivered amount**, shows `last_run`
 | interrupted | `Interrupted · ? / {planned} mL` | yes |
 | a newer release's value, after a revert | `{Outcome} · {delivered} / {planned} mL` | yes |
 
-- **Tooltip:** the schedule, when the run ended ("2 hours ago (YYYY-MM-DD
-  HH:MM)"; an interrupted run by its start), and `Scheduled:`, `Planned:`,
-  `Delivered:` lines. A red staggered cell gives the remainder (scheduled −
-  delivered) for a new schedule; a red instant cell points to the delivery
-  log first (§14, item 8). An unknown amount shows "?" and the command to
-  type on the Pi (D10): `cd ~/rrr/current/Project &&
+An amount that was not recorded is `?` whatever the outcome (§14, item
+12): a completed run never shows its plan as delivered. Red follows the
+outcome alone (D2).
+
+- **Tooltip:** what happened and when, through `AnimalsTab._when` ("2
+  hours ago (YYYY-MM-DD HH:MM)"; a running or interrupted run by its start,
+  the others by their end; a time ahead of the clock as "at YYYY-MM-DD
+  HH:MM"), then `Scheduled:`, `Planned:` (with "rounded to whole valve
+  pulses at this cage's calibration" when it differs) and `Delivered:`. A
+  red cell ends with what to do, by `delivery_mode` (§14, item 8):
+  staggered, "Running this schedule again starts it over…" and the
+  remainder (scheduled − delivered, offered from 0.0005 mL) for a new
+  schedule; instant, "…skips every delivery time that has passed…", the
+  amount not delivered and "Check the delivery log first…" with the
+  command. An unknown amount (D10) reads "Delivered: not recorded." and
+  gives the command to type on the Pi: `cd ~/rrr/current/Project &&
   ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since
-  <YYYY-MM-DD> --cage <n>`.
-- **Drawing (D9).** A `QStyledItemDelegate` fills the cell with `alertFill`
-  and draws `alertText`, `pyqtProperty(QColor)` values from the QSS
+  <YYYY-MM-DD of started_at> --cage <relay_unit_id>`.
+- **Drawing (D9).** `_LastRunDelegate`, a `QStyledItemDelegate` on the
+  column, fills a cell flagged with `LAST_RUN_ALERT_ROLE` with `alertFill`
+  and draws its text in DemiBold `alertText`, centred and elided at the
+  right, so the status word stays. Both colours are `pyqtProperty(QColor)`
+  on the tab (objectName `AnimalsTab`), set by both QSS files
   (`QWidget#AnimalsTab { qproperty-alertFill: #DC2626; qproperty-alertText:
-  #FFFFFF; }`, both themes; 4.83:1, WCAG AA). A status word, never colour
-  alone; the text stays in the item for the filter and selection.
-- **Layout and refresh.** `len(COLUMN_WIDTHS)` replaces the 7s, and the
-  columns 5–6 widening goes. The tab reloads after a run and when
-  selected, keeping filter and selection. The words live in the Qt-free
-  `utils/last_run_text.py`, shared with the export and D5.
+  #FFFFFF; }`; 4.83:1, WCAG AA) and again by a theme switch. The tab starts
+  from the same two colours, so the cell stays red without a stylesheet;
+  palette B (§12) carries the rule in its template and moves those two
+  colours to its tokens or lists them in its raw-colour baseline. The table
+  selects single cells, so a selected red cell keeps its fill and gets a
+  2 px frame in `alertText`: without it, a click on the red cell showed
+  nothing. A status word, never colour alone; the text stays in the item
+  for the filter, the tooltip and the selection.
+- **Layout.** `COLUMN_WIDTHS = (120, 120, 90, 116, 92, 148, 148, 238)`,
+  and `len(COLUMN_WIDTHS)` replaces the 7s. On the Pi's 1920 × 1080 screen
+  the tab is about 1114 px wide: nothing scrolls sideways, "NN minutes ago"
+  fits both time columns, and the last column stretches to 252–262 px.
+  "Lab Animal ID", "Initial Weight (g)" and "Last Weight" break onto two
+  lines like the new header, and the columns 5–6 widening in `resizeEvent`
+  is gone.
+- **Refresh.** The tab reloads after a run closes (§5) and whenever it is
+  selected (`ProjectsSection._on_tab_changed`), so a run that opened while
+  another tab was on screen shows as Running; a tab already on screen
+  shows it at the next selection or at the run's end (§14, item 15). A
+  reload keeps the filter, then the selected animal (by `animal_id`) if
+  the filter shows it; a new animal that the filter does not match stays
+  hidden.
 - **Export Animals to CSV** gains `Last Schedule`, `Last Schedule Result`,
   `Last Schedule Scheduled (mL)`, `Last Schedule Planned (mL)`,
   `Last Schedule Delivered (mL)`, `Last Schedule Started` and
