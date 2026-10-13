@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.operation_lock import SCHEDULE, get_operation_lock
 
 
 class UserTab(QWidget):
@@ -23,12 +24,25 @@ class UserTab(QWidget):
     logout_signal = pyqtSignal()
     size_changed_signal = pyqtSignal()
 
-    def __init__(self, login_system, database_handler=None):
+    _SCHEDULE_RUNNING_TOOLTIP = "A schedule is running: press Stop to end it, then log out"
+
+    def __init__(self, login_system, database_handler=None, schedule_running=None):
+        """``schedule_running``: optional callable, True while a schedule run
+        is in progress (the GUI passes the Run/Stop section's job flag).
+        Log Out is unavailable then: Stop needs a logged-in user, so a
+        logout would leave nothing in RRR that can stop the run. Without it,
+        a schedule that holds the hardware lock counts as running."""
         super().__init__()
         self.login_system = login_system
         self.database_handler = database_handler
         self.current_user = None
+        self._schedule_running = schedule_running or (
+            lambda: get_operation_lock().held_by(SCHEDULE)
+        )
         self.init_ui()
+        # The job flag changes only next to a hardware-lock change (Run sets
+        # it before taking the lock; every end clears it before letting go).
+        get_operation_lock().state_changed.connect(self._refresh_logout_button)
 
     def init_ui(self):
         # Main layout
@@ -188,6 +202,7 @@ class UserTab(QWidget):
             self.logout_button.setProperty("variant", "danger")
             self.logout_button.clicked.connect(self.logout)
             profile_layout.addWidget(self.logout_button)
+            self._refresh_logout_button()
 
             self.layout.addWidget(self.profile_container)
             self.adjustSize()
@@ -199,7 +214,24 @@ class UserTab(QWidget):
             )
             print(f"Unexpected error in set_user: {e}")
 
+    def _refresh_logout_button(self):
+        """Grey out Log Out while a schedule runs; logout() refuses then too."""
+        if self.current_user is None:
+            return  # logged out: the profile's Log Out button is gone
+        running = self._schedule_running()
+        self.logout_button.setEnabled(not running)
+        self.logout_button.setToolTip(self._SCHEDULE_RUNNING_TOOLTIP if running else "")
+
     def logout(self):
+        if self._schedule_running():
+            QMessageBox.information(
+                self,
+                "Schedule running",
+                "A schedule is running, so you cannot log out now. Stop needs a logged-in "
+                "user: after a logout, nothing in RRR could stop the schedule.\n\n"
+                "Press Stop to end the schedule, or wait until it has ended, then log out.",
+            )
+            return
         try:
             self.current_user = None
             self.login_system.logout()

@@ -25,6 +25,7 @@ not listed here.
   (Settings > Priming) are greyed out from Run to the end of the run or of
   Stop, and a `[VALVE CRITICAL]` alarm now says to press Stop. 1.21.0 had
   made CLOSE ALL RELAYS stop a running schedule; this release undoes that.
+  Log Out (Profile tab) is greyed out while a schedule runs too.
 
 **What changes on the device**
 
@@ -35,6 +36,12 @@ not listed here.
   after a Stop that could not confirm every relay off, CLOSE ALL RELAYS
   clears the hardware lock once every relay is confirmed off, looking for
   the HATs again so a reseated one is found.
+- **Change (safety):** Log Out (Profile tab) is greyed out while a schedule
+  runs, with the tooltip *A schedule is running: press Stop to end it, then
+  log out*, and refused (**Schedule running**). Stop needs a logged-in user,
+  so a logout mid-run left nothing in RRR that could stop the schedule.
+  Press Stop (or wait until the schedule has ended), then log out. A
+  staggered schedule waiting for its window counts as running.
 - **Change:** `[VALVE CRITICAL]` alarms say *Check the rig; the Stop button
   switches every relay off and stops the schedule.*
 - **Fix (safety):** Stop is safer.
@@ -93,9 +100,11 @@ not listed here.
   that Stop clears.
 - `PrimingControlWidget(settings, print_callback=None, schedule_running=None)`
   replaces `stop_schedule`; `SettingsTab._stop_running_schedule` is gone.
-  `RunStopSection.job_in_progress` is set before `try_acquire(SCHEDULE)`, so
-  the lock's `state_changed` greys the Close controls with the flag already
-  set. CLOSE ALL RELAYS and Close Selected refuse in their handlers too.
+  `UserTab` takes `schedule_running=None` too, and `gui.py` passes it the
+  Run/Stop section's job flag. `RunStopSection.job_in_progress` is set
+  before `try_acquire(SCHEDULE)`, so the lock's `state_changed` greys the
+  Close controls and Log Out with the flag already set. CLOSE ALL RELAYS,
+  Close Selected and Log Out refuse in their handlers too.
 
 ## 1.21.0 — valve topology, calibration gate, relay-failure reporting
 

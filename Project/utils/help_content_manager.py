@@ -838,7 +838,8 @@ def _build_content() -> Dict[str, HelpContent]:
   stop, <em>Delivery Worker Did Not Stop</em> says so.  Either way Run, priming and
   calibration stay unavailable until <strong>CLOSE ALL RELAYS</strong> (Settings → Priming)
   confirms every relay off, or RRR is restarted.  Use Stop whenever an unexpected situation
-  arises.</p>
+  arises.  Stop needs a logged-in user, so <strong>Log Out</strong> is greyed out while a
+  schedule runs: press Stop first, or wait until the schedule has ended.</p>
 
   <h2>System Messages Alerts</h2>
   <p>Every error, warning, and key event is timestamped and logged to the
@@ -1399,6 +1400,11 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>This is normal.  Log in on the <strong>Profile</strong> tab.  The Settings tab appears
   after a successful login; Help is available to everyone.</p>
 
+  <h2>Log Out Greyed Out</h2>
+  <p>A schedule is running.  Stop needs a logged-in user, so RRR keeps you logged in until the
+  schedule has ended: press <strong>Stop</strong> to end it, then log out.  A staggered
+  schedule waiting for its window counts as running.</p>
+
   <h2>Wrong Hardware Mode</h2>
   <p>If deliveries are erratic or the hardware does not respond, verify that the mode in
   <strong>Settings → Delivery</strong> matches your physical hardware.  The Hardware Mode
@@ -1521,6 +1527,8 @@ def _build_content() -> Dict[str, HelpContent]:
                 "volume wrong",
                 "delivery",
                 "dialout",
+                "logout",
+                "log out",
             ],
             related_topics=[
                 "Safety Features",
