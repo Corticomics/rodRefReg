@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from PyQt5.QtCore import QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -19,6 +19,7 @@ from utils.calibration_gate import (
     run_cage_ids,
 )
 from utils.operation_lock import SCHEDULE, get_operation_lock
+from utils.run_warnings import PASSED_TITLE, START_RUN, passed_deliveries_message
 
 from .schedule_drop_area import ScheduleDropArea
 
@@ -492,16 +493,19 @@ class RunStopSection(QWidget):
 
                 now = datetime.now()
                 schedule.instant_deliveries = []
+                labels = {}  # animal_id -> lab ID, for the passed-deliveries question
                 past_count = 0
 
                 for delivery in deliveries:
-                    animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
+                    animal_id, lab_id, _, datetime_str, volume, _, relay_unit_id = delivery
+                    labels[animal_id] = lab_id
                     delivery_time = datetime.fromisoformat(datetime_str)
 
-                    # Track past deliveries but still add them for reference
                     if delivery_time < now:
                         past_count += 1
 
+                    # Every delivery, passed ones included: the worker skips the
+                    # passed ones, and the run's record plans the whole schedule.
                     schedule.add_instant_delivery(animal_id, delivery_time, volume, relay_unit_id)
 
                 # Filter to only future deliveries for execution
@@ -520,19 +524,13 @@ class RunStopSection(QWidget):
                     )
                     return
 
-                # Scenario 2: Some deliveries are in the past
+                # Scenario 2: Some deliveries are in the past. They are skipped,
+                # never made up, so the run ends incomplete: ask first.
                 if past_count > 0:
-                    reply = QMessageBox.question(
-                        self,
-                        "Some Deliveries Passed",
-                        f"{past_count} of {len(schedule.instant_deliveries)} scheduled deliveries "
-                        f"have already passed.\n\n"
-                        f"{len(future_deliveries)} deliveries will still be executed.\n\n"
-                        "Do you want to continue with the remaining deliveries?",
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes,
+                    text = passed_deliveries_message(
+                        schedule.name, schedule.instant_deliveries, labels, now
                     )
-                    if reply != QMessageBox.Yes:
+                    if not self._confirm_start(PASSED_TITLE, text, START_RUN):
                         self._reset_run_button()
                         return
 
@@ -610,6 +608,30 @@ class RunStopSection(QWidget):
         self._reset_run_button()
         QMessageBox.warning(self, refusal_title(problems), format_problems(problems, settings))
         return False
+
+    def _confirm_start(self, title, text, start_label):
+        """Ask before a start that will not go as scheduled; True to start.
+
+        The buttons say what they do (``start_label`` / Cancel), as in
+        SettingsTab._confirm_valve_topology. Cancel is the default and the
+        Esc button, so Enter or Esc never starts a run by mistake. Plain
+        text: the schedule's name is the operator's own and is not markup.
+        On False the caller resets the Run button, the job flag and the
+        operation lock (_reset_run_button), as for every refusal.
+        """
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle(title)
+        box.setTextFormat(Qt.PlainText)
+        box.setText(text)
+        start = box.addButton(start_label, QMessageBox.AcceptRole)
+        cancel = box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec_()
+        confirmed = box.clickedButton() is start
+        box.deleteLater()
+        return confirmed
 
     def _reset_run_button(self):
         """Reset run button to initial state after error or cancellation.

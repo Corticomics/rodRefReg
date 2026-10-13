@@ -1498,6 +1498,11 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><em>Expired Schedule</em>: the whole window, or every instant delivery time, has
     passed; create a schedule with future times.  If only the start has passed, RRR offers to
     run the rest.</li>
+    <li><em>Some Deliveries Passed</em>: some of an instant schedule's delivery times have
+    passed.  The dialog lists them for each animal and shows how much of the scheduled water
+    this run can still deliver.  <strong>Start Run</strong> skips the passed deliveries (they
+    are never made up) and the Animals tab shows the run in red as incomplete for those
+    animals; <strong>Cancel</strong> starts nothing.</li>
     <li>Confirm all required animals have been added and have valid weights.</li>
     <li>Check that cage assignments are valid (no animal on the reserved relay R16).</li>
     <li>Verify volumes are positive and within safe limits.</li>
