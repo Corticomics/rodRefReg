@@ -93,8 +93,8 @@ exact half-pulse tie or below 0.02 mL per pulse.
 
 ## 4. Data (PR 5)
 
-The **draft** DDL, reconciled with the merged code by the docs PR; it goes
-at the end of `create_tables` (before its commit, `database_handler.py:334`).
+The DDL as merged (PR 5), at the end of `create_tables`, before its commit;
+[DATABASE.md](DATABASE.md) §2 gives it with a comment per column.
 
 ```sql
 CREATE TABLE IF NOT EXISTS schedule_runs (
@@ -133,7 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_schedule_run_animals_animal_run
 `last_run_from_row`, `ScheduleRunsRepo(connect)`), behind the facade
 below; nothing else leaves `database_handler.py`. CLAUDE.md's R2 trigger 1
 fired at its borderline (about 186 code lines); the owner approved the
-module (§14, item 14), and PR 5 logs it in
+module (§14, item 14), logged in
 [DATABASE_HANDLER_REFACTOR_DESIGN.md](DATABASE_HANDLER_REFACTOR_DESIGN.md) §11.
 
 | `DatabaseHandler` method | Contract |
@@ -144,10 +144,13 @@ module (§14, item 14), and PR 5 logs it in
 | `get_latest_runs_of_schedule(schedule_id, animal_ids) -> {int: dict}` | each animal's latest run **of this schedule**: the `last_run` keys plus `lab_animal_id`; `{}` on an empty input or a DB error |
 
 **Read path.** `get_all_animals` / `get_animals_by_trainer` gain a LEFT
-JOIN on each animal's MAX(`run_id`), still one SELECT. `Animal.last_run`
-(dict or None) carries only what the UI reads: `run_id`, `schedule_name`,
-`delivery_mode`, `started_at`, `ended_at`, `outcome`, `relay_unit_id`,
-`requested_ml`, `planned_ml`, `delivered_ml`; no join on `trainers`.
+JOIN on each animal's MAX(`run_id`), one probe of the index per animal,
+still one SELECT and still in `animal_id` order, now by an explicit
+`ORDER BY`. `Animal.last_run` (dict or None) carries only what the UI
+reads: `run_id`, `schedule_name`, `delivery_mode`, `started_at`,
+`ended_at`, `outcome`, `relay_unit_id`, `requested_ml`, `planned_ml`,
+`delivered_ml`; no join on `trainers`. `get_latest_runs_of_schedule`
+returns the same dict plus `lab_animal_id`.
 
 ---
 

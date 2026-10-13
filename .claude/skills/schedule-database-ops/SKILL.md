@@ -1,6 +1,6 @@
 ---
 name: schedule-database-ops
-description: Safely query and migrate the RRR SQLite database (rrr_database.db) — animals, schedules (staggered + instant + cycle tracking), dispensing history, system settings, valve calibration, cage naming, and trainers/login. Use when adding columns or tables, writing migrations, debugging schedule-creation, querying watering history, validating schedule assignments, or recovering from a corrupted settings state. Enforces the project's DatabaseHandler-only access rule and the idempotent-migration pattern.
+description: Safely query and migrate the RRR SQLite database (rrr_database.db) — animals, schedules (staggered + instant + cycle tracking), dispensing history, schedule run history, system settings, valve calibration, cage naming, and trainers/login. Use when adding columns or tables, writing migrations, debugging schedule-creation, querying watering history, validating schedule assignments, or recovering from a corrupted settings state. Enforces the project's DatabaseHandler-only access rule and the idempotent-migration pattern.
 ---
 
 # Schedule & database operations
@@ -15,8 +15,12 @@ falls back to `Project/rrr_database.db`. Path resolution is in
 
 **All database access goes through
 [`Project/models/database_handler.py`](Project/models/database_handler.py)
-`DatabaseHandler` (about 2,400 lines).** Never `import sqlite3` from UI, controller,
-or strategy code. Reasons:
+`DatabaseHandler` (about 2,500 lines).** Never `import sqlite3` from UI, controller,
+or strategy code. A domain split out under CLAUDE.md's R2 keeps its queries
+in a repo module behind that facade (so far
+[`Project/models/schedule_runs_repo.py`](Project/models/schedule_runs_repo.py),
+the run history): callers use the `DatabaseHandler` method, never the repo.
+Reasons:
 
 - `DatabaseHandler` owns connection lifecycle, schema versioning, FK
   pragma, and error handling.
@@ -27,7 +31,7 @@ or strategy code. Reasons:
 
 ## Schema at a glance
 
-15 tables, FK-linked:
+17 tables, FK-linked:
 
 ```
 trainers ──< schedules ─┬─< schedule_animals >─── animals
@@ -38,6 +42,8 @@ trainers ──< schedules ─┬─< schedule_animals >─── animals
                         └─< dispensing_history     (also FKs relay_units)
 
 trainers ──< logs
+trainers ──< schedule_runs ─< schedule_run_animals   (run history; animal_id and
+                                                       schedule_id are copies, not FKs)
 
 system_settings   (k/v with type tag; standalone)
 valve_calibration / valve_calibration_history    (per-cage, FKs trainers)
@@ -67,6 +73,13 @@ dose that was never delivered. Each attempt row carries the dose asked for
 (topology, calibration row, timing profile, schedule `delivery_mode`, app
 version). That's the audit log a researcher would query later.
 
+From v2.0.0, each run that starts delivering also gets a record:
+`schedule_runs` / `schedule_run_animals` hold, per animal, the amount
+scheduled, the amount planned at the cage's calibration, the amount
+delivered (the sum of the run's ledger `volume_actual_ml`) and how the run
+ended. The Animals tab reads each animal's latest run as `Animal.last_run`,
+in the same query as the animals.
+
 ## Settings persistence (Phase 2.5a)
 
 `system_settings` is the live store for everything that used to live in
@@ -91,7 +104,7 @@ must therefore be safe to re-run:
   adds the columns an older install is missing.
 - Adding a column on an existing install uses the `PRAGMA table_info` →
   `ALTER TABLE ADD COLUMN` pattern (see the `sex` column on `animals`
-  at [`database_handler.py:306-314`](Project/models/database_handler.py#L306-L314); the calibration tables' `inter_pulse_interval_ms` / `topology` loop at `:316-332` shows the same guard over several columns).
+  at [`database_handler.py:313-321`](Project/models/database_handler.py#L313-L321); the calibration tables' `inter_pulse_interval_ms` / `topology` loop at `:323-339` shows the same guard over several columns).
 - Never drop a column. SQLite's `ALTER TABLE DROP COLUMN` is partial; for
   RRR we mark columns deprecated in comments and leave them.
 

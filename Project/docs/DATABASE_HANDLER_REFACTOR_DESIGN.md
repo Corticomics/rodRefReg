@@ -370,3 +370,13 @@ to, rather than imposing a new one.
 concrete driver appears.**.
 
 ---
+
+## 11. Lazy-split log (R2, one domain per PR)
+
+The record that CLAUDE.md's R2 watch list is checked against: one row per
+domain that left `database_handler.py`. Read it before extracting the next
+one.
+
+| When | Domain | Triggers | What was done |
+|---|---|---|---|
+| 2026-10, v2.0.0 | Schedule run history (new tables `schedule_runs`, `schedule_run_animals`) | **1 fired, at its borderline.** Written inline, the domain measured about 238 lines, about 186 of them code; an earlier count of 287 included the 46-line DDL, which stays in `create_tables` either way. **3 is literally arguable:** a greenlit schema change for one domain, though it alters no existing table. **R1 not paired,** although §9 makes R1 the prerequisite of a greenlit schema change: R1 exists to migrate existing data safely (Axis C), and `CREATE TABLE IF NOT EXISTS` migrates nothing; DATABASE.md §4 and UPDATE_SYSTEM.md §14.5 F4 forbid a parallel framework. 2 and 4 did not fire. | **The owner chose the module** at the design review ([STOP_AND_PARTIAL_DELIVERY.md](STOP_AND_PARTIAL_DELIVERY.md) §14, item 14); the alternative was the same code inline behind the same facade. `models/schedule_runs_repo.py` (`ScheduleRunsRepo`; 267 lines, 170 of them code) holds the value sets, the last-run join and its column list, the row mapper and the four queries. `DatabaseHandler` keeps `start_schedule_run`, `finish_schedule_run`, `mark_interrupted_schedule_runs` and `get_latest_runs_of_schedule` and delegates; the DDL stays in `create_tables`, the animal readers in the handler. Nothing else moved. The layout stays flat, `models/<domain>_repo.py` as CLAUDE.md names it rather than §3's `models/db/`, and later extractions follow it. |

@@ -7,7 +7,11 @@ recipes below are the patterns proven safe across upgrade paths.
 ## Recipe 1 — Add a new table
 
 Append to `create_tables` with `IF NOT EXISTS`. Safe to re-run; safe on
-older installs that lack the table.
+older installs that lack the table; an older release never reads it. An
+index goes the same way (`CREATE INDEX IF NOT EXISTS`). Reference
+implementation: the run-history tables `schedule_runs` /
+`schedule_run_animals` and `idx_schedule_run_animals_animal_run` (v2.0.0),
+at the end of `create_tables`.
 
 ```python
 cursor.execute('''
@@ -22,7 +26,7 @@ cursor.execute('''
 
 SQLite can't conditionally `ADD COLUMN`, so probe with `PRAGMA table_info`
 first. Reference implementation: the `sex` column added to `animals` at
-[`database_handler.py:306-314`](Project/models/database_handler.py#L306-L314); the calibration-table columns (`inter_pulse_interval_ms`, `topology`) at [`:316-332`](Project/models/database_handler.py#L316-L332) show the same guard over several columns and tables.
+[`database_handler.py:313-321`](Project/models/database_handler.py#L313-L321); the calibration-table columns (`inter_pulse_interval_ms`, `topology`) at [`:323-339`](Project/models/database_handler.py#L323-L339) show the same guard over several columns and tables.
 
 ```python
 cursor.execute("PRAGMA table_info(animals)")
