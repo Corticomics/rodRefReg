@@ -19,7 +19,16 @@ from utils.calibration_gate import (
     run_cage_ids,
 )
 from utils.operation_lock import SCHEDULE, get_operation_lock
-from utils.run_warnings import PASSED_TITLE, START_RUN, passed_deliveries_message
+from utils.run_warnings import (
+    PASSED_TITLE,
+    START_OVER,
+    START_RUN,
+    completed_run_lines,
+    last_run_lines,
+    passed_deliveries_message,
+    start_over_question,
+    window_note,
+)
 
 from .schedule_drop_area import ScheduleDropArea
 
@@ -451,8 +460,23 @@ class RunStopSection(QWidget):
                     )
                     return
 
-                # Scenario 2: Start time has passed but end is in future
-                if now > scheduled_start:
+                # Scenario 2: Start time has passed but end is in future. When
+                # this schedule ran before and gave water, Run starts it over:
+                # one question says what that run gave, and what is left of
+                # the window when the start has passed.
+                start_passed = now > scheduled_start
+                ended_early, completed = self._last_run_lines(schedule)
+                if ended_early or completed:
+                    window = (
+                        window_note(scheduled_start, scheduled_end, now) if start_passed else None
+                    )
+                    title, text = start_over_question(
+                        schedule.name, ended_early, completed, window
+                    )
+                    if not self._confirm_start(title, text, START_OVER):
+                        self._reset_run_button()
+                        return
+                elif start_passed:
                     remaining_minutes = (scheduled_end - now).total_seconds() / 60
                     reply = QMessageBox.question(
                         self,
@@ -469,6 +493,7 @@ class RunStopSection(QWidget):
                         self._reset_run_button()
                         return
 
+                if start_passed:
                     # Adjust window_start to now
                     print(f"[RUN] Adjusting window start from {scheduled_start} to {now}")
                     window_start = now.timestamp()
@@ -525,10 +550,18 @@ class RunStopSection(QWidget):
                     return
 
                 # Scenario 2: Some deliveries are in the past. They are skipped,
-                # never made up, so the run ends incomplete: ask first.
+                # never made up, so the run ends incomplete: ask first. When
+                # this schedule ran before and gave water, the same question
+                # says what that run gave.
+                ended_early, completed = self._last_run_lines(schedule)
                 if past_count > 0:
                     text = passed_deliveries_message(
-                        schedule.name, schedule.instant_deliveries, labels, now
+                        schedule.name,
+                        schedule.instant_deliveries,
+                        labels,
+                        now,
+                        last_run=ended_early,
+                        completed_run=completed,
                     )
                     if not self._confirm_start(PASSED_TITLE, text, START_RUN):
                         self._reset_run_button()
@@ -537,6 +570,13 @@ class RunStopSection(QWidget):
                     print(
                         f"[RUN] Skipping {past_count} past deliveries, executing {len(future_deliveries)}"
                     )
+                elif ended_early or completed:
+                    # No delivery time has passed (the times were moved since
+                    # that run), so every delivery goes out again.
+                    title, text = start_over_question(schedule.name, ended_early, completed)
+                    if not self._confirm_start(title, text, START_OVER):
+                        self._reset_run_button()
+                        return
 
                 delivery_times = [d['datetime'] for d in future_deliveries]
                 window_start = min(delivery_times).timestamp()
@@ -609,6 +649,28 @@ class RunStopSection(QWidget):
         QMessageBox.warning(self, refusal_title(problems), format_problems(problems, settings))
         return False
 
+    def _last_run_lines(self, schedule):
+        """What the last run of this schedule gave, for Run's question.
+
+        ``(ended_early, completed)``: utils.run_warnings.last_run_lines and
+        completed_run_lines over each animal's latest run of this schedule,
+        one read per Run. At most one has lines; both are [] when Run need
+        not ask. Advisory: a history that cannot be read never blocks Run,
+        and the Terminal tab says why there was no check.
+        """
+        try:
+            latest = self.database_handler.get_latest_runs_of_schedule(
+                schedule.schedule_id, schedule.animals
+            )
+            now = datetime.now()
+            return (
+                last_run_lines(latest, schedule.animals, now),
+                completed_run_lines(latest, schedule.animals, now),
+            )
+        except Exception as exc:
+            print(f"[RUN] Could not check the last run of this schedule: {exc}")
+            return [], []
+
     def _confirm_start(self, title, text, start_label):
         """Ask before a start that will not go as scheduled; True to start.
 
@@ -616,6 +678,8 @@ class RunStopSection(QWidget):
         SettingsTab._confirm_valve_topology. Cancel is the default and the
         Esc button, so Enter or Esc never starts a run by mistake. Plain
         text: the schedule's name is the operator's own and is not markup.
+        The text can be selected with the mouse whatever the Qt style, so a
+        delivery-log command in it can be copied rather than retyped.
         On False the caller resets the Run button, the job flag and the
         operation lock (_reset_run_button), as for every refusal.
         """
@@ -624,6 +688,7 @@ class RunStopSection(QWidget):
         box.setWindowTitle(title)
         box.setTextFormat(Qt.PlainText)
         box.setText(text)
+        box.setTextInteractionFlags(Qt.TextSelectableByMouse)
         start = box.addButton(start_label, QMessageBox.AcceptRole)
         cancel = box.addButton("Cancel", QMessageBox.RejectRole)
         box.setDefaultButton(cancel)

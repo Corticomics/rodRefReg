@@ -22,6 +22,7 @@ from utils.last_run_text import (
     delivery_log_command,
     last_run_cell,
     outcome_word,
+    owed_ml,
     remaining_ml,
 )
 
@@ -238,6 +239,16 @@ def test_the_remainder_is_scheduled_minus_delivered_and_unknown_when_not_recorde
     assert remaining_ml(_run('stopped', delivered=0.0)) == pytest.approx(1.0)
     assert remaining_ml(_run('completed', delivered=1.025)) == 0.0, "never below 0"
     assert remaining_ml(_run('interrupted', delivered=None)) is None
+
+
+def test_the_remainder_offered_for_a_new_schedule_is_one_that_shows():
+    """owed_ml(): the remainder, unless it was not recorded or would show as
+    0.000 mL. The tooltip and Run's question offer only this one."""
+    assert owed_ml(_run('stopped', delivered=0.4)) == pytest.approx(0.6)
+    assert owed_ml(_run('stopped', delivered=0.9994)) == pytest.approx(0.0006)
+    assert owed_ml(_run('stopped', delivered=0.9996)) is None
+    assert owed_ml(_run('completed', delivered=1.025)) is None
+    assert owed_ml(_run('interrupted', delivered=None)) is None
 
 
 def test_the_delivery_log_command_lists_the_cage_from_the_runs_day():
