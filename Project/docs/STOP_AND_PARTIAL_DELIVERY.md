@@ -403,7 +403,13 @@ outcome alone (D2).
   `Last Schedule Scheduled (mL)`, `Last Schedule Planned (mL)`,
   `Last Schedule Delivered (mL)`, `Last Schedule Started` and
   `Last Schedule Ended`. Delivered is empty when unknown (never 0), and
-  Ended is empty for an interrupted run.
+  Ended is empty for an interrupted run. As merged (PR 9):
+  `SettingsTab.export_animals` adds them after `Last Watering`, from the
+  same `get_all_animals()` read. The result is the cell's word,
+  `last_run_text.outcome_word` (`Completed` for a completed run, whose
+  cell shows only the amount); the volumes are numbers to three decimals,
+  so a spreadsheet can add them up; the times read `YYYY-MM-DD HH:MM:SS`.
+  An animal that never ran has the seven cells empty.
 
 ---
 

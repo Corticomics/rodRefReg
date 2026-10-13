@@ -21,6 +21,7 @@ from utils.last_run_text import (
     STARTS_OVER_STAGGERED,
     delivery_log_command,
     last_run_cell,
+    outcome_word,
     remaining_ml,
 )
 
@@ -249,3 +250,27 @@ def test_the_delivery_log_command_lists_the_cage_from_the_runs_day():
         "To see what each cage received, run this in a terminal on the Pi:",
         every_cage,
     ]
+
+
+@pytest.mark.parametrize(
+    "outcome, word",
+    [
+        ('running', "Running"),
+        ('stopped', "Stopped"),
+        ('incomplete', "Incomplete"),
+        ('interrupted', "Interrupted"),
+        ('cancelled', "Cancelled"),
+    ],
+)
+def test_the_outcome_word_is_the_one_the_cell_starts_with(outcome, word):
+    """The animal export writes this word as the run's result, so the file and
+    the cell say the same."""
+    text, _tooltip, _red = _cell(_run(outcome))
+    assert outcome_word(outcome) == word
+    assert text.startswith(f"{word} · ")
+
+
+def test_a_completed_run_has_a_word_too_and_no_run_has_none():
+    """A completed cell shows only the amount; the export still names the result."""
+    assert outcome_word('completed') == "Completed"
+    assert outcome_word(None) == ""
