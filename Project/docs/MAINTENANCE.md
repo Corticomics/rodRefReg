@@ -461,7 +461,10 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    tooltip gives a command. Type it in the ssh terminal (a tooltip cannot
    be copied):
    `cd ~/rrr/current/Project && ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since <today> --cage 1`
-   prints cage 1's totals per day, today's with this run's deliveries.
+   prints cage 1's totals per day. The ledger gets one row per delivery,
+   written when that delivery ends, so today's line counts only the
+   deliveries that ended before the kill: none, if RRR was killed during
+   the run's first delivery.
 10. **Run history, export and theme.**
     - Read the run history (read-only) in the ssh terminal:
 
