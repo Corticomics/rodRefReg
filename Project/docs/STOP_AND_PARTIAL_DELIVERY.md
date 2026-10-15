@@ -1,18 +1,20 @@
 # Stop, Partial Delivery and Run History — Design Doc
 
-**Status:** approved 2026-10-09; to be implemented in v2.0.0 (PR train in §12).
-Line references are to f36d5223 (v1.21.0) unless stated. Companion to
+**Status:** approved 2026-10-09; implemented in v2.0.0 (#193–#<PR 13>; the
+PR train is in §12). Line references are to f36d5223 (v1.21.0), the code
+this design changed, unless stated; the "As merged" paragraphs name the
+v2.0.0 code. Companion to
 [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md)
 (CLOSE ALL RELAYS), [DATABASE.md](DATABASE.md) (schema) and
 [MAINTENANCE.md](MAINTENANCE.md) (releases).
 
 This doc records the v2.0.0 design: Stop becomes the only way to end a
 running schedule, every run that starts delivering is recorded per animal,
-and the Animals tab shows each animal's last run. It lands before the code,
-so the owner and every code PR's reviewers see the contract and the version
-decision first. A code PR that refines a contract here updates its section
-in the same PR; the docs PR (PR 13) reconciles the rest and sets the Status
-line.
+and the Animals tab shows each animal's last run. It landed before the
+code (#192), so the owner and every code PR's reviewers saw the contract
+and the version decision first. Each code PR updated the sections whose
+contract it refined, and the docs PR (PR 13) reconciled the rest with
+the merged code and set the Status line.
 
 ---
 
@@ -251,7 +253,7 @@ dispatch. An animal below its threshold is `stopped` (operator Stop) or
 
 **Audit row.** One `logs` row per operator Stop, through
 `log_action(trainer_id or 0, 'schedule_stopped', details)`
-(`database_handler.py:1015`); none for a Stop during "Starting…". Animals
+(`database_handler.py:1015`); none for a Stop during "Starting...". Animals
 are named by `animal_id`. Without a run id (the database did not take the
 record) the parenthesis names the schedule alone, and with no plan (Stop
 before anything was due) the figures are "before its first delivery":
@@ -284,7 +286,7 @@ RELAYS' safety duties.
 | S4 | One dialog: **Relays Not Confirmed Off** or **Delivery Worker Did Not Stop** | two dialogs, or none |
 | S5 | `main.run_program` refuses beside a live worker thread and keeps its reference; Run then latches before its dialog (**Delivery Worker Did Not Stop**). Another failed start resets Run (**Schedule not started**); `main.cleanup` keeps a thread still running after its wait | dropping a running QThread; a second worker beside the first |
 | S6 | A cancel check before the manifold prime and before the master hold | a Stop reopening the master (`solenoid_flow_strategy.py:1125, :1208-1210`) |
-| S8 | A Stop during "Starting…" cancels the queued start: Run queues it with a token (`RunStopSection._run_token`) that Stop clears first, so it cannot launch after the Stop, nor inside the Stopping dialog's event pump | a start that launches after the Stop, which nothing could end once CLOSE ALL no longer stops schedules |
+| S8 | A Stop during "Starting..." cancels the queued start: Run queues it with a token (`RunStopSection._run_token`) that Stop clears first, so it cannot launch after the Stop, nor inside the Stopping dialog's event pump | a start that launches after the Stop, which nothing could end once CLOSE ALL no longer stops schedules |
 
 - `execute_stop_sequence(handler, worker_obj, thread_obj, signals,
   dialog_factory=None)` returns `StopResult(relays_confirmed_off,
@@ -305,14 +307,14 @@ RELAYS' safety duties.
 ## 7. Who can end a run (PRs 3, 4)
 
 CLOSE ALL RELAYS, Close Selected and Log Out are unavailable exactly while
-a schedule job is in progress: from the Run click ("Starting…"), through a
+a schedule job is in progress: from the Run click ("Starting..."), through a
 staggered run waiting for its window, to the end of the run or of Stop.
 
 | State | `job_in_progress` | Lock | CLOSE ALL RELAYS / Close Selected | Log Out |
 |---|---|---|---|---|
 | Idle | False | none | enabled | enabled |
 | Priming | False | PRIMING | enabled | enabled |
-| Calibration | False | CALIBRATION | behind the modal wizard (as today) | as today |
+| Calibration | False | CALIBRATION | behind the modal wizard (as in v1.21.0) | as in v1.21.0 |
 | Run click → end of the run or of Stop | True | SCHEDULE | **greyed + refused** | **greyed + refused** |
 | After an unsafe Stop | False | EMERGENCY | enabled: a fresh handler; clears the latch only when every relay is confirmed off | enabled |
 | Stale SCHEDULE hold | False | SCHEDULE | enabled (force-release failsafe) | enabled |
@@ -435,7 +437,7 @@ first (`run_stop_section.py:492-500`). Only an edit that moves its times
 brings it to the instant rows: the edited schedule keeps its `schedule_id`,
 and so its run history (`schedules_hub.py:288, :298`).
 
-**Some Deliveries Passed** (D6; **Start Run** / Cancel) replaces today's
+**Some Deliveries Passed** (D6; **Start Run** / Cancel) replaces v1.21.0's
 Yes/No question (`run_stop_section.py:502-516`). RRR creates one delivery
 per animal (`schedule_wizard.py:336-341`; the editor refuses more,
 `schedules_hub.py:136-145`):
@@ -602,22 +604,25 @@ Start "AM water" over?
 
 | Order | PR | Branch | Version |
 |---|---|---|---|
-| any, best before 2 | 0 Installer re-exec after the pull | `fix/installer-reexec-after-pull` | none; untagged |
-| 1 | 1 This record; the MAINTENANCE §3a one-bump sentence | `docs/stop-partial-delivery-design` | none (§3c) |
-| 2 | 2 Stop hardening, S1–S6 + S8 (§6) | `fix/stop-takes-over-close-all` | **sets 2.0.0**, opens `## 2.0.0` |
-| 3 | 3 CLOSE ALL RELAYS / Close Selected unavailable mid-run (§7) | `feat/close-all-priming-only` | adds lines |
-| 4 | 4 Log Out blocked mid-run (§7) | `feat/block-logout-during-run` | adds lines |
-| 5 | 5 Run-history tables, facade, `Animal.last_run` (§4) | `feat/schedule-run-history` | adds lines |
-| 6 | 6 One whole-pulse rounding (D1) | `fix/round-half-pulse-ties` | adds lines |
-| 7 | 7 Record each run, reconciliation, audit row (§5) | `feat/record-schedule-runs` | adds lines |
-| 8 | 8 Animals-tab column, red cell, Help (§8) | `feat/animals-last-schedule-column` | adds lines |
-| 9 | 9 CSV export columns (§8) | `feat/export-last-schedule` | adds lines |
-| 10 | 10 Some Deliveries Passed (§9) | `feat/warn-instant-passed-deliveries` | adds lines |
-| 11 | 11 Last Run Ended Early and Last Run Completed (§9) | `feat/run-warns-stopped-schedule` | adds lines |
-| 12 | 12 Headless integration test | `chore/stop-partial-delivery-integration-test` | none (test-only) |
-| 13 | 13 Operator docs, smoke test, release notes | `docs/v2-0-0-operator-docs` | finalises the entry |
+| any, best before 2 | 0 (#191) Installer re-exec after the pull | `fix/installer-reexec-after-pull` | none; untagged |
+| 1 | 1 (#192) This record; the MAINTENANCE §3a one-bump sentence | `docs/stop-partial-delivery-design` | none (§3c) |
+| 2 | 2 (#193) Stop hardening, S1–S6 + S8 (§6) | `fix/stop-takes-over-close-all` | **sets 2.0.0**, opens `## 2.0.0` |
+| 3 | 3 (#194) CLOSE ALL RELAYS / Close Selected unavailable mid-run (§7) | `feat/close-all-priming-only` | adds lines |
+| 4 | 4 (#195) Log Out blocked mid-run (§7) | `feat/block-logout-during-run` | adds lines |
+| 5 | 5 (#196) Run-history tables, facade, `Animal.last_run` (§4) | `feat/schedule-run-history` | adds lines |
+| 6 | 6 (#197) One whole-pulse rounding (D1) | `fix/round-half-pulse-ties` | adds lines |
+| 7 | 7 (#198) Record each run, reconciliation, audit row (§5) | `feat/record-schedule-runs` | adds lines |
+| 8 | 8 (#199) Animals-tab column, red cell, Help (§8) | `feat/animals-last-schedule-column` | adds lines |
+| 9 | 9 (#200) CSV export columns (§8) | `feat/export-last-schedule` | adds lines |
+| 10 | 10 (#201) Some Deliveries Passed (§9) | `feat/warn-instant-passed-deliveries` | adds lines |
+| 11 | 11 (#202) Last Run Ended Early and Last Run Completed (§9) | `feat/run-warns-stopped-schedule` | adds lines |
+| 12 | 12 (#<PR 12>) Headless integration test | `chore/stop-partial-delivery-integration-test` | none (test-only) |
+| 13 | 13 (#<PR 13>) Operator docs, smoke test, release notes | `docs/v2-0-0-operator-docs` | finalises the entry |
 | T | Tag `v2.0.0` on the validated SHA, at the owner's go | — | — |
 | later | Palette B | its own series | **2.1.0**, merged after the tag |
+
+#194–#202 merged into their stacked base branches, each onto the one
+before it, and #203 landed them on `main` unchanged.
 
 - **PR 3 never merges before PR 2** (the latch and the second all-off),
   and is never tagged without it. The train is tagged whole; if it must be
@@ -635,7 +640,7 @@ Start "AM water" over?
 - **Palette B is v2.1.0,** merged after the 2.0.0 tag (from PR 2 on, `main`
   says 2.0.0), carrying the QSS rules of §7 and §8.
 - **Before the tag,** on the final SHA with CI green (`ubuntu-24.04`,
-  #190): MAINTENANCE §5 on the home Pi as PR 13 extends it; a wet check
+  #190): MAINTENANCE §5 on the home Pi as PR 13 rewrote it; a wet check
   weighing a stopped staggered run against the cell and
   `gravimetric_check.py daily` (§14, item 17); every rig that ran the
   candidate goes back to v1.21.0 before the tag and updates in-app after.
@@ -683,7 +688,7 @@ owner acknowledged every item on 2026-10-09; the choices made are shown.
 | 10 | S8 uses a run token, not a `job_in_progress` re-check | The queued start ran inside Stop's event pump while the flag was still True |
 | 11 | One bump per release; a validation fix follows §3b | 102c136a (#149) set 1.21.0, and the 39 PRs merged after it did not bump. Unlike #187 and #189 (kept at 1.21.0), a validation fix bumps to 2.0.1, so every candidate on a device has its own number |
 | 12 | Unknown means unknown | "?" and the log command for any unrecorded amount. An interrupted run's `ended_at` is the restart time, so the tooltip dates it by `started_at` and the export's Ended is empty |
-| 13 | No audit row for a Stop during "Starting…" | No worker existed, and nothing ran |
+| 13 | No audit row for a Stop during "Starting..." | No worker existed, and nothing ran |
 | 14 | CLAUDE.md R2 trigger 1, at its borderline | **Chosen:** the module `models/schedule_runs_repo.py`, minimal, behind the facade (§4). R1 is not paired: `CREATE TABLE IF NOT EXISTS` migrates nothing |
 | 15 | Reload on tab change and after a run, no new signal | A tab on screen at the first delivery shows **Running** at the next tab change |
 | 16 | The latch keys on `StopResult.worker_exited`, not `updater.is_busy()` | Both read the same QThread and agree in every reachable case |

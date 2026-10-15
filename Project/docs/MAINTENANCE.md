@@ -114,6 +114,7 @@ MAJOR release.
 | Drop support for an old Pi model or board revision | yes |
 | Settings file format change that operators must hand-edit | yes (avoid this — provide a migration) |
 | Renaming `Project/version.py` or any path the installer hard-codes | yes |
+| A safety change that takes away a control operators use during a run (CLOSE ALL RELAYS no longer stops a schedule; Log Out is blocked while one runs) | yes (v2.0.0; see "When in doubt") |
 
 Practical signal: **if you're about to add a release-note line that
 starts with "Operators must…", it's a MAJOR** — unless the line only
@@ -130,6 +131,12 @@ enforces something the set-up guide already required of every device
   required) → MINOR, with a **Before you update** list in the CHANGELOG
   entry so an operator who skipped the step can do it first. Decided for
   v1.21.0 (2026-10-05).
+- Takes away a control or a step operators use during a run, even for
+  safety (v2.0.0: CLOSE ALL RELAYS, Close Selected and Log Out are greyed
+  out while a schedule runs, so Stop is the only way to end one) → MAJOR,
+  with a **Before you update** list that says what to do instead. The
+  same release's data change (two tables created automatically) was MINOR
+  on its own. Decided for v2.0.0 (2026-10-09).
 - If two reasonable people would disagree, pick the *higher* of the two.
   An over-bump is cheap; an under-bump misleads operators about what's
   in a release.
@@ -278,9 +285,9 @@ not. Pause before that command.
 
 A Pi with a relay HAT and no plumbing exercises everything but the
 water: the install and launch path, relay addressing, the relay-failure
-reporting, the hardware lock, the emergency stop and the UI flows. Run
-it on the candidate `main` before tagging, in order; dosing accuracy
-still needs the bench validation in
+reporting, the hardware lock, Stop and the emergency stop, the run
+history and the UI flows. Run it on the candidate `main` before tagging,
+in order; dosing accuracy still needs the bench validation in
 [TOPOLOGY_VALIDATION.md](TOPOLOGY_VALIDATION.md). Leave the relay outputs
 unconnected: the relays only click. With no valves, every ledger row
 shows the planned volume, which is correct (the app cannot know that no
@@ -310,7 +317,7 @@ A Pi without RRR gets it with the one-line `bootstrap.sh` install in the
 RRR is a PyQt5 window, so use the Pi's desktop, VNC, or `ssh -Y` (from a
 Mac it needs XQuartz). Use `-Y`, not `-X`: `-X` is untrusted forwarding,
 which refuses new windows 20 minutes after login, so the restarts in
-steps 6 and 7 would fail to open RRR. Log in on the Profile tab (Create New
+steps 6, 7 and 9 would fail to open RRR. Log in on the Profile tab (Create New
 Profile on a fresh database): in guest mode the Settings tab (Priming,
 Calibration, Delivery, Updates) is hidden, and Run and Change Relay Hats
 are greyed out ("Please log in to use this control"). With the HAT
@@ -326,33 +333,70 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
 2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
    Selected on a cage (its relay clicks), Close Master (both click off).
    Run is greyed out while the session is open and comes back after
-   Close Master.
-3. **Calibration.** Settings → Calibration: calibrate a cage with 10
-   pulses and hear the relay; finish the wizard by entering any measured
-   volume (there is no water; 0.3 mL gives 0.03 mL per pulse) so the cage
-   counts as calibrated. Start a second run and press Esc while it
-   pulses: the clicking stops within about a second, Run is available,
-   and no `[VALVE CRITICAL]` line appears.
-4. **Run and Stop.** A staggered schedule for one animal on that cage,
-   with a window from now to at least two hours ahead: steps 5 to 7 run
+   Close Master. CLOSE ALL RELAYS and Close Selected stay available
+   throughout; Close Master is greyed out (grey, not red) before Open
+   Master and again after Close Master.
+3. **Calibration.** Settings → Calibration: calibrate cage 1 with 10
+   pulses and hear the relay; finish the wizard by entering 0.3 mL as the
+   measured volume (there is no water; it gives the 0.03 mL per pulse
+   that steps 4 and 8 count with) so the cage counts as calibrated. Start
+   a second run and press Esc while it pulses: the clicking stops within
+   about a second, Run is available, and no `[VALVE CRITICAL]` line
+   appears.
+4. **Run and Stop.** A staggered schedule for one animal on cage 1, with
+   a window from now to at least three hours ahead: the later steps run
    it again, across restarts, and Run refuses it once the window has
    ended (**Expired Schedule**). Drop it in the Schedule Queue and press
-   Run; answer Yes to **Schedule Start Time Passed** (asked on every Run
-   once the start time is past). The relays click in the pulse rhythm.
-   Stop: `[STOP] HARDWARE SAFE: all relays off on every relay HAT`, and
+   Run; answer Yes to **Schedule Start Time Passed** (asked once the start
+   time is past, until a run of this schedule has given water). The
+   relays click in the pulse rhythm. Stop while it clicks:
+   `[STOP] HARDWARE SAFE: all relays off on every relay HAT` twice (before
+   and after the delivery stops), no dialog, Run is available, and
    nothing clicks afterwards.
-5. **Emergency stop.** Run the schedule again, then Settings → Priming →
-   CLOSE ALL RELAYS: the dialog says the schedule was stopped, Run is
-   available, and nothing clicks afterwards.
+   - Projects → Animals: the animal's **Last schedule delivered amount**
+     cell is red and reads `Stopped · x / y mL`: x is what the clicks were
+     credited at the step-3 calibration (0.03 mL per pulse), y the plan in
+     whole pulses. Its tooltip says the schedule was stopped and when, the
+     scheduled, planned and delivered amounts, and the amount still
+     missing.
+   - Type `stopped` in the Animals tab's filter: the row stays listed.
+     Click the red cell: a white frame marks it. Select another Projects
+     tab, then Animals again (selecting the tab reloads it): the filter
+     and the framed cell stay. Clear the filter.
+   - Press Run again: **Last Run Ended Early** comes instead of Schedule
+     Start Time Passed (one question, which also gives the time left in
+     the window), names the animal and what it got, and offers **Start
+     Over** or **Cancel**. Cancel: nothing clicks and Run is available.
+     Run again and choose Start Over, then Stop again. From here on every
+     Run of this schedule asks Last Run Ended Early: answer Start Over.
+5. **Stop is the only way to end a run.** Run the schedule again. While
+   it clicks:
+   - Settings → Priming: **CLOSE ALL RELAYS** and **Close Selected** are
+     greyed out, with the tooltip "A schedule is running: press Stop to
+     end it"; choosing another cage does not bring Close Selected back.
+   - Profile: **Log Out** is greyed out ("A schedule is running: press
+     Stop to end it, then log out").
+   - Settings → General → **Switch to Super Mode**: Stop stays available.
+     Switch back to Normal Mode.
+   - Projects → Schedules, then Animals (selecting the tab reloads it):
+     the animal's cell reads `Running · y mL planned`.
+   - Press Stop: CLOSE ALL RELAYS, Close Selected and Log Out are
+     available again. Press CLOSE ALL RELAYS: "All relays have been
+     closed." with nothing about a schedule, Run is available, and
+     nothing clicks.
+   - A run waiting for its window: make a second staggered schedule for
+     the same animal starting 10 minutes from now, drop it in the Schedule
+     Queue and press Run. Nothing clicks, and CLOSE ALL RELAYS, Close
+     Selected and Log Out are greyed out while it waits. Stop it before
+     the window opens: `[STOP] HARDWARE SAFE …` twice (its delivery worker
+     was waiting), and the animal's cell does not change, because a run
+     that delivered nothing is not recorded. Drop the step-4 schedule back
+     in the Schedule Queue.
 6. **A missing HAT.** Change Relay Hats to 2 with one HAT fitted: the
    second is now "missing". The Terminal tab shows `Failed to initialize
    hat stack=1: …`, `Relay HAT(s) missing: 1 of 2 initialised; …`,
    `[CLEANUP] CRITICAL: relays NOT confirmed off; …` (expected here) and
    `Relay hats updated to 2 hats.`
-   - Run the step-4 schedule and press Stop: the Terminal tab shows
-     `[STOP] CRITICAL: not every relay HAT confirmed OFF`, then **Relays
-     Not Confirmed Off** and a **Warning** dialog appear. Run is
-     available again.
    - A cage on the missing HAT (16 or above) cannot be watered. A
      schedule for an animal on cage 16 is refused at Run with **Valve
      calibration needed** ("Not calibrated: cage 16"). Calibrating cage
@@ -360,11 +404,20 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
      valve did not open at pulse 1 of 10: its relay did not switch",
      with a `[VALVE CRITICAL] calibration of cage 16` line (relay 17
      cannot be switched off either); nothing is saved.
-   - Run the step-4 schedule again and press Settings → Priming → CLOSE
-     ALL RELAYS: the schedule is stopped first (**Relays Not Confirmed
-     Off** and **Warning** again), then **Emergency Stop Failed**. Run
-     and Change Relay Hats stay greyed out ("Unavailable while an
-     unconfirmed emergency stop is in progress").
+   - Run the step-4 schedule and press Stop while it clicks: the Terminal
+     tab shows `[STOP] CRITICAL: not every relay HAT confirmed OFF; …`
+     twice, then one **Relays Not Confirmed Off** dialog appears (no
+     **Warning** after it). Run, Change Relay Hats, the Calibrate buttons
+     and Priming's Open buttons stay greyed out ("Unavailable while an
+     unconfirmed emergency stop is in progress"), and so do the hardware
+     mode and Valve Topology choices in Settings → Delivery. The animal's
+     cell reads `Stopped · x / y mL` in red.
+   - Press Settings → Priming → CLOSE ALL RELAYS: **Emergency Stop
+     Failed** (the second HAT still does not answer), and everything
+     stays greyed out.
+   - Log Out is available (no schedule runs). Log out, then log in again:
+     Settings is back with CLOSE ALL RELAYS, and the rest stays greyed
+     out.
    - Restart RRR, log in again, then set the count back to 1 with Change
      Relay Hats (the restart cleared the lock-out).
 7. **Topology.** Settings → Delivery → Valve Topology → Independent.
@@ -373,13 +426,93 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    by itself. Log in: the step-3 calibration shows **Stale**, the Priming
    panel has no master group, and Open Selected opens a cage directly.
    Calibrate the cage again (only its relay clicks; relay 16 stays
-   silent), then Run the step-4 schedule: a delivery clicks only the cage
-   relay. Switch back to Shared manifold (RRR restarts again) and
-   recalibrate.
-8. **Updates tab.** Shows Installed version: <version>, which must be
-   the candidate's; press **Check for updates** and it says "You’re up to
-   date (version <version>)" (the latest Release is still the previous
-   version). The real update path is checked after the tag, below.
+   silent), then Run the step-4 schedule (Start Over): a delivery clicks
+   only the cage relay, and Settings → Priming's Close Selected is greyed
+   out while it runs. Stop, switch back to Shared manifold (RRR restarts
+   again) and recalibrate (enter 0.3 mL again, 0.03 mL per pulse).
+8. **An instant schedule started late.** Calibrate cage 2 as in step 7
+   (10 pulses, 0.3 mL). Add a second animal, with Sex female (step 10
+   reads it). Make an instant schedule for the two animals: the step-4
+   animal on cage 1, 0.1 mL 3 minutes from now, and the second animal on
+   cage 2, 0.1 mL 6 minutes from now. Once the first time has passed,
+   drop it in the Schedule Queue and press Run: **Some Deliveries
+   Passed** lists the step-4 animal ("…, cage 1: HH:MM passed, nothing
+   from this run (0.100 mL scheduled)"), says the run delivers 0.100 of
+   the 0.200 mL scheduled and that the Animals tab will show it in red as
+   incomplete, and offers **Start Run** or **Cancel**. Press Enter, then
+   Run again and press Esc: each cancels (Cancel is the default) and
+   nothing clicks. Run again and choose Start Run: at the second time
+   cage 2's relay clicks three pulses (relay 16, the master, opens around
+   them) and cage 1's never clicks. When the run ends, the step-4
+   animal's cell reads `Incomplete · 0.000 / 0.090 mL` in red and the
+   second animal's `0.090 mL`: the run's plan is the whole schedule.
+9. **RRR closed during a run.** Only on a rig with no water connected.
+   Run the step-4 schedule (Start Over) and, while it clicks, end RRR
+   from a second ssh terminal: `pkill -9 -f 'python3 main.py'`. Do it at
+   least 10 s after RRR started: a kill in its first 8 s counts as a
+   failed start, and two in a row roll the release back. The master relay
+   (16) may stay on: the HAT keeps its outputs until RRR starts again.
+   Under `rrr.service`, systemd starts RRR again by itself; otherwise
+   start it with `~/.local/bin/rrr`. It switches every relay off as it
+   starts (`16relind 0 read` prints 0) and prints
+   `[RUN] 1 schedule run(s) were still running when RRR last closed; they are now recorded as interrupted. …`,
+   which `~/rrr/shared/logs/rrr_app_debug.log` keeps too. Log in: the
+   step-4 animal's cell reads `Interrupted · ? / y mL` in red, and its
+   tooltip gives a command. Type it in the ssh terminal (a tooltip cannot
+   be copied):
+   `cd ~/rrr/current/Project && ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since <today> --cage 1`
+   prints cage 1's totals per day, today's with this run's deliveries.
+10. **Run history, export and theme.**
+    - Read the run history (read-only) in the ssh terminal:
+
+      ```bash
+      ~/rrr/shared/venv/bin/python3 - <<'EOF'
+      import os, sqlite3
+      db = os.path.expanduser('~/rrr/shared/data/rrr_database.db')
+      c = sqlite3.connect(f'file:{db}?mode=ro', uri=True)
+      print([name for (name,) in c.execute(
+          "SELECT name FROM sqlite_master WHERE name LIKE '%schedule_run%'"
+          " ORDER BY name")])
+      for row in c.execute(
+          "SELECT r.run_id, r.schedule_name, r.end_reason, r.relays_confirmed_off,"
+          " a.outcome, a.requested_ml, a.planned_ml, a.delivered_ml, r.ended_at"
+          " FROM schedule_runs r JOIN schedule_run_animals a USING (run_id)"
+          " ORDER BY r.run_id"):
+          print(row)
+      EOF
+      ```
+
+      The first line lists the four run-history names:
+      `idx_schedule_run_animals_animal_run`, `schedule_run_animals`,
+      `schedule_runs` and `sqlite_autoindex_schedule_run_animals_1`. Then
+      one row per animal of each run that delivered water in steps 4 to 9
+      (none for the run stopped before its window in step 5), each with an
+      end time: `stopped` for steps 4 to 7 (step 6's with
+      `relays_confirmed_off` 0), `ended_short` for step 8 (the step-4
+      animal `incomplete`, the second animal `completed`), and
+      `interrupted` with no delivered amount for step 9.
+    - Settings → General → **Export Animals to CSV**, choosing **CSV Files
+      (*.csv)** in the save dialog: the step-4 animal's row has Last
+      Schedule (the step-4 schedule), Last Schedule Result `Interrupted`,
+      the scheduled and planned mL, an empty delivered mL, the start time
+      and an empty end time. The dialog's default, **Excel Files
+      (*.xlsx)**, needs `openpyxl`: note whether it saves or shows
+      **Export Error**.
+    - Settings → General → Appearance → Theme → dark. On the Animals tab
+      the red cell keeps white text on red, and a clicked red cell keeps
+      its white frame; type `interrupted` in the filter: the row stays
+      listed. Run the step-4 schedule (Start Over): Settings → Priming's
+      greyed-out CLOSE ALL RELAYS is grey, not red. Stop, clear the
+      filter and switch back to light.
+    - On the Pi's own screen (its desktop or VNC; over `ssh -Y` the window
+      has another size), the Animals tab has no horizontal scroll bar,
+      every header reads in full on one or two lines, and neither
+      "female" nor a time such as "12 minutes ago" is cut off. Save a
+      screenshot with `grim`.
+11. **Updates tab.** Shows Installed version: <version>, which must be
+    the candidate's; press **Check for updates** and it says "You’re up to
+    date (version <version>)" (the latest Release is still the previous
+    version). The real update path is checked after the tag, below.
 
 ### After the tag
 
@@ -411,6 +544,9 @@ After `git push origin v<x.y.z>`:
    `git -C ~/rodRefReg checkout v<previous> && cd ~/rodRefReg && ./install.sh -y`
    (a checked-out tag stays pinned). Log in, calibrate a cage and run a
    schedule on it, so the update has a database to migrate.
+   To rehearse a rollback as well, press **Revert to previous version**
+   after the update and restart: the previous release must start on the
+   updated database and run a schedule. Then update again.
 5. **Watch the test Pi for ~5 minutes** under a real schedule before
    declaring victory. The launcher's boot sentinel
    ([scripts/runtime/launch.sh](../../scripts/runtime/launch.sh)) auto-rolls
