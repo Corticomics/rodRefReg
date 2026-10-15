@@ -183,12 +183,14 @@ def _thread_running(thread):
 def _join(threads):
     """Let go of each run's QThread only once it has finished.
 
-    main.cleanup drops its reference as soon as isRunning() is False, which
-    Qt 5 reports while the thread is still finishing. Were that the last
-    reference, ~QThread would wait for the thread with the GIL held, while the
-    finishing thread waits for the GIL to delete the worker's slot proxies: a
-    deadlock. That race is main.cleanup's, not what this test checks, so the
-    test holds a reference until wait(), which releases the GIL, returns.
+    Before #206, main.cleanup dropped its reference as soon as isRunning()
+    was False, which Qt 5 reports while the thread is still finishing. Were
+    that the last reference, ~QThread would wait for the thread with the GIL
+    held, while the finishing thread waits for the GIL to delete the worker's
+    slot proxies: a deadlock. That race is not what this test checks, and
+    test_run_thread_finish.py (#206) pins its fix, so this test still holds a
+    reference until wait(), which releases the GIL, returns: a regression
+    there then fails that test instead of hanging this one.
     """
     from PyQt5 import sip  # noqa: PLC0415
 
