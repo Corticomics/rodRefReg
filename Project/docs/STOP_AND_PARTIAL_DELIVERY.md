@@ -78,8 +78,23 @@ cage's mL per pulse under the rounding policy, per staggered window or per
 instant delivery; = scheduled in pump and continuous modes. **Delivered** =
 the credited Σ `volume_actual_ml` of the run's ledger rows. A completed run
 delivers the plan 1:1 once the planner and the plan share one rounding
-rule, an exact half rounding up (PR 6; today's `int(deficit / q + 0.5)`,
-`relay_worker.py:888`, misses it in 76 of 6000 surveyed windows, all ties).
+rule, an exact half rounding up (PR 6, below; v1.21.0's
+`int(deficit / q + 0.5)`, `relay_worker.py:888`, missed it in 76 of 6000
+surveyed windows, all ties).
+
+**One rounding rule (PR 6, as merged).**
+`utils/dose_rounding.whole_pulses(volume_ml, q_ml, round_up=False)` is the
+whole-pulse rule of the planner (`RelayWorker._quantize_to_pulses`), of the
+run plan (`RelayWorker._build_run_plan`, PR 7) and of
+`tools/gravimetric_check.py`'s planner verdict.
+Nearest is `int(v / q + 0.5 + 1e-9)`: an exact half rounds up even where
+floating point lands it a hair below (0.15 / 0.1 is 1.4999999999999998).
+Round-up is `ceil(v / q - 1e-9)`, as before: an exact multiple that lands a
+hair above (0.14 / 0.02 is 7.000000000000001) buys no pulse. A tie that
+floating point rounded down now gets one pulse more, at most q: 74 of those
+6000 windows and 26 of 6000 single instant doses on the same grid (of 225
+ties under nearest), all at few-digit calibrations (§14, item 2). The production 0.034164 and 0.032936 mL per pulse make no
+dose of up to three decimals a tie.
 
 **D2.** `completed` when delivered is within RRR's own whole-pulse
 tolerance, per mode (§5): staggered, the worker's completion test; instant
@@ -93,8 +108,8 @@ exact half-pulse tie or below 0.02 mL per pulse.
 
 ## 4. Data (PR 5)
 
-The **draft** DDL, reconciled with the merged code by the docs PR; it goes
-at the end of `create_tables` (before its commit, `database_handler.py:334`).
+The DDL as merged (PR 5), at the end of `create_tables`, before its commit;
+[DATABASE.md](DATABASE.md) §2 gives it with a comment per column.
 
 ```sql
 CREATE TABLE IF NOT EXISTS schedule_runs (
@@ -133,7 +148,7 @@ CREATE INDEX IF NOT EXISTS idx_schedule_run_animals_animal_run
 `last_run_from_row`, `ScheduleRunsRepo(connect)`), behind the facade
 below; nothing else leaves `database_handler.py`. CLAUDE.md's R2 trigger 1
 fired at its borderline (about 186 code lines); the owner approved the
-module (§14, item 14), and PR 5 logs it in
+module (§14, item 14), logged in
 [DATABASE_HANDLER_REFACTOR_DESIGN.md](DATABASE_HANDLER_REFACTOR_DESIGN.md) §11.
 
 | `DatabaseHandler` method | Contract |
@@ -144,14 +159,21 @@ module (§14, item 14), and PR 5 logs it in
 | `get_latest_runs_of_schedule(schedule_id, animal_ids) -> {int: dict}` | each animal's latest run **of this schedule**: the `last_run` keys plus `lab_animal_id`; `{}` on an empty input or a DB error |
 
 **Read path.** `get_all_animals` / `get_animals_by_trainer` gain a LEFT
-JOIN on each animal's MAX(`run_id`), still one SELECT. `Animal.last_run`
-(dict or None) carries only what the UI reads: `run_id`, `schedule_name`,
-`delivery_mode`, `started_at`, `ended_at`, `outcome`, `relay_unit_id`,
-`requested_ml`, `planned_ml`, `delivered_ml`; no join on `trainers`.
+JOIN on each animal's MAX(`run_id`), one probe of the index per animal,
+still one SELECT and still in `animal_id` order, now by an explicit
+`ORDER BY`. `Animal.last_run` (dict or None) carries only what the UI
+reads: `run_id`, `schedule_name`, `delivery_mode`, `started_at`,
+`ended_at`, `outcome`, `relay_unit_id`, `requested_ml`, `planned_ml`,
+`delivered_ml`; no join on `trainers`. `get_latest_runs_of_schedule`
+returns the same dict plus `lab_animal_id`.
 
 ---
 
 ## 5. Recording a run (PR 7)
+
+As merged (PR 7): the worker side is `RelayWorker._open_run_record` and
+`_build_run_plan` (`gpio/relay_worker.py`), the GUI side `_record_run_end`,
+`_on_run_finished` and `_mark_interrupted_runs` (`main.py`).
 
 ```
 Run click   job_in_progress = True → try_acquire(SCHEDULE) → singleShot(prepare, token)
@@ -165,29 +187,48 @@ end         natural, circuit breaker, error: worker.finished (queued, bound to w
             Stop: main.stop_program(): w = worker; w.stop_reason = 'operator';
             execute_stop_sequence() → StopResult → _record_run_end(w, result) + one logs row
 close       _record_run_end (GUI thread, once per worker, never raises)
-            → finish_schedule_run() → deferred Animals-tab reload
-next start  main.setup() / _create_gui_from_components(): mark_interrupted_schedule_runs()
-            before the GUI is built (never in create_tables)
+            → finish_schedule_run() (a run that opened) → deferred Animals-tab reload
+next start  main.setup() / _create_gui_from_components(): _mark_interrupted_runs(db)
+            → mark_interrupted_schedule_runs() before the GUI is built (never in create_tables)
 ```
 
 - **Opens at the first due delivery,** the only first-dispatch path being
   `_handle_delivery` (`relay_worker.py:1759`): a run stopped before
-  anything was due leaves the previous record. A failed write prints a
-  Terminal line, and the deliveries go on. `run_plan` = `{animal_id:
+  anything was due leaves the previous record. `run_plan` = `{animal_id:
   {relay_unit_id, requested_ml, planned_ml, q_ml, complete_ml}}` covers
   every instant delivery, past ones included, or each staggered animal
-  with a target above 0 (`relay_worker.py:590-599`).
+  with a target above 0 (`relay_worker.py:590-599`). Planned uses
+  `whole_pulses` (§3), and the planner and the plan take the cage's pulse
+  from one helper, `_pulse_quantum`. A write that raises or returns None
+  prints a Terminal line (after the database's own error line and
+  traceback, when the database refused it) and the deliveries go on; the
+  plan is kept, so a Stop's audit row still gives each animal's figures.
 - **Closes once per worker** (`run_end_recorded`). An operator Stop is
   recorded by `stop_program` with its StopResult, since the queued
   `finished` can run inside Stop's event pump (`main.py:536`).
-  Reconciliation stays out of `create_tables`, which `--selftest`
+  `finish_schedule_run` is called only for a run that opened; when it
+  returns False (a lock held over about 5 s), a Terminal line says so,
+  after the database's own error line, and the tab shows the run as
+  Running until the next start marks it `interrupted`. The Animals-tab
+  reload is deferred (`QTimer.singleShot(0, …animals_tab.load_animals)`):
+  inside Stop, a modal error box from the load would run the worker's
+  queued `cleanup` before the latch. `load_animals` reads the logged-in
+  trainer itself; `gui.load_animals_tab()` would clear the trainer filter.
+- **Reconciliation** stays out of `create_tables`, which `--selftest`
   (`main.py:139`) and `tools/set_valve_topology.py` run while RRR may be up.
+  Its line is printed before stdout reaches the Terminal tab, so it goes to
+  the console (the journal under `rrr.service`) and to `rrr_app_debug.log`.
+  A database error in the sweep (a lock held over about 5 s, a read-only
+  card) gives neither line: the repository prints its own, on the console
+  only, and returns 0, so the open runs stay Running until a later start
+  closes them.
 - **Hot-path cost:** one attribute check per delivery, and one INSERT
   transaction at a run's first dispatch on the worker thread, as the ledger
   writes are [SD-card cost NEEDS CONFIRMATION]. Stop adds one UPDATE and
   one `logs` INSERT after the relays are off, Run one indexed read (§9).
-  The pulse loop gains only S6's two cancel checks; `log_delivery` is
-  unchanged.
+  At a natural end, `cleanup`'s all-off and UI reset wait for the close's
+  UPDATE, since the hook is connected first. The pulse loop gains only S6's
+  two cancel checks; `log_delivery` is unchanged.
 
 **The outcome rule** (D2), per animal; `complete_ml` is fixed at the first
 dispatch. An animal below its threshold is `stopped` (operator Stop) or
@@ -210,11 +251,23 @@ dispatch. An animal below its threshold is `stopped` (operator Stop) or
 
 **Audit row.** One `logs` row per operator Stop, through
 `log_action(trainer_id or 0, 'schedule_stopped', details)`
-(`database_handler.py:1015`); none for a Stop during "Starting…":
+(`database_handler.py:1015`); none for a Stop during "Starting…". Animals
+are named by `animal_id`. Without a run id (the database did not take the
+record) the parenthesis names the schedule alone, and with no plan (Stop
+before anything was due) the figures are "before its first delivery":
 
 ```
 AM water (schedule 12, run 41) stopped by alice: animal 3 0.410 of 0.410 mL planned; animal 5 0.410 of 0.991 mL planned. Relays confirmed off: yes; worker exited: yes
+AM water (schedule 12) stopped by alice: before its first delivery. Relays confirmed off: yes; worker exited: yes
 ```
+
+**Terminal lines** (no dialogs):
+
+| Where | Line |
+|---|---|
+| Worker, at the first due delivery | `Could not record this run in the run history: {exc}. Deliveries continue, and each one is still in the delivery log.` / `… the database did not accept it. …` |
+| `main`, at the close | `[RUN] Could not record how this run ended: {exc}. Each delivery is in the delivery log.` / `[RUN] Could not record how this run ended: the database did not accept it. The Animals tab shows it as running until RRR restarts; each delivery is in the delivery log.` |
+| Start-up (console, journal, `rrr_app_debug.log`) | `[RUN] {n} schedule run(s) were still running when RRR last closed; they are now recorded as interrupted. What they delivered is in the delivery log (tools/gravimetric_check.py daily).` / `[RUN] Could not check for runs cut off when RRR last closed: {exc}` |
 
 ---
 
@@ -283,8 +336,12 @@ staggered run waiting for its window, to the end of the run or of Stop.
 
 ## 8. Animals tab and export (PRs 8, 9)
 
-The last column, **Last schedule delivered amount**, shows `last_run`
-(D4), volumes to three decimals:
+As merged (PR 8): the words are in the Qt-free `utils/last_run_text.py`
+(`last_run_cell`; `remaining_ml` and `delivery_log_command` are there for
+D5 too), the drawing and the layout in `ui/animals_tab.py`, the reload on
+selection in `ui/projects_section.py`, and Help's "Adding and Managing
+Animals" explains the column. The last column, **Last schedule delivered
+amount**, shows `last_run` (D4), volumes to three decimals:
 
 | Outcome | Cell | Red |
 |---|---|---|
@@ -296,28 +353,63 @@ The last column, **Last schedule delivered amount**, shows `last_run`
 | interrupted | `Interrupted · ? / {planned} mL` | yes |
 | a newer release's value, after a revert | `{Outcome} · {delivered} / {planned} mL` | yes |
 
-- **Tooltip:** the schedule, when the run ended ("2 hours ago (YYYY-MM-DD
-  HH:MM)"; an interrupted run by its start), and `Scheduled:`, `Planned:`,
-  `Delivered:` lines. A red staggered cell gives the remainder (scheduled −
-  delivered) for a new schedule; a red instant cell points to the delivery
-  log first (§14, item 8). An unknown amount shows "?" and the command to
-  type on the Pi (D10): `cd ~/rrr/current/Project &&
+An amount that was not recorded is `?` whatever the outcome (§14, item
+12): a completed run never shows its plan as delivered. Red follows the
+outcome alone (D2).
+
+- **Tooltip:** what happened and when, through `AnimalsTab._when` ("2
+  hours ago (YYYY-MM-DD HH:MM)"; a running or interrupted run by its start,
+  the others by their end; a time ahead of the clock as "at YYYY-MM-DD
+  HH:MM"), then `Scheduled:`, `Planned:` (with "rounded to whole valve
+  pulses at this cage's calibration" when it differs) and `Delivered:`. A
+  red cell ends with what to do, by `delivery_mode` (§14, item 8):
+  staggered, "Running this schedule again starts it over…" and the
+  remainder (scheduled − delivered, offered from 0.0005 mL) for a new
+  schedule; instant, "…skips every delivery time that has passed…", the
+  amount not delivered and "Check the delivery log first…" with the
+  command. An unknown amount (D10) reads "Delivered: not recorded." and
+  gives the command to type on the Pi: `cd ~/rrr/current/Project &&
   ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since
-  <YYYY-MM-DD> --cage <n>`.
-- **Drawing (D9).** A `QStyledItemDelegate` fills the cell with `alertFill`
-  and draws `alertText`, `pyqtProperty(QColor)` values from the QSS
+  <YYYY-MM-DD of started_at> --cage <relay_unit_id>`.
+- **Drawing (D9).** `_LastRunDelegate`, a `QStyledItemDelegate` on the
+  column, fills a cell flagged with `LAST_RUN_ALERT_ROLE` with `alertFill`
+  and draws its text in DemiBold `alertText`, centred and elided at the
+  right, so the status word stays. Both colours are `pyqtProperty(QColor)`
+  on the tab (objectName `AnimalsTab`), set by both QSS files
   (`QWidget#AnimalsTab { qproperty-alertFill: #DC2626; qproperty-alertText:
-  #FFFFFF; }`, both themes; 4.83:1, WCAG AA). A status word, never colour
-  alone; the text stays in the item for the filter and selection.
-- **Layout and refresh.** `len(COLUMN_WIDTHS)` replaces the 7s, and the
-  columns 5–6 widening goes. The tab reloads after a run and when
-  selected, keeping filter and selection. The words live in the Qt-free
-  `utils/last_run_text.py`, shared with the export and D5.
+  #FFFFFF; }`; 4.83:1, WCAG AA) and again by a theme switch. The tab starts
+  from the same two colours, so the cell stays red without a stylesheet;
+  palette B (§12) carries the rule in its template and moves those two
+  colours to its tokens or lists them in its raw-colour baseline. The table
+  selects single cells, so a selected red cell keeps its fill and gets a
+  2 px frame in `alertText`: without it, a click on the red cell showed
+  nothing. A status word, never colour alone; the text stays in the item
+  for the filter, the tooltip and the selection.
+- **Layout.** `COLUMN_WIDTHS = (120, 120, 90, 116, 92, 148, 148, 238)`,
+  and `len(COLUMN_WIDTHS)` replaces the 7s. On the Pi's 1920 × 1080 screen
+  the tab is about 1114 px wide: nothing scrolls sideways, "NN minutes ago"
+  fits both time columns, and the last column stretches to 252–262 px.
+  "Lab Animal ID", "Initial Weight (g)" and "Last Weight" break onto two
+  lines like the new header, and the columns 5–6 widening in `resizeEvent`
+  is gone.
+- **Refresh.** The tab reloads after a run closes (§5) and whenever it is
+  selected (`ProjectsSection._on_tab_changed`), so a run that opened while
+  another tab was on screen shows as Running; a tab already on screen
+  shows it at the next selection or at the run's end (§14, item 15). A
+  reload keeps the filter, then the selected animal (by `animal_id`) if
+  the filter shows it; a new animal that the filter does not match stays
+  hidden.
 - **Export Animals to CSV** gains `Last Schedule`, `Last Schedule Result`,
   `Last Schedule Scheduled (mL)`, `Last Schedule Planned (mL)`,
   `Last Schedule Delivered (mL)`, `Last Schedule Started` and
   `Last Schedule Ended`. Delivered is empty when unknown (never 0), and
-  Ended is empty for an interrupted run.
+  Ended is empty for an interrupted run. As merged (PR 9):
+  `SettingsTab.export_animals` adds them after `Last Watering`, from the
+  same `get_all_animals()` read. The result is the cell's word,
+  `last_run_text.outcome_word` (`Completed` for a completed run, whose
+  cell shows only the amount); the volumes are numbers to three decimals,
+  so a spreadsheet can add them up; the times read `YYYY-MM-DD HH:MM:SS`.
+  An animal that never ran has the seven cells empty.
 
 ---
 
@@ -333,9 +425,9 @@ Qt-free `utils/run_warnings.py`.
 |---|---|---|---|
 | Staggered | start passed | none, or no water went out | **Schedule Start Time Passed** (unchanged) |
 | Staggered | either | ended early (any animal) | **Last Run Ended Early**, with the window note when the start has passed |
-| Staggered | either | completed (no animal ended early) | the completed-run question (PR 11 words it), with the window note when the start has passed |
+| Staggered | either | completed (no animal ended early) | **Last Run Completed**, with the window note when the start has passed |
 | Instant | some passed | any | **Some Deliveries Passed**, with a last-run paragraph when the last run ended early or completed |
-| Instant | none passed | ended early or completed | **Last Run Ended Early**, or the completed-run question |
+| Instant | none passed | ended early or completed | **Last Run Ended Early**, or **Last Run Completed** |
 
 Any other case asks nothing. An instant schedule whose last run completed
 has all its delivery times behind it, so **Expired Schedule** refuses it
@@ -358,6 +450,17 @@ This run delivers 0.600 of the 1.150 mL scheduled. For the animals above, the An
 Start the 2 deliveries still ahead?
 ```
 
+As merged (PR 10): `passed_deliveries_message` (`utils/run_warnings.py`)
+words it, and `RunStopSection._confirm_start(title, text, start_label)`
+asks: a Warning icon, plain text, Cancel the default and the Esc button.
+The volumes are the scheduled ones, and Start Run still hands the worker
+every delivery, passed ones included. In a schedule with several
+deliveries for one animal, which RRR cannot create today, an animal with
+some still ahead reads "…: 08:00, 09:00 passed; 0.250 of 0.750 mL still
+to deliver". A line lists at most 4 times ("and N more"), the dialog at
+most 10 animals ("...and N more animals"), and a time not today carries
+its date.
+
 **Last Run Ended Early** (D5; **Start Over** / Cancel) appears when an
 animal's latest run **of this schedule** is `stopped`, `incomplete`,
 `interrupted` or a leftover `running`, and some water went out (delivered
@@ -366,14 +469,83 @@ too, since Start Over doses them again ("M-011, cage 3: 0.410 of the
 planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL
 scheduled"), and says to create a new schedule for the remaining amount.
 
+**Last Run Completed** (**Start Over** / Cancel) appears when every one of
+those runs completed and some water went out (the owner's choice on
+refinement 7, §14): Run would otherwise give every animal its full amount
+again unasked. It lists what each animal got of its plan and when that run
+completed, and says that starting over gives it again, on top.
+
 - **Instant schedules:** re-running skips the passed times
-  (`relay_worker.py:496-527`), so their lines carry no remainder and add
-  "Passed deliveries are skipped, never repeated."
-- **A completed last run** gets the completed-run question (the owner's
-  choice on refinement 7; PR 11 words it), placed as the table shows: Run
-  would otherwise give every animal its full amount again unasked.
+  (`relay_worker.py:496-527`), so their lines carry no remainder (the
+  Animals tab sends the operator to the delivery log first). Inside
+  **Some Deliveries Passed**, the last-run paragraph is followed by its own
+  paragraph, "Passed deliveries are skipped, never repeated."
 - **One indexed read** (`get_latest_runs_of_schedule`) per Run; if it
   fails, a Terminal line is printed and the question skipped.
+
+As merged (PR 11): `last_run_lines` and `completed_run_lines`
+(`utils/run_warnings.py`) write the lines from that read,
+`last_run_message` and `completed_run_message` word the two questions, and
+`start_over_question` picks one. `RunStopSection._last_run_lines(schedule)`
+reads the history once per Run and returns both lists of lines, at most
+one of them non-empty, so one question says it all: the last-run question
+carries the window note, and **Some Deliveries Passed** the last-run
+paragraph. `_confirm_start` makes each question's text selectable with the
+mouse, whatever the Qt style, so a delivery-log command can be copied.
+Staggered, its start passed, after a Stop:
+
+```
+The last run of "AM water" ended early. These animals already got water in it:
+• M-011, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled
+• M-012, cage 4: 0.991 of the planned 0.991 mL, complete
+
+Run does not resume a schedule: it starts this one over, so the animals above get their full amount again, on top of what they already got. If the missing water has not been given since, press Cancel and create a new schedule for the remaining amount.
+
+The scheduled start time (2026-10-09 08:00) has already passed: the full amount goes out in the 480 minutes left until 20:00.
+
+Start "AM water" over?
+```
+
+Staggered, its window moved to a new day, after a run that completed:
+
+```
+The last run of "AM water" completed. These animals already got their full amount in it:
+• M-011, cage 3: 0.991 of the planned 0.991 mL, completed at 2026-10-08 20:00
+• M-012, cage 4: 0.991 of the planned 0.991 mL, completed at 2026-10-08 20:00
+
+Run starts this schedule over, so the animals above get their full amount again, on top of what they already got.
+
+Start "AM water" over?
+```
+
+- **Other line forms:** "…, ended short at 10:32; remaining …"; "…: RRR
+  closed during that run (started 08:00); how much of the planned 0.991
+  mL it delivered is in the delivery log: <the §8 command>"; for a leftover
+  `running`, "…: the end of that run was not recorded (started 08:00); how
+  much …". An amount not recorded reads "…: stopped at 10:32; how much …
+  is in the delivery log: <command>", or "…: complete (amount not
+  recorded)". Each line is written on its own, so a value missing from one
+  row never loses the question.
+- **Times:** a time not today carries its date. A line from an older run of
+  the schedule (an animal that was not in its last run) always does. A
+  completed animal's line says when the run completed only in **Last Run
+  Completed**, and only for the schedule's last run: in a run that ended
+  early, the run's end is the Stop, not when the animal completed. An older
+  run may have been stopped too, so its completed line says when that run
+  started instead ("…, complete in the run started 2026-10-09 06:00").
+- **The remainder** is scheduled − delivered (`last_run_text.remaining_ml`;
+  `owed_ml` offers it from 0.0005 mL, as on the Animals tab). Under
+  round-up, that exact amount plans the pulses that did not fire. The
+  amount typed for a new schedule can differ: the schedule wizard takes
+  0.1 mL or more, to two decimals. Typed to two decimals, it can fire one
+  pulse more or fewer when the remainder lies within about 0.005 mL of a
+  whole number of pulses, and a remainder under 0.1 mL cannot be scheduled
+  (at q = 0.034164, doses 0.10–1.50 mL: about 7 % and 12 % of the stops).
+- **An outcome a newer release wrote** (read after a revert) counts as
+  ended short, as the Animals tab shows it red.
+- **The window note** gives the minutes and the end that **Schedule Start
+  Time Passed** gives. That question still appears, unchanged, when the
+  schedule never gave water.
 
 ---
 
@@ -441,7 +613,7 @@ scheduled"), and says to create a new schedule for the remaining amount.
 | 8 | 8 Animals-tab column, red cell, Help (§8) | `feat/animals-last-schedule-column` | adds lines |
 | 9 | 9 CSV export columns (§8) | `feat/export-last-schedule` | adds lines |
 | 10 | 10 Some Deliveries Passed (§9) | `feat/warn-instant-passed-deliveries` | adds lines |
-| 11 | 11 Last Run Ended Early and the completed-run question (§9) | `feat/run-warns-stopped-schedule` | adds lines |
+| 11 | 11 Last Run Ended Early and Last Run Completed (§9) | `feat/run-warns-stopped-schedule` | adds lines |
 | 12 | 12 Headless integration test | `chore/stop-partial-delivery-integration-test` | none (test-only) |
 | 13 | 13 Operator docs, smoke test, release notes | `docs/v2-0-0-operator-docs` | finalises the entry |
 | T | Tag `v2.0.0` on the validated SHA, at the owner's go | — | — |

@@ -67,6 +67,14 @@ left_layout.addWidget(self.login_gate)
 The pattern is: connect `login_system.login_status_changed` →
 widget refresh. Don't poll `is_logged_in()`.
 
+Log Out has a gate of its own: Stop needs a login, so while a schedule runs
+`UserTab` greys Log Out out and `UserTab.logout` refuses (**Schedule
+running**). Both read the `schedule_running` callable `gui.py` passes (the
+Run/Stop section's `job_in_progress`): the button is refreshed whenever the
+operation lock's `state_changed` fires, and `logout()` asks the callable
+again when it is called, so a stale button state can never let a logout
+through.
+
 ## Signal/slot conventions
 
 - **Signals are defined on the class**, not on instances. Use type hints
@@ -105,6 +113,24 @@ Centralized QSS in [Project/ui/style/theme.py](Project/ui/style/theme.py)
 `setStyleSheet`** unless the rule is genuinely one-off.
 Set `objectName` to a QSS-friendly identifier (`InfoButton`, `Card`,
 `Title`) and target it in the global stylesheet.
+
+A colour that code paints itself comes from the QSS too. Declare it as a
+`pyqtProperty(QColor)` on a named widget and set it with `qproperty-*` in
+both theme files; a theme switch sets it again. The Animals tab's red
+cell is the pattern: `_LastRunDelegate` (a `QStyledItemDelegate`) fills
+the cell with `AnimalsTab.alertFill` and writes `alertText`, which
+`QWidget#AnimalsTab { qproperty-alertFill: …; qproperty-alertText: …; }`
+sets in each theme. Colouring a table cell:
+
+- `QTableWidgetItem.setBackground()` is not painted under the app QSS, and
+  `setForeground()` turns teal on a selected row (`::item:selected`).
+- A widget put in a cell (`setCellWidget`) sits inside the `::item`
+  padding, so it fills only a band of the cell. A delegate fills it all,
+  and then paints the selected state itself (the red cell keeps its fill
+  and gets a frame in its text colour).
+- Keep the text in the item, so the filter, the tooltip and the selection
+  still work, and never let colour alone carry the meaning: the red cell
+  starts with a status word (*Stopped*, *Incomplete*, *Interrupted*).
 
 ## Dialogs
 

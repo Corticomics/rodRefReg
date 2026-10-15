@@ -3,10 +3,12 @@
 The runtime data store is a single SQLite file. On installed devices it lives
 at `~/rrr/shared/data/rrr_database.db`; on a developer clone it falls back to
 `Project/rrr_database.db` (both resolved through
-[`utils.paths.database_path()`](../utils/paths.py)). The whole schema
-and every read/write path is owned by
-[`Project/models/database_handler.py`](../models/database_handler.py);
-no other module issues SQL directly.
+[`utils.paths.database_path()`](../utils/paths.py)). `DatabaseHandler`
+([`Project/models/database_handler.py`](../models/database_handler.py))
+owns the whole schema and is the only entry point to it: the run-history
+queries live in
+[`Project/models/schedule_runs_repo.py`](../models/schedule_runs_repo.py)
+behind it, and no other module issues SQL directly.
 
 This document is the single source of truth for the schema, intended for
 developers extending the app. **If you change the schema, update this file in
@@ -47,6 +49,9 @@ erDiagram
     SCHEDULES ||--o{ DISPENSING_HISTORY           : ""
     ANIMALS   ||--o{ DISPENSING_HISTORY           : ""
     RELAY_UNITS ||--o{ DISPENSING_HISTORY         : ""
+
+    TRAINERS      ||--o{ SCHEDULE_RUNS            : "starts / stops"
+    SCHEDULE_RUNS ||--|{ SCHEDULE_RUN_ANIMALS     : "one row per animal"
 
     TRAINERS {
         int  trainer_id    PK
@@ -132,6 +137,29 @@ erDiagram
         text status
         int  cycle_index
     }
+    SCHEDULE_RUNS {
+        int  run_id         PK
+        int  schedule_id
+        text schedule_name
+        text delivery_mode
+        text started_at
+        text ended_at
+        text end_reason
+        int  started_by     FK
+        int  stopped_by     FK
+        int  relays_confirmed_off
+        int  worker_exited
+        text app_version
+    }
+    SCHEDULE_RUN_ANIMALS {
+        int  run_id         PK_FK
+        int  animal_id      PK
+        int  relay_unit_id
+        real requested_ml
+        real planned_ml
+        real delivered_ml
+        text outcome
+    }
     LOGS {
         int  log_id         PK
         text timestamp
@@ -188,6 +216,14 @@ erDiagram
   convention.
 - **`valve_calibration_history`** — mirrors `valve_calibration` and is written
   to on every recalibration (audit trail). There is no FK between the two.
+
+**Run history keeps copies, not links.** `schedule_runs.schedule_id`,
+`schedule_run_animals.animal_id` and `schedule_run_animals.relay_unit_id`
+name the schedule, animal and relay unit (the cage in solenoid mode) of a
+past run but are deliberately not foreign keys: a run's record outlives the
+schedule and the animal, so
+deleting either leaves its runs in place, as it leaves `dispensing_history`
+rows. The run copies the schedule's name and mode for that reason.
 
 **Important caveat — FKs are declared but not enforced.** The database is
 opened without `PRAGMA foreign_keys = ON`, so the FK declarations above are
@@ -390,6 +426,71 @@ CREATE TABLE IF NOT EXISTS logs (
 );
 ```
 
+### Run history (v2.0.0)
+
+One record per run that started delivering, written through
+`DatabaseHandler` (queries in
+[`models/schedule_runs_repo.py`](../models/schedule_runs_repo.py)). The
+record opens at the run's first due delivery (outcome `running`) and closes
+once, when the run ends; a run that a crash or a power cut left open is
+closed as `interrupted` at the next start. The Animals tab shows each
+animal's latest run (the highest `run_id`); every run stays on record.
+Design: [STOP_AND_PARTIAL_DELIVERY.md](STOP_AND_PARTIAL_DELIVERY.md) §4–§5.
+
+```sql
+CREATE TABLE IF NOT EXISTS schedule_runs (
+    run_id               INTEGER PRIMARY KEY AUTOINCREMENT, -- start order, never reused
+    schedule_id          INTEGER NOT NULL,   -- not a FK: the schedule can be deleted
+    schedule_name        TEXT    NOT NULL,   -- copied at the start (rename, delete)
+    delivery_mode        TEXT    NOT NULL,   -- 'staggered' | 'instant'
+    started_at           TEXT    NOT NULL,   -- local ISO time of the first delivery
+    ended_at             TEXT,               -- NULL while running; for 'interrupted',
+                                             -- when the next start found it open
+    end_reason           TEXT,               -- 'completed' | 'stopped' | 'ended_short'
+                                             -- | 'interrupted'; NULL while running
+    started_by           INTEGER,            -- trainer logged in at Run
+    stopped_by           INTEGER,            -- trainer logged in at Stop (Stop only)
+    relays_confirmed_off INTEGER,            -- Stop only: 1 / 0; NULL otherwise
+    worker_exited        INTEGER,            -- Stop only: 1 / 0; NULL otherwise
+    app_version          TEXT,               -- RRR version that ran it
+    FOREIGN KEY(started_by) REFERENCES trainers(trainer_id),
+    FOREIGN KEY(stopped_by) REFERENCES trainers(trainer_id)
+);
+
+CREATE TABLE IF NOT EXISTS schedule_run_animals (
+    run_id        INTEGER NOT NULL,
+    animal_id     INTEGER NOT NULL,          -- not a FK: the animal can be deleted
+    relay_unit_id INTEGER,                   -- relay unit (the cage in solenoid mode)
+    requested_ml  REAL    NOT NULL,          -- scheduled: what the schedule asks
+    planned_ml    REAL    NOT NULL,          -- whole pulses x the cage's mL/pulse
+                                             -- (= requested_ml outside pulse mode)
+    delivered_ml  REAL,                      -- credited: the sum of the run's
+                                             -- dispensing_history volume_actual_ml;
+                                             -- NULL while running or when unknown
+    outcome       TEXT    NOT NULL,          -- 'running' | 'completed' | 'stopped'
+                                             -- | 'incomplete' | 'interrupted'
+    PRIMARY KEY (run_id, animal_id),
+    FOREIGN KEY(run_id) REFERENCES schedule_runs(run_id)
+);
+
+-- Each animal's latest run, MAX(run_id) per animal, in one index probe.
+CREATE INDEX IF NOT EXISTS idx_schedule_run_animals_animal_run
+    ON schedule_run_animals (animal_id, run_id);
+```
+
+`outcome` is decided per animal when the run ends, by the run's recorder in
+`main.py`, not here: `completed` when the animal got its amount within
+RRR's own whole-pulse tolerance, by the per-mode rule in
+[STOP_AND_PARTIAL_DELIVERY.md](STOP_AND_PARTIAL_DELIVERY.md) §5; otherwise
+`stopped` (the operator pressed Stop), `incomplete` (the run ended short
+without a Stop) or `interrupted` (RRR closed or lost power during the run;
+what was delivered is in `dispensing_history`, e.g.
+`tools/gravimetric_check.py daily`). `end_reason` is `completed` when every
+animal completed, else `stopped` or `ended_short`; only the start-up check
+sets `interrupted`. Python checks both value sets (`RUN_OUTCOMES`,
+`RUN_END_REASONS`), not a `CHECK` constraint, so a later release can add a
+value without rebuilding the table.
+
 ### App configuration
 
 ```sql
@@ -450,6 +551,7 @@ CREATE TABLE IF NOT EXISTS valve_calibration_history (
 ```python
 def __init__(self, db_path=None):
     self.db_path = db_path or paths.database_path()
+    self._schedule_runs = ScheduleRunsRepo(self.connect)  # run history (§5)
     self.create_tables()
 
 def connect(self):
@@ -458,7 +560,8 @@ def connect(self):
 
 - **One connection per call.** Every public method opens a new `sqlite3`
   connection inside a `with self.connect() as conn:` block and lets the context
-  manager commit/rollback. There is no `self.conn`, no pool.
+  manager commit/rollback. There is no `self.conn`, no pool. The run-history
+  repo is handed `connect` and works the same way.
 - **No pragmas set.** Journal mode is the SQLite default (DELETE, *not* WAL);
   `PRAGMA foreign_keys` is OFF; `PRAGMA synchronous` is the default.
 - **Thread-safety story:** the per-call pattern is safe because each thread
@@ -488,6 +591,11 @@ in the handler; every `INSERT` names its columns).
 | `dispensing_history.volume_actual_ml`, `.pulses_fired`, `.volume_per_pulse_ml` | The volume credited to the animal (pulse mode: the calibrated or sensor-corrected volume of each pulse whose valve opened; continuous mode: the target when the delivery completed; pump mode: the triggers that fired), with the pulses fired and the mL/pulse they were fired at. Not a weighing; NULL = unknown. | v1.17.0 |
 | `dispensing_history.topology`, `.calibration_id`, `.pulse_width_ms`, `.inter_pulse_interval_ms`, `.duration_s`, `.app_version`, `.volume_requested_ml`, `.dose_rounding`, `.delivery_mode` | The context the delivery ran under (valve topology, calibration row, timing profile, wall-clock duration, app version, schedule mode), and the volume asked for before whole-pulse rounding with the rounding policy applied. | v1.21.0 |
 
+A new table needs no migration step: `CREATE TABLE IF NOT EXISTS` adds it
+to an existing database, and a release that predates it never reads it.
+`schedule_runs`, `schedule_run_animals` and `idx_schedule_run_animals_animal_run`
+(v2.0.0) arrive that way.
+
 When you need another migration, add it to `create_tables()` in the same
 style; *do not* introduce a parallel framework — see [`docs/UPDATE_SYSTEM.md`
 §14.5 F4](UPDATE_SYSTEM.md) for the reasoning.
@@ -513,8 +621,8 @@ All methods are synchronous (with one broken exception flagged in §7).
 | `add_animal(animal, trainer_id)` | Insert; returns new `animal_id`. |
 | `update_animal(animal)` | Full-row update by `animal_id`. |
 | `remove_animal(lab_animal_id)` | Delete by external ID. |
-| `get_all_animals()` / `get_animals_by_trainer(trainer_id)` / `get_animals(trainer_id, role)` | List variants. |
-| `get_animal_by_id(animal_id)` | Single fetch. |
+| `get_all_animals()` / `get_animals_by_trainer(trainer_id)` / `get_animals(trainer_id, role)` | List variants, ordered by `animal_id`. Each `Animal` carries its latest schedule run as `last_run` (a dict, see Schedule run history below, or `None`), read in the same query. |
+| `get_animal_by_id(animal_id)` | Single fetch (no `sex`, no `last_run`). |
 | `update_animal_watering(animal_id, volume, timestamp)` | **Broken** — declared `async`, awaits a non-existent `execute`. See §7. |
 | `get_cage_name` / `get_all_cage_names` / `set_cage_name` / `delete_cage_name` / `initialize_default_cage_names` / `get_cages_for_dropdown` | CRUD + helpers for `cage_names`. |
 
@@ -532,11 +640,11 @@ All methods are synchronous (with one broken exception flagged in §7).
 | `add_schedule(schedule)` | Generic insert; also writes `schedule_animals` and (for instant mode) `schedule_instant_deliveries`. |
 | `add_staggered_schedule(schedule)` | Staggered-mode insert with `schedule_desired_outputs` + `schedule_staggered_windows`. |
 | `update_staggered_schedule(schedule)` / `update_instant_schedule(schedule)` | Transactional edit: update the `schedules` row + replace all child rows. |
-| `update_schedule_status(...)` | Dispensing-status update. |
+| `update_schedule_status(...)` | **Broken and unused** — writes `schedules.status`, a column that does not exist, so every call raises `sqlite3.OperationalError`; nothing calls it. A run's outcome is in the run history (§2). |
 | `remove_schedule(schedule_id)` | Deletes from `schedules` + `schedule_animals` only (no cascade — see §7). |
 | `get_schedule_details(schedule_id)` / `get_all_schedules()` / `get_schedules_by_trainer(trainer_id)` | Hydrated reads. |
-| `get_active_schedules()` | Currently in-window schedules with `dispensing_status='active'`. |
-| `get_schedule_progress(schedule_id)` | Join of schedule + animals + desired_outputs + dispensing totals. |
+| `get_active_schedules()` | Currently in-window schedules with `dispensing_status='active'`. Unused: nothing sets `dispensing_status`. |
+| `get_schedule_progress(schedule_id)` | Join of schedule + animals + desired_outputs + dispensing totals. Unused; it sums the planned volume of `completed` rows only. What each animal got in a run is in the run history. |
 | `get_schedule_instant_deliveries(schedule_id)` | Instant-mode rows. |
 | `get_active_staggered_windows()` / `get_staggered_window_status(window_id)` / `get_schedule_staggered_windows(schedule_id)` | Staggered-mode reads. |
 | `create_staggered_delivery_window(...)` / `update_staggered_window_progress(...)` | Window lifecycle. |
@@ -548,6 +656,28 @@ All methods are synchronous (with one broken exception flagged in §7).
 | `log_action(super_user_id, action, details)` | Append to `logs`. |
 | `log_delivery(delivery_data)` / `log_staggered_delivery(...)` | Append to `dispensing_history`; also bump `animals.last_watering` on success. |
 | `track_cycle_progress(...)` / `update_cycle_progress(...)` | Lifecycle on `cycle_tracking`. |
+
+### Schedule run history
+
+Queries in [`models/schedule_runs_repo.py`](../models/schedule_runs_repo.py)
+(`ScheduleRunsRepo`); `DatabaseHandler` keeps these methods and delegates.
+
+| Method | Purpose |
+|---|---|
+| `start_schedule_run(schedule_id, schedule_name, delivery_mode, started_by, animals)` | Open a run at its first due delivery: one `schedule_runs` row and one `running` row per animal, in one transaction. `animals`: dicts with `animal_id`, `relay_unit_id`, `requested_ml`, `planned_ml`. Returns the `run_id`, or `None` (nothing written) when `animals` is empty or the write fails. |
+| `finish_schedule_run(run_id, end_reason, results, stopped_by=None, relays_confirmed_off=None, worker_exited=None)` | Close a run once. `results`: `{animal_id: (delivered_ml or None, outcome)}`. Returns `True` only when this call closed the run (it was still open, `ended_at IS NULL`). Returns `False`, with nothing changed, when the run is already closed or unknown, or when the database refused the write (a lock held for more than about 5 s: the run then shows as running until the next start marks it `interrupted`). An animal of the run missing from `results` is closed `incomplete` with `delivered_ml` NULL. An unknown `end_reason` or `outcome` raises `ValueError` before any write. |
+| `mark_interrupted_schedule_runs()` | At start-up, before the GUI is built; never in `create_tables`, which `--selftest` and the bench tools run beside a live RRR. Closes every open run as `interrupted`, its animals too; `delivered_ml` stays NULL, and `ended_at` is the time of that start. Returns the number of runs closed. |
+| `get_latest_runs_of_schedule(schedule_id, animal_ids)` | Each animal's latest run **of this schedule** (the highest `run_id` among that schedule's runs) as `{animal_id: dict}`: the `Animal.last_run` dict plus `lab_animal_id`. Run reads it, one indexed read, before it starts the schedule over. Animals without a run of that schedule are left out; `{}` for no ids or a database error. |
+
+**`Animal.last_run`**, the dict the animal readers attach, holds what the
+Animals tab, the animal export and the Run warning read: `run_id`,
+`schedule_name`, `delivery_mode`, `started_at`, `ended_at` (NULL while
+running; for an `interrupted` run, the time of the start that closed it),
+`outcome`, `relay_unit_id`, `requested_ml`, `planned_ml` and `delivered_ml`
+(a float, or `None` while running or when unknown). How the run ended for
+the audit (`end_reason`, `started_by`, `stopped_by`, `relays_confirmed_off`,
+`worker_exited`, `app_version`) stays in `schedule_runs`; the readers do not
+join `trainers`.
 
 ### Settings
 
@@ -568,7 +698,7 @@ All methods are synchronous (with one broken exception flagged in §7).
 
 | Method | Purpose |
 |---|---|
-| `__init__(db_path=None)` | Resolve `db_path` via `paths.database_path()`; run `create_tables()`. |
+| `__init__(db_path=None)` | Resolve `db_path` via `paths.database_path()`; hand `connect` to the run-history repo; run `create_tables()`. |
 | `connect()` | Return a fresh `sqlite3.Connection`. |
 | `create_tables()` | DDL bootstrap + inline migrations; idempotent. |
 
@@ -627,6 +757,15 @@ plus the v1.5.0 → v1.5.1 and pre-v1.5.0 → v1.5.1 migration paths.
   `await self.execute(...)` — but `DatabaseHandler` has no `execute` method and
   no event loop wraps it. The intended behaviour is covered by `log_delivery`
   (which updates `animals.last_watering` on `status='completed'`).
+- **`update_schedule_status` is broken and unused.** It writes
+  `schedules.status`, which does not exist, so every call raises
+  `sqlite3.OperationalError`; `schedules.dispensing_status` is never
+  written either. Run outcomes live in the run history.
+- **Run history is never deleted.** `remove_animal` and `remove_schedule`
+  leave `schedule_runs` / `schedule_run_animals` rows in place on purpose
+  (the record of the water each animal was given), as they leave
+  `dispensing_history` rows. A lab ID added again gets a new `animal_id`,
+  so it does not inherit the old animal's runs.
 - **`cage_names.relay_id`** is not a FK to `relay_units`; the mapping is
   application-convention.
 - **No formal schema-version table.** The inline `ALTER TABLE` migrations

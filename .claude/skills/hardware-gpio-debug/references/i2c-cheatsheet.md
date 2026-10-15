@@ -54,5 +54,6 @@ CLOSE ALL RELAYS take it (`OperationLock.hold_until_safe`) after they could
 not confirm every relay off or a schedule's delivery worker did not stop.
 Stop hands the schedule's hold over to it; CLOSE ALL RELAYS takes it when
 nothing else holds the lock, and a priming session that ends after such a
-press hands its hold to it. Go through
-`RelayHandler`; don't write to the HAT around it.
+press hands its hold to it. CLOSE ALL RELAYS is greyed out while a schedule
+runs: Stop ends a schedule. Go through `RelayHandler`; don't write to the
+HAT around it.

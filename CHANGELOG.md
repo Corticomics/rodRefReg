@@ -18,8 +18,32 @@ not listed here.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
+**Before you update**
+
+- **Stop is the one way to end a running schedule.** Tell everyone who
+  runs schedules before updating: CLOSE ALL RELAYS and Close Selected
+  (Settings > Priming) are greyed out from Run to the end of the run or of
+  Stop, and a `[VALVE CRITICAL]` alarm now says to press Stop. 1.21.0 had
+  made CLOSE ALL RELAYS stop a running schedule; this release undoes that.
+  Log Out (Profile tab) is greyed out while a schedule runs too.
+
 **What changes on the device**
 
+- **Change (safety):** CLOSE ALL RELAYS and Close Selected (Settings >
+  Priming) are greyed out from Run to the end of the run or of Stop, with
+  the tooltip *A schedule is running: press Stop to end it*; a click is
+  refused (**Schedule running**). At every other time they work as before;
+  after a Stop that could not confirm every relay off, CLOSE ALL RELAYS
+  clears the hardware lock once every relay is confirmed off, looking for
+  the HATs again so a reseated one is found.
+- **Change (safety):** Log Out (Profile tab) is greyed out while a schedule
+  runs, with the tooltip *A schedule is running: press Stop to end it, then
+  log out*, and refused (**Schedule running**). Stop needs a logged-in user,
+  so a logout mid-run left nothing in RRR that could stop the schedule.
+  Press Stop (or wait until the schedule has ended), then log out. A
+  staggered schedule waiting for its window counts as running.
+- **Change:** `[VALVE CRITICAL]` alarms say *Check the rig; the Stop button
+  switches every relay off and stops the schedule.*
 - **Fix (safety):** Stop is safer.
   - Stop switches every relay off and cancels the delivery at once (before,
     a pulse could still start while the *Stopping* window opened), then
@@ -43,15 +67,65 @@ not listed here.
     (**Schedule not started**) instead of showing *Running*.
   - A Stop pressed while Run still shows *Starting…* cancels that start.
     Before, the start could still go ahead after the Stop.
+- **Fix:** a disabled red button (CLOSE ALL RELAYS, Close Master) is
+  greyed out like any other; it looked pressable.
+- **Fix:** with nearest rounding, a dose exactly half a pulse over a whole
+  number of pulses now always gets the extra pulse. Floating-point
+  arithmetic could round it either way, and a staggered window could land
+  on either side depending on how its chunks added up. Only calibrations
+  with few digits (for example 0.04 mL per pulse) meet such doses.
+- **Add:** every schedule run that starts delivering is recorded for each
+  animal. The record holds the amount scheduled, the amount planned at that
+  cage's calibration (whole pulses) and the amount delivered. It also says
+  how the run ended: completed, stopped, ended short, or interrupted when
+  RRR closed or lost power during it. Each Stop is also written to the log
+  with who pressed it.
+- **Add:** the Animals tab shows each animal's **Last schedule delivered
+  amount**: what its latest schedule run delivered, or *Running · … mL
+  planned* while the run delivers (the tab refreshes when you open it). A
+  run that ended short is a red cell that says why (**Stopped**,
+  **Incomplete**, **Interrupted**) and shows delivered / planned mL; point
+  at it for the schedule, when it ran, its scheduled, planned and
+  delivered amounts, and how to deliver the rest (for an instant schedule,
+  check the delivery log first). An amount that was not recorded shows
+  **?** with the command that lists what the cage received. Long column
+  headers now wrap instead of being cut off, and a refresh keeps the
+  filter and the selected animal.
+- **Add:** Export Animals to CSV (Settings > General) adds each animal's
+  last schedule run: the schedule, its result (Completed, Stopped,
+  Incomplete, Interrupted or Running), the scheduled, planned and
+  delivered amounts in mL, as numbers a spreadsheet can add up, and when
+  the run started and ended. An amount that was not recorded is left
+  empty, never 0, and an interrupted run has no end time, because RRR
+  closed during it.
+- **Change:** when some of an instant schedule's delivery times have
+  passed, **Some Deliveries Passed** now lists them for each animal, shows
+  how much of the scheduled water the run can still deliver, and says the
+  Animals tab will show the run in red as incomplete. Its buttons are
+  **Start Run** and **Cancel** (the default; Enter and Esc cancel). Passed
+  deliveries are skipped, as before, and never made up.
+- **Add (safety):** Run asks before it starts over a schedule whose last run
+  gave some water. Run does not resume a schedule: **Start Over** gives every
+  animal its full amount again, on top of what it already got. When that run
+  ended early (stopped, ended short, or RRR closed during it), **Last Run
+  Ended Early** lists what each animal got of its planned amount and, for a
+  staggered schedule, what it did not get; to deliver only the missing
+  water, press **Cancel** and create a new schedule for that amount. When
+  every animal completed, **Last Run Completed** lists what each one got and
+  when. **Cancel** is the default (Enter and Esc cancel). When the start
+  time has passed too, the same dialog says so: one question, not two. An
+  instant schedule some of whose times have passed gets **Some Deliveries
+  Passed**, which then lists the last run too.
 
 **If something goes wrong**
 
 - **Relays Not Confirmed Off**, **Delivery Worker Did Not Stop**,
   **Emergency Stop Failed** or `[VALVE CRITICAL]`: disconnect the valve
   power supply first, then check the relay HAT and its I²C connection.
-  Run, priming and calibration come back after CLOSE ALL RELAYS (Settings >
-  Priming) confirms every relay off, or after RRR is restarted (if RRR will
-  not quit, restart the Raspberry Pi).
+  During a run, press Stop (CLOSE ALL RELAYS is greyed out while a schedule
+  runs). Run, priming and calibration come back after CLOSE ALL RELAYS
+  (Settings > Priming) confirms every relay off, or after RRR is restarted
+  (if RRR will not quit, restart the Raspberry Pi).
 - With a relay HAT missing since RRR started, every Stop shows **Relays
   Not Confirmed Off** and keeps the hardware locked. Restart RRR, then fix
   the HAT and restart again, or set the number of HATs the rig has with
@@ -71,6 +145,21 @@ not listed here.
   beside a live worker thread and keeps its reference, as `main.cleanup`
   now does. `RunStopSection` ties the start that Run queues to a token
   that Stop clears.
+- `PrimingControlWidget(settings, print_callback=None, schedule_running=None)`
+  replaces `stop_schedule`; `SettingsTab._stop_running_schedule` is gone.
+  `UserTab` takes `schedule_running=None` too, and `gui.py` passes it the
+  Run/Stop section's job flag. `RunStopSection.job_in_progress` is set
+  before `try_acquire(SCHEDULE)`, so the lock's `state_changed` greys the
+  Close controls and Log Out with the flag already set. CLOSE ALL RELAYS,
+  Close Selected and Log Out refuse in their handlers too.
+- Run history: two new tables, `schedule_runs` and `schedule_run_animals`,
+  created at start-up (older releases ignore them), written and read
+  through four `DatabaseHandler` methods (`start_schedule_run`,
+  `finish_schedule_run`, `mark_interrupted_schedule_runs`,
+  `get_latest_runs_of_schedule`) whose queries live in
+  `models/schedule_runs_repo.py`. `get_all_animals` and
+  `get_animals_by_trainer` return each animal's latest run as
+  `Animal.last_run`, in the same query, by `animal_id`.
 
 ## 1.21.0 — valve topology, calibration gate, relay-failure reporting
 

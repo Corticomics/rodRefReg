@@ -31,8 +31,8 @@ they could not confirm every relay off, or a delivery worker did not stop, so
 no operation can start onto a valve that may be open. Stop hands the
 schedule's hold over to it, as Run does when it refuses to start beside a
 delivery worker that is still running; CLOSE ALL RELAYS takes it when nothing
-else holds the lock. A later confirmed CLOSE ALL RELAYS, or a restart, clears
-it.
+else holds the lock. A later confirmed CLOSE ALL RELAYS (available once no
+schedule runs), or a restart, clears it.
 """
 
 from __future__ import annotations

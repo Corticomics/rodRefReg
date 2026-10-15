@@ -206,3 +206,51 @@ def test_independent_emergency_stop_closes_everything_and_frees_the_lock(qapp, f
     assert get_operation_lock().is_busy() is False
     # The virtual master stays "open": priming can start again straight away.
     assert w.cage_open_btn.isEnabled() is True
+
+
+# --- CLOSE ALL RELAYS and Close Selected are for priming --------------------------------------
+#
+# They follow the Run/Stop section's job flag, not the lock holder: greyed out
+# from the Run click to the end of the run or of Stop, live at every other time,
+# so a stale hold or an unconfirmed stop (EMERGENCY) can always be cleared.
+
+
+@pytest.mark.parametrize("holder", [None, "priming", "emergency", "calibration", "schedule"])
+def test_the_close_controls_follow_the_job_flag_not_the_lock_holder(qapp, holder):
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+    from utils.operation_lock import get_operation_lock  # noqa: PLC0415
+
+    job = {"running": False}
+    w = PrimingControlWidget(_SETTINGS, lambda *_: None, schedule_running=lambda: job["running"])
+    lock = get_operation_lock()
+    if holder:
+        assert lock.try_acquire(holder)  # no job: a session, a latch, or a stale hold
+    assert w.emergency_btn.isEnabled() is True
+    assert w.cage_close_btn.isEnabled() is True
+
+    lock.force_release()
+    job["running"] = True
+    assert lock.try_acquire("schedule")  # as Run does, after raising the flag
+    assert w.emergency_btn.isEnabled() is False
+    assert w.cage_close_btn.isEnabled() is False
+
+
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_close_master_is_out_of_reach_while_a_schedule_runs(qapp, fake_relays, topology):
+    """No Close control reaches the relays mid-run: Close Master is enabled
+    only while a priming session holds the master open (and Run is refused
+    then), and the independent topology has no master group at all."""
+    from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
+    from utils.operation_lock import SCHEDULE, get_operation_lock  # noqa: PLC0415
+
+    w = PrimingControlWidget(
+        dict(_SETTINGS, valve_topology=topology), lambda *_: None, schedule_running=lambda: True
+    )
+    assert get_operation_lock().try_acquire(SCHEDULE)
+    if topology == "independent":
+        assert w.master_group.isHidden() is True
+    else:
+        assert w.master_close_btn.isEnabled() is False
+        w._on_open_master_clicked()  # refused: the schedule holds the lock
+        assert w.master_close_btn.isEnabled() is False
+    assert fake_relays.trace == []

@@ -403,7 +403,9 @@ def _build_content() -> Dict[str, HelpContent]:
   All relay units are deactivated and the event is logged in System Messages.  A stopped
   schedule does not resume: <strong>Run</strong> starts it over (a staggered schedule gives
   every animal its whole dose again; an instant schedule skips the delivery times that have
-  passed), so check what each animal has received before running it again.  If a relay
+  passed).  Run asks first and lists what each animal got in the stopped run; to deliver
+  only the missing water, create a new schedule for that amount.  The Animals tab
+  (<strong>Last schedule delivered amount</strong>) shows what each animal got.  If a relay
   HAT does not confirm OFF, a <em>Relays Not Confirmed Off</em> dialog warns that a valve may
   still be open: disconnect the valve power supply, then check the relay HAT and its I²C
   connection.  If the schedule's delivery worker does not stop, <em>Delivery Worker Did Not
@@ -442,7 +444,10 @@ def _build_content() -> Dict[str, HelpContent]:
         # ----------------------------------------------------------------
         "Adding & Managing Animals": HelpContent(
             title="Adding and Managing Animals",
-            summary="Use the Animals tab to register subjects, update weights, and search records.",
+            summary=(
+                "Use the Animals tab to register subjects, update weights, search records "
+                "and see what each animal's last schedule delivered."
+            ),
             content="""
 <div class='help-section'>
   <h1>Adding and Managing Animals</h1>
@@ -460,6 +465,9 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><strong>Last Weighted</strong> — timestamp of last weighing (shown as relative
     time, e.g., "2 days ago").</li>
     <li><strong>Last Watering</strong> — timestamp of the most recent water delivery.</li>
+    <li><strong>Last schedule delivered amount</strong> — the water the animal received in
+    its most recent schedule run.  A <strong>red</strong> cell means it did not get its full
+    amount (see below).</li>
   </ul>
 
   <h2>Adding an Animal</h2>
@@ -467,7 +475,8 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Click <strong>Add Animal</strong>.</li>
     <li>Fill in: Lab Animal ID (required), Name (required), Initial Weight (required),
     Last Weight, Last Weighted, Last Watering, and Sex.</li>
-    <li>Click <strong>Save</strong>.  The animal appears in the table immediately.</li>
+    <li>Click <strong>Save</strong>.  The animal appears in the table immediately, unless
+    the filter hides it.</li>
   </ol>
 
   <h2>Editing an Animal</h2>
@@ -482,8 +491,43 @@ def _build_content() -> Dict[str, HelpContent]:
   is permanent.</p>
 
   <h2>Filtering</h2>
-  <p>Use the <strong>Search</strong> field above the table to filter animals by any
+  <p>Use the <strong>Filter</strong> field above the table to filter animals by any
   column value in real time.</p>
+
+  <h2>Last Schedule Delivered Amount</h2>
+  <p>Each animal shows its most recent schedule run.  Point at the cell to see the
+  schedule, when it ran, and three amounts:</p>
+  <ul>
+    <li><strong>Scheduled</strong> — what the schedule asks for.</li>
+    <li><strong>Planned</strong> — the amount RRR plans to give: in pulse mode, the
+    scheduled amount rounded to whole valve pulses at the cage's calibration.</li>
+    <li><strong>Delivered</strong> — what RRR recorded as dispensed (in pulse mode, the
+    pulses that fired × the cage's calibration; it is not weighed).</li>
+  </ul>
+  <p>A red cell names why the animal did not get its full amount and shows
+  <em>delivered / planned</em> mL:</p>
+  <ul>
+    <li><strong>Stopped</strong> — someone pressed <strong>Stop</strong> before the run
+    finished.</li>
+    <li><strong>Incomplete</strong> — the run ended without the full amount: some
+    deliveries failed, or their times had already passed when the schedule was started.</li>
+    <li><strong>Interrupted</strong> — RRR closed unexpectedly or lost power during the run,
+    so the delivered amount was not recorded and shows <strong>?</strong>.</li>
+  </ul>
+  <p><strong>Running</strong> means the schedule is still running, and a dash means no
+  schedule run has been recorded for the animal yet.</p>
+  <p>RRR does not resume a schedule.  Running a staggered schedule again starts it over and
+  gives every animal its full amount again; running an instant schedule again skips the
+  delivery times that have passed.  To deliver only what is missing, create a new schedule
+  for that amount: for a staggered run the red cell's tooltip shows it; for an instant run,
+  check the delivery log first.</p>
+  <p>After an <strong>Interrupted</strong> run, the delivery log shows what each cage
+  received.  Open a terminal on the Pi and run
+  <code>cd ~/rrr/current/Project &amp;&amp; ~/rrr/shared/venv/bin/python3
+  tools/gravimetric_check.py daily --since YYYY-MM-DD --cage N</code> with the run's date
+  and cage (the tooltip gives the exact command).</p>
+  <p>To list the animals whose last schedule ended short, type <strong>Stopped</strong>,
+  <strong>Incomplete</strong> or <strong>Interrupted</strong> in the filter.</p>
 
   <h2>Access and Modes</h2>
   <ul>
@@ -776,7 +820,7 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Stopping a Schedule</h2>
   <p>Press <strong>Stop</strong> in the Run/Stop section at any time.  The monitor
   updates card statuses immediately and the 10-second hide timer begins.  A stopped schedule
-  does not resume: Run starts it over.</p>
+  does not resume: Run starts it over, and asks first, listing what each animal got.</p>
 
   <div class='help-note'>
     <strong>Note:</strong> All delivery events and errors are also logged in the
@@ -838,7 +882,8 @@ def _build_content() -> Dict[str, HelpContent]:
   stop, <em>Delivery Worker Did Not Stop</em> says so.  Either way Run, priming and
   calibration stay unavailable until <strong>CLOSE ALL RELAYS</strong> (Settings → Priming)
   confirms every relay off, or RRR is restarted.  Use Stop whenever an unexpected situation
-  arises.</p>
+  arises.  Stop needs a logged-in user, so <strong>Log Out</strong> is greyed out while a
+  schedule runs: press Stop first, or wait until the schedule has ended.</p>
 
   <h2>System Messages Alerts</h2>
   <p>Every error, warning, and key event is timestamped and logged to the
@@ -856,13 +901,13 @@ def _build_content() -> Dict[str, HelpContent]:
     retry 30 seconds later asks only for the rest of the dose.</li>
     <li><code>[VALVE CRITICAL] … OPEN</code> means a valve close did not get through, or the
     valve's relay is not answering, so the valve may be open.  Check the rig and press
-    <strong>CLOSE ALL RELAYS</strong> in Settings → Priming, which switches every relay off
-    again and stops a running schedule.  The schedule does not resume: Run starts it over (a
-    staggered schedule gives every animal its whole dose again; an instant schedule skips the
-    delivery times that have passed), so check what each animal has received before running
-    it again.  If a later close gets through, <code>[VALVE OK]</code> says the alarm is
-    cleared.  In pump mode
-    the same alarm names the relay unit and says its relays may still be ON.</li>
+    <strong>Stop</strong>, which switches every relay off and stops the schedule
+    (<strong>CLOSE ALL RELAYS</strong> in Settings → Priming is greyed out while a schedule
+    runs).  The schedule does not resume: Run starts it over (a staggered schedule gives every
+    animal its whole dose again; an instant schedule skips the delivery times that have
+    passed), and asks first, listing what each animal got in the stopped run.  If a later
+    close gets through, <code>[VALVE OK]</code> says the alarm is cleared.  In pump mode the
+    same alarm names the relay unit and says its relays may still be ON.</li>
     <li>A relay HAT that was not found when RRR started stays unusable until RRR is closed and
     reopened.</li>
   </ul>
@@ -883,11 +928,12 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>In the Priming panel on a shared-manifold rig, individual cage relays cannot be
   opened unless the master solenoid is open first.  An independent rig has no master, so a
   cage valve opens directly.  The <strong>CLOSE ALL RELAYS</strong> emergency button closes every
-  relay immediately and stops a running schedule.  If a relay HAT does not confirm, it shows
-  <em>Emergency Stop Failed</em>: a valve may still be open, so disconnect the valve power
-  supply, then check the relay HAT and its I²C connection.  Run and the calibration buttons
-  then stay greyed out until a later CLOSE ALL RELAYS is confirmed or RRR is closed and
-  reopened.</p>
+  relay immediately.  It and <strong>Close Selected</strong> are greyed out while a schedule
+  runs: press <strong>Stop</strong> to end a schedule.  If a relay HAT does not confirm, CLOSE
+  ALL RELAYS shows <em>Emergency Stop Failed</em>: a valve may still be open, so disconnect
+  the valve power supply, then check the relay HAT and its I²C connection.  Run and the
+  calibration buttons then stay greyed out until a later CLOSE ALL RELAYS is confirmed or RRR
+  is closed and reopened.</p>
 
   <div class='help-warning'>
     <strong>Warning:</strong> If the Stop button does not respond, or a <em>Relays Not
@@ -1227,8 +1273,8 @@ def _build_content() -> Dict[str, HelpContent]:
     or close its individual relay.  On a shared-manifold rig the master must be open first
     (safety interlock); on an independent rig a cage valve opens directly.</li>
     <li><strong>Emergency Controls</strong> — <strong>CLOSE ALL RELAYS</strong> immediately
-    closes every relay, including the master where there is one, and stops a running
-    schedule.</li>
+    closes every relay, including the master where there is one.  It is greyed out while a
+    schedule runs: <strong>Stop</strong> ends a schedule.</li>
   </ul>
 
   <h2>How to Prime</h2>
@@ -1263,8 +1309,9 @@ def _build_content() -> Dict[str, HelpContent]:
     the last one is closed; until then Run and the calibration buttons are greyed out, and
     nothing is queued.</li>
     <li><strong>CLOSE ALL RELAYS</strong> bypasses normal sequencing for rapid emergency
-    shutdown: it switches every relay off, stops a running schedule, and ends the priming
-    session once every relay HAT has confirmed.</li>
+    shutdown: it switches every relay off and ends the priming session once every relay HAT
+    has confirmed.  While a schedule runs, it and <strong>Close Selected</strong> are greyed
+    out: press <strong>Stop</strong> to end the schedule.</li>
   </ul>
 
   <h2>After a Valve Topology Change</h2>
@@ -1397,6 +1444,11 @@ def _build_content() -> Dict[str, HelpContent]:
   <p>This is normal.  Log in on the <strong>Profile</strong> tab.  The Settings tab appears
   after a successful login; Help is available to everyone.</p>
 
+  <h2>Log Out Greyed Out</h2>
+  <p>A schedule is running.  Stop needs a logged-in user, so RRR keeps you logged in until the
+  schedule has ended: press <strong>Stop</strong> to end it, then log out.  A staggered
+  schedule waiting for its window counts as running.</p>
+
   <h2>Wrong Hardware Mode</h2>
   <p>If deliveries are erratic or the hardware does not respond, verify that the mode in
   <strong>Settings → Delivery</strong> matches your physical hardware.  The Hardware Mode
@@ -1448,6 +1500,21 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><em>Expired Schedule</em>: the whole window, or every instant delivery time, has
     passed; create a schedule with future times.  If only the start has passed, RRR offers to
     run the rest.</li>
+    <li><em>Some Deliveries Passed</em>: some of an instant schedule's delivery times have
+    passed.  The dialog lists them for each animal and shows how much of the scheduled water
+    this run can still deliver.  <strong>Start Run</strong> skips the passed deliveries (they
+    are never made up) and the Animals tab shows the run in red as incomplete for those
+    animals; <strong>Cancel</strong> starts nothing.</li>
+    <li><em>Last Run Ended Early</em>: the last run of this schedule was stopped, ended short,
+    or RRR closed during it, after some water went out.  The dialog lists what each animal got
+    of its planned amount.  Run does not resume a schedule: <strong>Start Over</strong> gives
+    those animals their full amount again.  To deliver only the missing water, press
+    <strong>Cancel</strong> and create a new schedule for that amount.</li>
+    <li><em>Last Run Completed</em>: the last run of this schedule gave every animal its full
+    amount.  The dialog lists what each animal got and when; <strong>Start Over</strong> gives
+    it again, on top of what it got.  Either dialog also says what is left of the window when
+    the start time has passed.  An instant schedule some of whose times have passed gets
+    <em>Some Deliveries Passed</em> instead, which then lists the last run too.</li>
     <li>Confirm all required animals have been added and have valid weights.</li>
     <li>Check that cage assignments are valid (no animal on the reserved relay R16).</li>
     <li>Verify volumes are positive and within safe limits.</li>
@@ -1462,9 +1529,10 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><code>Relay HAT(s) missing</code> or <code>no initialised relay HAT</code> — a HAT was
     not found when RRR started.  Fix the connection, then close and reopen RRR.</li>
     <li><code>[VALVE CRITICAL] … OPEN</code> — a close did not get through, or the valve's
-    relay is not answering.  Check the rig and press <strong>CLOSE ALL RELAYS</strong>
-    (Settings → Priming); during a schedule this also stops the schedule.  Run does not
-    resume it but starts it over, so check what each animal has received first.</li>
+    relay is not answering.  Check the rig.  During a schedule press <strong>Stop</strong>
+    (CLOSE ALL RELAYS is greyed out while a schedule runs); otherwise press
+    <strong>CLOSE ALL RELAYS</strong> (Settings → Priming).  Run does not resume a stopped
+    schedule but starts it over, and asks first, listing what each animal got in it.</li>
     <li><em>Relays Not Confirmed Off</em> or <em>Emergency Stop Failed</em> — disconnect the
     valve power supply now, then check the relay HAT and its I²C connection.</li>
     <li><em>Delivery Worker Did Not Stop</em> — every relay is off, but the schedule's
@@ -1484,8 +1552,9 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Emergency — Schedule Running and Won't Respond</h2>
   <ol>
-    <li>Press <strong>Stop</strong> in the Run/Stop section (<strong>CLOSE ALL RELAYS</strong>
-    in Settings → Priming also stops the schedule and switches every relay off).</li>
+    <li>Press <strong>Stop</strong> in the Run/Stop section: it switches every relay off and
+    stops the schedule.  (<strong>CLOSE ALL RELAYS</strong> in Settings → Priming is greyed
+    out while a schedule runs.)</li>
     <li>If Stop does not respond within a few seconds, or a <em>Relays Not Confirmed
     Off</em> or <em>Delivery Worker Did Not Stop</em> dialog appears, disconnect the valve
     power supply, then check the relay HAT and its I²C connection.</li>
@@ -1517,6 +1586,8 @@ def _build_content() -> Dict[str, HelpContent]:
                 "volume wrong",
                 "delivery",
                 "dialout",
+                "logout",
+                "log out",
             ],
             related_topics=[
                 "Safety Features",

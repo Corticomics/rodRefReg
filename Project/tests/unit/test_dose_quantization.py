@@ -439,3 +439,42 @@ def test_round_up_short_window_is_topped_up_by_a_completion_ask(monkeypatch):
 
     _sliver(worker, 0.6)  # what check_final_completion asks for
     assert 0.6 < worker.delivered_volumes[1] <= 0.6 + NEEDLE_Q
+
+
+# --- An exact half pulse (v2.0.0) -------------------------------------------------
+#
+# A calibration with few digits (4.00 mL over 100 pulses is 0.04 mL per pulse)
+# puts some doses exactly half a pulse over a whole count. In floating point the
+# window's closing deficit then lands a hair either side of the half, so the same
+# dose closed on k or k + 1 pulses depending on how its chunks added up. The
+# window must land on the planned count, whole_pulses(dose), an exact half
+# rounding up, as a single instant dose does.
+
+
+@pytest.mark.parametrize(
+    "dose,q",
+    [
+        (0.06, 0.04),
+        (0.3, 0.04),
+        (0.5, 0.04),
+        (1.18, 0.04),
+        (0.03, 0.02),
+        (0.41, 0.02),
+        (1.17, 0.02),
+    ],
+)
+def test_a_window_at_an_exact_half_pulse_lands_on_the_planned_count(monkeypatch, dose, q):
+    from utils.dose_rounding import whole_pulses  # noqa: PLC0415
+
+    worker = _make_worker(monkeypatch, q)
+    cycles = max(dose / 0.2, 2)  # run_staggered_cycle's sizing
+    _run_window(worker, target=dose, chunks=int(cycles) + 1, per=min(dose / cycles, 0.2))
+    for _ in range(3):
+        _sliver(worker, dose)
+    assert _pulses(worker, q) == whole_pulses(dose, q)
+
+
+def test_an_instant_dose_at_an_exact_half_pulse_rounds_up(monkeypatch):
+    worker = _make_worker(monkeypatch, 0.1)
+    worker._handle_delivery(_chunk(0.15))  # 1.4999999999999998 pulses in floating point
+    assert _pulses(worker, 0.1) == 2

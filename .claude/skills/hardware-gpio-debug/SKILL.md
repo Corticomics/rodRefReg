@@ -70,12 +70,14 @@ whose all-off command a HAT did not confirm, or whose delivery worker did
 not stop, shows one dialog (**Relays Not Confirmed Off** or **Delivery
 Worker Did Not Stop**) and hands the operation lock to `EMERGENCY` until a
 confirmed CLOSE ALL RELAYS or a restart; with a HAT missing since start-up,
-every Stop does. The Priming panel's **CLOSE ALL RELAYS** button (which
-also stops a running schedule) shows **Emergency Stop Failed** and keeps
-the operation lock held: by the open priming session (which hands it to
-`EMERGENCY` when it ends), or else by the `EMERGENCY` holder, until a later
-press is confirmed or RRR is restarted. That later press builds a fresh
-`RelayHandler`, so a HAT reseated since the first press is found.
+every Stop does. The Priming panel's **CLOSE ALL RELAYS** button (greyed
+out and refused while a schedule runs: Stop ends a schedule) shows
+**Emergency Stop Failed** and keeps the operation lock held: by the open
+priming session (which hands it to `EMERGENCY` when it ends), or else by
+the `EMERGENCY` holder, until a later press is confirmed or RRR is
+restarted. That later press, like the first one after a Stop took
+`EMERGENCY`, builds a fresh `RelayHandler`, so a HAT reseated since is
+found.
 The schedule path sets up its HATs when RRR starts (and again only on
 Change Relay Hats): after fixing one, close and reopen RRR.
 
@@ -83,7 +85,7 @@ Unit tests use `FakeRelayHandler` from `Project/tests/unit/conftest.py`.
 **Do not** add new hardware imports at module top-level — they break boot
 on a dev Mac and the headless smoke test. Follow the lazy-import pattern in
 `RelayWorker._initialize_hardware`
-([Project/gpio/relay_worker.py:256](Project/gpio/relay_worker.py#L256)):
+([Project/gpio/relay_worker.py:285](Project/gpio/relay_worker.py#L285)):
 
 ```python
 def _initialize_hardware(self):
@@ -102,7 +104,7 @@ def _initialize_hardware(self):
 | `OSError: [Errno 110] Connection timed out` | I²C clock conflict (often if `i2c-dev` was just modprobed) | `sudo modprobe i2c-dev` then retry; reboot if persistent |
 | Journal shows `WARNING: SM16relind module not found. Hardware control will not work.`, then `Failed to initialize hat stack=0: SM16relind class not found in module` and `Failed to initialize any relay hats` | apt package not installed, or the venv does not see system packages (the ImportError is caught, so there is no traceback) | Run `scripts/install/40-hardware.sh`; check the venv uses `--system-site-packages` |
 | Terminal tab shows `Relay N not switched: no initialised relay HAT for it` or `[VALVE ERROR] cage N: …; delivery stopped` | No HAT answered for that relay when RRR started, or an I²C write failed | `i2cdetect -y 1`; fix the HAT, then close and reopen RRR (the schedule path sets its HATs up at start-up) |
-| `[VALVE CRITICAL] … OPEN`, **Relays Not Confirmed Off** or **Emergency Stop Failed** | A close or the all-off command did not reach a HAT, or a valve's relay has not answered since the run started | Disconnect the valve power supply, then check the relay HAT and its I²C connection; Settings > Priming > **CLOSE ALL RELAYS** switches every relay off again and stops a running schedule |
+| `[VALVE CRITICAL] … OPEN`, **Relays Not Confirmed Off** or **Emergency Stop Failed** | A close or the all-off command did not reach a HAT, or a valve's relay has not answered since the run started | Disconnect the valve power supply, then check the relay HAT and its I²C connection; during a schedule press **Stop** (CLOSE ALL RELAYS is greyed out then), otherwise Settings > Priming > **CLOSE ALL RELAYS** switches every relay off again |
 
 ## Pi 4 vs Pi 5 differences
 
@@ -124,9 +126,9 @@ thread; and Calibration pulses on its own `_CalibrationPulseWorker` thread.
 Signals between the worker and the GUI use
 `Qt.QueuedConnection`; don't move the Stop calls behind a queued signal. The
 pattern is at
-[Project/main.py:412, 429, 442](Project/main.py#L412). One connection is
+[Project/main.py:370, 423, 440, 453](Project/main.py#L370). One connection is
 deliberately `Qt.DirectConnection`: `worker.finished → thread.quit`
-(main.py:348-358). `QThread.quit` is thread-safe, and a queued quit would
+(main.py:355-365). `QThread.quit` is thread-safe, and a queued quit would
 wait behind Stop's `thread.wait()` on the GUI thread. Breaking these rules
 manifests as intermittent crashes or a hung Stop, seen only under real
 schedules.

@@ -62,7 +62,7 @@ and what each mode requires: [`references/strategy-selection.md`](references/str
 
 Auto-selected from `settings['use_pulse_delivery']`.
 `SystemController.ensure_solenoid_defaults()` runs at every start
-(main.py:168) and sets it back to True, so continuous mode lasts only until
+(main.py:170) and sets it back to True, so continuous mode lasts only until
 the next start.
 
 - **Continuous mode** (Lee Company LHD valves, legacy) — open the
@@ -73,7 +73,13 @@ the next start.
   (10–500 ms wide) at the cage's calibrated width and rest. Doses are
   planned in whole pulses of the cage's calibrated volume (about 0.034 mL
   on the production valve), so a window lands within half a pulse of its
-  target, or within one pulse above it with `round_doses_up`.
+  target (an exact half rounds up), or within one pulse above it with
+  `round_doses_up`. The rounding is `utils/dose_rounding.whole_pulses`,
+  the one rule for every planned figure: the planner
+  (`RelayWorker._quantize_to_pulses`), the run record's plan
+  (`RelayWorker._build_run_plan`) and `tools/gravimetric_check.py`'s
+  planner verdict call it, and so must anything new that plans a dose in
+  pulses.
 
 Per-cage pulse profiles live in the `valve_calibration` table, written by
 the calibration wizard through `DatabaseHandler.save_valve_calibration`;
@@ -137,10 +143,12 @@ flow:
 [`Project/ui/PrimingControlWidget.py`](Project/ui/PrimingControlWidget.py)
 has Open Master / Close Master buttons (shared manifold only) and a cage
 selector with Open Selected / Close Selected. A valve stays open until the
-operator closes it or presses CLOSE ALL RELAYS (which also stops a running
-schedule through the Stop path, and frees the operation lock only when every
-relay is confirmed off and no delivery worker is alive; a stopped schedule
-does not resume, Run starts it over). On the independent topology
+operator closes it or presses CLOSE ALL RELAYS (which frees the operation
+lock only when every relay is confirmed off and no delivery worker is
+alive). CLOSE ALL RELAYS and Close Selected are greyed out and refused while
+a schedule runs: Stop ends a schedule (a stopped schedule does not resume:
+Run starts it over, and asks first, listing what each animal got in the
+stopped run; `utils/run_warnings.py`). On the independent topology
 the master group is hidden and a cage valve is primed directly. A valve
 topology change in Settings restarts RRR (`utils.updater.restart_app`), since
 the panel is built for the topology RRR started with; where RRR cannot restart

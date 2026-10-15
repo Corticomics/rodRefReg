@@ -276,6 +276,14 @@ QPushButton[variant="danger"]:pressed {
     background: #991B1B;
     border-color: #991B1B;
 }
+/* Greyed out like every other disabled button: the red alone must not say
+   "press me" when the control is unavailable (CLOSE ALL RELAYS and Log Out
+   while a schedule runs, Close Master while the master is closed). */
+QPushButton[variant="danger"]:disabled {
+    background: #F8FAFB;
+    border-color: #E2E8F0;
+    color: #A0AEC0;
+}
 
 /* ============================================
    TABS
@@ -346,6 +354,15 @@ QTableView::item:selected, QTableWidget::item:selected {
 }
 QTableView::item:hover, QTableWidget::item:hover {
     background: #F8FAFB;
+}
+
+/* Animals tab: the "Last schedule delivered amount" cell of a run that ended short
+   (Stopped, Incomplete, Interrupted) is filled with alertFill and written in alertText
+   by AnimalsTab's delegate. White on #DC2626 is 4.83:1 (WCAG AA); the fill is 4.83:1
+   on the light table. */
+QWidget#AnimalsTab {
+    qproperty-alertFill: #DC2626;
+    qproperty-alertText: #FFFFFF;
 }
 
 /* ============================================

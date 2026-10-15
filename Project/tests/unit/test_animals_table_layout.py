@@ -11,6 +11,10 @@ This test repopulates the table while it is shown and asserts the columns
 still fill the viewport (the last column stretches), so a future reintroduction
 of a content-resize in the refresh path fails CI immediately.
 
+The eighth column (Last schedule delivered amount) needs the room the Pi
+gives the tab: the tests run at that width, and pin that nothing scrolls
+sideways there, after a refresh or a resize.
+
 Skips when PyQt5 is unavailable (dev laptops without the system bindings); CI
 installs ``python3-pyqt5`` so it always runs there.
 """
@@ -34,7 +38,7 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def _animal(lab_id: str, name: str):
+def _animal(lab_id: str, name: str, last_run=None):
     """A minimal duck-typed stand-in for the attributes the table reads."""
     return SimpleNamespace(
         lab_animal_id=lab_id,
@@ -44,6 +48,7 @@ def _animal(lab_id: str, name: str):
         last_weight=25.0,
         last_weighted=None,
         last_watering=None,
+        last_run=last_run,
     )
 
 
@@ -62,9 +67,15 @@ def _make_tab(qapp):
     )
 
 
+# The Animals tab's width on the Pi's 1920 x 1080 monitor, measured offscreen on
+# the whole main window (left pane 1134 px; the Projects tabs take 20 px of margins).
+PI_TAB_WIDTH = 1114
+
+
 def test_columns_fill_viewport_after_repopulate(qapp):
     tab = _make_tab(qapp)
-    tab.resize(1000, 600)
+    # Eight columns need the Pi's width to leave the last one room to stretch.
+    tab.resize(PI_TAB_WIDTH, 600)
     tab.show()
     qapp.processEvents()
 
@@ -84,5 +95,46 @@ def test_columns_fill_viewport_after_repopulate(qapp):
         f"columns sum to {total}px but viewport is {viewport_width}px — "
         "trailing whitespace regression (resizeColumnsToContents in refresh?)"
     )
-    # The last column must be the one that stretched, well past its base width.
-    assert table.columnWidth(table.columnCount() - 1) > 160
+    # The last column must be the one that stretched, past its base width.
+    assert table.columnWidth(table.columnCount() - 1) > tab.COLUMN_WIDTHS[-1]
+
+
+def test_every_column_fits_the_pi_screen_without_scrolling(qapp):
+    """At the Pi's width the eight columns fill the viewport and nothing
+    scrolls sideways, and the last one keeps at least its base width: after a
+    refresh, and after a resize (any window or pane change), which used to
+    widen the two time columns into a horizontal scroll."""
+    tab = _make_tab(qapp)
+    tab.resize(PI_TAB_WIDTH, 600)
+    tab.show()
+    qapp.processEvents()
+    table = tab.animals_table
+    tab.populate_animal_table([_animal("1", "Martin the Warrior"), _animal("2", "Cornflower")])
+
+    for when in ("after a refresh", "after a resize"):
+        last = table.columnCount() - 1
+        total = sum(table.columnWidth(c) for c in range(table.columnCount()))
+        viewport_width = table.viewport().width()
+        assert table.columnWidth(last) >= tab.COLUMN_WIDTHS[-1], when
+        assert abs(total - viewport_width) <= 5, f"{when}: {total}px in {viewport_width}px"
+        assert not table.horizontalScrollBar().isVisible(), when
+        tab.resize(PI_TAB_WIDTH + 1, 600)
+        qapp.processEvents()
+
+
+def test_one_width_per_column_and_the_new_header_last(qapp):
+    tab = _make_tab(qapp)
+    table = tab.animals_table
+    assert table.columnCount() == len(tab.COLUMN_WIDTHS) == 8
+    headers = [table.horizontalHeaderItem(c).text() for c in range(table.columnCount())]
+    # Long headers break onto a second line instead of being cut off; same words.
+    assert [header.replace("\n", " ") for header in headers] == [
+        "Lab Animal ID",
+        "Name",
+        "Sex",
+        "Initial Weight (g)",
+        "Last Weight",
+        "Last Weighted",
+        "Last Watering",
+        "Last schedule delivered amount",
+    ]

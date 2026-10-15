@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from PyQt5.QtCore import QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -19,6 +19,16 @@ from utils.calibration_gate import (
     run_cage_ids,
 )
 from utils.operation_lock import SCHEDULE, get_operation_lock
+from utils.run_warnings import (
+    PASSED_TITLE,
+    START_OVER,
+    START_RUN,
+    completed_run_lines,
+    last_run_lines,
+    passed_deliveries_message,
+    start_over_question,
+    window_note,
+)
 
 from .schedule_drop_area import ScheduleDropArea
 
@@ -302,7 +312,13 @@ class RunStopSection(QWidget):
         # that could not confirm it, or a start refused beside a live worker,
         # hands the hold to EMERGENCY instead (hold_until_safe).
         lock = get_operation_lock()
+        # The job flag goes up before the lock is taken: the lock's
+        # state_changed is what greys out Priming's CLOSE ALL RELAYS and
+        # Close Selected and the Profile tab's Log Out, and it must find the
+        # flag already set.
+        self.job_in_progress = True
         if not lock.try_acquire(SCHEDULE):
+            self.job_in_progress = False
             QMessageBox.warning(
                 self,
                 "Hardware busy",
@@ -313,7 +329,6 @@ class RunStopSection(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         # PHASE 1: Immediate UI feedback (must complete < 16ms)
         # ═══════════════════════════════════════════════════════════════════
-        self.job_in_progress = True
         self.run_button.setEnabled(False)
         self.run_button.setText("Starting...")
         self.stop_button.setEnabled(True)
@@ -445,8 +460,23 @@ class RunStopSection(QWidget):
                     )
                     return
 
-                # Scenario 2: Start time has passed but end is in future
-                if now > scheduled_start:
+                # Scenario 2: Start time has passed but end is in future. When
+                # this schedule ran before and gave water, Run starts it over:
+                # one question says what that run gave, and what is left of
+                # the window when the start has passed.
+                start_passed = now > scheduled_start
+                ended_early, completed = self._last_run_lines(schedule)
+                if ended_early or completed:
+                    window = (
+                        window_note(scheduled_start, scheduled_end, now) if start_passed else None
+                    )
+                    title, text = start_over_question(
+                        schedule.name, ended_early, completed, window
+                    )
+                    if not self._confirm_start(title, text, START_OVER):
+                        self._reset_run_button()
+                        return
+                elif start_passed:
                     remaining_minutes = (scheduled_end - now).total_seconds() / 60
                     reply = QMessageBox.question(
                         self,
@@ -463,6 +493,7 @@ class RunStopSection(QWidget):
                         self._reset_run_button()
                         return
 
+                if start_passed:
                     # Adjust window_start to now
                     print(f"[RUN] Adjusting window start from {scheduled_start} to {now}")
                     window_start = now.timestamp()
@@ -487,16 +518,19 @@ class RunStopSection(QWidget):
 
                 now = datetime.now()
                 schedule.instant_deliveries = []
+                labels = {}  # animal_id -> lab ID, for the passed-deliveries question
                 past_count = 0
 
                 for delivery in deliveries:
-                    animal_id, _, _, datetime_str, volume, _, relay_unit_id = delivery
+                    animal_id, lab_id, _, datetime_str, volume, _, relay_unit_id = delivery
+                    labels[animal_id] = lab_id
                     delivery_time = datetime.fromisoformat(datetime_str)
 
-                    # Track past deliveries but still add them for reference
                     if delivery_time < now:
                         past_count += 1
 
+                    # Every delivery, passed ones included: the worker skips the
+                    # passed ones, and the run's record plans the whole schedule.
                     schedule.add_instant_delivery(animal_id, delivery_time, volume, relay_unit_id)
 
                 # Filter to only future deliveries for execution
@@ -515,25 +549,34 @@ class RunStopSection(QWidget):
                     )
                     return
 
-                # Scenario 2: Some deliveries are in the past
+                # Scenario 2: Some deliveries are in the past. They are skipped,
+                # never made up, so the run ends incomplete: ask first. When
+                # this schedule ran before and gave water, the same question
+                # says what that run gave.
+                ended_early, completed = self._last_run_lines(schedule)
                 if past_count > 0:
-                    reply = QMessageBox.question(
-                        self,
-                        "Some Deliveries Passed",
-                        f"{past_count} of {len(schedule.instant_deliveries)} scheduled deliveries "
-                        f"have already passed.\n\n"
-                        f"{len(future_deliveries)} deliveries will still be executed.\n\n"
-                        "Do you want to continue with the remaining deliveries?",
-                        QMessageBox.Yes | QMessageBox.No,
-                        QMessageBox.Yes,
+                    text = passed_deliveries_message(
+                        schedule.name,
+                        schedule.instant_deliveries,
+                        labels,
+                        now,
+                        last_run=ended_early,
+                        completed_run=completed,
                     )
-                    if reply != QMessageBox.Yes:
+                    if not self._confirm_start(PASSED_TITLE, text, START_RUN):
                         self._reset_run_button()
                         return
 
                     print(
                         f"[RUN] Skipping {past_count} past deliveries, executing {len(future_deliveries)}"
                     )
+                elif ended_early or completed:
+                    # No delivery time has passed (the times were moved since
+                    # that run), so every delivery goes out again.
+                    title, text = start_over_question(schedule.name, ended_early, completed)
+                    if not self._confirm_start(title, text, START_OVER):
+                        self._reset_run_button()
+                        return
 
                 delivery_times = [d['datetime'] for d in future_deliveries]
                 window_start = min(delivery_times).timestamp()
@@ -605,6 +648,55 @@ class RunStopSection(QWidget):
         self._reset_run_button()
         QMessageBox.warning(self, refusal_title(problems), format_problems(problems, settings))
         return False
+
+    def _last_run_lines(self, schedule):
+        """What the last run of this schedule gave, for Run's question.
+
+        ``(ended_early, completed)``: utils.run_warnings.last_run_lines and
+        completed_run_lines over each animal's latest run of this schedule,
+        one read per Run. At most one has lines; both are [] when Run need
+        not ask. Advisory: a history that cannot be read never blocks Run,
+        and the Terminal tab says why there was no check.
+        """
+        try:
+            latest = self.database_handler.get_latest_runs_of_schedule(
+                schedule.schedule_id, schedule.animals
+            )
+            now = datetime.now()
+            return (
+                last_run_lines(latest, schedule.animals, now),
+                completed_run_lines(latest, schedule.animals, now),
+            )
+        except Exception as exc:
+            print(f"[RUN] Could not check the last run of this schedule: {exc}")
+            return [], []
+
+    def _confirm_start(self, title, text, start_label):
+        """Ask before a start that will not go as scheduled; True to start.
+
+        The buttons say what they do (``start_label`` / Cancel), as in
+        SettingsTab._confirm_valve_topology. Cancel is the default and the
+        Esc button, so Enter or Esc never starts a run by mistake. Plain
+        text: the schedule's name is the operator's own and is not markup.
+        The text can be selected with the mouse whatever the Qt style, so a
+        delivery-log command in it can be copied rather than retyped.
+        On False the caller resets the Run button, the job flag and the
+        operation lock (_reset_run_button), as for every refusal.
+        """
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle(title)
+        box.setTextFormat(Qt.PlainText)
+        box.setText(text)
+        box.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        start = box.addButton(start_label, QMessageBox.AcceptRole)
+        cancel = box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec_()
+        confirmed = box.clickedButton() is start
+        box.deleteLater()
+        return confirmed
 
     def _reset_run_button(self):
         """Reset run button to initial state after error or cancellation.

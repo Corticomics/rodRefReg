@@ -4,7 +4,8 @@ import traceback
 from datetime import datetime
 
 from models.animal import Animal
-from PyQt5.QtCore import QDateTime, Qt
+from PyQt5.QtCore import QDateTime, Qt, pyqtProperty
+from PyQt5.QtGui import QColor, QFont, QPen
 from PyQt5.QtWidgets import (
     QComboBox,
     QDateTimeEdit,
@@ -18,18 +19,67 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QStyle,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+from utils.last_run_text import last_run_cell
 
 from .edit_animal_dialog import EditAnimalDialog
+
+# Item data role marking a "Last schedule delivered amount" cell that is painted red.
+LAST_RUN_ALERT_ROLE = Qt.UserRole + 1
+
+
+class _LastRunDelegate(QStyledItemDelegate):
+    """Paints a cell flagged with LAST_RUN_ALERT_ROLE as a filled red cell.
+
+    The stylesheet pads every item, and the view lays a cell widget out inside
+    that padding, so a red QLabel would fill only a thin band; an item's
+    setBackground() is not painted under the stylesheet at all. Painting here
+    fills the whole cell, selected or not. The colours are the tab's alertFill
+    and alertText, which the theme stylesheets set. The text stays in the item,
+    for the filter and the tooltip.
+    """
+
+    def __init__(self, tab):
+        super().__init__(tab.animals_table)
+        self._tab = tab
+
+    def paint(self, painter, option, index):
+        if not index.data(LAST_RUN_ALERT_ROLE):
+            super().paint(painter, option, index)
+            return
+        painter.save()
+        painter.fillRect(option.rect, self._tab.alertFill)
+        if option.state & QStyle.State_Selected:
+            # The table selects single cells, so a click here would otherwise show
+            # nothing: a frame in the text colour marks it, and the cell stays red.
+            painter.setPen(QPen(self._tab.alertText, 2))
+            painter.drawRect(option.rect.adjusted(3, 3, -4, -4))
+        font = QFont(option.font)
+        font.setWeight(QFont.DemiBold)
+        painter.setFont(font)
+        painter.setPen(self._tab.alertText)
+        rect = option.rect.adjusted(8, 0, -8, 0)
+        # Cut short at the right, so the status word (Stopped...) always shows.
+        text = painter.fontMetrics().elidedText(index.data(), Qt.ElideRight, rect.width())
+        painter.drawText(rect, Qt.AlignCenter, text)
+        painter.restore()
 
 
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
+        # The red cell's colours until the theme stylesheet sets them: the
+        # stylesheets style this widget by name (QWidget#AnimalsTab) through
+        # qproperty-alertFill and qproperty-alertText.
+        self._alert_fill = QColor("#DC2626")
+        self._alert_text = QColor("#FFFFFF")
+        self.setObjectName("AnimalsTab")
         self.settings = settings
         self.print_to_terminal = print_to_terminal or (lambda x: None)  # Fallback if not provided
         self.database_handler = database_handler
@@ -58,23 +108,30 @@ class AnimalsTab(QWidget):
 
         # Setup the table with modern styling
         self.animals_table = QTableWidget()
-        self.animals_table.setColumnCount(7)
+        self.animals_table.setColumnCount(len(self.COLUMN_WIDTHS))
 
-        # Set headers with proper styling
+        # Set headers with proper styling. A line break keeps a long header readable
+        # in its column instead of cutting it off (the stylesheet capitalises headers).
         headers = [
-            "Lab Animal ID",
+            "Lab Animal\nID",
             "Name",
             "Sex",
-            "Initial Weight (g)",
-            "Last Weight",
+            "Initial\nWeight (g)",
+            "Last\nWeight",
             "Last Weighted",
             "Last Watering",
+            "Last schedule\ndelivered amount",
         ]
         self.animals_table.setHorizontalHeaderLabels(headers)
+        self.animals_table.horizontalHeaderItem(self.LAST_RUN_COLUMN).setToolTip(
+            "Water each animal received in its last schedule run. "
+            "Red: the run ended before the animal got its full amount."
+        )
+        self.animals_table.setItemDelegateForColumn(self.LAST_RUN_COLUMN, _LastRunDelegate(self))
 
         # Configure table properties with improved sizing
         # Use Fixed mode for all columns except the last one
-        for i in range(7):
+        for i in range(len(self.COLUMN_WIDTHS)):
             self.animals_table.horizontalHeader().setSectionResizeMode(i, QHeaderView.Fixed)
 
         # Set specific column widths to ensure all information is visible
@@ -137,9 +194,32 @@ class AnimalsTab(QWidget):
         # Initial load
         self.load_animals()
 
-    # Fixed per-column widths (px); column 6 then stretches to fill the rest.
-    # Order matches the header labels in __init__.
-    COLUMN_WIDTHS = (120, 120, 80, 130, 110, 160, 160)
+    # Per-column widths (px), in header order; the last column (Last schedule
+    # delivered amount) starts at its width and stretches to fill the rest. On
+    # the Pi's 1920 x 1080 screen the tab is about 1114 px wide: every header
+    # fits on one or two lines, "59 minutes ago" fits both time columns, and the
+    # last column gets 252-262 px, room for "Incomplete · 0.800 / 0.991 mL"
+    # (a longer red cell is cut short after its status word). Narrower screens
+    # scroll sideways.
+    COLUMN_WIDTHS = (120, 120, 90, 116, 92, 148, 148, 238)
+    LAST_RUN_COLUMN = len(COLUMN_WIDTHS) - 1
+
+    def _get_alert_fill(self):
+        return self._alert_fill
+
+    def _set_alert_fill(self, colour):
+        self._alert_fill = QColor(colour)
+
+    def _get_alert_text(self):
+        return self._alert_text
+
+    def _set_alert_text(self, colour):
+        self._alert_text = QColor(colour)
+
+    # Fill and text colour of a red "Last schedule delivered amount" cell. The
+    # theme stylesheets set them; a theme switch sets them again and repaints.
+    alertFill = pyqtProperty(QColor, _get_alert_fill, _set_alert_fill)
+    alertText = pyqtProperty(QColor, _get_alert_text, _set_alert_text)
 
     def _apply_column_widths(self):
         """Re-assert the fixed column widths so the last column stretches to fill.
@@ -176,8 +256,38 @@ class AnimalsTab(QWidget):
         except (ValueError, TypeError):
             return "Invalid date"
 
+    def _when(self, timestamp):
+        """When a run started or ended, for its tooltip: '2 hours ago (2026-10-09 07:00)'.
+
+        Only 'at 2026-10-09 07:00' when the stored time is ahead of the clock (the
+        Pi has no real-time clock), and 'at an unknown time' when it cannot be read.
+        """
+        try:
+            moment = datetime.fromisoformat(timestamp)
+            at = moment.strftime('%Y-%m-%d %H:%M')
+        except (TypeError, ValueError):
+            return "at an unknown time"
+        try:
+            past = moment <= datetime.now()
+        except TypeError:  # a time with a UTC offset; RRR stores local times without one
+            past = False
+        if not past:
+            return f"at {at}"
+        ago = self.calculate_days_ago(timestamp)
+        return f"{ago[0].lower()}{ago[1:]} ({at})"
+
+    def _selected_animal_id(self):
+        """The animal_id of the row Edit and Remove would act on, or None."""
+        item = self.animals_table.item(self.animals_table.currentRow(), 0)
+        animal = item.data(Qt.UserRole) if item is not None else None
+        return getattr(animal, 'animal_id', None)
+
     def populate_animal_table(self, animals):
         """Populate the animals_table widget with the given animals."""
+        # The table also reloads on its own (a schedule ended, the tab was
+        # selected): keep the operator's selection, which a reload clears.
+        selected_id = self._selected_animal_id()
+        selected_column = max(self.animals_table.currentColumn(), 0)
         self.animals_table.setRowCount(0)  # Clear existing rows
 
         for animal in animals:
@@ -199,6 +309,12 @@ class AnimalsTab(QWidget):
             )
             last_weighted_item = QTableWidgetItem(last_weighted_text)
             last_watering_item = QTableWidgetItem(last_watering_text)
+            # The animal's latest schedule run; the delegate paints the red ones.
+            text, tooltip, alert = last_run_cell(animal.last_run, self._when)
+            last_run_item = QTableWidgetItem(text)
+            last_run_item.setToolTip(tooltip)
+            last_run_item.setData(LAST_RUN_ALERT_ROLE, alert)
+            last_run_item.setFlags(last_run_item.flags() & ~Qt.ItemIsEditable)
 
             # Set items in table
             self.animals_table.setItem(row_position, 0, lab_animal_id_item)
@@ -208,9 +324,10 @@ class AnimalsTab(QWidget):
             self.animals_table.setItem(row_position, 4, last_weight_item)
             self.animals_table.setItem(row_position, 5, last_weighted_item)
             self.animals_table.setItem(row_position, 6, last_watering_item)
+            self.animals_table.setItem(row_position, self.LAST_RUN_COLUMN, last_run_item)
 
             # Center-align text for better readability
-            for col in range(7):
+            for col in range(len(self.COLUMN_WIDTHS)):
                 item = self.animals_table.item(row_position, col)
                 if item:
                     item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
@@ -227,6 +344,20 @@ class AnimalsTab(QWidget):
         # Re-assert fixed column widths so the last column stretches to fill the
         # remaining width on every refresh (not just the initial load).
         self._apply_column_widths()
+
+        # Keep the operator's filter, then their animal if the filter shows it.
+        self.apply_filter(self.filter_input.text())
+        if selected_id is not None:
+            self._select_animal(selected_id, selected_column)
+
+    def _select_animal(self, animal_id, column):
+        """Make the row of animal ``animal_id`` current, unless the filter hides it."""
+        for row in range(self.animals_table.rowCount()):
+            animal = self.animals_table.item(row, 0).data(Qt.UserRole)
+            if getattr(animal, 'animal_id', None) == animal_id:
+                if not self.animals_table.isRowHidden(row):
+                    self.animals_table.setCurrentCell(row, column)
+                return
 
     def load_animals(self):
         """Load animals from the database, filtered by trainer_id if available."""
@@ -262,7 +393,7 @@ class AnimalsTab(QWidget):
             match = False
             for column in range(self.animals_table.columnCount()):
                 item = self.animals_table.item(row, column)
-                if text.lower() in item.text().lower():
+                if item is not None and text.lower() in item.text().lower():
                     match = True
                     break
             self.animals_table.setRowHidden(row, not match)
@@ -447,11 +578,6 @@ class AnimalsTab(QWidget):
         if hasattr(self, 'animals_table'):
             available_width = self.width() - 20  # Account for layout margins
             self.animals_table.setMinimumWidth(available_width)
-
-            # Redistribute column widths based on available space
-            if available_width > 800:  # For wide screens, give more space to timestamps
-                self.animals_table.setColumnWidth(5, 180)  # Last Weighted
-                self.animals_table.setColumnWidth(6, 180)  # Last Watering
 
             # Force update
             self.animals_table.updateGeometry()
