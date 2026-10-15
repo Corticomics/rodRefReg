@@ -1,13 +1,15 @@
 """A stopped run's record matches the delivery log and the Animals cell.
 
 The headless test across the v2.0.0 train (docs/STOP_AND_PARTIAL_DELIVERY.md
-§12, PR 12). Nothing on the run's path is a stand-in: Run starts a real
-RelayWorker in a QThread through main.run_program; the worker drives the real
-SolenoidFlowStrategy and SolenoidController over a fake relay HAT,
-calibration-only (no flow sensor), as the production rig runs; Stop runs the
-real stop sequence through RunStopSection.stop_program and main.stop_program;
-main._record_run_end closes the run in a real database; and a real AnimalsTab
-shows it to the logged-in trainer.
+§12, PR 12). From main.run_program on, the run is the app's own code over
+stand-in hardware: Run starts a real RelayWorker in a QThread; the worker
+drives the real SolenoidFlowStrategy and SolenoidController over a fake relay
+HAT, calibration-only (no flow sensor), as the production rig runs; Stop runs
+the real stop sequence through RunStopSection.stop_program and
+main.stop_program; main._record_run_end closes the run in a real database;
+and a real AnimalsTab shows it to the logged-in trainer. Not covered: Run's
+queued schedule checks, which are skipped (see _press_run), and the Execution
+Monitor: main's window here holds only the Run/Stop section and that tab.
 
 A Stop in the middle of a delivery must record what the delivery log says the
 animal got, and the Animals tab must show it red. An instant run that ends on
@@ -368,9 +370,12 @@ def test_a_stop_mid_dose_is_recorded_as_the_delivery_log_has_it_and_shows_red(ri
     delivered = ran['delivered_ml']
     assert delivered == pytest.approx(sum(volume for _, volume, _ in ledger), abs=1e-6)
     assert ran['outcome'] == 'stopped'
+    # 0.6 mL is exactly 20 pulses of 0.03, so this is no rounding check (the
+    # instant test's 9 pulses for 0.3 mL is).
     assert ran['planned_ml'] == pytest.approx(whole_pulses(0.6, 0.03) * 0.03)
     assert 0 < delivered < ran['planned_ml']
-    # The Execution Monitor's last figure, the record and the log agree.
+    # The last volume_updated figure (what the Execution Monitor shows), the
+    # record and the log agree.
     assert credited[-1] == [animal, pytest.approx(delivered, abs=1e-6)]
 
     assert _stop_rows(rig.db) == [
