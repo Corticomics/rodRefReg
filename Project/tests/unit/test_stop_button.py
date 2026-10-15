@@ -606,8 +606,14 @@ def test_cleanup_keeps_a_thread_that_is_still_running(main_module, monkeypatch, 
         in capsys.readouterr().out
     )
 
-    alive.isRunning.return_value = False  # it has exited: the next cleanup lets it go
+    # isRunning() is False while a thread is still finishing (test_run_thread_finish.py):
+    # only wait() says it has finished, and then the next cleanup lets it go.
+    alive.isRunning.return_value = False
     main_module.cleanup()
+    assert main_module.thread is alive, "isRunning() alone does not let it go"
+    alive.wait.return_value = True
+    main_module.cleanup()
+    assert alive.wait.call_count == 3
     assert main_module.thread is None
 
 

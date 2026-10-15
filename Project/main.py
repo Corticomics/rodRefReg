@@ -311,20 +311,17 @@ def run_program(schedule, mode, window_start, window_end):
         # Cleanup any previous thread/worker safely. A previous worker thread
         # that is still running is never dropped: it may still open a valve,
         # and losing the last reference to a running QThread can abort RRR.
+        # wait() decides, not isRunning(), as in cleanup(): a thread that is
+        # still finishing reports isRunning() False, and dropping it froze RRR.
         global thread, worker
         if thread is not None:
             try:
-                # Check if thread is still a valid Qt object before accessing
-                if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
-                    if thread.isRunning():
-                        thread.quit()
-                        thread.wait(5000)  # 5 second timeout
-                        if thread.isRunning():
-                            print(
-                                "[RUN] Refused: the previous schedule's delivery worker "
-                                "is still running"
-                            )
-                            return False
+                thread.quit()
+                if not thread.wait(5000):  # 5 second timeout
+                    print(
+                        "[RUN] Refused: the previous schedule's delivery worker is still running"
+                    )
+                    return False
             except RuntimeError:
                 # Thread was already deleted, ignore
                 pass
@@ -493,23 +490,28 @@ def cleanup():
         # Clear worker reference (deleteLater handles actual cleanup)
         worker = None
 
-        # Safely handle thread cleanup
-        still_running = False
+        # Let go of the thread only once wait() says it has finished, never on
+        # isRunning(): Qt 5 reports that False while the thread is still
+        # finishing, deleting the worker and its slot proxies, which needs the
+        # GIL. Dropping the last reference then runs ~QThread, which waits for
+        # that finish with the GIL held: RRR froze. wait(msecs) releases the
+        # GIL (PyQt5's QDeadlineTimer overload does not): keep the int argument.
+        finished = True
         if thread is not None:
             try:
-                if hasattr(thread, 'isRunning') and callable(getattr(thread, 'isRunning', None)):
-                    if thread.isRunning():
-                        thread.quit()
-                        thread.wait(5000)
-                        still_running = thread.isRunning()
+                thread.quit()
+                finished = thread.wait(5000)
             except RuntimeError:
                 # Thread was already deleted
                 pass
-        if still_running:
-            # Never drop a running QThread: losing the last reference to it
-            # can abort RRR. Kept, it still counts as a running schedule
-            # (_schedule_is_running), so Run, an update and quitting stay
-            # refused while it may open a valve.
+        if not finished:
+            # Never drop a QThread that has not finished: losing the last
+            # reference to it can abort RRR. Kept while it still runs, it
+            # counts as a running schedule (_schedule_is_running), so Run, an
+            # update and quitting stay refused while it may open a valve. One
+            # still finishing after the wait reads as idle (isRunning() is
+            # False); its own finished -> deleteLater deletes it, or the next
+            # cleanup or Run lets go of it once wait() returns True.
             print("[CLEANUP] The delivery worker thread is still running; keeping it")
         else:
             thread = None
