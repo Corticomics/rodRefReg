@@ -74,6 +74,8 @@ not listed here.
   arithmetic could round it either way, and a staggered window could land
   on either side depending on how its chunks added up. Only calibrations
   with few digits (for example 0.04 mL per pulse) meet such doses.
+- **Fix:** RRR could freeze as a schedule run ended: the window stopped
+  responding and RRR had to be restarted. The valves were already closed.
 - **Add:** every schedule run that starts delivering is recorded for each
   animal. The record holds the amount scheduled, the amount planned at that
   cage's calibration (whole pulses) and the amount delivered. It also says
