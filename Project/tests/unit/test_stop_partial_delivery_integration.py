@@ -305,6 +305,15 @@ def _cage_openings(relays):
     return relays.trace.count(((CAGE,), 1))
 
 
+def _opened_after_stop(relays, pressed):
+    """The relays switched on after the Stop's first all-off. ``pressed`` is
+    the trace's length when Stop was pressed; until the run ends, only the
+    stop sequence switches every relay off."""
+    writes = relays.trace[pressed:]
+    first_off = writes.index((("all",), 0))
+    return [write for write in writes[first_off + 1 :] if write[1] == 1]
+
+
 def test_a_stop_mid_dose_is_recorded_as_the_delivery_log_has_it_and_shows_red(rig, monkeypatch):
     """Staggered 0.6 mL at 0.03 mL per pulse over a 3 s window: about 0.2 mL a
     cycle, each delivery primed and held on the shared manifold, the next
@@ -332,6 +341,7 @@ def test_a_stop_mid_dose_is_recorded_as_the_delivery_log_has_it_and_shows_red(ri
     assert credited.wait(TIMEOUT_S * 1000), "a delivery was credited"
     opened = _cage_openings(rig.relays)
     assert _wait_for(lambda: _cage_openings(rig.relays) > opened), "the next delivery pulses"
+    pressed = len(rig.relays.trace)
     rig.section.stop_program()
     assert _wait_for(lambda: rig.main.thread is None), "the worker's cleanup ran"
     assert _wait_for(lambda: _cell(rig.tab)[0] != NO_RUN_TEXT), "the Animals tab reloaded"
@@ -340,6 +350,10 @@ def test_a_stop_mid_dose_is_recorded_as_the_delivery_log_has_it_and_shows_red(ri
     assert result.safe, result
     assert rig.dialogs == [], "a clean Stop shows no dialog"
     assert rig.lock.is_busy() is False
+    # S6: once Stop has switched every relay off, at most one valve opens
+    # before the worker sees the cancel. A worker that never sees it pulses on.
+    reopened = _opened_after_stop(rig.relays, pressed)
+    assert len(reopened) <= 1, f"opened after Stop switched every relay off: {reopened}"
 
     run, ran = _the_run(rig.db)
     assert run['end_reason'] == 'stopped'
@@ -349,6 +363,8 @@ def test_a_stop_mid_dose_is_recorded_as_the_delivery_log_has_it_and_shows_red(ri
 
     ledger = _ledger(rig.db, before, _last_history_id(rig.db))
     assert len(ledger) >= 2, "the credited delivery and the one the Stop cut short"
+    status, _volume, pulses = ledger[-1]
+    assert (status, pulses > 0) == ('partial', True), ledger  # Stop ended it before its target
     delivered = ran['delivered_ml']
     assert delivered == pytest.approx(sum(volume for _, volume, _ in ledger), abs=1e-6)
     assert ran['outcome'] == 'stopped'
