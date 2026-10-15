@@ -81,8 +81,9 @@ safe, the Run/Stop section hands the schedule's hold on the operation lock to
 `EMERGENCY` before any dialog, then the operator sees one dialog: **Relays
 Not Confirmed Off** (disconnect the valve power supply, then check the relay
 HAT and its I²C connection) or **Delivery Worker Did Not Stop**. Run,
-priming and calibration stay unavailable until a confirmed CLOSE ALL RELAYS
-or a restart. When the worker finishes, `main.cleanup()` switches all relays
+priming and calibration stay unavailable until a CLOSE ALL RELAYS that
+confirms every relay off with no delivery worker alive, or a restart. When
+the worker finishes, `main.cleanup()` switches all relays
 off again and prints `[CLEANUP] CRITICAL: relays NOT confirmed off` if that
 fails; a worker thread still running after its wait is kept, not dropped,
 and Run refuses to start beside it. Never add an unbounded `thread.wait()`:

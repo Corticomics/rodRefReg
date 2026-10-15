@@ -69,9 +69,10 @@ answered since the run started, raises `[VALVE CRITICAL] … OPEN`. A Stop
 whose all-off command a HAT did not confirm, or whose delivery worker did
 not stop, shows one dialog (**Relays Not Confirmed Off** or **Delivery
 Worker Did Not Stop**) and hands the operation lock to `EMERGENCY` until a
-confirmed CLOSE ALL RELAYS or a restart; with a HAT missing since start-up,
-every Stop does. The Priming panel's **CLOSE ALL RELAYS** button (greyed
-out and refused while a schedule runs: Stop ends a schedule) shows
+CLOSE ALL RELAYS that confirms every relay off with no delivery worker
+alive, or a restart; with a HAT missing since start-up, every Stop does.
+The Priming panel's **CLOSE ALL RELAYS** button (greyed out and refused
+while a schedule runs: Stop ends a schedule) shows
 **Emergency Stop Failed** and keeps the operation lock held: by the open
 priming session (which hands it to `EMERGENCY` when it ends), or else by
 the `EMERGENCY` holder, until a later press is confirmed or RRR is

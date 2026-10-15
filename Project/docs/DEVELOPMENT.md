@@ -187,7 +187,7 @@ The system uses Sequent Microsystems' library to communicate with the HATs. The 
 - Validation of HAT addresses before operations
 - Error handling for failed triggers
 - Maximum daily water limits
-- Stop is the only way to end a running schedule: CLOSE ALL RELAYS, Close Selected and Log Out are greyed out and refused while one runs, and a Stop that cannot confirm every relay off, or whose delivery worker did not stop, hands the hardware lock to `EMERGENCY` until a confirmed CLOSE ALL RELAYS or a restart
+- Stop is the only way to end a running schedule: CLOSE ALL RELAYS, Close Selected and Log Out are greyed out and refused while one runs, and a Stop that cannot confirm every relay off, or whose delivery worker did not stop, hands the hardware lock to `EMERGENCY` until a CLOSE ALL RELAYS that confirms every relay off with the delivery worker stopped, or a restart
 
 ## User Interface
 

@@ -39,8 +39,9 @@ not listed here.
   the tooltip *A schedule is running: press Stop to end it*; a click is
   refused (**Schedule running**). At every other time they work as before;
   after a Stop that could not confirm every relay off, CLOSE ALL RELAYS
-  clears the hardware lock once every relay is confirmed off, looking for
-  the HATs again so a reseated one is found.
+  clears the hardware lock once every relay is confirmed off and the
+  delivery has stopped, looking for the HATs again so a reseated one is
+  found.
 - **Change (safety):** Log Out (Profile tab) is greyed out while a schedule
   runs, with the tooltip *A schedule is running: press Stop to end it, then
   log out*, and refused (**Schedule running**). Stop needs a logged-in user,
@@ -61,10 +62,11 @@ not listed here.
     Confirmed Off** or **Delivery Worker Did Not Stop**; the second
     **Warning** box is gone). Run, Change Relay Hats, priming and
     calibration then stay unavailable ("Unavailable while an unconfirmed
-    emergency stop is in progress") until CLOSE ALL RELAYS confirms every
-    relay off, or RRR is restarted. Before, Run was available again at
-    once. A change of hardware mode or valve topology is refused meanwhile,
-    and the refusal says what clears it.
+    emergency stop is in progress") until the delivery has stopped and
+    CLOSE ALL RELAYS confirms every relay off, or RRR is restarted (if RRR
+    will not quit, restart the Raspberry Pi). Before, Run was available
+    again at once. A change of hardware mode or valve topology is refused
+    meanwhile, and the refusal says what clears it.
   - Run refuses to start while the previous schedule's delivery has not
     stopped (**Delivery Worker Did Not Stop**), instead of starting a
     second delivery beside it, and keeps the hardware locked the same way.
@@ -146,9 +148,10 @@ not listed here.
   **Emergency Stop Failed** or `[VALVE CRITICAL]`: disconnect the valve
   power supply first, then check the relay HAT and its I²C connection.
   During a run, press Stop (CLOSE ALL RELAYS is greyed out while a schedule
-  runs). Run, priming and calibration come back after CLOSE ALL RELAYS
-  (Settings > Priming) confirms every relay off, or after RRR is restarted
-  (if RRR will not quit, restart the Raspberry Pi).
+  runs). Run, priming and calibration come back once the delivery has
+  stopped and CLOSE ALL RELAYS (Settings > Priming) confirms every relay
+  off, or after RRR is restarted (if RRR will not quit, restart the
+  Raspberry Pi).
 - With a relay HAT missing since RRR started, every Stop shows **Relays
   Not Confirmed Off** and keeps the hardware locked. Restart RRR, then fix
   the HAT and restart again, or set the number of HATs the rig has with

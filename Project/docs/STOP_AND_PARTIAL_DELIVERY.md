@@ -282,7 +282,7 @@ RELAYS' safety duties.
 |---|---|---|
 | S1 | Cancel the worker right after the first all-off, before the dialog pumps events | a pulse starting after the all-off |
 | S2 | All relays off again after the teardown (when a worker or thread existed); that last command decides "confirmed off" | `cleanup()` switches the relays off again later, but its result is only printed (`main.py:462`) |
-| S3 | The latch: when `not result.safe`, SCHEDULE passes to EMERGENCY in one step (`OperationLock.hold_until_safe(SCHEDULE)`), before `reset_ui` and any dialog, whose event loop can run the worker's queued `cleanup` (its `reset_ui` releases SCHEDULE); an error after the stop ran latches the same way. Run, Change Relay Hats, priming, calibration and hardware-mode and topology changes stay refused until a confirmed CLOSE ALL RELAYS or a restart, and the Settings refusals say so | `reset_ui` releasing the lock regardless |
+| S3 | The latch: when `not result.safe`, SCHEDULE passes to EMERGENCY in one step (`OperationLock.hold_until_safe(SCHEDULE)`), before `reset_ui` and any dialog, whose event loop can run the worker's queued `cleanup` (its `reset_ui` releases SCHEDULE); an error after the stop ran latches the same way. Run, Change Relay Hats, priming, calibration and hardware-mode and topology changes stay refused until a CLOSE ALL RELAYS that confirms every relay off with no delivery worker alive, or a restart; the Settings refusals name both | `reset_ui` releasing the lock regardless |
 | S4 | One dialog: **Relays Not Confirmed Off** or **Delivery Worker Did Not Stop** | two dialogs, or none |
 | S5 | `main.run_program` refuses beside a live worker thread and keeps its reference; Run then latches before its dialog (**Delivery Worker Did Not Stop**). Another failed start resets Run (**Schedule not started**); `main.cleanup` keeps a thread still running after its wait | dropping a running QThread; a second worker beside the first |
 | S6 | A cancel check before the manifold prime and before the master hold | a Stop reopening the master (`solenoid_flow_strategy.py:1125, :1208-1210`) |
@@ -316,7 +316,7 @@ staggered run waiting for its window, to the end of the run or of Stop.
 | Priming | False | PRIMING | enabled | enabled |
 | Calibration | False | CALIBRATION | behind the modal wizard (as in v1.21.0) | as in v1.21.0 |
 | Run click → end of the run or of Stop | True | SCHEDULE | **greyed + refused** | **greyed + refused** |
-| After an unsafe Stop | False | EMERGENCY | enabled: a fresh handler; clears the latch only when every relay is confirmed off | enabled |
+| After an unsafe Stop | False | EMERGENCY | enabled: a fresh handler; clears the latch only when every relay is confirmed off and no delivery worker is alive | enabled |
 | Stale SCHEDULE hold | False | SCHEDULE | enabled (force-release failsafe) | enabled |
 
 - **Two layers** (`operation_lock.py:19-23`): greyed with the tooltip "A
