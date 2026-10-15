@@ -26,6 +26,11 @@ not listed here.
   Stop, and a `[VALVE CRITICAL]` alarm now says to press Stop. 1.21.0 had
   made CLOSE ALL RELAYS stop a running schedule; this release undoes that.
   Log Out (Profile tab) is greyed out while a schedule runs too.
+- **On a device still running a version before 1.21.0**, do the 1.21.0
+  *Before you update* steps first: calibrate every cage your schedules use,
+  and check the Slack token. This update goes straight to 2.0.0, so the
+  Updates tab does not show 1.21.0's notes; they are on the Releases page
+  (RRR 1.21.0).
 
 **What changes on the device**
 
@@ -34,8 +39,9 @@ not listed here.
   the tooltip *A schedule is running: press Stop to end it*; a click is
   refused (**Schedule running**). At every other time they work as before;
   after a Stop that could not confirm every relay off, CLOSE ALL RELAYS
-  clears the hardware lock once every relay is confirmed off, looking for
-  the HATs again so a reseated one is found.
+  clears the hardware lock once every relay is confirmed off and the
+  delivery has stopped, looking for the HATs again so a reseated one is
+  found.
 - **Change (safety):** Log Out (Profile tab) is greyed out while a schedule
   runs, with the tooltip *A schedule is running: press Stop to end it, then
   log out*, and refused (**Schedule running**). Stop needs a logged-in user,
@@ -56,16 +62,17 @@ not listed here.
     Confirmed Off** or **Delivery Worker Did Not Stop**; the second
     **Warning** box is gone). Run, Change Relay Hats, priming and
     calibration then stay unavailable ("Unavailable while an unconfirmed
-    emergency stop is in progress") until CLOSE ALL RELAYS confirms every
-    relay off, or RRR is restarted. Before, Run was available again at
-    once. A change of hardware mode or valve topology is refused meanwhile,
-    and the refusal says what clears it.
+    emergency stop is in progress") until the delivery has stopped and
+    CLOSE ALL RELAYS confirms every relay off, or RRR is restarted (if RRR
+    will not quit, restart the Raspberry Pi). Before, Run was available
+    again at once. A change of hardware mode or valve topology is refused
+    meanwhile, and the refusal says what clears it.
   - Run refuses to start while the previous schedule's delivery has not
     stopped (**Delivery Worker Did Not Stop**), instead of starting a
     second delivery beside it, and keeps the hardware locked the same way.
     A Run that could not start its delivery for another reason says so
     (**Schedule not started**) instead of showing *Running*.
-  - A Stop pressed while Run still shows *Starting…* cancels that start.
+  - A Stop pressed while Run still shows *Starting...* cancels that start.
     Before, the start could still go ahead after the Stop.
 - **Fix:** a disabled red button (CLOSE ALL RELAYS, Close Master) is
   greyed out like any other; it looked pressable.
@@ -78,19 +85,27 @@ not listed here.
   animal. The record holds the amount scheduled, the amount planned at that
   cage's calibration (whole pulses) and the amount delivered. It also says
   how the run ended: completed, stopped, ended short, or interrupted when
-  RRR closed or lost power during it. Each Stop is also written to the log
-  with who pressed it.
+  RRR closed or lost power during it. The history keeps every run, through
+  restarts, schedule edits and deleted schedules; a run stopped before its
+  first delivery is not recorded. Each Stop after a schedule started is
+  also written to the database's log: who pressed it, what each animal
+  got, and whether the relays were confirmed off.
 - **Add:** the Animals tab shows each animal's **Last schedule delivered
   amount**: what its latest schedule run delivered, or *Running · … mL
-  planned* while the run delivers (the tab refreshes when you open it). A
-  run that ended short is a red cell that says why (**Stopped**,
-  **Incomplete**, **Interrupted**) and shows delivered / planned mL; point
-  at it for the schedule, when it ran, its scheduled, planned and
-  delivered amounts, and how to deliver the rest (for an instant schedule,
-  check the delivery log first). An amount that was not recorded shows
-  **?** with the command that lists what the cage received. Long column
-  headers now wrap instead of being cut off, and a refresh keeps the
-  filter and the selected animal.
+  planned* while the run delivers (the tab refreshes when you open it). An
+  animal with no recorded run shows a dash, as every animal does until its
+  first run on this version. The cell is red when the run ended before the
+  animal got its full amount, and says why (**Stopped**, **Incomplete**,
+  **Interrupted**) with delivered / planned mL; point at it for the
+  schedule, when it ran, its scheduled, planned and delivered amounts, and
+  how to deliver the rest (for an instant schedule, check the delivery log
+  first). RRR counts an animal complete when it is within half a valve
+  pulse of its amount (0.01 mL at least; with *Round doses up to the next
+  whole pulse* on, the whole amount), the same test the delivery uses to
+  stop; the figures are never compared raw. An amount that was not
+  recorded shows **?** with the command that lists what the cage received.
+  Long column headers now wrap instead of being cut off, and a refresh
+  keeps the filter and the selected animal.
 - **Add:** Export Animals to CSV (Settings > General) adds each animal's
   last schedule run: the schedule, its result (Completed, Stopped,
   Incomplete, Interrupted or Running), the scheduled, planned and
@@ -105,17 +120,27 @@ not listed here.
   **Start Run** and **Cancel** (the default; Enter and Esc cancel). Passed
   deliveries are skipped, as before, and never made up.
 - **Add (safety):** Run asks before it starts over a schedule whose last run
-  gave some water. Run does not resume a schedule: **Start Over** gives every
-  animal its full amount again, on top of what it already got. When that run
-  ended early (stopped, ended short, or RRR closed during it), **Last Run
-  Ended Early** lists what each animal got of its planned amount and, for a
-  staggered schedule, what it did not get; to deliver only the missing
-  water, press **Cancel** and create a new schedule for that amount. When
-  every animal completed, **Last Run Completed** lists what each one got and
-  when. **Cancel** is the default (Enter and Esc cancel). When the start
-  time has passed too, the same dialog says so: one question, not two. An
-  instant schedule some of whose times have passed gets **Some Deliveries
-  Passed**, which then lists the last run too.
+  gave some water. Run does not resume a schedule: a staggered schedule
+  gives every animal its full amount again, on top of what it already got,
+  and an instant schedule skips the delivery times that have passed. When
+  that run ended early (stopped, ended short, or RRR closed during it),
+  **Last Run Ended Early** lists what each animal got of its planned amount
+  and, for a staggered schedule, what it did not get; to deliver only the
+  missing water, press **Cancel** and create a new schedule for that amount.
+  When every animal completed, **Last Run Completed** lists what each one
+  got and when. Both offer **Start Over** and **Cancel** (the default;
+  Enter and Esc cancel). When the start time has passed too, the same
+  dialog says so: one question, not two. An instant schedule some of whose
+  times have passed gets **Some Deliveries Passed**, which then lists the
+  last run too.
+- **Fix (installer):** an `./install.sh` run whose pull brought 1.21.0's
+  installer into an older checkout stopped at its last step with
+  "report_relay_hat_level: command not found": the new install steps ran
+  with the old helpers the run had loaded before the pull (a second run
+  worked). When its pull changes the installer, `install.sh` now restarts
+  itself once from the updated checkout, with the same options, so old and
+  new install steps never mix in one run. `bootstrap.sh` and a checked-out
+  tag were not affected.
 
 **If something goes wrong**
 
@@ -123,19 +148,33 @@ not listed here.
   **Emergency Stop Failed** or `[VALVE CRITICAL]`: disconnect the valve
   power supply first, then check the relay HAT and its I²C connection.
   During a run, press Stop (CLOSE ALL RELAYS is greyed out while a schedule
-  runs). Run, priming and calibration come back after CLOSE ALL RELAYS
-  (Settings > Priming) confirms every relay off, or after RRR is restarted
-  (if RRR will not quit, restart the Raspberry Pi).
+  runs). Run, priming and calibration come back once the delivery has
+  stopped and CLOSE ALL RELAYS (Settings > Priming) confirms every relay
+  off, or after RRR is restarted (if RRR will not quit, restart the
+  Raspberry Pi).
 - With a relay HAT missing since RRR started, every Stop shows **Relays
   Not Confirmed Off** and keeps the hardware locked. Restart RRR, then fix
   the HAT and restart again, or set the number of HATs the rig has with
   Change Relay Hats.
+- A red **Interrupted** cell: RRR closed or lost power during that run, so
+  the amount delivered was not recorded. Run the command in the cell's
+  tooltip in a terminal on the Pi (`tools/gravimetric_check.py daily
+  --since <day> --cage <cage>`): it totals what that cage received each
+  day from then on.
+- **Revert to previous version** (Settings > Updates) goes back to the
+  version this device ran before 2.0.0 (1.21.x on a device that had it);
+  the run history stays in the database and is ignored there, and CLOSE
+  ALL RELAYS behaves as it did in that version. Runs made there are not
+  recorded, so after updating to 2.0.0 again the column shows the last run
+  made on 2.0.0. On an independent rig, set Valve Topology back to *Shared
+  manifold* before reverting to a release before 1.21.0.
 
 **Developer notes**
 
 - 2.0.0 is MAJOR under MAINTENANCE.md §2: with this release, operators must
-  end a run with Stop and cannot log out during one. Design:
-  `Project/docs/STOP_AND_PARTIAL_DELIVERY.md`.
+  end a run with Stop and cannot log out during one. The data change alone
+  (two tables created automatically, which older releases ignore) would be
+  MINOR. Design: `Project/docs/STOP_AND_PARTIAL_DELIVERY.md`.
 - `utils/stop_sequence.execute_stop_sequence` returns
   `StopResult(relays_confirmed_off, worker_exited)`. It cancels right after
   the first all-off, and a second all-off after teardown decides
@@ -153,13 +192,31 @@ not listed here.
   Close controls and Log Out with the flag already set. CLOSE ALL RELAYS,
   Close Selected and Log Out refuse in their handlers too.
 - Run history: two new tables, `schedule_runs` and `schedule_run_animals`,
-  created at start-up (older releases ignore them), written and read
-  through four `DatabaseHandler` methods (`start_schedule_run`,
+  and the index `idx_schedule_run_animals_animal_run`, created at start-up
+  (`CREATE TABLE IF NOT EXISTS`; older releases ignore them), written and
+  read through four `DatabaseHandler` methods (`start_schedule_run`,
   `finish_schedule_run`, `mark_interrupted_schedule_runs`,
   `get_latest_runs_of_schedule`) whose queries live in
-  `models/schedule_runs_repo.py`. `get_all_animals` and
-  `get_animals_by_trainer` return each animal's latest run as
-  `Animal.last_run`, in the same query, by `animal_id`.
+  `models/schedule_runs_repo.py` (CLAUDE.md's R2 trigger 1, a new domain).
+  `get_all_animals` and `get_animals_by_trainer` return each animal's
+  latest run as `Animal.last_run`, in the same query, by `animal_id`. The
+  `dispensing_history` ledger and `log_delivery` are unchanged.
+- The worker opens a run's record at its first due delivery
+  (`RelayWorker._open_run_record`, which builds `run_plan`).
+  `main._record_run_end` closes it once per worker on the GUI thread: from
+  `worker.finished`, or, after an operator Stop, from `stop_program` with
+  the `StopResult`, which also writes one `logs` row
+  (`log_action(…, 'schedule_stopped', …)`). At start-up, before the GUI is
+  built, `main._mark_interrupted_runs` records the runs left open as
+  `interrupted`.
+- `utils/dose_rounding.whole_pulses` is the one whole-pulse rule of the
+  planner, the run plan and `tools/gravimetric_check.py`'s planner verdict.
+- Qt-free wording: `utils/last_run_text` writes the Animals tab's cell and
+  tooltip, the export's result word, the remainder and the delivery-log
+  command; `utils/run_warnings` words Run's questions. A
+  `QStyledItemDelegate` in `ui/animals_tab.py` paints the red cell in the
+  colours both theme files set (`QWidget#AnimalsTab`,
+  `qproperty-alertFill` and `qproperty-alertText`).
 
 ## 1.21.0 — valve topology, calibration gate, relay-failure reporting
 

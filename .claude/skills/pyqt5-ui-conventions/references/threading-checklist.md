@@ -90,7 +90,8 @@ dialog (a dialog's event loop can run the worker's queued `main.cleanup`,
 whose `reset_ui` releases SCHEDULE), then shows one dialog: **Relays Not
 Confirmed Off** (disconnect the valve power supply, then check the relay HAT
 and its I²C connection) or **Delivery Worker Did Not Stop**. Run, priming and
-calibration stay unavailable until a confirmed CLOSE ALL RELAYS or a restart.
+calibration stay unavailable until a CLOSE ALL RELAYS that confirms every
+relay off with no delivery worker alive, or a restart.
 
 `main.cleanup()` switches the relays off again when the worker finishes. It
 keeps a worker thread that is still running after its wait (dropping the

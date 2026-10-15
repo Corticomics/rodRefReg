@@ -67,6 +67,7 @@ rodent-refreshment-regulator/
 │   │   ├── Schedule.py
 │   │   ├── cage.py          # Cage entity (custom names, relay mapping)
 │   │   ├── database_handler.py
+│   │   ├── schedule_runs_repo.py   # Run history, behind DatabaseHandler
 │   │   ├── login_system.py
 │   │   ├── relay_unit.py
 │   │   └── relay_unit_manager.py
@@ -186,6 +187,7 @@ The system uses Sequent Microsystems' library to communicate with the HATs. The 
 - Validation of HAT addresses before operations
 - Error handling for failed triggers
 - Maximum daily water limits
+- Stop is the only way to end a running schedule: CLOSE ALL RELAYS, Close Selected and Log Out are greyed out and refused while one runs, and a Stop that cannot confirm every relay off, or whose delivery worker did not stop, hands the hardware lock to `EMERGENCY` until a CLOSE ALL RELAYS that confirms every relay off with the delivery worker stopped, or a restart
 
 ## User Interface
 
@@ -260,6 +262,17 @@ The scheduling system manages when water is delivered to each animal.
   through `_handle_delivery` → the active `DeliveryStrategy`
 - `strategies/` — `StrategyFactory` picks `SolenoidFlowStrategy` (flow-sensor /
   pulse delivery) or `PumpStrategy` (legacy) by `hardware_mode`
+- Run record: each run that starts delivering is recorded per animal
+  (scheduled, planned, delivered, outcome) through
+  `DatabaseHandler.start_schedule_run` / `finish_schedule_run`. The worker
+  opens the record at its first due delivery (`_open_run_record`).
+  `main._record_run_end` closes it once on the GUI thread, from
+  `worker.finished` or from Stop. At start-up, before the GUI is built,
+  `main._mark_interrupted_runs` marks the runs a crash left running as
+  interrupted. See [STOP_AND_PARTIAL_DELIVERY.md](STOP_AND_PARTIAL_DELIVERY.md) §5
+- `models/schedule_runs_repo.py` — the run history (`schedule_runs`,
+  `schedule_run_animals`) behind `DatabaseHandler`; see
+  [STOP_AND_PARTIAL_DELIVERY.md](STOP_AND_PARTIAL_DELIVERY.md) §4
 
 ### Delivery Modes:
 

@@ -35,8 +35,10 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Task | How To Do It |
 |------|--------------|
 | Start water delivery | Drag schedule card onto Run/Stop drop area → **Run**. In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*): calibrate the listed cages first |
-| Stop water delivery | **Stop**. If it shows *Relays Not Confirmed Off*, disconnect the valve power supply, then check the relay HAT and its I²C connection |
+| Stop water delivery | **Stop**: the only way to end a running schedule (CLOSE ALL RELAYS, Close Selected and Log Out are greyed out until it ends). If it shows *Relays Not Confirmed Off* or *Delivery Worker Did Not Stop*, disconnect the valve power supply, then check the relay HAT and its I²C connection; Run, priming and calibration come back once the delivery has stopped and Settings → Priming → CLOSE ALL RELAYS confirms every relay off, or after RRR is restarted (if RRR will not quit, restart the Raspberry Pi) |
 | Monitor a live run | Execution Monitor tab appears next to Terminal during a run |
+| See what each animal got | Animals tab → **Last schedule delivered amount**: what the animal's latest schedule run delivered; a red cell (Stopped, Incomplete, Interrupted) means the run ended before the animal got its full amount. Point at a cell for the scheduled, planned and delivered amounts |
+| Give only the missing water after a Stop | Staggered schedule: create a new schedule for the remaining amount the red cell's tooltip gives; Run on the stopped schedule starts it over and gives the full amount again (it asks first: *Last Run Ended Early*). Instant schedule: running it again skips the delivery times that have passed. Check the delivery log first (the red cell's tooltip gives the command), as an earlier run may already have given them, then create a schedule for what is missing |
 | Test a valve | Settings → Priming → select the cage → **Open Selected**, then **Close Selected** (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
 | Calibrate valves | Settings → Calibration → **Calibrate** on the cage's row (or **Calibrate All Uncalibrated**) |
 | Prime tubing | Settings → Priming → select cage → **Open Selected** → **Close Selected** once water flows (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
@@ -59,6 +61,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 |---------|----------|
 | Application won't start | • Restart your Raspberry Pi<br>• Run `~/.local/bin/rrr` from a terminal to see error messages (where RRR runs as the user service: `journalctl --user -u rrr.service -n 50`) |
 | Can't save settings | • Log in with a user account (not guest mode)<br>• Check file permissions |
+| Log Out is greyed out | A schedule is running (a staggered schedule waiting for its window counts): press **Stop**, or wait until it ends |
 | Slack notifications not working | • Verify internet connection<br>• Check Slack credentials<br>• Ensure channel ID is correct |
 
 ### Hardware Issues
@@ -66,7 +69,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Problem | Solution |
 |---------|----------|
 | Relay HAT not detected | • Check physical connections and `sudo i2cdetect -y 1`<br>• Verify the stack-level jumpers<br>• After fixing it, close and reopen RRR: until then every valve delivery to a missing HAT fails with `[VALVE ERROR]` |
-| `[VALVE CRITICAL] … OPEN`, *Emergency Stop Failed* or *Relays Not Confirmed Off* | • Disconnect the valve power supply first<br>• Then check the relay HAT and its I²C connection; Settings → Priming → CLOSE ALL RELAYS switches every relay off again and stops a running schedule (it does not resume: Run starts it over, so check what each animal has received first)<br>• `[VALVE OK] … closed after all` means a later close got through and that alarm is cleared |
+| `[VALVE CRITICAL] … OPEN`, *Emergency Stop Failed*, *Relays Not Confirmed Off* or *Delivery Worker Did Not Stop* | • Disconnect the valve power supply first<br>• Then check the relay HAT and its I²C connection. During a schedule press **Stop** (CLOSE ALL RELAYS is greyed out while a schedule runs); otherwise Settings → Priming → CLOSE ALL RELAYS switches every relay off again<br>• A stopped schedule does not resume: check the Animals tab's Last schedule delivered amount before running it again<br>• `[VALVE OK] … closed after all` means a later close got through and that alarm is cleared |
 | Pump not triggering | • Test the relay<br>• Check power connections<br>• Verify common ground connection |
 | System freezes during operation | • Check for overheating<br>• Ensure power supply is adequate<br>• Reduce number of simultaneous triggers |
 
@@ -90,7 +93,7 @@ Run and Stop have no keyboard shortcut: use the **Run** and **Stop** buttons.
 - [ ] Start the program
 
 ### Evening Closeout
-- [ ] Review water delivery logs
+- [ ] Check the Animals tab's Last schedule delivered amount: a red cell means an animal did not get its full amount
 - [ ] Check animal hydration status
 - [ ] Clean any soiled tubing
 - [ ] Prepare schedule for next day if needed

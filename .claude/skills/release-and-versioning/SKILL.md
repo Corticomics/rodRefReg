@@ -37,7 +37,7 @@ device has opted into the beta channel.
 |---|---|---|
 | PATCH `1.6.x → 1.6.x+1` | bug fix, security pin, internal refactor — anything user-invisible | fix a crash, pin a dep version, tighten an error message |
 | MINOR `1.x.y → 1.x+1.0` | new feature, new sub-tab, new opt-in driver | add a tab, ship a new calibration mode |
-| MAJOR `x.y.z → x+1.0.0` | breaking change, schema migration that can't roll back, GPIO/hardware change | drop a column for real, change pin layout |
+| MAJOR `x.y.z → x+1.0.0` | breaking change, schema migration that can't roll back, GPIO/hardware change, or a control operators use during a run taken away | drop a column for real, change pin layout, CLOSE ALL RELAYS greyed out during a run (v2.0.0) |
 
 **In doubt → bump the higher level.** It's free to publish a "1.7.0" that
 turned out to be PATCH-equivalent; it's expensive to publish "1.6.4"

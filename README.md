@@ -158,8 +158,9 @@ The new schedule appears as a card in the **Schedules** hub.
 
 #### Stopping the Program
 
-1. Click **Stop** to halt water delivery
-2. RRR closes every relay. If a relay HAT does not confirm, it shows **Relays Not Confirmed Off**: a valve may still be open, so disconnect the valve power supply, then check the relay HAT and its I²C connection
+1. Click **Stop** to halt water delivery. Stop is the only way to end a running schedule: while one runs, **CLOSE ALL RELAYS**, **Close Selected** (Settings → Priming) and **Log Out** are greyed out
+2. RRR closes every relay. If a relay HAT does not confirm, it shows **Relays Not Confirmed Off**: a valve may still be open, so disconnect the valve power supply, then check the relay HAT and its I²C connection; Run, priming and calibration stay unavailable until **CLOSE ALL RELAYS** confirms every relay off, or RRR is restarted. If the delivery does not stop, RRR says so (**Delivery Worker Did Not Stop** when every relay is off): the delivery may open a valve again, so Run, priming and calibration stay unavailable while it may still run. Wait a few seconds, then press **CLOSE ALL RELAYS**; if it says the worker has still not stopped, disconnect the valve power supply and restart the Raspberry Pi (RRR will not quit while that worker is alive)
+3. A stopped schedule does not resume. The Animals tab's **Last schedule delivered amount** shows in red what each animal got. **Run** starts the schedule over, after asking: a staggered schedule gives the full amount again, and an instant schedule skips the delivery times that have passed. To give only the missing water, create a schedule for that amount (for an instant schedule, check the delivery log first: the red cell's tooltip gives the command)
 
 #### Unattended Operation
 
@@ -215,11 +216,11 @@ The RRR system is designed to run continuously even when you disconnect your dis
 
 ### How do I know how much water each animal received?
 
-You can watch each delivery in the Terminal tab. Every delivery is also written to the `dispensing_history` table (the delivery ledger): the dose asked for, the volume dispensed and its status. On the device, `cd ~/rrr/current/Project && ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since YYYY-MM-DD` prints each day's totals per cage.
+The Animals tab's **Last schedule delivered amount** column shows what each animal got from its latest schedule run. A red cell (Stopped, Incomplete or Interrupted) means the run ended before the animal got its full amount; hover it for the scheduled, planned and delivered amounts. **Export Animals to CSV** (Settings → General) includes them. You can watch each delivery in the Terminal tab. Every delivery is also written to the `dispensing_history` table (the delivery ledger): the dose asked for, the volume dispensed and its status. On the device, `cd ~/rrr/current/Project && ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since YYYY-MM-DD` prints each day's totals per cage.
 
 ### What if I need to change a schedule mid-experiment?
 
-You can create a new schedule at any time. Stop the current program, create your new schedule, and start the program again with the new settings.
+You can create a new schedule at any time. Stop the current program, create your new schedule, and start the program again with the new settings. A stopped schedule does not resume: Run starts it over, after asking (a staggered schedule gives the full amount again; an instant schedule skips the delivery times that have passed). To give an animal only what it missed, create a schedule for the amount in its red cell's tooltip (for an instant schedule, check the delivery log first).
 
 ### How do I calibrate the system for accurate water delivery?
 
