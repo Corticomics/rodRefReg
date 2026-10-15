@@ -46,12 +46,16 @@ main.relay_handler = None
 main.gui = None
 main.worker = None
 finishing = threading.Event()
+calling = threading.Event()
 
 def finish_slowly():
     # On the run's thread, inside QThreadPrivate::finish, where isRunning() is
     # already False. Like deleting the worker there, it needs the GIL: it
-    # sleeps without it, then takes it back.
+    # waits for the call and sleeps without it, then takes it back. The 0.5 s
+    # window opens at the call, so a stalled runner cannot let the finish end
+    # before the call drops the thread.
     finishing.set()
+    calling.wait(deadline_s)
     time.sleep(0.5)
 
 thread = QThread()
@@ -66,6 +70,7 @@ main.thread = thread
 del thread  # main.thread holds the only reference, as at the end of a run
 
 faulthandler.dump_traceback_later(deadline_s, exit=True)  # a deadlock: its stacks, exit 1
+calling.set()
 if call == "cleanup":
     main.cleanup()
 else:
