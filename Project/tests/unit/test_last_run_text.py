@@ -8,17 +8,21 @@ for a run that ended short follows its delivery mode: run again, a staggered
 schedule starts over, so the tooltip gives the remainder for a new schedule;
 an instant one skips the delivery times that have passed, and a run started
 late counts them as not delivered, so the tooltip sends the operator to the
-delivery log first. Qt-free.
+delivery log first. The remainder is a measured figure, to three decimals;
+the amount to schedule for it is one the schedule wizard takes, to two
+decimals and at least 0.10 mL. Qt-free.
 """
 
 from __future__ import annotations
 
 import pytest
 
+from utils.dose_rounding import whole_pulses
 from utils.last_run_text import (
     NO_RUN_TEXT,
     SKIPS_PASSED_INSTANT,
     STARTS_OVER_STAGGERED,
+    amount_to_schedule,
     delivery_log_command,
     last_run_cell,
     outcome_word,
@@ -122,7 +126,7 @@ def test_stopped_is_red_with_delivered_over_planned_and_the_remainder():
         PLANNED_LINE,
         "Delivered: 0.400 mL",
         STARTS_OVER,
-        "To deliver only the remaining 0.600 mL, create a new schedule for that amount.",
+        "To deliver only the remaining 0.600 mL, create a new schedule for 0.60 mL.",
     ]
     assert STARTS_OVER_STAGGERED == STARTS_OVER
 
@@ -137,7 +141,7 @@ def test_incomplete_is_red_and_says_why():
         PLANNED_LINE,
         "Delivered: 0.800 mL",
         STARTS_OVER,
-        "To deliver only the remaining 0.200 mL, create a new schedule for that amount.",
+        "To deliver only the remaining 0.200 mL, create a new schedule for 0.20 mL.",
     ]
 
 
@@ -182,7 +186,8 @@ def test_an_instant_run_that_ended_short_sends_the_operator_to_the_delivery_log(
         SKIPS_PASSED,
         "0.600 mL was not delivered in this run. If it started after some delivery times "
         "had passed, an earlier run may already have given them. Check the delivery log "
-        "first, then create a new schedule for what is missing:",
+        "first, then create a new schedule for what is missing (0.60 mL if all of it is "
+        "missing):",
         COMMAND,
     ]
     assert SKIPS_PASSED_INSTANT == SKIPS_PASSED
@@ -215,7 +220,10 @@ def test_an_amount_that_was_not_recorded_is_a_question_mark_whatever_the_outcome
     assert "Delivered: 0.991 mL" not in lines
 
 
-REMAINDER_0_001 = "To deliver only the remaining 0.001 mL, create a new schedule for that amount."
+REMAINDER_0_001 = "The remaining 0.001 mL is below the smallest schedule (0.10 mL)."
+NOT_DELIVERED_0_001 = (
+    "0.001 mL was not delivered in this run, below the smallest schedule (0.10 mL)."
+)
 
 
 @pytest.mark.parametrize(
@@ -224,14 +232,142 @@ REMAINDER_0_001 = "To deliver only the remaining 0.001 mL, create a new schedule
         ('staggered', 0.9996, STARTS_OVER),
         ('staggered', 0.9994, REMAINDER_0_001),
         ('instant', 0.9996, SKIPS_PASSED),
-        ('instant', 0.9994, COMMAND),
+        ('instant', 0.9994, NOT_DELIVERED_0_001),
     ],
     ids=['staggered-0.0004', 'staggered-0.0006', 'instant-0.0004', 'instant-0.0006'],
 )
 def test_a_remainder_too_small_to_show_is_not_offered(mode, delivered, last_line):
-    """Below 0.0005 mL the remainder would read 0.000 mL: no new schedule for it."""
+    """Below 0.0005 mL the remainder would read 0.000 mL: nothing is said of it.
+    From 0.0005 mL it is said, and that it is below the smallest schedule."""
     _text, tooltip, _red = _cell(_run('stopped', delivered=delivered, delivery_mode=mode))
     assert tooltip.splitlines()[-1] == last_line
+
+
+def _run_37(mode='staggered'):
+    """Lab run 37 (2026-10-19): 0.6 mL scheduled, stopped after 12 pulses of
+    0.019212 mL, 0.230544 mL delivered. Its plan does not enter the
+    remainder."""
+    return _run(
+        'stopped',
+        delivered=12 * 0.019212,
+        requested_ml=0.6,
+        planned_ml=31 * 0.019212,
+        delivery_mode=mode,
+    )
+
+
+def test_run_37_gives_the_remainder_and_an_amount_the_wizard_takes():
+    """The tooltip said "the remaining 0.369 mL", which the wizard's two
+    decimals cannot take, and the operator typed 0.36. The remainder stays
+    a measured figure, to three decimals; the amount to schedule for it is
+    at the wizard's two, rounded half up."""
+    _text, tooltip, red = _cell(_run_37())
+    assert red
+    assert tooltip.splitlines()[-3:] == [
+        "Delivered: 0.231 mL",
+        STARTS_OVER,
+        "To deliver only the remaining 0.369 mL, create a new schedule for 0.37 mL.",
+    ]
+    assert amount_to_schedule(0.6 - 12 * 0.019212) == "0.37"
+
+
+@pytest.mark.parametrize(
+    ("requested", "delivered", "shown", "amount"),
+    [
+        (1.0, 0.635, "0.365", "0.37"),
+        (0.3, 0.025, "0.275", "0.28"),
+        (1.0, 0.636, "0.364", "0.36"),
+        (1.0, 0.634, "0.366", "0.37"),
+    ],
+    ids=["0.365", "0.275-in-floating-point", "0.364", "0.366"],
+)
+def test_an_exact_half_at_the_third_decimal_rounds_up(requested, delivered, shown, amount):
+    """Half up, on the figure the operator reads. 1.0 − 0.635 is 0.365,
+    stored as 0.36499999999999999, which float formatting rounds to 0.36: it
+    is scheduled as 0.37. 0.3 − 0.025 is 0.27499999999999997 in floating
+    point and shows as 0.275, so it is scheduled as 0.28, not 0.27."""
+    _text, tooltip, _red = _cell(_run('stopped', delivered=delivered, requested_ml=requested))
+    assert tooltip.splitlines()[-1] == (
+        f"To deliver only the remaining {shown} mL, create a new schedule for {amount} mL."
+    )
+    assert amount_to_schedule(requested - delivered) == amount
+
+
+def test_the_amount_is_the_figure_shown_rounded_half_up():
+    """amount_to_schedule() rounds the remainder as shown, to three decimals,
+    so the two figures on one line agree: 0.3649 shows as 0.365 and is
+    scheduled as 0.37, as the operator reading 0.365 rounds it, not 0.36."""
+    assert amount_to_schedule(0.369456) == "0.37"
+    assert amount_to_schedule(0.365) == "0.37"
+    assert amount_to_schedule(0.3649) == "0.37", "0.3649 shows as 0.365"
+    assert amount_to_schedule(0.3644) == "0.36", "0.3644 shows as 0.364"
+    assert amount_to_schedule(0.1) == "0.10"
+    assert amount_to_schedule(0.0949) == "0.10", "0.0949 shows as 0.095"
+    assert amount_to_schedule(0.0944) is None, "0.0944 shows as 0.094: below 0.10 mL"
+    assert amount_to_schedule(None) is None
+
+
+def test_the_amount_agrees_with_the_remainder_on_its_line():
+    """Run 37's schedule stopped after 19 pulses instead of 12: 0.6 − 19 ×
+    0.019212 is 0.234972 mL, shown as 0.235 and scheduled as 0.24. Rounding
+    the float would put 0.23 beside 0.235. Either plans the 12 pulses that
+    did not fire."""
+    q = 0.019212
+    run = _run('stopped', delivered=19 * q, requested_ml=0.6, planned_ml=31 * q)
+    _text, tooltip, _red = _cell(run)
+    assert tooltip.splitlines()[-1] == (
+        "To deliver only the remaining 0.235 mL, create a new schedule for 0.24 mL."
+    )
+    assert whole_pulses(0.24, q) == whole_pulses(0.23, q) == 31 - 19
+
+
+@pytest.mark.parametrize(
+    ("mode", "delivered", "last_line"),
+    [
+        ('staggered', 0.551, "The remaining 0.049 mL is below the smallest schedule (0.10 mL)."),
+        ('staggered', 0.506, "The remaining 0.094 mL is below the smallest schedule (0.10 mL)."),
+        (
+            'instant',
+            0.551,
+            "0.049 mL was not delivered in this run, below the smallest schedule (0.10 mL).",
+        ),
+        (
+            'staggered',
+            0.505,
+            "To deliver only the remaining 0.095 mL, create a new schedule for 0.10 mL.",
+        ),
+    ],
+    ids=['staggered-0.049', 'staggered-0.094', 'instant-0.049', 'staggered-0.095'],
+)
+def test_a_remainder_below_the_smallest_schedule_offers_no_schedule(mode, delivered, last_line):
+    """The wizard takes 0.10 mL or more. A remainder whose amount at two
+    decimals is below that gets no schedule, and the tooltip says why. 0.6 −
+    0.505 is 0.09499999999999997 in floating point and shows as 0.095, so
+    it is scheduled as 0.10."""
+    run = _run('stopped', delivered=delivered, requested_ml=0.6, delivery_mode=mode)
+    _text, tooltip, _red = _cell(run)
+    assert tooltip.splitlines()[-1] == last_line
+    if "below" in last_line:
+        assert "create a new schedule" not in tooltip
+        assert "delivery log" not in tooltip, "nothing to check before a schedule"
+
+
+def test_an_instant_run_checks_the_delivery_log_first_and_gives_the_amount_the_same_way():
+    """Run 37 as an instant run: what was not delivered to three decimals,
+    the delivery log first, and the amount to schedule if all of it is
+    missing, at the wizard's two decimals."""
+    _text, tooltip, _red = _cell(_run_37('instant'))
+    assert tooltip.splitlines()[-3:] == [
+        SKIPS_PASSED,
+        "0.369 mL was not delivered in this run. If it started after some delivery times "
+        "had passed, an earlier run may already have given them. Check the delivery log "
+        "first, then create a new schedule for what is missing (0.37 mL if all of it is "
+        "missing):",
+        COMMAND,
+    ]
+    run = _run('stopped', delivered=0.505, requested_ml=0.6, delivery_mode='instant')
+    _text, tooltip, _red = _cell(run)
+    assert "(0.10 mL if all of it is missing):" in tooltip, "0.095 shows, 0.10 is offered"
 
 
 def test_the_remainder_is_scheduled_minus_delivered_and_unknown_when_not_recorded():

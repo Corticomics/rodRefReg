@@ -9,8 +9,9 @@ the animals that lose a delivery (docs/STOP_AND_PARTIAL_DELIVERY.md §9).
 A schedule that ran before and gave some water: Run does not resume a
 schedule, it starts it over, so every animal gets its full amount again on
 top of what it got. When that last run ended early (stopped, ended short, or
-RRR closed during it), Run lists what each animal got and what is missing;
-when it completed, Run lists what each animal got.
+RRR closed during it), Run lists what each animal got, what is missing and
+the amount to schedule for it; when it completed, Run lists what each animal
+got.
 
 RunStopSection asks before it starts, at most one question per Run; this
 module only words the questions. Qt-free, so the wording can be tested on its
@@ -21,7 +22,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from utils.last_run_text import delivery_log_command, owed_ml
+from utils.last_run_text import (
+    BELOW_SMALLEST_SCHEDULE,
+    amount_to_schedule,
+    delivery_log_command,
+    owed_ml,
+)
 
 PASSED_TITLE = "Some Deliveries Passed"
 LAST_RUN_TITLE = "Last Run Ended Early"
@@ -232,9 +238,12 @@ def _line(run, now, older, timed):
     owed = owed_ml(run)
     # Re-running an instant schedule skips its passed times, so its lines
     # give no remainder; the Animals tab sends the operator to the delivery
-    # log first. The remainder offered is the Animals tab's, by one rule.
+    # log first. The remainder offered, and the amount to schedule for it,
+    # are the Animals tab's, by one rule.
     if run.get('delivery_mode') != 'instant' and owed is not None:
-        line += f"; remaining {owed:.3f} of the {run['requested_ml']:.3f} mL scheduled"
+        amount = amount_to_schedule(owed)
+        line += f"; remaining {owed:.3f} of the {run['requested_ml']:.3f} mL scheduled, "
+        line += f"{amount} mL in a new schedule" if amount else BELOW_SMALLEST_SCHEDULE
     return line
 
 
