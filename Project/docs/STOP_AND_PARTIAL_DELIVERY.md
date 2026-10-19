@@ -369,7 +369,13 @@ outcome alone (D2).
   remainder (scheduled − delivered, offered from 0.0005 mL) for a new
   schedule; instant, "…skips every delivery time that has passed…", the
   amount not delivered and "Check the delivery log first…" with the
-  command. An unknown amount (D10) reads "Delivered: not recorded." and
+  command. Since v2.1.0 both give the amount to type in the schedule
+  wizard, to its two decimals ("To deliver only the remaining 0.369 mL,
+  create a new schedule for 0.37 mL."; instant: "…for what is missing
+  (0.37 mL if all of it is missing):"), or say that the remainder is
+  below the smallest schedule (0.10 mL), with no command for an instant
+  run (§9, **The remainder**). An unknown amount (D10) reads "Delivered:
+  not recorded." and
   gives the command to type on the Pi: `cd ~/rrr/current/Project &&
   ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since
   <YYYY-MM-DD of started_at> --cage <relay_unit_id>`.
@@ -469,7 +475,8 @@ animal's latest run **of this schedule** is `stopped`, `incomplete`,
 above 0, or unknown). It lists every animal that got water, completed ones
 too, since Start Over doses them again ("M-011, cage 3: 0.410 of the
 planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL
-scheduled"), and says to create a new schedule for the remaining amount.
+scheduled, 0.59 mL in a new schedule"), and says to create a new schedule
+for the remaining amount.
 
 **Last Run Completed** (**Start Over** / Cancel) appears when every one of
 those runs completed and some water went out (the owner's choice on
@@ -498,7 +505,7 @@ Staggered, its start passed, after a Stop:
 
 ```
 The last run of "AM water" ended early. These animals already got water in it:
-• M-011, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled
+• M-011, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule
 • M-012, cage 4: 0.991 of the planned 0.991 mL, complete
 
 Run does not resume a schedule: it starts this one over, so the animals above get their full amount again, on top of what they already got. If the missing water has not been given since, press Cancel and create a new schedule for the remaining amount.
@@ -538,11 +545,29 @@ Start "AM water" over?
 - **The remainder** is scheduled − delivered (`last_run_text.remaining_ml`;
   `owed_ml` offers it from 0.0005 mL, as on the Animals tab). Under
   round-up, that exact amount plans the pulses that did not fire. The
-  amount typed for a new schedule can differ: the schedule wizard takes
-  0.1 mL or more, to two decimals. Typed to two decimals, it can fire one
-  pulse more or fewer when the remainder lies within about 0.005 mL of a
-  whole number of pulses, and a remainder under 0.1 mL cannot be scheduled
-  (at q = 0.034164, doses 0.10–1.50 mL: about 7 % and 12 % of the stops).
+  schedule wizard takes 0.10 to 50.00 mL, to two decimals, and refuses a
+  third decimal as it is typed: lab run 37 (0.6 mL, stopped after 12 of
+  31 pulses at q = 0.019212) said "remaining 0.369", which became 0.36.
+  So since v2.1.0 the line and the tooltip also give the amount to type
+  (`last_run_text.amount_to_schedule`, with the limits of
+  `utils/schedule_volume.py`, which the wizard's volume fields are built
+  from): the remainder as shown, rounded half up to two decimals with
+  `decimal.Decimal` on the figure as written (0.365, stored as
+  0.36499999999999999, gives 0.37). When that amount is under 0.10 mL
+  they say the remainder is below the smallest schedule (0.10 mL) and
+  offer none. The amount can still fire one pulse more or fewer when the
+  remainder lies within about 0.005 mL of a whole number of pulses, and a
+  remainder under 0.1 mL cannot be scheduled (at q = 0.034164, doses
+  0.10–1.50 mL: about 7 % and 12 % of the stops). The three-decimal
+  figure typed as it was, its third decimal dropped, was a pulse off in
+  about 12 % (20 % at q = 0.019212, against 12 % for the amount given).
+- **The amount rounds the figure shown, not the float,** so the two
+  figures on one line agree: 0.3649 shows as 0.365 and is scheduled as
+  0.37, not 0.36. It is no less accurate: over every stop of doses
+  0.10–1.50 mL at q = 0.019212, the two give different amounts in 360 of
+  5,796 stops (round-up) and different pulse counts in 170, of which the
+  figure shown plans the pulses that did not fire in 81 and the float in
+  85 (nearest: 87 and 83). At q = 0.034164 they never differ.
 - **An outcome a newer release wrote** (read after a revert) counts as
   ended short, as the Animals tab shows it red.
 - **The window note** gives the minutes and the end that **Schedule Start
