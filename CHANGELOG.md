@@ -30,6 +30,13 @@ not listed here.
   up to the next whole pulse*. A pulse width saved by an earlier release is
   deleted when RRR starts, and restoring an older backup cannot turn pulse
   delivery off.
+- **Change:** the calibration wizard starts from the cage's last pulse
+  width and interval. A cage that was never calibrated starts from the
+  device's most recent calibration, and a device with none from 30 ms /
+  1000 ms, the production valve's validated profile (every cage used to
+  start at 20 ms / 500 ms). The configuration page says where the values
+  came from. Calibrate All Uncalibrated works the same way, so each cage it
+  opens starts from the one calibrated just before it.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 

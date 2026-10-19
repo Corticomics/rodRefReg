@@ -6,13 +6,15 @@ import threading
 import time
 from typing import Dict, Optional, Tuple
 
+from utils.pulse_profile import LEGACY_INTER_PULSE_INTERVAL_MS, resolve_interval_ms
 from utils.topology import calibration_is_stale, calibration_label, topology_from
 
 from strategies.delivery_strategy import DeliveryResult
 
-# Rest between pulses used before the timing profile was stored per cage.
-# Calibrations that predate the profile replay exactly this cadence.
-LEGACY_INTER_PULSE_INTERVAL_MS = 100
+# LEGACY_INTER_PULSE_INTERVAL_MS (imported above, and importable from here):
+# the rest between pulses used before the timing profile was stored per cage.
+# Calibrations that predate the profile replay exactly this cadence; the rule
+# lives in utils.pulse_profile, shared with Settings and the calibration wizard.
 
 # The empirical fallback: the pulse width a cage with NO calibration row is
 # pulsed at, with the volume per pulse the bench characterisation measured
@@ -201,23 +203,6 @@ class SolenoidFlowStrategy:
         # Best practice: deterministic run – use values saved prior to run.
         self._build_calibration_snapshot()
 
-    @staticmethod
-    def _resolve_interval_ms(raw) -> int:
-        """
-        Normalise a stored inter-pulse interval to milliseconds.
-
-        Calibrations saved before the timing profile existed store NULL, and
-        those cages must keep the cadence they were calibrated at — the
-        legacy hardcoded rest.
-        """
-        try:
-            if raw is None:
-                return LEGACY_INTER_PULSE_INTERVAL_MS
-            interval = int(raw)
-        except (TypeError, ValueError):
-            return LEGACY_INTER_PULSE_INTERVAL_MS
-        return interval if interval > 0 else LEGACY_INTER_PULSE_INTERVAL_MS
-
     def pulse_volume_for(self, cage_id) -> Optional[float]:
         """
         The volume one pulse delivers to this cage, in mL, or None when the
@@ -266,7 +251,7 @@ class SolenoidFlowStrategy:
         entry = by_pw[selected_pw]
         return (
             selected_pw,
-            self._resolve_interval_ms(entry.get('inter_pulse_interval_ms')),
+            resolve_interval_ms(entry.get('inter_pulse_interval_ms')),
             float(entry.get('volume_per_pulse_ml', 0.0)),
         )
 
@@ -305,7 +290,7 @@ class SolenoidFlowStrategy:
                     # raises and the cage falls back, as it always has.
                     pw = int(cal.get('pulse_width_ms'))
                     vol = float(cal.get('volume_per_pulse_ml', 0.0))
-                    interval = self._resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
+                    interval = resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
                     if not self._cal_snapshot.get(cage_id):
                         self._cal_snapshot[cage_id] = {}
                     self._cal_snapshot[cage_id][pw] = {
@@ -379,7 +364,7 @@ class SolenoidFlowStrategy:
             for cage_id, cal in all_cals.items():
                 pw = int(cal.get('pulse_width_ms') or 0)
                 vol = float(cal.get('volume_per_pulse_ml') or 0.0)
-                interval = self._resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
+                interval = resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
                 if not self._cal_snapshot.get(cage_id):
                     self._cal_snapshot[cage_id] = {}
                 self._cal_snapshot[cage_id][pw] = {

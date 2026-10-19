@@ -128,9 +128,10 @@ Now captures:
 #### 2. Run the Calibration Wizard
 Open **Settings → Calibration** and click **Calibrate** on the cage's row. The
 wizard (`ui/CalibrationWizard.py`) walks through a pre-flight checklist, takes
-the number of pulses, the pulse width and the inter-pulse interval, fires the
-pulse train into the beaker, asks for the weighed volume, and shows the
-result:
+the number of pulses, the pulse width and the inter-pulse interval (they start
+from the cage's last calibration, else the device's most recent one, else
+30 ms / 1000 ms: `utils/pulse_profile.py`), fires the pulse train into the
+beaker, asks for the weighed volume, and shows the result:
 
 ```
 Total Volume:       18.7500 mL

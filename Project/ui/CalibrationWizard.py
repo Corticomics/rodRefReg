@@ -29,6 +29,11 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 from utils.operation_lock import CALIBRATION, get_operation_lock
+from utils.pulse_profile import (
+    INTER_PULSE_INTERVAL_RANGE_MS,
+    PULSE_WIDTH_RANGE_MS,
+    wizard_starting_profile,
+)
 
 
 def _rig_is_independent(system_controller) -> bool:
@@ -251,11 +256,6 @@ class CalibrationWizard(QDialog):
 
     calibration_complete = pyqtSignal(dict)  # Emits calibration results
 
-    # Default valve-closed rest offered in the wizard. Longer than the legacy
-    # 100 ms so a calibration run does not heat the coil the way a tight duty
-    # cycle does; the delivery path replays whatever is stored per cage.
-    DEFAULT_INTER_PULSE_INTERVAL_MS = 500
-
     # Above this duty cycle the config page shows a (non-blocking) advisory.
     DUTY_CYCLE_ADVISORY_PCT = 15.0
 
@@ -284,10 +284,13 @@ class CalibrationWizard(QDialog):
         self.db = database_handler
         self.system_controller = system_controller
 
-        # Calibration parameters
+        # Calibration parameters. The pulse width and rest start from this
+        # cage's last calibration, else the device's most recent one, else
+        # the production valve's profile (utils.pulse_profile).
         self.num_pulses = 250  # Default
-        self.pulse_width_ms = 20  # Default
-        self.inter_pulse_interval_ms = self.DEFAULT_INTER_PULSE_INTERVAL_MS
+        self.starting_profile = self._starting_profile()
+        self.pulse_width_ms = self.starting_profile.pulse_width_ms
+        self.inter_pulse_interval_ms = self.starting_profile.interval_ms
         self.measured_volume_ml = 0.0
         self.calibration_result = None
 
@@ -310,6 +313,18 @@ class CalibrationWizard(QDialog):
 
         # Initialize UI
         self.init_ui()
+
+    def _starting_profile(self):
+        """The pulse width and rest this cage starts from, and where they came
+        from (utils.pulse_profile.wizard_starting_profile). Calibrate All
+        Uncalibrated opens one wizard per cage, so each follows the same rule,
+        counting the cages the batch has just calibrated. A database that
+        cannot be read counts as no calibrations."""
+        try:
+            calibrations = self.db.get_all_valve_calibrations()
+        except Exception:
+            calibrations = {}
+        return wizard_starting_profile(self.cage_id, calibrations)
 
     def init_ui(self):
         """Initialize multi-step wizard UI"""
@@ -482,8 +497,8 @@ class CalibrationWizard(QDialog):
 
         # Pulse width
         self.pulse_width_spin = QSpinBox()
-        self.pulse_width_spin.setRange(10, 500)
-        self.pulse_width_spin.setValue(20)
+        self.pulse_width_spin.setRange(*PULSE_WIDTH_RANGE_MS)
+        self.pulse_width_spin.setValue(self.pulse_width_ms)
         self.pulse_width_spin.setSuffix(" ms")
         self.pulse_width_spin.setToolTip("How long the valve is held open for each pulse")
         config_layout.addRow("Pulse Width:", self.pulse_width_spin)
@@ -491,8 +506,8 @@ class CalibrationWizard(QDialog):
         # Inter-pulse interval — the valve-closed rest between pulses. Stored
         # with the calibration so deliveries replay the same timing profile.
         self.interval_spin = QSpinBox()
-        self.interval_spin.setRange(100, 2000)
-        self.interval_spin.setValue(self.DEFAULT_INTER_PULSE_INTERVAL_MS)
+        self.interval_spin.setRange(*INTER_PULSE_INTERVAL_RANGE_MS)
+        self.interval_spin.setValue(self.inter_pulse_interval_ms)
         self.interval_spin.setSingleStep(50)
         self.interval_spin.setSuffix(" ms")
         self.interval_spin.setToolTip(
@@ -527,11 +542,13 @@ class CalibrationWizard(QDialog):
         self.content_layout.addWidget(self.duty_warning)
 
         info = QLabel(
+            f"{self.starting_profile.describe()} "
             "Calibrate with the pulse width and interval you intend to run. "
             "Deliveries replay this cage's stored timing profile."
         )
         info.setWordWrap(True)
         self.content_layout.addWidget(info)
+        self.profile_info = info
 
         self._update_time_estimate()
 

@@ -18,7 +18,7 @@ Calibration runs in the in-app **Calibration Wizard**, one cage at a time. The s
 
 ### Step 2: Run the Wizard
 1. Open **Settings → Calibration**. The table has one row per cage in the device's cage map, with the names set in the Cages tab. Click **Calibrate** on the cage's row (**Recalibrate** if it already has one); the wizard opens for that cage.
-2. Work through the **Pre-Flight Checklist**, then set the **Calibration Parameters**: the number of pulses, the **pulse width**, and the **inter-pulse interval**. The page shows the estimated run time and flags a hot duty cycle.
+2. Work through the **Pre-Flight Checklist**, then set the **Calibration Parameters**: the number of pulses, the **pulse width**, and the **inter-pulse interval**. The width and interval start from the cage's last calibration, and the page says where they came from (see [Where the wizard starts](#where-the-wizard-starts)). The page shows the estimated run time and flags a hot duty cycle.
 3. Click **Next**: the wizard fires the pulse train automatically. Progress updates live, and closing the wizard stops the run.
 
 ### Step 3: Measure & Save
@@ -36,12 +36,16 @@ A calibration says "this valve delivers X mL per pulse" — but only at the cade
 
 Two controls set the profile, and both are stored with the calibration:
 
-| Control | What it does | Default |
-|---|---|---|
-| **Pulse Width** | How long the valve is held open per pulse. Wider pulses spend proportionally less time in the slow opening transient, so they are less sensitive to coil heating — but they coarsen the dose granularity. | 20 ms |
-| **Inter-Pulse Interval** | The valve-closed rest between pulses. A longer rest lowers the duty cycle, so the coil runs cooler and the output holds steady. | 500 ms |
+| Control | What it does |
+|---|---|
+| **Pulse Width** | How long the valve is held open per pulse. Wider pulses spend proportionally less time in the slow opening transient, so they are less sensitive to coil heating — but they coarsen the dose granularity. |
+| **Inter-Pulse Interval** | The valve-closed rest between pulses. A longer rest lowers the duty cycle, so the coil runs cooler and the output holds steady. |
 
-**Calibrate at the profile you intend to run.** Deliveries replay the stored profile for that cage, so the duty cycle that produced the `mL/pulse` figure is the duty cycle the animal receives.
+**Calibrate at the profile you intend to run.** Deliveries replay the stored profile for that cage, so the duty cycle that produced the `mL/pulse` figure is the duty cycle the animal receives. There is no global pulse width in Settings (2.1.0 removed it).
+
+### Where the wizard starts
+
+The two controls open at the cage's last calibration, so a recalibration repeats the profile its deliveries use (a calibration saved before v1.16.0 opens at its 100 ms rest). A cage that was never calibrated, or whose calibration is **Invalid**, opens at the device's most recent calibration; on a device with no calibration at all, at **30 ms / 1000 ms**, the validated profile of the production valve (Parker 003-0257-900). The configuration page says which, for example *Starting from cage 3's calibration, the most recent on this device: 30 ms / 1000 ms*. **Calibrate All Uncalibrated** follows the same rule, so each cage it opens starts from the one calibrated just before it.
 
 **Duty cycle advisory.** Above roughly 15 % duty (`width ÷ (width + interval)`) the wizard shows a warning. It never blocks — it flags that the valve is energised for a large share of the run and the output may drift. Lengthen the interval to bring it down.
 
