@@ -25,6 +25,7 @@ import pytest
 from drivers.solenoid_controller import SolenoidController
 from strategies.delivery_strategy import DeliveryResult
 from strategies.solenoid_flow_strategy import (
+    FALLBACK_PULSE_WIDTH_MS,
     LEGACY_INTER_PULSE_INTERVAL_MS,
     SolenoidFlowStrategy,
 )
@@ -211,6 +212,8 @@ def _strategy(fake, calibrations, monkeypatch, db=None):
         calibration_store=None,
         settings={
             'use_pulse_delivery': True,
+            # A stale key from before v2.1.0, which removed the global pulse
+            # width: the strategy ignores it.
             'pulse_width_ms': 30,
             'pulse_settling_ms': 100,
             'max_pulses_per_delivery': 100,
@@ -291,13 +294,15 @@ def test_strategy_cites_the_row_the_real_handler_saved(
 
 
 def test_strategy_reports_no_calibration_row_when_it_fell_back(fake_relay_handler, monkeypatch):
-    """An uncalibrated cage runs on the empirical default: no row to cite."""
+    """An uncalibrated cage runs on the empirical fallback: no row to cite."""
     strategy = _strategy(fake_relay_handler, {}, monkeypatch)
 
     result = asyncio.run(strategy.deliver(relay_unit_id=1, target_volume_ml=0.05))
 
     assert result.calibration_id is None
-    assert result.pulse_width_ms == strategy._pulse_width_ms
+    # The fallback width, not the stale settings key (30 ms): there is no
+    # global pulse width any more.
+    assert result.pulse_width_ms == FALLBACK_PULSE_WIDTH_MS == 20
     assert result.inter_pulse_interval_ms == LEGACY_INTER_PULSE_INTERVAL_MS
 
 

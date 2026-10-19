@@ -60,17 +60,20 @@ and what each mode requires: [`references/strategy-selection.md`](references/str
 
 ## SolenoidFlowStrategy has two sub-modes
 
-Auto-selected from `settings['use_pulse_delivery']`.
-`SystemController.ensure_solenoid_defaults()` runs at every start
-(main.py:170) and sets it back to True, so continuous mode lasts only until
-the next start.
+Auto-selected from `settings['use_pulse_delivery']`, which is always True
+on a device: `SystemController.FIXED_SETTINGS` forces it when settings load,
+on every save and at every start (`ensure_solenoid_defaults`), and a restored
+backup cannot change it. v2.1.0 removed the Enable Pulse Mode checkbox, so
+continuous mode runs only for a strategy built with the flag False (tests).
 
 - **Continuous mode** (Lee Company LHD valves, legacy) — open the
   solenoid, integrate the flow sensor, close when the integral hits
   target with a predictive cutoff. Without a sensor it holds the valve
   open for a time worked out from `expected_flow_ml_min` instead.
 - **Pulse mode** (Parker Series 3 valves, production) — fire timed pulses
-  (10–500 ms wide) at the cage's calibrated width and rest. Doses are
+  (10–500 ms wide) at the cage's calibrated width and rest. There is no
+  global pulse width: v2.1.0 retired `pulse_width_ms` (deleted from
+  `system_settings` at load; `SystemController.RETIRED_KEYS`). Doses are
   planned in whole pulses of the cage's calibrated volume (about 0.034 mL
   on the production valve), so a window lands within half a pulse of its
   target (an exact half rounds up), or within one pulse above it with
@@ -96,7 +99,8 @@ dialog is titled Cage not on this device when that is the only problem)
 [`Project/utils/pulse_calibration.py`](Project/utils/pulse_calibration.py)
 holds only the global default profile (`CalibrationStore`, a JSON file with
 hardcoded fallbacks, about 0.026 mL/pulse at 20 ms). The strategy still
-falls back to it for a cage with no row, and still uses a stale row with a
+falls back to it for a cage with no row (`FALLBACK_PULSE_WIDTH_MS`, 20 ms,
+with the legacy 100 ms rest), and still uses a stale row with a
 warning, but only as a defence in depth behind the Run check.
 
 ## Flow sensor — one driver, one seam

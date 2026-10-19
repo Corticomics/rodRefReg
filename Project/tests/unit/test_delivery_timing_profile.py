@@ -22,6 +22,7 @@ import time
 from unittest.mock import MagicMock
 
 from strategies.solenoid_flow_strategy import (
+    FALLBACK_PULSE_WIDTH_MS,
     LEGACY_INTER_PULSE_INTERVAL_MS,
     SolenoidFlowStrategy,
 )
@@ -83,7 +84,7 @@ def test_uncalibrated_cage_falls_back_to_legacy_cadence():
     strategy = _make(db=_StubDB({}))
     pw, interval, vol = asyncio.run(strategy._get_cage_calibration(99))
     assert interval == LEGACY_INTER_PULSE_INTERVAL_MS
-    assert pw == strategy._pulse_width_ms
+    assert pw == FALLBACK_PULSE_WIDTH_MS
     assert vol > 0
 
 

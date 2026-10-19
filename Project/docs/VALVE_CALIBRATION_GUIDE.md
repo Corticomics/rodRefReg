@@ -118,7 +118,7 @@ Now captures:
 
 #### 1. Prepare Equipment
 ```bash
-# 1. Verify system is in solenoid + pulse mode
+# 1. Verify Settings → Delivery → Hardware Mode is Solenoid (it always pulses)
 # 2. Check the cage's water supply: reservoir FULL (shared manifold),
 #    or the cage's syringe at its normal running level (independent rig)
 # 3. Place beaker under cage output
@@ -256,9 +256,10 @@ async def _execute_single_pulse(self, cage_id: int) -> float:
 `SolenoidFlowStrategy._get_cage_calibration(cage_id)` returns the cage's
 `(pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml)`. It reads the
 per-run snapshot taken at schedule start (the `[CAL SNAPSHOT]` lines), then the
-database, then the global empirical default for the Settings pulse width
-(`pulse_calibration.json`, or the built-in 0.026 mL/pulse at 20 ms). A delivery
-replays the cage's own pulse width and interval; they need not match Settings.
+database, then, for a cage with no calibration, the empirical fallback: 20 ms
+with its `pulse_calibration.json` figure (or the built-in 0.026 mL/pulse) and the
+legacy 100 ms rest. A delivery replays the cage's own pulse width and interval;
+no setting overrides them (2.1.0 removed the global Pulse Width).
 Since v1.21.0, in solenoid pulse mode (the default), Run refuses a schedule
 that waters a cage with no usable calibration measured under this device's
 valve topology (*Valve calibration needed*; `utils/calibration_gate.py`), so

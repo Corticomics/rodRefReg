@@ -16,6 +16,21 @@ not listed here.
 
 ---
 
+## 2.1.0 — each cage's own pulse profile
+
+**What changes on the device**
+
+- **Change (safety):** Settings > Delivery no longer has *Enable Pulse
+  Mode* or *Pulse Width*. Deliveries are always pulsed, and each cage
+  pulses at the pulse width and interval it was calibrated at, as it
+  already did. Pulse Width only set the width for a cage with no
+  calibration, which Run refuses; unticking Enable Pulse Mode switched the
+  next schedule to continuous delivery, which times each valve without its
+  calibration. The group is now **Pulse Delivery** and keeps *Round doses
+  up to the next whole pulse*. A pulse width saved by an earlier release is
+  deleted when RRR starts, and restoring an older backup cannot turn pulse
+  delivery off.
+
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
 **Before you update**

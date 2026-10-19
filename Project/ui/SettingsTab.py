@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 import pandas as pd
+from controllers.system_controller import SystemController
 from models.animal import Animal
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -205,8 +206,6 @@ class SettingsTab(QWidget):
         self.max_valve_open_s.valueChanged.connect(self._auto_save_settings)
         self.no_flow_timeout_s.valueChanged.connect(self._auto_save_settings)
         self.predictive_close_ms.valueChanged.connect(self._auto_save_settings)
-        self.use_pulse_delivery.stateChanged.connect(self._auto_save_settings)
-        self.pulse_width_ms.valueChanged.connect(self._auto_save_settings)
         self.round_doses_up.stateChanged.connect(self._auto_save_settings)
 
         # Pump settings
@@ -247,8 +246,6 @@ class SettingsTab(QWidget):
                 'max_valve_open_s': self.max_valve_open_s.value(),
                 'no_flow_timeout_s': self.no_flow_timeout_s.value(),
                 'predictive_close_ms': self.predictive_close_ms.value(),
-                'use_pulse_delivery': self.use_pulse_delivery.isChecked(),
-                'pulse_width_ms': self.pulse_width_ms.value(),
                 'round_doses_up': self.round_doses_up.isChecked(),
                 # Pump settings
                 'pump_volume_ul': self.pump_volume.value(),
@@ -447,25 +444,25 @@ class SettingsTab(QWidget):
         safety_group.setLayout(safety_layout)
         solenoid_layout.addWidget(safety_group)
 
-        # Pulse Mode Settings
-        pulse_group = QGroupBox("Pulse Mode (Parker Series 3 Valves)")
-        pulse_layout = QFormLayout()
+        # Pulse delivery. Deliveries are always pulsed, and each cage pulses
+        # at the width and rest it was calibrated at. v2.1.0 removed the
+        # global Pulse Width, which only ever set the width of a cage with no
+        # calibration (Run refuses one), and the Enable Pulse Mode checkbox:
+        # unticked, the next schedule ran in continuous mode, which times
+        # the valve without its calibration (SystemController.FIXED_SETTINGS).
+        pulse_group = QGroupBox("Pulse Delivery")
+        pulse_layout = QVBoxLayout()
         pulse_layout.setContentsMargins(12, 12, 12, 12)
         pulse_layout.setSpacing(8)
-        pulse_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
-        pulse_layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-        self.use_pulse_delivery = QCheckBox("Enable Pulse Mode")
-        self.use_pulse_delivery.setChecked(self.settings.get('use_pulse_delivery', True))
-        self.use_pulse_delivery.setToolTip("Use micro-pulse delivery for precision (recommended)")
-        pulse_layout.addRow("", self.use_pulse_delivery)
-
-        self.pulse_width_ms = SafeSpinBox()
-        self.pulse_width_ms.setRange(10, 500)
-        self.pulse_width_ms.setValue(self.settings.get('pulse_width_ms', 20))
-        self.pulse_width_ms.setSuffix(" ms")
-        self.pulse_width_ms.setToolTip("Pulse duration (default: 20ms for Parker Series 3)")
-        pulse_layout.addRow("Pulse Width:", self.pulse_width_ms)
+        pulse_note = QLabel(
+            "Each cage delivers at the pulse width and interval it was calibrated at, "
+            "shown in Settings > Calibration."
+        )
+        pulse_note.setObjectName("HelpText")
+        pulse_note.setWordWrap(True)
+        pulse_layout.addWidget(pulse_note)
+        self.pulse_profile_note = pulse_note
 
         # Dose rounding policy. Water leaves the valve in whole pulses, so a
         # dose can only land within one pulse of its target; this picks
@@ -483,7 +480,7 @@ class SettingsTab(QWidget):
             "Applies to schedules started after the change; a running schedule keeps "
             "the policy it started with."
         )
-        pulse_layout.addRow("", self.round_doses_up)
+        pulse_layout.addWidget(self.round_doses_up)
 
         pulse_group.setLayout(pulse_layout)
         solenoid_layout.addWidget(pulse_group)
@@ -2022,6 +2019,13 @@ class SettingsTab(QWidget):
                 backup_layout = {
                     key: backup_settings.pop(key) for key in layout_keys if key in backup_settings
                 }
+                # Pulse delivery is always on and the global pulse width is
+                # gone (v2.1.0): a backup from an older release, perhaps saved
+                # with Enable Pulse Mode off, must not bring either back. This
+                # dict is the one the next Run's delivery reads.
+                backup_pulse_mode = backup_settings.get('use_pulse_delivery')
+                for key in (*SystemController.RETIRED_KEYS, *SystemController.FIXED_SETTINGS):
+                    backup_settings.pop(key, None)
                 self.settings.update(backup_settings)
                 self.load_settings()
                 message = "Settings restored successfully"
@@ -2045,6 +2049,12 @@ class SettingsTab(QWidget):
                         f"\n\nThe backup's relay layout ({backup_layout['num_hats']} relay "
                         f"HAT(s)) was not applied: this device keeps its {hats}. Change the "
                         "number with Change Relay Hats if the hardware changed."
+                    )
+                if backup_pulse_mode is False:
+                    message += (
+                        "\n\nThe backup had pulse delivery turned off. That was not applied: "
+                        "deliveries are always pulsed, each cage at the pulse width and "
+                        "interval it was calibrated at."
                     )
                 QMessageBox.information(self, "Success", message)
 

@@ -1156,11 +1156,11 @@ def _build_content() -> Dict[str, HelpContent]:
 <div class='help-section'>
   <h1>Valve Calibration</h1>
   <p>Calibration establishes the exact volume delivered per relay pulse for each cage
-  valve.  In solenoid pulse mode (the default), Run refuses a schedule while any cage it
-  waters has no usable calibration for this device's valve topology, and the dialog names
-  those cages.  Pump mode, and solenoid mode with <em>Enable Pulse Mode</em> turned off
-  (Settings → Delivery), do not use these calibrations; each time it starts, RRR returns to
-  solenoid mode with <em>Enable Pulse Mode</em> on.</p>
+  valve, at the pulse width and rest between pulses it is calibrated with: every delivery
+  to the cage pulses at that same profile.  In solenoid mode (the default), Run refuses a
+  schedule while any cage it waters has no usable calibration for this device's valve
+  topology, and the dialog names those cages.  Pump mode does not use these
+  calibrations.</p>
 
   <h2>Calibration Table (Settings → Calibration)</h2>
   <p>The table has one row per cage on this device (15 with one relay HAT, 31 with two;

@@ -9,6 +9,25 @@ class SystemController(QObject):
     settings_updated = pyqtSignal(dict)
     system_status = pyqtSignal(str)
 
+    # Settings this release no longer has. v2.1.0 removed the global Pulse
+    # Width: every cage pulses at the width and rest stored with its
+    # calibration. A value an older release saved is deleted from the
+    # database when settings load, and never written back or kept in memory,
+    # so it cannot reach a delivery. Reverting to 2.0.0 is safe: its
+    # ensure_solenoid_defaults writes pulse_width_ms (20) back at its first
+    # start, the value it forced at every start anyway.
+    RETIRED_KEYS = ('pulse_width_ms',)
+
+    # Settings that are no longer the operator's to change. Pulse delivery is
+    # the only delivery mode for the production valves (v2.1.0 removed the
+    # Enable Pulse Mode checkbox): forced when settings load, on every save
+    # and by ensure_solenoid_defaults at every start, and never taken from a
+    # backup (SettingsTab.restore_from_backup). A value an older release
+    # saved therefore cannot switch a delivery to continuous mode, which
+    # times the valve without its calibration. SolenoidFlowStrategy and
+    # utils.calibration_gate read it.
+    FIXED_SETTINGS = {'use_pulse_delivery': True}
+
     def __init__(self, database_handler):
         super().__init__()
         self.database_handler = database_handler
@@ -21,33 +40,75 @@ class SystemController(QObject):
         ``settings.json`` are copied into the DB. On the first run after
         the v1.5.1 upgrade, Slack credentials are extracted into a
         mode-0600 ``secrets.json`` (and removed from the DB). Defaults fill
-        any keys still missing. See docs/UPDATE_SYSTEM.md §13.8.
+        any keys still missing. See docs/UPDATE_SYSTEM.md §13.8. Retired
+        settings are deleted from the DB and fixed ones forced (see
+        RETIRED_KEYS and FIXED_SETTINGS).
         """
         try:
             self._migrate_legacy_json_if_needed()
             self._ensure_secrets_migrated()
+            self._delete_retired_settings()
             settings = self._create_default_settings()
             settings.update(self._load_database_settings())
             settings.update(self._load_secrets())
-            return settings
+            return self._normalised(settings)
         except Exception as e:
             self.system_status.emit(f"Error loading settings: {str(e)}")
-            return self._create_default_settings()
+            return self._normalised(self._create_default_settings())
 
     def save_settings(self, settings_dict):
         """Persist managed settings: secrets to ``secrets.json``, the rest to
         the DB; merge everything into ``self.settings``.
 
         Unmanaged keys (runtime objects, ephemeral state) are kept in memory
-        but not persisted — see :meth:`_get_persisted_keys`.
+        but not persisted — see :meth:`_get_persisted_keys`. A retired
+        setting is neither saved nor kept, and a fixed one keeps its value
+        (RETIRED_KEYS, FIXED_SETTINGS).
         """
         try:
+            settings_dict = self._normalised(settings_dict, only_present=True)
             self._save_secrets_if_present(settings_dict)
             self._save_database_settings(settings_dict)
             self.settings.update(settings_dict)
+            # The caller may have handed in self.settings itself, after
+            # writing to it directly: make memory follow the same rules.
+            for key in self.RETIRED_KEYS:
+                self.settings.pop(key, None)
+            self.settings.update(self.FIXED_SETTINGS)
             self.settings_updated.emit(self.settings)
         except Exception as e:
             self.system_status.emit(f"Error saving settings: {str(e)}")
+
+    def _normalised(self, settings_dict, only_present=False):
+        """A copy of ``settings_dict`` under this release's rules: without the
+        retired settings, and with the fixed ones at their values.
+        ``only_present`` leaves out a fixed setting the dict does not have,
+        so a save of other keys writes only those."""
+        cleaned = {
+            key: value for key, value in settings_dict.items() if key not in self.RETIRED_KEYS
+        }
+        for key, value in self.FIXED_SETTINGS.items():
+            if key in cleaned or not only_present:
+                cleaned[key] = value
+        return cleaned
+
+    def _delete_retired_settings(self):
+        """Delete the retired settings an older release saved from the DB.
+
+        Printed as well as emitted: nothing is connected to system_status
+        while settings load, and the journal is where it can be looked up.
+        """
+        try:
+            stored = self.database_handler.get_system_settings()
+        except Exception:
+            return
+        if not isinstance(stored, dict):
+            return
+        for key in self.RETIRED_KEYS:
+            if key in stored and self.database_handler.delete_system_setting(key):
+                message = f"Removed the retired setting {key}={stored[key]!r}"
+                print(f"[SETTINGS] {message}", flush=True)
+                self.system_status.emit(message)
 
     def _create_default_settings(self):
         """Create default settings with proper types"""
@@ -107,9 +168,9 @@ class SystemController(QObject):
             'residual_flow_threshold_ml_min',
             'max_consecutive_sensor_errors',
             'cage_relays',
-            # Pulse-mode persistence (Parker Series 3)
+            # Pulse-mode persistence (Parker Series 3). use_pulse_delivery is
+            # fixed on (FIXED_SETTINGS); pulse_width_ms is retired (v2.1.0).
             'use_pulse_delivery',
-            'pulse_width_ms',
             'pulse_settling_ms',
             'max_pulses_per_delivery',
             'max_pulse_delivery_time_s',
@@ -150,7 +211,6 @@ class SystemController(QObject):
             'max_consecutive_sensor_errors': int,
             # Pulse-mode types
             'use_pulse_delivery': bool,
-            'pulse_width_ms': int,
             'pulse_settling_ms': int,
             'max_pulses_per_delivery': int,
             'max_pulse_delivery_time_s': float,
@@ -382,10 +442,12 @@ class SystemController(QObject):
             }
 
             # CRITICAL: Pulse mode settings (ALWAYS enforce these)
-            # These are deployment-specific and must be present for Parker Series 3 valves
+            # These are deployment-specific and must be present for Parker Series 3 valves.
+            # No pulse width: each cage pulses at the width and rest it was
+            # calibrated at (valve_calibration); the global one is retired.
             pulse_mode_settings = {
-                'use_pulse_delivery': True,  # Enable pulse mode by default (safer, more precise)
-                'pulse_width_ms': 20,  # 20ms pulses (empirically validated)
+                # Pulse delivery is the only mode (FIXED_SETTINGS).
+                'use_pulse_delivery': True,
                 'pulse_settling_ms': 100,  # 100ms settling time after pulse
                 'max_pulses_per_delivery': 100,  # Safety limit
                 'max_pulse_delivery_time_s': 120.0,  # 2 minute timeout

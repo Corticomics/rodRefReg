@@ -14,6 +14,17 @@ from strategies.delivery_strategy import DeliveryResult
 # Calibrations that predate the profile replay exactly this cadence.
 LEGACY_INTER_PULSE_INTERVAL_MS = 100
 
+# The empirical fallback: the pulse width a cage with NO calibration row is
+# pulsed at, with the volume per pulse the bench characterisation measured
+# for it (utils.pulse_calibration.CalibrationStore, about 0.026 mL at 20 ms;
+# FALLBACK_VOLUME_PER_PULSE_ML when it has no figure) and the legacy rest.
+# Only that path uses it, and Run refuses a schedule that waters such a cage
+# (utils.calibration_gate), so on a device it is a defence in depth. Every
+# calibrated cage pulses at its own stored width and rest. Until v2.1.0 the
+# global Pulse Width setting chose this width; every start reset it to 20 ms.
+FALLBACK_PULSE_WIDTH_MS = 20
+FALLBACK_VOLUME_PER_PULSE_ML = 0.026
+
 # The inter-pulse rest is slept in slices no longer than this so a Stop is
 # honoured well inside the GUI's clean-exit budget (utils/stop_sequence.py).
 INTERVAL_SLICE_S = 0.25
@@ -61,11 +72,20 @@ class SolenoidFlowStrategy:
     Automatically selected via `settings['use_pulse_delivery']`:
     - True: Pulse mode (Parker valves)
     - False: Continuous mode (Lee valves)
-    - Default: True (pulse — safer/more precise; SystemController enforces this)
+    - Default: True. On a device it is always True: SystemController fixes it
+      (FIXED_SETTINGS; v2.1.0 removed the Enable Pulse Mode checkbox), so
+      continuous mode runs only for a strategy built with it set False.
+
+    **Per-cage pulse profiles:**
+    Each cage pulses at the width and valve-closed rest it was calibrated at,
+    with the volume per pulse measured at them. valve_calibration holds one
+    profile per cage (cage_id is UNIQUE; a save replaces the cage's row), and
+    no setting overrides it: v2.1.0 removed the global pulse width.
 
     **Empirical Pulse Profiles (from valve_characterization tests):**
+    Used only for a cage with no calibration row (FALLBACK_PULSE_WIDTH_MS).
     - 10ms:  0.0234 mL (CV: 0.0%)
-    - 20ms:  0.0260 mL (CV: 5.0%) ← DEFAULT
+    - 20ms:  0.0260 mL (CV: 5.0%) ← the fallback width
     - 50ms:  0.0239 mL (CV: 9.4%)
     - 100ms: 0.0286 mL (CV: 2.3%)
     - 200ms: 0.0351 mL (CV: 1.1%)
@@ -120,7 +140,8 @@ class SolenoidFlowStrategy:
         # through can say the valve closed after all.
         self._alarmed = set()
         # Per-run calibration snapshot
-        # (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml, inter_pulse_interval_ms, topology}})
+        # (cage_id -> {pulse_width_ms: {id, volume_per_pulse_ml, inter_pulse_interval_ms, topology}}).
+        # One entry per cage: valve_calibration holds one profile per cage.
         self._cal_snapshot: Dict[int, Dict[int, Dict[str, object]]] = {}
         # Running record of what the delivery in flight has dispensed.
         self._reset_ledger()
@@ -144,41 +165,34 @@ class SolenoidFlowStrategy:
         )
         self._say(f"[PULSE MODE DEBUG] self._use_pulse_mode: {self._use_pulse_mode}")
 
+        # The empirical fallback for a cage with no calibration row (see
+        # FALLBACK_PULSE_WIDTH_MS). No setting chooses it.
+        self._fallback_pulse_width_ms = FALLBACK_PULSE_WIDTH_MS
+        self._fallback_volume_ml = FALLBACK_VOLUME_PER_PULSE_ML
+
         if self._use_pulse_mode:
-            # Load pulse calibration (auto-calibrated or hardcoded defaults)
-            # Best Practice: Load from persistent storage, not hardcoded in strategy
+            # The bench-measured volume per pulse at each width (a JSON file,
+            # or hardcoded defaults when there is none).
             from utils.pulse_calibration import CalibrationStore
 
-            cal_store = CalibrationStore()
-            calibration = cal_store.load()
-
-            # Auto-select best pulse width (from calibration or settings)
-            if settings.get('pulse_width_ms'):
-                self._pulse_width_ms = int(settings.get('pulse_width_ms'))
-            else:
-                self._pulse_width_ms = calibration.get_default_pulse_width()
-
-            # Build empirical pulse volume map from calibration
-            self._empirical_pulse_volumes = {
+            calibration = CalibrationStore().load()
+            empirical = {
                 pw: profile.volume_mean_ml for pw, profile in calibration.pulse_profiles.items()
             }
-
-            # Validate pulse width is calibrated
-            if self._pulse_width_ms not in self._empirical_pulse_volumes:
-                available = list(self._empirical_pulse_volumes.keys())
-                self._logger.warning(
-                    f"Pulse width {self._pulse_width_ms}ms not calibrated. "
-                    f"Available: {available}. Using default."
-                )
-                self._pulse_width_ms = calibration.get_default_pulse_width()
-
-            expected_vol = self._empirical_pulse_volumes[self._pulse_width_ms]
+            if FALLBACK_PULSE_WIDTH_MS not in empirical:
+                # Only a hand-made profile file can lack it: take the width it
+                # rates most stable, as before v2.1.0.
+                self._fallback_pulse_width_ms = calibration.get_default_pulse_width()
+            self._fallback_volume_ml = float(
+                empirical.get(self._fallback_pulse_width_ms, FALLBACK_VOLUME_PER_PULSE_ML)
+            )
             cal_date = calibration.calibration_date
             cal_source = calibration.metadata.get('source', 'calibrated')
 
             self._logger.info(
-                f"✓ Pulse mode ENABLED: pulse={self._pulse_width_ms}ms, "
-                f"expected_vol={expected_vol:.4f}mL, calibration={cal_date} ({cal_source})"
+                "✓ Pulse mode ENABLED: each calibrated cage pulses at its own width and rest; "
+                f"a cage with no calibration would get {self._fallback_pulse_width_ms}ms at "
+                f"{self._fallback_volume_ml:.4f}mL/pulse (empirical, {cal_date}, {cal_source})"
             )
         else:
             self._logger.info("Continuous flow mode enabled (legacy)")
@@ -212,8 +226,8 @@ class SolenoidFlowStrategy:
         This is the dose quantum: the scheduling layer uses it to plan whole
         pulses instead of asking for volumes the hardware cannot resolve.
         Resolution mirrors _get_cage_calibration (snapshot, then the
-        empirical default at the runtime width) but is synchronous and
-        read-only, so the worker can consult it while planning a chunk.
+        empirical fallback) but is synchronous and read-only, so the worker
+        can consult it while planning a chunk.
         """
         if not self._use_pulse_mode:
             return None
@@ -221,23 +235,34 @@ class SolenoidFlowStrategy:
             snap = self._get_snapshot_entry(int(cage_id))
         except (TypeError, ValueError):
             return None
-        volume = (
-            snap[2] if snap else self._empirical_pulse_volumes.get(self._pulse_width_ms, 0.026)
-        )
+        volume = snap[2] if snap else self._fallback_volume_ml
         return float(volume) if volume and volume > 0 else None
+
+    @staticmethod
+    def _entry_id(entry) -> int:
+        """A snapshot entry's calibration id (0 when it has none)."""
+        try:
+            return int(entry.get('id') or 0)
+        except (TypeError, ValueError, AttributeError):
+            return 0
 
     def _get_snapshot_entry(self, cage_id: int) -> Optional[Tuple[int, int, float]]:
         """
-        Get (pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml)
-        for a cage from the snapshot. Returns None if not present.
+        The cage's profile from the snapshot: (pulse_width_ms,
+        inter_pulse_interval_ms, volume_per_pulse_ml), or None when the cage
+        has no entry.
+
+        valve_calibration holds one profile per cage, so the snapshot holds
+        one entry per cage and that entry is the cage's profile. Were there
+        ever more (only a hand-built snapshot can have them), the most
+        recently saved row would win (the highest calibration id: a save
+        replaces the cage's row with a new id), then the narrower width.
+        Neither the order they were added in nor any setting decides it.
         """
         by_pw = self._cal_snapshot.get(cage_id)
         if not by_pw:
             return None
-        if self._pulse_width_ms in by_pw:
-            selected_pw = self._pulse_width_ms
-        else:
-            selected_pw = sorted(by_pw.keys())[0]
+        selected_pw = max(by_pw, key=lambda pw: (self._entry_id(by_pw[pw]), -pw))
         entry = by_pw[selected_pw]
         return (
             selected_pw,
@@ -252,12 +277,14 @@ class SolenoidFlowStrategy:
 
         Delivery replays the profile the cage was calibrated at, so the
         duty cycle that produced volume_per_pulse_ml is the duty cycle the
-        animal receives.
+        animal receives. No setting changes it.
 
         Order:
           1) Snapshot (deterministic per-run)
           2) Read-through DB (cache into snapshot)
-          3) Fallback to empirical default at runtime pulse width
+          3) The empirical fallback (FALLBACK_PULSE_WIDTH_MS, the legacy
+             rest), for a cage with no calibration row: Run refuses such a
+             cage, so this is a defence in depth
         """
         snap = self._get_snapshot_entry(cage_id)
         if snap:
@@ -274,7 +301,9 @@ class SolenoidFlowStrategy:
             if self._db:
                 cal = self._db.get_valve_calibration(cage_id)
                 if cal:
-                    pw = int(cal.get('pulse_width_ms', self._pulse_width_ms))
+                    # A row without a width cannot be replayed: the int()
+                    # raises and the cage falls back, as it always has.
+                    pw = int(cal.get('pulse_width_ms'))
                     vol = float(cal.get('volume_per_pulse_ml', 0.0))
                     interval = self._resolve_interval_ms(cal.get('inter_pulse_interval_ms'))
                     if not self._cal_snapshot.get(cage_id):
@@ -302,9 +331,9 @@ class SolenoidFlowStrategy:
         except Exception as e:
             self._logger.debug(f"DB calibration read-through failed for cage {cage_id}: {e}")
         return (
-            self._pulse_width_ms,
+            self._fallback_pulse_width_ms,
             LEGACY_INTER_PULSE_INTERVAL_MS,
-            self._empirical_pulse_volumes.get(self._pulse_width_ms, 0.026),
+            self._fallback_volume_ml,
         )
 
     def _estimate_pulse_period_s(self, pulse_width_ms: int, interval_ms: int) -> float:
@@ -1699,57 +1728,6 @@ class SolenoidFlowStrategy:
             )
 
         return delivered_ml
-
-    async def _get_valve_calibration_value(self, cage_id: int) -> float:
-        """
-        Get per-valve calibrated volume from database.
-
-        Args:
-            cage_id: Cage identifier
-
-        Returns:
-            Volume per pulse in mL (from database or fallback to global)
-        """
-        # 1) Snapshot first (deterministic per-run)
-        try:
-            by_pw = (
-                self._cal_snapshot.get(cage_id) if isinstance(self._cal_snapshot, dict) else None
-            )
-            if by_pw and self._pulse_width_ms in by_pw:
-                vol = float(by_pw[self._pulse_width_ms]['volume_per_pulse_ml'])
-                self._logger.debug(
-                    f"Using snapshot calibration for cage {cage_id} @ {self._pulse_width_ms}ms: {vol:.6f} mL/pulse"
-                )
-                return vol
-        except Exception as e:
-            self._logger.debug(f"Snapshot calibration lookup failed for cage {cage_id}: {e}")
-
-        # 2) Read-through cache (single fetch, then store), avoiding per-pulse DB hits
-        #    Only if snapshot was missing that cage/pulse width.
-        try:
-            if self._db:
-                cal = self._db.get_valve_calibration(cage_id)
-                if cal and int(cal.get('pulse_width_ms', -1)) == self._pulse_width_ms:
-                    vol = float(cal['volume_per_pulse_ml'])
-                    # Store into snapshot for subsequent pulses
-                    if not self._cal_snapshot.get(cage_id):
-                        self._cal_snapshot[cage_id] = {}
-                    self._cal_snapshot[cage_id][self._pulse_width_ms] = {
-                        'id': cal.get('calibration_id', 0),
-                        'volume_per_pulse_ml': vol,
-                    }
-                    self._logger.debug(
-                        f"Using DB calibration (read-through) for cage {cage_id} @ {self._pulse_width_ms}ms: {vol:.6f} mL/pulse"
-                    )
-                    return vol
-        except Exception as e:
-            self._logger.debug(f"DB calibration read-through failed for cage {cage_id}: {e}")
-
-        # Fallback to global calibration
-        return self._empirical_pulse_volumes.get(
-            self._pulse_width_ms,
-            0.026,  # Ultimate fallback
-        )
 
     async def _restart_sensor(self) -> bool:
         """

@@ -57,7 +57,7 @@ Two controls set the profile, and both are stored with the calibration:
 
 Water leaves the valve in whole pulses, so a dose can only ever land within one pulse of its target — at 33 µL per pulse, a 0.3 mL dose is 9.1 pulses and the app must fire 9 or 10. The default rounds to the **nearest** pulse: the dose lands within half a pulse either side of its target, and which side depends on the arithmetic (9.1 → 9, under; 8.8 → 9, over; an exact half, 8.5, rounds up to 9).
 
-**Settings → Delivery → Pulse Mode → "Round doses up to the next whole pulse"** flips that: any dose that is not an exact number of pulses gets the next whole pulse, so the plan never falls below its target and lands up to one pulse over. The rounding stays cumulative within a schedule window — a 0.6 mL window split into three chunks fires `ceil(0.6 ÷ mL/pulse)` pulses in total, not one extra per chunk.
+**Settings → Delivery → Pulse Delivery → "Round doses up to the next whole pulse"** flips that: any dose that is not an exact number of pulses gets the next whole pulse, so the plan never falls below its target and lands up to one pulse over. The rounding stays cumulative within a schedule window — a 0.6 mL window split into three chunks fires `ceil(0.6 ÷ mL/pulse)` pulses in total, not one extra per chunk.
 
 **When to use it.** Turn it on when weighed doses come out consistently short of their target and you would rather err over than under. The bench case: with a flow-restricting needle on the reservoir, 0.3–0.7 mL doses weighed 3–8 % under target at nearest rounding. Rounding up plans one more pulse per dose. At 33 µL per pulse that puts the plan at +10 / +5 / +4 / +3.5 / +2 % for 0.3 / 0.5 / 0.6 / 0.7 / 1.0 mL — the ceiling, if the hardware delivers exactly what is planned — and with the ~16 µL per-dose shortfall measured on the needle rig the bowl lands around +4.5 / +2 / +1.5 / +1 / +0.5 %. Verify with ten weighed doses at the smallest target you use — the choice is a policy, not a calibration, and only weighing tells you which side of the target your rig should sit on. If the needle comes out later, turn the setting off again: on a cage without the shortfall it still adds one pulse to every dose that rounds down.
 
@@ -144,13 +144,13 @@ A relay did not switch partway through the run, so the water in the beaker no lo
 
 ### "Valve calibration needed" when pressing Run
 
-With solenoid hardware and **Enable Pulse Mode** on (the default), Run checks every cage the schedule waters before anything starts (for an instant schedule, the cages of the deliveries still ahead). It refuses the schedule and lists the cages when a cage:
+With solenoid hardware (the default), Run checks every cage the schedule waters before anything starts (for an instant schedule, the cages of the deliveries still ahead). It refuses the schedule and lists the cages when a cage:
 
 - has no calibration (**Not Calibrated** in Settings → Calibration),
 - has one measured under the other valve topology (**Stale**; one saved before v1.21.0 counts as shared manifold), or
 - has one whose volume per pulse or pulse width is missing, zero or invalid (**Invalid**).
 
-Calibrate those cages in **Settings → Calibration** (the highlighted button on each cage's row, or **Calibrate All Uncalibrated**), then press Run again. A calibration only has to match the topology: its pulse width may differ from the one in Settings, because a delivery replays the cage's own.
+Calibrate those cages in **Settings → Calibration** (the highlighted button on each cage's row, or **Calibrate All Uncalibrated**), then press Run again. A calibration only has to match the topology: each cage keeps its own pulse width and interval, and a delivery to it replays them.
 
 A "**Not a cage on this device**" line (the dialog is titled **Cage not on this device** when that is the only problem) means the schedule waters a cage this device's cage map does not have. Edit the schedule so its animals are on cages listed in Settings → Calibration.
 
