@@ -135,3 +135,32 @@ on a Pi and watch `~/rrr/shared/logs/rrr_app_debug.log`. If a change
 can't be device-tested in your environment, **say so in the PR
 description** rather than claiming it works. The relay/stop/delivery
 paths are animal-safety-critical — treat them accordingly.
+
+---
+
+## 7. Colours and themes
+
+The light and dark stylesheets, `Project/ui/style/app-light.qss` and
+`app-dark.qss`, are **generated**: never edit them by hand. Their source:
+
+| File | Holds |
+|---|---|
+| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every colour, by role: `"bg.surface": ("#FFFFFF", "#1E2530")` is (light, dark) |
+| [`Project/ui/style/app.qss.tmpl`](Project/ui/style/app.qss.tmpl) | every rule, once, with `${bg.surface}`-style placeholders; `@light` / `@dark` … `@end` mark the few lines one theme lacks |
+
+To change a colour or a rule:
+
+1. Edit `tokens.py` (a colour) or `app.qss.tmpl` (a rule).
+2. From the repo root, run `python3 Project/ui/style/build_qss.py`. It
+   rewrites both stylesheets, or stops on an unknown role or an unclosed
+   block and names the template line.
+3. Commit all three together: what you edited and both `.qss` files.
+
+`test_qss_generated.py` fails while a committed stylesheet differs from the
+render (`build_qss.py --check` says the same without writing). Name a colour
+by what it is for, not how it looks: reuse a role that fits, or add one.
+Do not write colours into Python under `Project/ui`: give the widget an
+`objectName` or a dynamic property and style it in the template.
+`test_no_new_raw_colours.py` fails when a file gains a raw colour (the
+colours some files still hold are being moved out; lower their counts as
+they go).
