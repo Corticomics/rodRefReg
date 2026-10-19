@@ -520,7 +520,11 @@ def _build_content() -> Dict[str, HelpContent]:
   gives every animal its full amount again; running an instant schedule again skips the
   delivery times that have passed.  To deliver only what is missing, create a new schedule
   for that amount: for a staggered run the red cell's tooltip shows it; for an instant run,
-  check the delivery log first.</p>
+  check the delivery log first.  The tooltip gives what was not delivered to three
+  decimals, and the amount to type in the schedule wizard to its two, rounded half up:
+  <em>To deliver only the remaining 0.369 mL, create a new schedule for 0.37 mL.</em>  The
+  wizard takes 0.10 mL or more: when that amount is smaller, the tooltip says the remainder
+  is below the smallest schedule (0.10 mL) and offers no schedule.</p>
   <p>After an <strong>Interrupted</strong> run, the delivery log shows what each cage
   received.  Open a terminal on the Pi and run
   <code>cd ~/rrr/current/Project &amp;&amp; ~/rrr/shared/venv/bin/python3
@@ -1513,9 +1517,12 @@ def _build_content() -> Dict[str, HelpContent]:
     animals; <strong>Cancel</strong> starts nothing.</li>
     <li><em>Last Run Ended Early</em>: the last run of this schedule was stopped, ended short,
     or RRR closed during it, after some water went out.  The dialog lists what each animal got
-    of its planned amount.  Run does not resume a schedule: <strong>Start Over</strong> gives
-    those animals their full amount again.  To deliver only the missing water, press
-    <strong>Cancel</strong> and create a new schedule for that amount.</li>
+    of its planned amount and, for a staggered schedule, what is missing with the amount to
+    type in the schedule wizard (<em>remaining 0.369 of the 0.600 mL scheduled, 0.37 mL in a
+    new schedule</em>), or says it is below the smallest schedule (0.10 mL).  Run does not
+    resume a schedule: <strong>Start Over</strong> gives those animals their full amount
+    again.  To deliver only the missing water, press <strong>Cancel</strong> and create a new
+    schedule for that amount.</li>
     <li><em>Last Run Completed</em>: the last run of this schedule gave every animal its full
     amount.  The dialog lists what each animal got and when; <strong>Start Over</strong> gives
     it again, on top of what it got.  Either dialog also says what is left of the window when
