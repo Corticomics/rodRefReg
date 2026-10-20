@@ -98,6 +98,55 @@ def test_a_pulse_width_an_older_release_saved_is_deleted_at_load(database_handle
     assert "[SETTINGS]" not in capsys.readouterr().out
 
 
+def test_the_journal_says_when_the_database_refused_the_change(
+    database_handler, monkeypatch, capsys
+):
+    """DatabaseHandler reports a database error by returning False. The
+    journal must not say a change was stored when it was not; RRR still
+    uses pulse delivery and no width, and the next start tries again."""
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    _older_release_left(database_handler)
+    update, delete = database_handler.update_system_setting, database_handler.delete_system_setting
+    monkeypatch.setattr(
+        database_handler,
+        "update_system_setting",
+        lambda key, *a: False if key == 'use_pulse_delivery' else update(key, *a),
+    )
+    monkeypatch.setattr(
+        database_handler,
+        "delete_system_setting",
+        lambda key: False if key == 'pulse_width_ms' else delete(key),
+    )
+
+    controller = SystemController(database_handler)
+
+    journal = capsys.readouterr().out
+    assert "Stored the fixed setting" not in journal
+    assert "Removed the retired setting" not in journal
+    assert (
+        "[SETTINGS] Could not store the fixed setting use_pulse_delivery=True; the database "
+        "still holds False, RRR uses True, and the next start tries again"
+    ) in journal
+    assert (
+        "[SETTINGS] Could not remove the retired setting pulse_width_ms=50; it is ignored, "
+        "and the next start tries again"
+    ) in journal
+    assert _stored(database_handler)['use_pulse_delivery'] is False, "as the journal says"
+    assert controller.settings['use_pulse_delivery'] is True
+    assert 'pulse_width_ms' not in controller.settings
+
+    # The database works again at the next start. (Not monkeypatch.undo():
+    # that would also unset the RRR_DATA the data-directory fixture set.)
+    monkeypatch.setattr(database_handler, "update_system_setting", update)
+    monkeypatch.setattr(database_handler, "delete_system_setting", delete)
+    SystemController(database_handler)
+    journal = capsys.readouterr().out
+    assert "[SETTINGS] Removed the retired setting pulse_width_ms=50" in journal
+    assert "[SETTINGS] Stored the fixed setting use_pulse_delivery=True (was False)" in journal
+    assert _stored(database_handler)['use_pulse_delivery'] is True
+
+
 def test_a_legacy_settings_json_cannot_bring_either_back(database_handler, write_legacy_settings):
     """A device still on a pre-v1.5.0 settings.json migrates it once, at its
     first start on this release: the width is not copied, and pulse delivery

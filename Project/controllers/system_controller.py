@@ -110,18 +110,31 @@ class SystemController(QObject):
             return
         messages = []
         for key in self.RETIRED_KEYS:
-            if key in stored and self.database_handler.delete_system_setting(key):
+            if key not in stored:
+                continue
+            # The DatabaseHandler reports a database error by returning False.
+            if self.database_handler.delete_system_setting(key):
                 messages.append(f"Removed the retired setting {key}={stored[key]!r}")
+            else:
+                messages.append(
+                    f"Could not remove the retired setting {key}={stored[key]!r}; "
+                    "it is ignored, and the next start tries again"
+                )
         for key, value in self.FIXED_SETTINGS.items():
-            if key in stored and stored[key] != value:
-                try:
-                    self._write_setting_to_db(key, value)
-                except Exception as exc:
-                    messages.append(f"Could not store the fixed setting {key}={value!r}: {exc}")
-                else:
-                    messages.append(
-                        f"Stored the fixed setting {key}={value!r} (was {stored[key]!r})"
-                    )
+            if key not in stored or stored[key] == value:
+                continue
+            try:
+                written, why = self._write_setting_to_db(key, value), ""
+            except Exception as exc:
+                written, why = False, f" ({exc})"
+            if written:
+                messages.append(f"Stored the fixed setting {key}={value!r} (was {stored[key]!r})")
+            else:
+                messages.append(
+                    f"Could not store the fixed setting {key}={value!r}{why}; the database "
+                    f"still holds {stored[key]!r}, RRR uses {value!r}, and the next start "
+                    "tries again"
+                )
         for message in messages:
             print(f"[SETTINGS] {message}", flush=True)
             self.system_status.emit(message)
@@ -576,7 +589,8 @@ class SystemController(QObject):
                 self._write_setting_to_db(key, value)
 
     def _write_setting_to_db(self, key, value):
-        """Type-tag and persist a single setting via DatabaseHandler."""
+        """Type-tag and persist a single setting via DatabaseHandler. Returns
+        what it returns: False when the database refused the write."""
         if isinstance(value, bool):
             type_name = 'bool'
         elif isinstance(value, int):
@@ -588,7 +602,7 @@ class SystemController(QObject):
             value = json.dumps(value, default=str)
         else:
             type_name = 'str'
-        self.database_handler.update_system_setting(key, value, type_name)
+        return self.database_handler.update_system_setting(key, value, type_name)
 
     def _migrate_legacy_json_if_needed(self):
         """One-time copy of legacy settings.json into the system_settings table.
