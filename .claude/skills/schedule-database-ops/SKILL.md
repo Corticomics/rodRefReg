@@ -93,6 +93,15 @@ A one-time legacy-JSON migration runs on first load and writes a sentinel
 row so it never runs twice. The pattern is tested in
 [`Project/tests/unit/test_settings_persistence.py`](Project/tests/unit/test_settings_persistence.py).
 
+`load_settings()` loads every row and `save_settings()` never deletes one, so
+removing a key from `_get_persisted_keys()` alone does not retire it. Since
+v2.1.0, `SystemController.RETIRED_KEYS` (`pulse_width_ms`) are deleted at
+load and never saved or kept in memory, and `SystemController.FIXED_SETTINGS`
+(`use_pulse_delivery: True`) are forced at load (in the DB and in memory) and
+on every save. `SettingsTab.restore_from_backup` drops both from a backup.
+See [`Project/docs/DATABASE.md` §6](Project/docs/DATABASE.md) and
+`test_retired_pulse_settings.py`.
+
 ## Idempotent schema (the contract)
 
 `DatabaseHandler.create_tables` is called on **every** app startup. It
