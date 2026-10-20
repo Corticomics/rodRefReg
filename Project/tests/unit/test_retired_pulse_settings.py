@@ -6,9 +6,10 @@ delivery is the only mode. These replace the tests of the old force-merge
 (pulse_width_ms reset to 20 at every start). Pinned here, against the real
 SystemController and database, and the real SettingsTab offscreen:
 
-- a pulse_width_ms an older release saved is deleted when settings load, and
-  no save writes one back; use_pulse_delivery is True after a load, a save
-  and every start, whatever the database said;
+- a pulse_width_ms an older release saved (in the database, or in a legacy
+  settings.json) is deleted when settings load, and no save writes one back;
+  use_pulse_delivery is True after a load, a save and every start, in memory
+  and in the database, whatever an older release saved;
 - the Delivery tab shows neither control, says where each cage's profile is,
   and its auto-save writes neither key;
 - a backup from an older release (pulse delivery off, a pulse width)
@@ -95,6 +96,23 @@ def test_a_pulse_width_an_older_release_saved_is_deleted_at_load(database_handle
 
     SystemController(database_handler)  # the next start finds nothing to change
     assert "[SETTINGS]" not in capsys.readouterr().out
+
+
+def test_a_legacy_settings_json_cannot_bring_either_back(database_handler, write_legacy_settings):
+    """A device still on a pre-v1.5.0 settings.json migrates it once, at its
+    first start on this release: the width is not copied, and pulse delivery
+    is on in memory and in the database."""
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    write_legacy_settings({"num_hats": 1, "pulse_width_ms": 50, "use_pulse_delivery": False})
+
+    controller = SystemController(database_handler)
+
+    assert controller.settings['num_hats'] == 1, "the migration ran"
+    assert 'pulse_width_ms' not in controller.settings
+    assert 'pulse_width_ms' not in _stored(database_handler)
+    assert controller.settings['use_pulse_delivery'] is True
+    assert _stored(database_handler)['use_pulse_delivery'] is True
 
 
 def test_no_save_writes_a_pulse_width_or_turns_pulse_delivery_off(
