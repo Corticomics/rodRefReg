@@ -1127,6 +1127,8 @@ QTreeWidget#HelpTree {
     border-radius: 8px;
     outline: none;
     color: #1A1D1F;
+    /* The selection is the rounded item alone, not a second block in the indent */
+    show-decoration-selected: 0;
 }
 QTreeWidget#HelpTree::item {
     padding: 8px 10px;

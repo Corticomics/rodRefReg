@@ -265,6 +265,15 @@ def test_the_help_pane_follows_the_theme(qapp, tokens, style):
     assert help_tab._current_theme() == "light"
     assert page() == tokens.value("bg.surface", "light")
 
+    # The selected topic is one solid block: its indent keeps the tree's surface
+    tree = help_tab.topic_tree
+    rect = tree.visualItemRect(tree.currentItem())
+    image = tree.viewport().grab().toImage()
+    assert _pixel(image, rect.left() + 12, rect.center().y()) == tokens.value(
+        "bg.selected", "light"
+    )
+    assert _pixel(image, 4, rect.center().y()) == tokens.value("bg.surface", "light")
+
     # main.py applies the saved theme after the GUI exists: the pane redraws itself
     manager.apply("dark")
     qapp.processEvents()
