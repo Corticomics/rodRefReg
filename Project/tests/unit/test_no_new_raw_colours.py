@@ -7,10 +7,12 @@ widget through the stylesheet: give the widget an objectName or a dynamic proper
 style it in app.qss.tmpl with a ${role} (a colour code paints itself is a qproperty-*, as
 the Animals tab's red cell does), then run build_qss.py.
 
-Today's UI code still holds raw colours, so this is a ratchet: each file may keep at most
-the count it had when the test was written (BASELINE), and a file not listed may have
-none. Lower a count when you remove colours; never raise one. Comments and docstrings are
-not counted. Counting walks the syntax tree, so it is the same on every Python version.
+Today's UI code still holds raw colours, so this is a ratchet: each file must hold exactly
+its count in BASELINE, and a file not listed none. A file that gains a colour fails. So
+does one that loses colours, until its count is lowered (an entry at 0 is deleted), so
+that the allowance it freed cannot be spent on a new colour later. Never raise a count.
+Comments and docstrings are not counted. Counting walks the syntax tree, so it is the
+same on every Python version.
 """
 
 from __future__ import annotations
@@ -126,10 +128,16 @@ def _ui_files():
             yield relative, path
 
 
+def _counts():
+    """{relative path: raw colours found} for every UI file, listed or not."""
+    return {
+        relative: raw_colours(path.read_text(encoding="utf-8")) for relative, path in _ui_files()
+    }
+
+
 def test_no_ui_file_gains_a_raw_colour():
     over = []
-    for relative, path in _ui_files():
-        hits = raw_colours(path.read_text(encoding="utf-8"))
+    for relative, hits in _counts().items():
         allowed = BASELINE.get(relative, 0)
         if len(hits) > allowed:
             listing = ", ".join(f"line {line}: {colour}" for line, colour in hits)
@@ -139,6 +147,22 @@ def test_no_ui_file_gains_a_raw_colour():
         "or a dynamic property and colour it in Project/ui/style/app.qss.tmpl with a ${role} "
         "from tokens.py (add the role if none fits), then run "
         "python3 Project/ui/style/build_qss.py.\n" + "\n".join(over)
+    )
+
+
+def test_a_file_that_loses_raw_colours_lowers_its_baseline():
+    counts = _counts()
+    under = []
+    for relative, allowed in sorted(BASELINE.items()):
+        if relative not in counts:
+            continue  # a deleted file: test_the_baseline_lists_only_existing_files
+        found = len(counts[relative])
+        if found < allowed:
+            change = f"lower it to {found}" if found else "delete the entry"
+            under.append(f"BASELINE[{relative!r}] is {allowed}, {found} found: {change}")
+    assert not under, (
+        "Raw colours were removed. Lower the counts in BASELINE to match, so that the "
+        "allowance freed cannot take a new colour later.\n" + "\n".join(under)
     )
 
 
