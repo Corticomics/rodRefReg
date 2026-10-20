@@ -145,7 +145,8 @@ def test_check_mode_reports_a_stale_stylesheet_and_a_build_fixes_it(tmp_path, mo
     monkeypatch.setattr(build_qss, "OUTPUTS", outputs)
     assert build_qss.main(["--check"]) == 0
 
-    edited = outputs["dark"].read_text(encoding="utf-8").replace("#1E2530", "#1E2531", 1)
+    # A hand edit that names no colour, so a new palette cannot make it a no-op
+    edited = outputs["dark"].read_text(encoding="utf-8") + "/* a hand edit */\n"
     outputs["dark"].write_text(edited, encoding="utf-8")
     assert build_qss.main(["--check"]) == 1
     assert outputs["dark"].read_text(encoding="utf-8") == edited, "--check writes nothing"
