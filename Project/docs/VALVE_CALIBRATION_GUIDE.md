@@ -262,7 +262,7 @@ database, then, for a cage with no calibration, the empirical fallback: 20 ms
 with its `pulse_calibration.json` figure (or the built-in 0.026 mL/pulse) and the
 legacy 100 ms rest. A delivery replays the cage's own pulse width and interval;
 no setting overrides them (2.1.0 removed the global Pulse Width).
-Since v1.21.0, in solenoid pulse mode (the default), Run refuses a schedule
+Since v1.21.0, in solenoid mode (the default), Run refuses a schedule
 that waters a cage with no usable calibration measured under this device's
 valve topology (*Valve calibration needed*; `utils/calibration_gate.py`), so
 the default and a Stale row are reached only as a defence in depth.
@@ -304,7 +304,7 @@ else:
   Since v1.21.0 each calibration records the topology it was measured under.
   One measured under the other valve topology shows **Stale** in Settings →
   Calibration (one saved before v1.21.0 counts as shared manifold), and in
-  solenoid pulse mode (the default) Run refuses a schedule that waters that
+  solenoid mode (the default) Run refuses a schedule that waters that
   cage until it is recalibrated.
 
 **Should calibrate:**
@@ -344,7 +344,7 @@ else:
 each cage's own figure keeps delivery error under 5 %.
 
 **Global calibration is no longer an option.** Since v1.21.0, in solenoid
-pulse mode (the default), Run refuses a schedule that waters a cage with no
+mode (the default), Run refuses a schedule that waters a cage with no
 usable calibration measured under this device's valve topology (*Valve
 calibration needed*), and only a cage's own calibration counts. The global
 figures in `pulse_calibration.json` remain only as the delivery code's
@@ -399,7 +399,7 @@ Adaptive correction: sensor=0.045mL, cal=0.075mL, using=0.060mL (dev=40%)
    [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
    Every cage the schedule waters has a line: since v1.21.0, in solenoid
-   pulse mode (the default), Run refuses a schedule that waters a cage with
+   mode (the default), Run refuses a schedule that waters a cage with
    no usable calibration measured under this device's valve topology (see
    [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md#valve-calibration-needed-when-pressing-run)). (Once the
    window is up the app sends its output to the Terminal tab, not to the
@@ -430,7 +430,7 @@ measurement from that run. Fix the HAT, then calibrate again.
 
 ### Scenario 1: Fresh System (No Calibration)
 
-**Status:** no cage has a calibration. Since v1.21.0, in solenoid pulse mode
+**Status:** no cage has a calibration. Since v1.21.0, in solenoid mode
 (the default), Run refuses a schedule on an uncalibrated cage (*Valve
 calibration needed*), so nothing is delivered on the 0.026 mL/pulse default.
 
@@ -444,7 +444,7 @@ calibration needed*), so nothing is delivered on the 0.026 mL/pulse default.
 
 **Action:**
 1. Calibrate critical valves (used in active experiments)
-2. Only schedules whose cages all have their own calibration will start: in solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*). The global file is kept only as a last-resort fallback inside the delivery code
+2. Only schedules whose cages all have their own calibration will start: in solenoid mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*). The global file is kept only as a last-resort fallback inside the delivery code
 3. Gradually calibrate remaining valves
 
 ### Scenario 3: System with Incorrect Global Calibration

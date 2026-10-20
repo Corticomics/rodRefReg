@@ -78,7 +78,7 @@ For every cage that will carry an animal, in **Settings → Calibration** click 
 | cage | run 1 | run 2 | run 3 | CV of the three (%) | drift run 1→3 (%) | q saved (µL) |
 |---|---|---|---|---|---|---|
 
-CV ≤ 1.5 %, drift ≤ 3 %, q ≤ 40 µL. The **last** saved run is the calibration in force; do not recalibrate that cage again until its dose sets are done. In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*), so a cage's C2–C4 schedules cannot start until its C1 run is saved. On a rig switched from the manifold, the old calibrations show **Stale** in **Settings → Calibration** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold) and count as none.
+CV ≤ 1.5 %, drift ≤ 3 %, q ≤ 40 µL. The **last** saved run is the calibration in force; do not recalibrate that cage again until its dose sets are done. In solenoid mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*), so a cage's C2–C4 schedules cannot start until its C1 run is saved. On a rig switched from the manifold, the old calibrations show **Stale** in **Settings → Calibration** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold) and count as none.
 
 ### 3.3 C2–C4 — weighed doses
 
@@ -169,6 +169,6 @@ For every validation run: the release version, the topology and `q` per cage, th
 
 ## 6. Rollback
 
-- To take a rig off the independent topology, once its master valve and manifold are plumbed back in: **Settings → Delivery → Valve Topology → Shared manifold (master valve)**, confirm with **Restart RRR**, and recalibrate every cage (the independent calibrations show **Stale**, and in solenoid pulse mode, the default, **Run** refuses them). With the app closed, `tools/set_valve_topology.py shared_manifold` does the same.
+- To take a rig off the independent topology, once its master valve and manifold are plumbed back in: **Settings → Delivery → Valve Topology → Shared manifold (master valve)**, confirm with **Restart RRR**, and recalibrate every cage (the independent calibrations show **Stale**, and in solenoid mode, the default, **Run** refuses them). With the app closed, `tools/set_valve_topology.py shared_manifold` does the same.
 - Before rolling a rig **back to a release older than v1.21.0**, set the topology back to `shared_manifold` first: the older release ignores the setting and would drive relay 16 on every delivery.
 - The validation data is in the device's data directory (`~/rrr/shared/data`), which releases and rollbacks never touch.

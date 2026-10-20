@@ -484,7 +484,7 @@ no default of its own.
 > After switching, calibrate every animal channel in **Settings →
 > Calibration**. A calibration measured under the other valve topology shows
 > **Stale** there (one saved before v1.21.0 counts as shared manifold). In
-> solenoid pulse mode (the default) **Run** refuses a schedule that waters a
+> solenoid mode (the default) **Run** refuses a schedule that waters a
 > cage with no usable calibration measured under this device's valve
 > topology (*Valve calibration needed*), so a Stale cage cannot be watered
 > until it is recalibrated. **Calibrate All Uncalibrated** takes the Stale
@@ -609,7 +609,7 @@ After install:
 3. **Open Settings → Priming** and prime every line. See
    [PRIMING_FEATURE_DOCUMENTATION.md](PRIMING_FEATURE_DOCUMENTATION.md).
 4. **Calibrate every valve.** See [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md).
-   This step is mandatory: in solenoid pulse mode (the default) **Run**
+   This step is mandatory: in solenoid mode (the default) **Run**
    refuses a schedule that waters a cage with no usable calibration measured
    under this device's valve topology (*Valve calibration needed*), because
    RRR cannot know how much water a pulse gives without one.

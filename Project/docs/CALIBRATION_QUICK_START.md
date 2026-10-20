@@ -113,7 +113,7 @@ Quality: POOR
 3. **Supply Level:** Head pressure affects volume (the reservoir full on a shared manifold; each cage's syringe at its normal running level on an independent rig)
 4. **Measure Water as-is:** 1g ≈ 1mL (at room temp)
 5. **Recalibrate:** Every 3 months or after valve replacement
-6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table (one saved before v1.21.0 counts as shared manifold), and in solenoid pulse mode (the default) Run refuses any schedule that waters a Stale cage until it is recalibrated. **Calibrate All Uncalibrated** includes the Stale cages.
+6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table (one saved before v1.21.0 counts as shared manifold), and in solenoid mode (the default) Run refuses any schedule that waters a Stale cage until it is recalibrated. **Calibrate All Uncalibrated** includes the Stale cages.
 
 ---
 
@@ -144,7 +144,7 @@ A relay did not switch partway through the run, so the water in the beaker no lo
    ```
    [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
-   Every cage the schedule waters has a line: since v1.21.0, in solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (see ["Valve calibration needed" when pressing Run](#valve-calibration-needed-when-pressing-run) below). These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
+   Every cage the schedule waters has a line: since v1.21.0, in solenoid mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (see ["Valve calibration needed" when pressing Run](#valve-calibration-needed-when-pressing-run) below). These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
 
 ### "Valve calibration needed" when pressing Run
 

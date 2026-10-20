@@ -1,7 +1,7 @@
 # Calibration pipeline
 
 Per-cage pulse-to-volume calibration for `SolenoidFlowStrategy` in pulse
-mode. In solenoid pulse mode (the default), Run refuses a schedule that
+mode. In solenoid mode (the default), Run refuses a schedule that
 waters a cage with no usable calibration measured under this device's valve
 topology (Valve calibration needed; `utils/calibration_gate.py`); the
 strategy's own fallback (about 0.026 mL/pulse) is only a defence in depth.
@@ -88,7 +88,7 @@ When a schedule starts, `SolenoidFlowStrategy` snapshots every row
 width and rest (`_get_cage_calibration`); a cage missing from the snapshot
 is read through with `get_valve_calibration(cage_id)`.
 
-Before that, in solenoid pulse mode (the default), Run refuses the schedule
+Before that, in solenoid mode (the default), Run refuses the schedule
 (`utils/calibration_gate.py`, called from
 `RunStopSection._passes_calibration_gate`; there is no setting to turn it
 off) when a cage it waters has no row, a missing, zero or invalid volume

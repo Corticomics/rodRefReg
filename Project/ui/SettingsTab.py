@@ -631,7 +631,7 @@ class SettingsTab(QWidget):
             "Must match how this rig is plumbed. Changing it restarts RRR, so priming, "
             "calibration and schedules all use the new topology. After a change, "
             "calibrations measured under the other topology show as Stale, and in solenoid "
-            "pulse mode (the default) a schedule watering a Stale cage will not start until "
+            "mode (the default) a schedule watering a Stale cage will not start until "
             "that cage is recalibrated."
         )
         note.setObjectName("HelpText")
@@ -837,7 +837,7 @@ class SettingsTab(QWidget):
             "RRR restarts to apply the change, so priming, calibration and schedules all "
             "use the new topology. Log in again after the restart.\n\n"
             "Calibrations measured under the other topology will show as Stale, and in "
-            "solenoid pulse mode (the default) Run refuses a schedule that waters a Stale "
+            "solenoid mode (the default) Run refuses a schedule that waters a Stale "
             "cage until that cage is recalibrated."
         )
         restart = box.addButton("Restart RRR", QMessageBox.AcceptRole)

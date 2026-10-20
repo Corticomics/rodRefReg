@@ -61,7 +61,7 @@ does not answer at start-up leaves its stack's slot empty the same way
 
 Nothing is faked from there on. A write to a relay with no HAT prints
 `Relay N not switched: no initialised relay HAT for it` and returns False.
-In solenoid pulse mode (the default) the delivery stops with
+In solenoid mode (the default) the delivery stops with
 `[VALVE ERROR] cage N: …; delivery stopped`; in any mode its ledger row is
 `partial` (some water got through) or `failed`. A cage
 or master valve whose close did not get through, or whose relay has not

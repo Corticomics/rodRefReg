@@ -87,7 +87,7 @@ continuous mode runs only for a strategy built with the flag False (tests).
 Per-cage pulse profiles live in the `valve_calibration` table, written by
 the calibration wizard through `DatabaseHandler.save_valve_calibration`;
 each row records the valve topology it was measured under (v1.21.0); one
-saved before v1.21.0 counts as shared manifold. In solenoid pulse mode (the
+saved before v1.21.0 counts as shared manifold. In solenoid mode (the
 default), Run refuses a schedule that waters a cage with no usable
 calibration measured under this device's valve topology (Valve calibration
 needed): no row, a missing, zero or invalid volume per pulse or pulse width

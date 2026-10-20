@@ -234,7 +234,7 @@ def _build_content() -> Dict[str, HelpContent]:
     (master valve) or independent (one syringe and one valve per animal).</li>
     <li>Add animals in the <strong>Animals</strong> tab.</li>
     <li>Calibrate the valve of every cage you will water in <strong>Settings → Calibration</strong>.
-    In solenoid pulse mode (the default), Run refuses a schedule while any of its cages is
+    In solenoid mode (the default), Run refuses a schedule while any of its cages is
     <em>Not Calibrated</em>, <em>Invalid</em> or <em>Stale</em>.</li>
     <li>Create a schedule via the <strong>Wizard</strong> tab or the <strong>Schedules</strong>
     tab.</li>
@@ -309,7 +309,7 @@ def _build_content() -> Dict[str, HelpContent]:
   each cage (or <em>Calibrate All Uncalibrated</em> for a batch run).  Follow the on-screen
   wizard — you will need a lab scale accurate to ±0.001 g.  Calibration data is saved to
   the database, with the valve topology it was measured under, and used for all future
-  deliveries.  In solenoid pulse mode (the default), Run refuses a schedule while any cage it
+  deliveries.  In solenoid mode (the default), Run refuses a schedule while any cage it
   waters is <em>Not Calibrated</em>, <em>Invalid</em> (volume per pulse or pulse width missing,
   zero or invalid) or <em>Stale</em> (measured under the other valve topology).
   <em>Calibrate All Uncalibrated</em> also takes the Invalid and Stale cages.</p>
@@ -390,7 +390,7 @@ def _build_content() -> Dict[str, HelpContent]:
     the execution window.</li>
     <li>Click <strong>Run</strong>.  The <strong>Execution Monitor</strong> tab
     automatically appears in the left pane with a progress card for each animal.</li>
-    <li>In solenoid pulse mode (the default), a schedule does not start while a cage it waters
+    <li>In solenoid mode (the default), a schedule does not start while a cage it waters
     has no usable valve calibration: a <em>Valve calibration needed</em> dialog names the
     cages.  Calibrate them in <strong>Settings → Calibration</strong>, then press
     <strong>Run</strong> again.</li>
@@ -681,7 +681,7 @@ def _build_content() -> Dict[str, HelpContent]:
   <h2>Running a schedule</h2>
   <p>Drag a schedule card into the <strong>Schedule Queue</strong> in the Run/Stop section
   (right pane), then press <strong>Run</strong>.</p>
-  <p>In solenoid pulse mode (the default), before anything is delivered Run checks the valve
+  <p>In solenoid mode (the default), before anything is delivered Run checks the valve
   calibration of every cage the schedule waters.  A cage that is not calibrated, has an
   unusable calibration (<em>Invalid</em>), or was calibrated under the other valve topology
   (<em>Stale</em>) stops the start with a <em>Valve calibration needed</em> dialog naming the
@@ -750,7 +750,7 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><strong>Instant mode</strong>: delivery datetime and volume per animal.</li>
   </ul>
   <p>The wizard validates that start is before end, volumes are positive, and no two animals
-  share the same cage.  It does not check valve calibrations: in solenoid pulse mode (the
+  share the same cage.  It does not check valve calibrations: in solenoid mode (the
   default), <strong>Run</strong> does, when you start the schedule.</p>
 
   <h2>Step 4 — Review and Save</h2>
@@ -891,7 +891,7 @@ def _build_content() -> Dict[str, HelpContent]:
 
   <h2>Relay Command Checks</h2>
   <ul>
-    <li>Every valve command is checked.  In solenoid pulse mode, a close that does not reach
+    <li>Every valve command is checked.  In solenoid mode, a close that does not reach
     its relay is tried again at once and after short waits.  A delivery stops when a valve
     command still does not switch its relay, a pulse fails for any other reason, or the dose
     runs into the pulse or time limit, and System
@@ -913,7 +913,7 @@ def _build_content() -> Dict[str, HelpContent]:
   </ul>
 
   <h2>Calibration Check at Run</h2>
-  <p>In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no
+  <p>In solenoid mode (the default), Run refuses a schedule that waters a cage with no
   usable calibration measured under this device's valve topology (<em>Valve calibration
   needed</em>).  See <em>Valve Calibration</em>.</p>
 
@@ -1000,7 +1000,7 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>Check the Calibration table (Settings → Calibration) — uncalibrated cages show
     a red "Not Calibrated" status, cages whose stored calibration is unusable show a red
     "Invalid", and cages calibrated under the other valve topology show an amber "Stale".
-    In solenoid pulse mode (the default), Run refuses a schedule while any cage it waters
+    In solenoid mode (the default), Run refuses a schedule while any cage it waters
     shows one of these.</li>
   </ul>
 
@@ -1075,7 +1075,7 @@ def _build_content() -> Dict[str, HelpContent]:
     <li>One relay per cage — 15 cages on the first HAT, 16 on each further HAT (31 on two).</li>
     <li>Real-time volumetric feedback from the flow sensor.</li>
     <li>Predictive valve close to minimize overshoot.</li>
-    <li>Requires a valve calibration for each cage (Settings → Calibration); in solenoid pulse
+    <li>Requires a valve calibration for each cage (Settings → Calibration); in solenoid
     mode (the default), Run refuses a schedule whose cages are not calibrated for this valve
     topology.</li>
     <li>Can operate without the flow sensor if <em>Allow schedules without flow sensor</em>
@@ -1097,7 +1097,7 @@ def _build_content() -> Dict[str, HelpContent]:
   session or a calibration is running, and otherwise asks you to confirm with
   <strong>Restart RRR</strong> or <strong>Cancel</strong>.  Confirming restarts RRR, so priming,
   calibration and schedules all use the new topology.  Cages calibrated under the other valve
-  topology show <strong>Stale</strong> in Settings → Calibration; in solenoid pulse mode (the
+  topology show <strong>Stale</strong> in Settings → Calibration; in solenoid mode (the
   default) a schedule that waters them will not start until they are recalibrated.</p>
 
   <h2>Pump Mode (Legacy)</h2>
@@ -1189,7 +1189,7 @@ def _build_content() -> Dict[str, HelpContent]:
   <strong>Settings → Delivery → Valve Topology</strong>, its Status shows <em>Stale</em> and its
   <em>Recalibrate</em> button is highlighted.  A calibration saved before v1.21.0 has no
   topology and counts as shared manifold (its tooltip says <em>legacy</em>), so on an
-  independent rig every older calibration shows Stale.  In solenoid pulse mode (the default),
+  independent rig every older calibration shows Stale.  In solenoid mode (the default),
   a schedule watering a Stale cage will not start until the cage is recalibrated.  The same
   goes for an <em>Invalid</em> row, whose Recalibrate button is highlighted too.</p>
 
@@ -1491,7 +1491,7 @@ def _build_content() -> Dict[str, HelpContent]:
     <li><em>Valve calibration needed</em>: a cage the schedule waters is Not Calibrated,
     Invalid (an unusable calibration), or Stale (calibrated under the other valve topology).
     The dialog names the cages; calibrate them in <strong>Settings → Calibration</strong> and
-    press Run again.  This check runs in solenoid pulse mode (the default).</li>
+    press Run again.  This check runs in solenoid mode (the default).</li>
     <li><em>Cage not on this device</em>: the schedule uses a cage this device does not have
     (for example cage 16 or higher with one relay HAT).  Edit the schedule.</li>
     <li><em>Can't check valve calibrations</em>: RRR could not read its database.  Press Run
