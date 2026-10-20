@@ -112,15 +112,28 @@ Centralized QSS in [Project/ui/style/theme.py](Project/ui/style/theme.py)
 `StyleManager` + `app-light.qss` / `app-dark.qss`. **No per-widget
 `setStyleSheet`** unless the rule is genuinely one-off.
 Set `objectName` to a QSS-friendly identifier (`InfoButton`, `Card`,
-`Title`) and target it in the global stylesheet.
+`Title`) and target it in the global stylesheet's template.
+
+The two `.qss` files are **generated — never edit them.** Every rule lives
+once in [app.qss.tmpl](Project/ui/style/app.qss.tmpl), and every colour is a
+role in [tokens.py](Project/ui/style/tokens.py) (`${bg.surface}` in the
+template, a light and a dark value in the table). Edit either, run
+`python3 Project/ui/style/build_qss.py`, and commit all three: what you
+edited and both stylesheets ([CONTRIBUTING.md §7](CONTRIBUTING.md#7-colours-and-themes)).
+`test_qss_generated.py` fails on a stale stylesheet, and
+`test_no_new_raw_colours.py` fails when a file under `Project/ui` gains a
+raw colour (hex, `rgb()` or `hsv()`, `QColor(200, 0, 0)` or
+`QColor.fromRgb(…)`, `Qt.white`, `color: white`), or loses one without
+lowering its count in `BASELINE`. The Help tab's HTML palette (`_PALETTE`
+in `Project/utils/help_content_manager.py`) is counted the same way.
 
 A colour that code paints itself comes from the QSS too. Declare it as a
 `pyqtProperty(QColor)` on a named widget and set it with `qproperty-*` in
-both theme files; a theme switch sets it again. The Animals tab's red
-cell is the pattern: `_LastRunDelegate` (a `QStyledItemDelegate`) fills
+the template, from a token; a theme switch sets it again. The Animals tab's
+red cell is the pattern: `_LastRunDelegate` (a `QStyledItemDelegate`) fills
 the cell with `AnimalsTab.alertFill` and writes `alertText`, which
-`QWidget#AnimalsTab { qproperty-alertFill: …; qproperty-alertText: …; }`
-sets in each theme. Colouring a table cell:
+`QWidget#AnimalsTab { qproperty-alertFill: ${danger.alert}; qproperty-alertText: ${danger.on-alert}; }`
+sets for each theme. Colouring a table cell:
 
 - `QTableWidgetItem.setBackground()` is not painted under the app QSS, and
   `setForeground()` turns teal on a selected row (`::item:selected`).

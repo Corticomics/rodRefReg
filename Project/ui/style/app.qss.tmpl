@@ -1,0 +1,1280 @@
+@# app.qss.tmpl: the one source of app-light.qss and app-dark.qss.
+@#
+@# Edit this file or tokens.py, never the generated .qss files, then run
+@#     python3 Project/ui/style/build_qss.py
+@# and commit what you edited together with both regenerated stylesheets
+@# (Project/tests/unit/test_qss_generated.py fails while one is stale).
+@#
+@#   ${role.name}   a colour from tokens.py, e.g. ${bg.surface}; an unknown role, or
+@#                  a $ without the braces, stops the build
+@#   @light         the lines up to the next @dark or @end are for the light theme only
+@#   @dark          the lines up to the next @light or @end are for the dark theme only
+@#   @end           back to lines both themes share
+@#   @# ...         a template comment like this one
+@#
+@# A directive starts its line: an indented one stops the build.
+@#
+@# Both themes share every rule: today they differ only in token values, in some
+@# comments and in the dark theme's extra `color` lines.
+@#
+/* 
+@light
+ * Rodent Refreshment Regulator - Light Theme
+@dark
+ * Rodent Refreshment Regulator - Dark Theme
+@end
+ * RSO-Inspired Design System with Teal Accent
+ * 
+ * Design Principles:
+ * - IBM Plex Sans typography for scientific aesthetic
+@light
+ * - Teal accent color (colorblind-safe, professional)
+@dark
+ * - Teal accent color (brightened for dark mode)
+@end
+ * - Material Design 3 elevation system
+ * - WCAG 2.1 AA contrast compliance
+ * 
+@light
+ * Color Palette (Teal-based):
+ * - Primary Accent: #0D9488 (Teal 600)
+ * - Primary Hover: #0F766E (Teal 700)
+ * - Background: #FFFFFF / #F8FAFB
+ * - Text Primary: #1A1D1F (16:1 contrast)
+ * - Text Secondary: #4E5D6C (7:1 contrast)
+@dark
+ * Color Palette (Dark Mode):
+ * - Primary Accent: #14B8A6 (Teal 500)
+ * - Primary Hover: #2DD4BF (Teal 400)
+ * - Background: #0F1419 / #1A2028
+ * - Text Primary: #F0F4F8 (high contrast)
+ * - Text Secondary: #A0AEC0
+@end
+ */
+
+/* ============================================
+   GLOBAL DEFAULTS
+   ============================================ */
+* {
+    font-family: "IBM Plex Sans", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    outline: none;
+}
+
+QWidget {
+    background-color: ${bg.page};
+    color: ${text.primary};
+}
+
+/* Main window background */
+QMainWindow {
+    background-color: ${bg.page.main-window};
+}
+
+/* ============================================
+   CARDS & ELEVATED SURFACES
+   ============================================ */
+QFrame#Card, QFrame[card="true"] {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 12px;
+    padding: 0;
+}
+QFrame#Card:hover, QFrame[card="true"]:hover {
+    border-color: ${border.subtle.card-hover};
+}
+
+@light
+/* Logged-out login prompt: white surface instead of the grey app background */
+@dark
+/* Logged-out login prompt: card surface instead of the bare app background */
+@end
+QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
+    background-color: ${bg.surface};
+}
+
+/* Labels are transparent by default so they blend into whatever surface they
+@light
+   sit on (e.g. white Cards) rather than painting the grey app background as a
+   box. objectName-styled labels (banners, etc.) override this. */
+@dark
+   sit on (e.g. Cards) rather than painting the app background as a box.
+   objectName-styled labels (banners, etc.) override this. */
+@end
+QLabel {
+    background: transparent;
+}
+
+/* ============================================
+   TYPOGRAPHY HELPERS
+   ============================================ */
+QLabel#Headline {
+    font-size: 24px;
+    font-weight: 600;
+    color: ${text.primary};
+}
+QLabel#Title {
+    font-size: 18px;
+    font-weight: 500;
+    color: ${text.primary};
+}
+QLabel#Subtitle, QLabel#Subheader {
+    font-size: 14px;
+    font-weight: 400;
+    color: ${text.secondary};
+    padding: 4px 0;
+}
+QLabel#Caption {
+    font-size: 11px;
+    color: ${text.muted};
+}
+
+/* ============================================
+   FORM INPUTS
+   ============================================ */
+QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background: ${bg.field};
+    border: 1px solid ${border.control};
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: ${text.primary};
+    selection-background-color: ${bg.selected.input};
+    selection-color: ${text.on-accent.input};
+}
+QComboBox { 
+    min-height: 36px;
+    padding-right: 28px;
+    /* Use the classic popup that sizes to fit all items. With a stylesheet Qt
+       switches to a scrollable popup whose height is computed from the font
+       row height, not the styled (min-height + padding) row height, so the last
+       item gets clipped behind a scroll arrow. */
+    combobox-popup: 0;
+}
+QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover, 
+QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
+    border-color: ${border.control.hover};
+}
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, 
+QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 2px solid ${focus.ring};
+    padding: 9px 11px;
+    background: ${bg.field.focus};
+}
+QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {
+    background: ${bg.disabled};
+    color: ${text.disabled};
+    border-color: ${border.subtle};
+}
+
+/* Placeholder text */
+QLineEdit[placeholderText] {
+    color: ${text.muted};
+}
+
+/* ComboBox dropdown */
+QComboBox::drop-down {
+    border: none;
+    width: 24px;
+    padding-right: 8px;
+}
+QComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid ${text.secondary};
+}
+QComboBox QAbstractItemView {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    padding: 4px;
+    selection-background-color: ${bg.selected};
+    selection-color: ${text.on-accent.selected};
+}
+QComboBox QAbstractItemView::item {
+    min-height: 28px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: ${text.primary.combo-item};
+}
+QComboBox QAbstractItemView::item:selected,
+QComboBox QAbstractItemView::item:hover {
+    background: ${bg.selected};
+    color: ${text.on-accent.selected};
+}
+
+/* SpinBox buttons */
+QSpinBox::up-button, QDoubleSpinBox::up-button,
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    background: transparent;
+    border: none;
+    width: 20px;
+}
+
+/* ============================================
+   BUTTONS - Default
+   ============================================ */
+QPushButton {
+    background: ${bg.surface};
+    border: 1px solid ${border.control};
+    border-radius: 8px;
+    padding: 10px 20px;
+    min-height: 40px;
+    font-weight: 500;
+    color: ${text.primary};
+}
+QPushButton:hover { 
+    background: ${bg.hover};
+    border-color: ${border.control.hover};
+}
+QPushButton:pressed { 
+    background: ${bg.pressed};
+    border-color: ${border.control.pressed};
+}
+QPushButton:disabled { 
+    background: ${bg.disabled.button};
+    color: ${text.disabled};
+    border-color: ${border.subtle};
+}
+QPushButton:focus {
+    border: 2px solid ${focus.ring};
+    padding: 9px 19px;
+}
+
+/* Compact buttons for tables */
+QTableWidget QPushButton {
+    padding: 6px 12px;
+    min-height: 28px;
+    max-height: 32px;
+    font-size: 12px;
+    border-radius: 6px;
+}
+
+/* Info Button - Circular help icon */
+QPushButton#InfoButton {
+    background-color: ${accent.fill};
+    color: ${text.on-accent.info-button};
+    border: none;
+    border-radius: 12px;
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 700;
+}
+QPushButton#InfoButton:hover {
+    background-color: ${accent.fill.hover.info-button};
+}
+QPushButton#InfoButton:pressed {
+    background-color: ${accent.fill.pressed.info-button};
+}
+
+QPushButton#CompactButton {
+    padding: 8px 12px;
+    min-height: 32px;
+    max-height: 36px;
+    font-size: 12px;
+}
+
+/* ============================================
+@light
+   BUTTONS - Primary (Teal)
+@dark
+   BUTTONS - Primary (Teal - Brightened)
+@end
+   ============================================ */
+QPushButton[variant="primary"] {
+    background: ${accent.fill};
+    border: 1px solid ${accent.fill};
+    color: ${text.on-accent};
+    font-weight: 600;
+}
+QPushButton[variant="primary"]:hover {
+    background: ${accent.fill.hover};
+    border-color: ${accent.fill.hover};
+}
+QPushButton[variant="primary"]:pressed {
+    background: ${accent.fill.pressed};
+    border-color: ${accent.fill.pressed};
+}
+QPushButton[variant="primary"]:disabled {
+    background: ${bg.disabled.primary};
+    border-color: ${bg.disabled.primary};
+    color: ${text.disabled.primary};
+}
+QPushButton[variant="primary"]:focus {
+    border: 2px solid ${focus.ring.primary};
+}
+
+/* ============================================
+   BUTTONS - Danger
+   ============================================ */
+QPushButton[variant="danger"] {
+    background: ${danger.fill};
+    border: 1px solid ${danger.fill};
+    color: ${text.on-danger};
+    font-weight: 600;
+}
+QPushButton[variant="danger"]:hover {
+    background: ${danger.fill.hover};
+    border-color: ${danger.fill.hover};
+}
+QPushButton[variant="danger"]:pressed {
+    background: ${danger.fill.pressed};
+    border-color: ${danger.fill.pressed};
+}
+/* Greyed out like every other disabled button: the red alone must not say
+   "press me" when the control is unavailable (CLOSE ALL RELAYS and Log Out
+   while a schedule runs, Close Master while the master is closed). */
+QPushButton[variant="danger"]:disabled {
+    background: ${bg.disabled.button};
+    border-color: ${border.subtle};
+    color: ${text.disabled};
+}
+
+/* ============================================
+   TABS
+   ============================================ */
+QTabWidget::pane {
+    border: 1px solid ${border.subtle};
+    border-radius: 12px;
+    background: ${bg.page.tab-pane};
+    margin-top: -1px;
+}
+QTabBar::tab {
+    background: ${bg.rail};
+    border: 1px solid ${border.subtle};
+    border-bottom: none;
+    padding: 8px 16px;
+    min-width: 70px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    margin-right: 2px;
+    font-size: 12px;
+    font-weight: 500;
+    color: ${text.secondary};
+}
+QTabBar::tab:hover {
+    background: ${bg.rail.hover};
+    color: ${text.primary};
+}
+QTabBar::tab:selected {
+    background: ${bg.page.tab-pane};
+    border-bottom-color: ${bg.page.tab-pane};
+    color: ${text.primary.selected-tab};
+    font-weight: 600;
+}
+/* Ensure tab bar doesn't scroll prematurely */
+QTabBar {
+    qproperty-expanding: false;
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+QHeaderView::section {
+    background: ${bg.inset.table-header};
+    border: none;
+    border-bottom: 2px solid ${border.subtle};
+    padding: 12px 16px;
+    font-weight: 600;
+    color: ${text.secondary};
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+QTableView, QTableWidget {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 12px;
+    gridline-color: ${border.divider};
+    selection-background-color: ${bg.selected};
+    selection-color: ${text.on-accent.selected};
+@dark
+    color: ${text.primary};
+@end
+}
+QTableView::item, QTableWidget::item {
+    padding: 12px 16px;
+    border-bottom: 1px solid ${border.divider};
+}
+QTableView::item:selected, QTableWidget::item:selected {
+    background: ${bg.selected};
+    color: ${text.on-accent.selected};
+}
+QTableView::item:hover, QTableWidget::item:hover {
+    background: ${bg.hover};
+}
+
+/* Animals tab: the "Last schedule delivered amount" cell of a run that ended short
+   (Stopped, Incomplete, Interrupted) is filled with alertFill and written in alertText
+@light
+   by AnimalsTab's delegate. White on #DC2626 is 4.83:1 (WCAG AA); the fill is 4.83:1
+   on the light table. */
+@dark
+   by AnimalsTab's delegate. White on #DC2626 is 4.83:1 (WCAG AA); the fill is 3.19:1
+   on the dark table (#1E2530). */
+@end
+QWidget#AnimalsTab {
+    qproperty-alertFill: ${danger.alert};
+    qproperty-alertText: ${danger.on-alert};
+}
+
+/* ============================================
+   PROGRESS BARS
+   ============================================ */
+QProgressBar {
+    border: none;
+    border-radius: 8px;
+    text-align: center;
+    background: ${bg.track};
+    min-height: 8px;
+    max-height: 8px;
+}
+QProgressBar::chunk {
+    background: ${accent.indicator};
+    border-radius: 8px;
+}
+
+/* Larger progress bar variant */
+QProgressBar#DeliveryProgress {
+    min-height: 24px;
+    max-height: 24px;
+    font-size: 12px;
+    font-weight: 600;
+    color: ${text.on-accent};
+}
+QProgressBar#DeliveryProgress::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                              stop:0 ${accent.indicator.gradient-start}, stop:1 ${accent.indicator.gradient-end});
+}
+
+/* ============================================
+   GROUP BOXES (Cards)
+   ============================================ */
+QGroupBox {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 12px;
+    margin-top: 24px;
+    margin-bottom: 8px;
+    padding: 24px 20px 20px 20px;
+@dark
+    color: ${text.primary};
+@end
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 16px;
+    top: 8px;
+    padding: 0 8px;
+    color: ${text.primary};
+    font-weight: 600;
+    font-size: 14px;
+    background: transparent;
+}
+
+/* Nested GroupBox */
+QGroupBox QGroupBox {
+    background: ${bg.inset};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    margin-top: 20px;
+    padding: 20px 16px 16px 16px;
+}
+QGroupBox QGroupBox::title {
+    color: ${text.secondary};
+    font-weight: 500;
+    font-size: 12px;
+}
+
+/* ============================================
+   LISTS
+   ============================================ */
+QListWidget {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    padding: 8px;
+@dark
+    color: ${text.primary};
+@end
+}
+QListWidget::item { 
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin: 2px 0;
+}
+QListWidget::item:hover {
+    background: ${bg.hover};
+}
+QListWidget::item:selected {
+    background: ${bg.selected};
+    color: ${text.on-accent.selected};
+    font-weight: 500;
+}
+
+/* ============================================
+   SCROLLBARS (Minimal)
+   ============================================ */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 4px 2px;
+}
+QScrollBar::handle:vertical {
+    background: ${border.control.strong};
+    border-radius: 4px;
+    min-height: 32px;
+}
+QScrollBar::handle:vertical:hover {
+    background: ${border.control.hover.strong};
+}
+QScrollBar:horizontal {
+    background: transparent;
+    height: 8px;
+    margin: 2px 4px;
+}
+QScrollBar::handle:horizontal {
+    background: ${border.control.strong};
+    border-radius: 4px;
+    min-width: 32px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: ${border.control.hover.strong};
+}
+QScrollBar::add-line, QScrollBar::sub-line,
+QScrollBar::add-page, QScrollBar::sub-page { 
+    background: transparent;
+    width: 0; 
+    height: 0; 
+}
+
+/* ============================================
+   DROP AREAS
+   ============================================ */
+QWidget#DropArea[state="idle"] {
+    background: ${bg.surface};
+    border: 2px dashed ${border.control.strong};
+    border-radius: 12px;
+}
+QWidget#DropArea[state="drag"] {
+    background: ${accent.tint};
+    border: 2px solid ${accent.indicator};
+    border-radius: 12px;
+}
+
+/* ============================================
+   STATUS INDICATORS
+   ============================================ */
+QLabel[variant="warning"] {
+    background: ${warning.tint};
+    color: ${warning.on-tint};
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid ${warning.indicator};
+}
+QLabel[variant="success"] {
+    background: ${success.tint};
+    color: ${success.on-tint};
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid ${success.indicator};
+}
+QLabel[variant="error"] {
+    background: ${danger.tint};
+    color: ${danger.on-tint};
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid ${danger.indicator};
+}
+QLabel[variant="info"] {
+    background: ${info.tint};
+    color: ${info.on-tint};
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid ${info.indicator};
+}
+
+/* ============================================
+   USER TAB STYLES
+   ============================================ */
+QLabel#InfoBanner {
+    background: ${accent.tint};
+    color: ${text.accent};
+    padding: 12px 16px;
+    border-radius: 8px;
+    border-left: 4px solid ${accent.indicator};
+}
+QLabel#ProfileWelcome {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 8px 0;
+    color: ${text.primary};
+}
+QLabel#LinkLabel {
+    color: ${text.link};
+    font-size: 12px;
+}
+QLabel#LinkLabel:hover {
+    text-decoration: underline;
+    color: ${text.link.hover};
+}
+
+/* ============================================
+   HELP TEXT
+   ============================================ */
+QLabel#HelpText {
+    color: ${text.secondary};
+    font-size: 12px;
+    padding: 4px 0;
+    line-height: 1.5;
+}
+
+/* ============================================
+   PRIMING STATUS
+   ============================================ */
+QLabel#StatusLabel {
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 13px;
+}
+QLabel#StatusLabel[status="closed"] {
+    background: ${bg.inset.badge};
+    color: ${text.secondary};
+}
+QLabel#StatusLabel[status="open"] {
+    background: ${accent.fill};
+    color: ${text.on-accent};
+}
+
+/* ============================================
+   FORM LAYOUTS
+   ============================================ */
+QGroupBox QLabel {
+    background: transparent;
+@dark
+    color: ${text.primary};
+@end
+}
+QFormLayout > QLabel {
+    min-width: 160px;
+    padding-right: 12px;
+    color: ${text.secondary};
+    font-weight: 500;
+}
+
+/* ============================================
+   SCHEDULE PROGRESS TRACKER
+   ============================================ */
+
+/* Header frame */
+QFrame#TrackerHeader {
+    background-color: ${bg.surface.secondary};
+    border: 1px solid ${border.subtle};
+    border-radius: 12px;
+    padding: 12px;
+}
+
+QLabel#ScheduleTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: ${text.primary};
+    background: transparent;
+}
+
+QLabel#ElapsedTime {
+    font-size: 14px;
+    font-weight: 500;
+    color: ${text.accent};
+    background: ${accent.tint};
+    padding: 6px 12px;
+    border-radius: 16px;
+}
+
+QScrollArea#TrackerScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+/* Material Cards */
+QFrame#MaterialCard {
+    background-color: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 12px;
+    padding: 0;
+}
+QFrame#MaterialCard:hover {
+    border-color: ${border.subtle.card-hover};
+    background-color: ${bg.hover.material-card};
+}
+
+QLabel#CardTitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: ${text.primary};
+    background: transparent;
+}
+
+QLabel#CageBadge {
+    background-color: ${accent.fill};
+    color: ${text.on-accent.cage-badge};
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 11px;
+}
+
+/* ============================================
+   CAGES VISUALIZATION TAB
+   ============================================ */
+
+/* Board title - centered, subtle */
+QLabel#BoardTitle {
+    font-size: 12px;
+    font-weight: 500;
+    color: ${text.muted};
+    background: transparent;
+    padding: 4px 0;
+}
+
+/* Column headers - uppercase, subtle */
+QLabel#ColumnHeader {
+    font-size: 10px;
+    font-weight: 600;
+    color: ${text.muted};
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    background: transparent;
+    padding: 6px 0;
+}
+
+/* Relay Terminal Widget - cage type */
+QFrame#RelayTerminal {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 6px;
+    border-left: 3px solid ${accent.indicator};
+}
+QFrame#RelayTerminal:hover {
+    background: ${bg.hover.accent};
+    border-color: ${border.control.hover};
+}
+QFrame#RelayTerminal[selected="true"] {
+    background: ${accent.tint};
+    border-color: ${accent.indicator};
+}
+
+/* Relay Terminal Widget - master solenoid */
+QFrame#MasterTerminal {
+    background: ${warning.tint.master-terminal};
+    border: 1px solid ${warning.indicator.master-terminal};
+    border-radius: 6px;
+    border-left: 3px solid ${warning.indicator};
+}
+QFrame#MasterTerminal:hover {
+    background: ${warning.tint};
+}
+QFrame#MasterTerminal[selected="true"] {
+    background: ${warning.tint};
+    border-color: ${warning.text.master-terminal};
+}
+
+/* Inline cage name editor */
+QLineEdit#CageNameEdit {
+    background: ${bg.field.focus};
+    border: 1px solid ${border.control.cage-name-edit};
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: ${text.primary};
+}
+
+/* Relay number badge */
+QLabel#RelayNumber {
+    font-size: 12px;
+    font-weight: 700;
+    color: ${text.secondary.relay-number};
+    background: ${bg.inset.badge};
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+/* Cage name - primary text */
+QLabel#CageNameLabel {
+    font-size: 13px;
+    font-weight: 500;
+    color: ${text.primary};
+    background: transparent;
+}
+
+/* Master label - amber accent */
+QLabel#MasterLabel {
+    font-size: 12px;
+    font-weight: 700;
+    color: ${warning.text};
+    background: transparent;
+}
+
+/* Unassigned relay */
+QLabel#UnassignedLabel {
+    font-size: 12px;
+    color: ${text.muted.unassigned};
+    background: transparent;
+}
+
+/* Status indicator dots */
+QLabel#StatusDot {
+    font-size: 10px;
+    color: ${accent.indicator.status-dot};
+    background: transparent;
+}
+
+QLabel#MasterStatusDot {
+    font-size: 10px;
+    color: ${warning.indicator.status-dot};
+    background: transparent;
+}
+
+QLabel#VolumeLabel {
+    font-size: 14px;
+    font-weight: 600;
+    color: ${text.primary};
+    background: transparent;
+}
+
+QLabel#StatusLabel {
+    font-size: 12px;
+    color: ${text.secondary};
+    background: transparent;
+}
+
+QLabel#HealthIndicator {
+    font-size: 11px;
+    color: ${text.muted};
+    background: transparent;
+}
+
+QLabel#TimeRemaining {
+    font-size: 11px;
+    color: ${text.muted};
+    font-style: italic;
+    background: transparent;
+}
+
+/* ============================================
+   WIZARD LOG
+   ============================================ */
+QTextEdit#WizardLog {
+    background: ${bg.inset};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    font-family: "IBM Plex Mono", "SF Mono", Monaco, monospace;
+    font-size: 12px;
+    padding: 12px;
+@dark
+    color: ${text.primary};
+@end
+}
+
+QLabel#ChecklistItem {
+    padding: 8px 4px;
+}
+
+/* ============================================
+   TABLE ACTION BAR
+   ============================================ */
+QWidget#TableActionBar {
+    padding: 12px 0;
+}
+
+/* ============================================
+   CHECKBOXES
+   ============================================ */
+QCheckBox {
+    spacing: 8px;
+    color: ${text.primary};
+}
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid ${border.control.strong};
+    border-radius: 4px;
+    background: ${bg.field};
+}
+QCheckBox::indicator:hover {
+    border-color: ${border.control.hover.accent};
+}
+QCheckBox::indicator:checked {
+    background: ${accent.fill};
+    border-color: ${accent.fill};
+}
+QCheckBox::indicator:disabled {
+    background: ${bg.disabled};
+    border-color: ${border.subtle};
+}
+
+/* ============================================
+   RADIO BUTTONS
+   ============================================ */
+QRadioButton {
+    spacing: 8px;
+    color: ${text.primary};
+}
+QRadioButton::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid ${border.control.strong};
+    border-radius: 9px;
+    background: ${bg.field};
+}
+QRadioButton::indicator:hover {
+    border-color: ${border.control.hover.accent};
+}
+QRadioButton::indicator:checked {
+    background: ${accent.fill};
+    border-color: ${accent.fill};
+}
+
+/* ============================================
+   TOOLTIPS
+   ============================================ */
+QToolTip {
+    background: ${bg.tooltip};
+    color: ${text.tooltip};
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+}
+
+/* ============================================
+   MENU BAR
+   ============================================ */
+QMenuBar {
+    background: ${bg.surface};
+    border-bottom: 1px solid ${border.subtle};
+    padding: 4px 8px;
+}
+QMenuBar::item {
+    padding: 8px 12px;
+    border-radius: 6px;
+@dark
+    color: ${text.primary};
+@end
+}
+QMenuBar::item:selected {
+    background: ${bg.selected.menubar};
+}
+QMenu {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    padding: 8px;
+}
+QMenu::item {
+    padding: 10px 24px;
+    border-radius: 6px;
+@dark
+    color: ${text.primary};
+@end
+}
+QMenu::item:selected {
+    background: ${bg.selected};
+    color: ${text.on-accent.selected};
+}
+
+/* ============================================
+   SLIDERS
+   ============================================ */
+QSlider::groove:horizontal {
+    border: none;
+    height: 6px;
+    background: ${bg.track};
+    border-radius: 3px;
+}
+QSlider::handle:horizontal {
+    background: ${accent.indicator};
+    border: none;
+    width: 18px;
+    height: 18px;
+    margin: -6px 0;
+    border-radius: 9px;
+}
+QSlider::handle:horizontal:hover {
+    background: ${accent.fill.hover};
+}
+QSlider::sub-page:horizontal {
+    background: ${accent.indicator};
+    border-radius: 3px;
+}
+
+/* ============================================
+@light
+   WIZARD COMPONENTS
+@dark
+   WIZARD COMPONENTS (Dark Theme)
+@end
+   ============================================ */
+
+/* Wizard Step Circle */
+QLabel#WizardStepCircle {
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 18px;
+    border: 2px solid ${border.control.strong};
+    background: ${bg.surface.secondary};
+    color: ${text.secondary.step-circle};
+}
+QLabel#WizardStepCircle[state="completed"] {
+    border-color: ${accent.fill};
+    background: ${accent.fill};
+    color: ${text.on-accent.wizard};
+}
+QLabel#WizardStepCircle[state="current"] {
+    border-color: ${accent.indicator};
+    background: ${accent.tint};
+    color: ${text.accent};
+}
+QLabel#WizardStepCircle[state="pending"] {
+    border-color: ${border.control.strong};
+    background: ${bg.surface.secondary};
+    color: ${text.muted};
+}
+
+/* Wizard Step Title */
+QLabel#WizardStepTitle {
+    font-size: 11px;
+    color: ${text.muted};
+    padding: 0 8px;
+}
+QLabel#WizardStepTitle[state="completed"] {
+    color: ${text.accent.step-title};
+}
+QLabel#WizardStepTitle[state="current"] {
+    color: ${text.primary};
+    font-weight: 600;
+}
+
+/* Wizard Connector Line */
+QFrame#WizardConnector {
+    background: ${border.subtle.wizard-connector};
+    border: none;
+}
+QFrame#WizardConnector[state="completed"] {
+    background: ${accent.indicator};
+}
+
+/* Wizard Separator */
+QFrame#WizardSeparator {
+    background: ${border.divider.wizard-separator};
+    max-height: 1px;
+}
+
+/* Wizard Navigation Buttons */
+QPushButton#WizardBackButton {
+    background: ${bg.surface.wizard-back};
+    border: 1px solid ${border.control.wizard-back};
+    border-radius: 10px;
+    color: ${text.secondary};
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+QPushButton#WizardBackButton:hover {
+    background: ${bg.hover.wizard-back};
+    border-color: ${border.control.hover.wizard-back};
+@dark
+    color: ${text.primary};
+@end
+}
+QPushButton#WizardNextButton {
+    background: ${accent.fill};
+    border: none;
+    border-radius: 10px;
+    color: ${text.on-accent.wizard};
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 600;
+}
+QPushButton#WizardNextButton:hover {
+    background: ${accent.fill.hover};
+}
+QPushButton#WizardNextButton:disabled {
+    background: ${bg.disabled.wizard-next};
+    color: ${text.disabled.wizard-next};
+}
+
+/* ============================================
+@light
+   INTERACTIVE CARD COMPONENT
+@dark
+   INTERACTIVE CARD COMPONENT (Dark Theme)
+@end
+   ============================================ */
+QFrame#InteractiveCard {
+    background: ${bg.surface};
+    border: 2px solid ${border.subtle};
+    border-radius: 12px;
+    padding: 16px;
+}
+QFrame#InteractiveCard:hover {
+    border-color: ${border.control.hover.accent};
+    background: ${bg.hover.accent};
+}
+QFrame#InteractiveCard[checked="true"] {
+    border-color: ${accent.indicator};
+    background: ${accent.tint};
+}
+
+/* Card Icon */
+QLabel#CardIcon {
+    font-size: 20px;
+    color: ${text.accent};
+    background: ${accent.tint};
+    border-radius: 8px;
+}
+
+/* Card Title */
+QLabel#CardTitle {
+    font-size: 16px;
+    font-weight: 600;
+    color: ${text.primary};
+}
+
+/* Card Description */
+QLabel#CardDescription {
+    font-size: 13px;
+    color: ${text.secondary};
+    line-height: 1.4;
+}
+
+/* Card Badge */
+QLabel#CardBadge {
+    font-size: 11px;
+    font-weight: 500;
+    color: ${text.accent};
+    background: ${accent.tint};
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+/* ============================================
+@light
+   WIZARD STEP CONTENT AREA
+@dark
+   WIZARD STEP CONTENT AREA (Dark Theme)
+@end
+   ============================================ */
+QWidget#WizardStepContent {
+    background: ${bg.page};
+    padding: 24px;
+}
+
+/* Step Header */
+QLabel#StepIcon {
+    font-size: 24px;
+    color: ${text.accent};
+}
+QLabel#StepTitle {
+    font-size: 22px;
+    font-weight: 600;
+    color: ${text.primary};
+}
+QLabel#StepDescription {
+    font-size: 14px;
+    color: ${text.secondary};
+}
+
+/* ============================================
+@light
+   HELP TAB  (light theme)
+@dark
+   HELP TAB  (dark theme)
+@end
+   ============================================ */
+
+/* Sidebar container */
+QWidget#HelpSidebar {
+    background-color: ${bg.page};
+    border-right: 1px solid ${border.subtle};
+}
+
+/* Content pane container */
+QWidget#HelpContentPane {
+    background-color: ${bg.surface.help};
+}
+
+/* Topic tree */
+QTreeWidget#HelpTree {
+    background-color: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    outline: none;
+@dark
+    color: ${text.primary};
+@end
+}
+QTreeWidget#HelpTree::item {
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin: 1px 2px;
+    color: ${text.primary};
+}
+QTreeWidget#HelpTree::item:hover {
+    background-color: ${bg.hover.accent};
+}
+QTreeWidget#HelpTree::item:selected {
+    background-color: ${bg.selected};
+    color: ${text.on-accent.selected};
+    font-weight: 500;
+}
+QTreeWidget#HelpTree::branch {
+    background: transparent;
+}
+QTreeWidget#HelpTree::branch:has-children:!has-siblings:closed,
+QTreeWidget#HelpTree::branch:closed:has-children:has-siblings {
+    background: transparent;
+}
+QTreeWidget#HelpTree::branch:open:has-children:!has-siblings,
+QTreeWidget#HelpTree::branch:open:has-children:has-siblings {
+    background: transparent;
+}
+
+/* Breadcrumb */
+QLabel#HelpBreadcrumb {
+    color: ${text.secondary};
+    font-size: 12px;
+    padding: 6px 4px;
+    background: transparent;
+}
+
+/* Result count caption */
+QLabel#HelpResultCount {
+    color: ${text.muted};
+    font-size: 11px;
+    padding: 2px 4px;
+    background: transparent;
+}
+
+/* Content browser — override QTextEdit form-input rules */
+QTextBrowser#HelpContent {
+    background-color: ${bg.surface.help};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+    padding: 0;
+@light
+    /* Suppress focus thickening inherited from QTextEdit:focus */
+@dark
+    color: ${text.primary};
+@end
+}
+QTextBrowser#HelpContent:focus {
+    border: 1px solid ${border.subtle};
+    padding: 0;
+}
