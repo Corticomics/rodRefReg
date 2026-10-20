@@ -5,16 +5,17 @@
 
 Both themes come from one template, so their rules cannot drift apart. In the template a
 colour is a ${role.name} placeholder that tokens.py resolves for each theme, and four kinds
-of line are directives, never written out:
+of line are directives, never written out. A directive starts its line, unindented:
 
     @light   the lines up to the next @dark or @end are for the light theme only
     @dark    the lines up to the next @light or @end are for the dark theme only
     @end     back to lines both themes share
     @# ...   a template comment
 
-An unknown role, a malformed placeholder or an unbalanced block stops the build with the
-template line, before anything is written. Exit status: 0 done (or up to date), 1 a
-stylesheet is stale (--check only), 2 the template cannot be rendered.
+An unknown role, a malformed placeholder (anything but ${role}: $role, $(role)), an
+indented directive or an unbalanced block stops the build with the template line, before
+anything is written. Exit status: 0 done (or up to date), 1 a stylesheet is stale (--check
+only), 2 the template cannot be rendered.
 
 The generated files are committed: StyleManager (theme.py), the release bundle and the tests
 read them as plain files, and Project/tests/unit/test_qss_generated.py fails while one
@@ -43,9 +44,14 @@ class TemplateError(Exception):
 
 
 class QssTemplate(string.Template):
-    """${role.name}: lowercase words joined by dots or hyphens (bg.page, text.on-accent)."""
+    """${role.name}: lowercase words joined by dots or hyphens (bg.page, text.on-accent).
 
-    idpattern = r"[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*"
+    Only the braced form is a placeholder. A bare $role matches no name pattern, so
+    substitute() raises ValueError for it, as for any other malformed placeholder.
+    """
+
+    braceidpattern = r"[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*"
+    idpattern = r"(?!)"  # never matches
 
 
 def load_tokens(path: Path = TOKENS_FILE):
@@ -63,6 +69,12 @@ def theme_lines(template_text: str, theme: str) -> list[tuple[int, str]]:
     kept: list[tuple[int, str]] = []
     block, opened_at = None, 0
     for number, line in enumerate(template_text.split("\n"), start=1):
+        if line[:1].isspace() and line.lstrip().startswith("@"):
+            # Read as a rule line, it would be copied into both stylesheets, and Qt drops
+            # a stylesheet it cannot parse.
+            raise TemplateError(
+                f"line {number}: {line.strip()!r} is indented: a directive must start the line"
+            )
         if line.startswith("@#"):
             continue
         if line.startswith("@"):

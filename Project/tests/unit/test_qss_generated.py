@@ -127,10 +127,14 @@ def test_every_token_is_used():
     [
         ("a { color: ${no.such.role}; }\n", r"line 1: unknown token \$\{no\.such\.role\}"),
         ("a {\n    color: $(bg.page);\n}\n", "line 2: malformed placeholder"),
+        ("a {\n    color: $bg.page;\n}\n", "line 2: malformed placeholder"),
         ("@light\na { }\n", "line 1: the @light block has no @end"),
         ("a { }\n@end\n", "line 2: @end without @light or @dark"),
         ("@dark\n@dark\n@end\n", "line 2: @dark inside a @dark block"),
         ("@lite\na { }\n", "line 1: unknown directive '@lite'"),
+        ("a {\n    @dark\n}\n", "line 2: '@dark' is indented: a directive must start the line"),
+        ("@dark\na {\n\t@end\n}\n", "line 3: '@end' is indented"),
+        ("a { }\n  @# a note\n", "line 2: '@# a note' is indented"),
     ],
 )
 def test_a_broken_template_stops_the_build(template, message):
@@ -166,7 +170,7 @@ def test_the_template_holds_no_raw_colour():
 
 def test_tokens_are_colours_named_by_role():
     for name, pair in tokens.TOKENS.items():
-        assert re.fullmatch(build_qss.QssTemplate.idpattern, name), name
+        assert re.fullmatch(build_qss.QssTemplate.braceidpattern, name), name
         assert isinstance(pair, tuple) and len(pair) == len(tokens.THEMES), name
         for colour in pair:
             assert re.fullmatch(r"#[0-9A-F]{6}|white", colour), f"{name}: {colour!r}"

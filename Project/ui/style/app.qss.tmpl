@@ -5,12 +5,14 @@
 @# and commit what you edited together with both regenerated stylesheets
 @# (Project/tests/unit/test_qss_generated.py fails while one is stale).
 @#
-@#   ${role.name}   a colour from tokens.py, e.g. ${bg.surface}; an unknown role
-@#                  stops the build
+@#   ${role.name}   a colour from tokens.py, e.g. ${bg.surface}; an unknown role, or
+@#                  a $ without the braces, stops the build
 @#   @light         the lines up to the next @dark or @end are for the light theme only
 @#   @dark          the lines up to the next @light or @end are for the dark theme only
 @#   @end           back to lines both themes share
 @#   @# ...         a template comment like this one
+@#
+@# A directive starts its line: an indented one stops the build.
 @#
 @# Both themes share every rule: today they differ only in token values, in some
 @# comments and in the dark theme's extra `color` lines.
