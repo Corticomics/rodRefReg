@@ -142,6 +142,7 @@ def _settings_tab(system_controller, database_handler):
 def test_the_delivery_tab_has_no_pulse_width_or_pulse_mode_control(
     qapp, system_controller, database_handler
 ):
+    from PyQt5.QtCore import Qt  # noqa: PLC0415
     from PyQt5.QtWidgets import QCheckBox, QGroupBox, QLabel  # noqa: PLC0415
 
     tab = _settings_tab(system_controller, database_handler)
@@ -156,6 +157,11 @@ def test_the_delivery_tab_has_no_pulse_width_or_pulse_mode_control(
 
     group = tab.round_doses_up.parentWidget()
     assert isinstance(group, QGroupBox) and group.title() == "Pulse Delivery"
+    rows = group.layout()
+    [checkbox_row] = [
+        rows.itemAt(i) for i in range(rows.count()) if rows.itemAt(i).widget() is tab.round_doses_up
+    ]
+    assert checkbox_row.alignment() == Qt.AlignLeft, "at its own width, as in the old form row"
     note = tab.pulse_profile_note
     assert note.parentWidget() is group and note.objectName() == "HelpText"
     assert note.text() == (

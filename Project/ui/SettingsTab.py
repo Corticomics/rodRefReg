@@ -480,7 +480,8 @@ class SettingsTab(QWidget):
             "Applies to schedules started after the change; a running schedule keeps "
             "the policy it started with."
         )
-        pulse_layout.addWidget(self.round_doses_up)
+        # Left-aligned at its own width, as the form row it was in placed it.
+        pulse_layout.addWidget(self.round_doses_up, 0, Qt.AlignLeft)
 
         pulse_group.setLayout(pulse_layout)
         solenoid_layout.addWidget(pulse_group)
