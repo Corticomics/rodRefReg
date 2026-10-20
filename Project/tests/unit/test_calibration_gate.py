@@ -32,7 +32,7 @@ from utils.calibration_gate import (
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-SHARED = {"hardware_mode": "solenoid", "use_pulse_delivery": True, "pulse_width_ms": 20}
+SHARED = {"hardware_mode": "solenoid", "use_pulse_delivery": True}
 INDEPENDENT = dict(SHARED, valve_topology="independent")
 
 

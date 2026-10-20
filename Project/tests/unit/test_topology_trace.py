@@ -33,7 +33,6 @@ CAGE = 1
 CAGE_MAP = {cage: cage for cage in range(1, 16)}  # the production 1-HAT map
 SETTINGS = {
     'use_pulse_delivery': True,
-    'pulse_width_ms': PULSE_WIDTH_MS,
     'pulse_settling_ms': SETTLING_MS,
     'max_pulses_per_delivery': 100,
     'max_pulse_delivery_time_s': 120.0,
