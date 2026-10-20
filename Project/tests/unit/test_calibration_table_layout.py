@@ -186,6 +186,32 @@ def test_every_header_and_data_cell_reads_in_full_at_1920x1080(qapp, calibration
     assert shown == {"[OK]", "Stale", "Invalid", "Not Calibrated"}, "every kind of row"
 
 
+def test_every_data_column_sizes_itself_from_its_content(qapp, calibration_table):
+    """The outcome checks run in this machine's font only: a fixed width that
+    happens to fit it would pass them and could still cut text in the Pi's.
+    So the resize modes are pinned too. Only the cage name stretches; Action
+    is Fixed because ResizeToContents does not measure cell widgets, and
+    _fit_action_column sizes it from its buttons."""
+    from PyQt5.QtWidgets import QHeaderView  # noqa: PLC0415
+
+    tab = calibration_table
+    header = tab.calibration_table.horizontalHeader()
+    modes = {
+        tab.CAL_HEADERS[column]: header.sectionResizeMode(column)
+        for column in range(tab.calibration_table.columnCount())
+    }
+    assert modes == {
+        "Cage": QHeaderView.Stretch,
+        "Status": QHeaderView.ResizeToContents,
+        "Profile": QHeaderView.ResizeToContents,
+        "mL/Pulse": QHeaderView.ResizeToContents,
+        "CV%": QHeaderView.ResizeToContents,
+        "Date": QHeaderView.ResizeToContents,
+        "Action": QHeaderView.Fixed,
+    }
+    assert not header.stretchLastSection()
+
+
 def test_the_table_still_reads_in_full_after_a_refresh(
     qapp, calibration_table, database_handler
 ):
