@@ -40,21 +40,10 @@ RAW_COLOUR = re.compile(
     re.IGNORECASE,
 )
 
-# Declarations one theme has and the other lacks. Today the dark theme sets the text
-# colour on these surfaces and the light theme inherits it; every other declaration, and
-# every rule, is in both themes. A new entry here is a decision, not a side effect.
-DARK_ONLY = {
-    ("QTableView, QTableWidget", "color"),
-    ("QGroupBox", "color"),
-    ("QListWidget", "color"),
-    ("QGroupBox QLabel", "color"),
-    ("QTextEdit#WizardLog", "color"),
-    ("QMenuBar::item", "color"),
-    ("QMenu::item", "color"),
-    ("QPushButton#WizardBackButton:hover", "color"),
-    ("QTreeWidget#HelpTree", "color"),
-    ("QTextBrowser#HelpContent", "color"),
-}
+# Declarations one theme has and the other lacks: none. Both themes share every rule and
+# every declaration (until v2.1.0 ten `color` lines were the dark theme's alone). A new
+# entry here is a decision, not a side effect.
+DARK_ONLY: set[tuple[str, str]] = set()
 
 
 def _template():
@@ -172,9 +161,18 @@ def test_every_placeholder_names_a_token():
 
 
 def test_every_token_is_used():
+    """Each role has a reader: the template or the QPalette."""
     used = set().union(*(_placeholders(theme) for theme in build_qss.THEMES))
+    used |= set(tokens.QPALETTE.values()) | set(tokens.QPALETTE_DISABLED.values())
     unused = set(tokens.TOKENS) - used
-    assert not unused, f"tokens.py roles the template never uses: {sorted(unused)}"
+    assert not unused, f"tokens.py roles nothing uses (the template or QPALETTE): {sorted(unused)}"
+
+
+def test_the_palette_and_help_maps_name_tokens():
+    for table in ("QPALETTE", "QPALETTE_DISABLED"):
+        unknown = set(getattr(tokens, table).values()) - set(tokens.TOKENS)
+        assert not unknown, f"tokens.{table} names roles tokens.py lacks: {sorted(unknown)}"
+    assert set(tokens.QPALETTE_DISABLED) <= set(tokens.QPALETTE)
 
 
 @pytest.mark.parametrize(

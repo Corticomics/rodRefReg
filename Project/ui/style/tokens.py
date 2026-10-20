@@ -1,23 +1,27 @@
-"""Colour tokens of the RRR stylesheets: role name -> (light, dark).
+"""Colour tokens of the RRR themes: role name -> (light, dark).
 
 app.qss.tmpl names every colour by its role, as ${bg.surface}; build_qss.py renders the
 template once per theme with these values into app-light.qss and app-dark.qss. A role says
 what a colour is for (bg.surface: cards, tables, menus), not what it looks like, so a new
-palette is a change of values here, not of the template.
+palette is a change of values here, not of the template. Two roles may hold the same
+colour (bg.page and bg.inset do): they still say different things.
 
-- Two roles may hold the same colour: bg.page and bg.rail do today, and so do
-  border.subtle and border.control.
-- "<role>.<qualifier>" is a variant: today's stylesheets give some uses of a role a colour
-  of their own (the wizard's Back button, the InfoButton's dark-theme hover). The variants
-  keep the generated files as they were; a palette that drops the difference gives a
-  variant its role's value. A variant's name starts with its role, except
-  border.control.pressed (the pressed button's border), a variant of border.control.hover.
-- Values are spelled as the stylesheets spell them: #RRGGBB, or white where today's
-  stylesheet writes the keyword.
+The palette is the robust-contrast one (palette B, v2.1.0): a grey page, white cards and
+fields, borders that show, and the same structure in the dark theme. Its steps stay visible
+on a monitor that clips or washes out the Pi's HDMI signal (contrast.py has the models).
 
-Data and one lookup, nothing else: build_qss.py and the tests load this file by path,
-without importing the ui package. After editing it, run python3 Project/ui/style/build_qss.py
-and commit it with both regenerated stylesheets.
+Two things read the roles:
+- the stylesheet template, through its ${role} placeholders;
+- the QPalette StyleManager sets before the stylesheet (qt_palette.py), through QPALETTE and
+  QPALETTE_DISABLED below. It colours what the stylesheet does not reach: the window, plain
+  containers, placeholders, alternate rows, rich-text links, calendar popups.
+
+Project/tests/unit/test_theme_contrast.py checks every pair of roles the UI draws together,
+in both themes. A pair that fails is fixed by changing a colour here, never its threshold.
+
+Data and one lookup, nothing else: build_qss.py, qt_palette.py and the tests load this file
+by path, without importing the ui package. After editing it, run
+python3 Project/ui/style/build_qss.py and commit it with both regenerated stylesheets.
 """
 
 from __future__ import annotations
@@ -27,182 +31,108 @@ THEMES = ("light", "dark")
 # name: (light, dark)
 TOKENS: dict[str, tuple[str, str]] = {
     # ---- Backgrounds -------------------------------------------------------------------
-    # The page: QWidget's default background, the help sidebar, #WizardStepContent
-    "bg.page": ("#F8FAFB", "#1A2028"),
-    # QTabWidget::pane, and the selected tab that joins it (today the colour of a card)
-    "bg.page.tab-pane": ("#FFFFFF", "#1E2530"),
-    # QMainWindow: the rule never matches (the main window is a QWidget)
-    "bg.page.main-window": ("#F1F4F6", "#0F1419"),
-    # Cards, the login prompt, the combo popup, QPushButton, tables, group boxes, lists,
-    # an idle drop area, #MaterialCard, #RelayTerminal, the menu bar, menus,
-    # #InteractiveCard, the help tree
-    "bg.surface": ("#FFFFFF", "#1E2530"),
-    # #TrackerHeader, #WizardStepCircle (default and pending)
-    "bg.surface.secondary": ("#F8FAFB", "#242C38"),
-    # #WizardBackButton
-    "bg.surface.wizard-back": ("#FFFFFF", "#242C38"),
-    # #HelpContentPane, #HelpContent (the dark theme uses the page colour)
-    "bg.surface.help": ("#FFFFFF", "#1A2028"),
-    # Editable fields: line edits, text edits, spin boxes, combo boxes; checkbox and
-    # radio indicators
-    "bg.field": ("#FFFFFF", "#1E2530"),
-    # A field with focus; #CageNameEdit, which shows only while a name is edited
-    "bg.field.focus": ("#FFFFFF", "#242C38"),
-    # Sunken areas inside a surface: a nested group box, #WizardLog
-    "bg.inset": ("#F8FAFB", "#242C38"),
-    # The table header band (QHeaderView::section)
-    "bg.inset.table-header": ("#F8FAFB", "#1A2028"),
-    # Small sunken badges: #StatusLabel[status="closed"], #RelayNumber
-    "bg.inset.badge": ("#F1F4F6", "#2D3748"),
+    # The page (QPalette.Window): windows and dialogs, tab panes and the selected tab that
+    # joins its pane, the help sidebar, #WizardStepContent
+    "bg.page": ("#DADDE2", "#1F242B"),
+    # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
+    # menus, the combo popup, QPushButton, an idle drop area, #TrackerHeader,
+    # #MaterialCard, #RelayTerminal, #InteractiveCard, the wizard's step circles and Back
+    # button, the help panes (QPalette.Button)
+    "bg.surface": ("#FFFFFF", "#30373F"),
+    # Editable fields, focused or not; checkbox and radio indicators; #CageNameEdit
+    # (QPalette.Base)
+    "bg.field": ("#FFFFFF", "#30373F"),
+    # Sunken areas inside a surface: a nested group box, the table header band and its
+    # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"]
+    "bg.inset": ("#DADDE2", "#1F242B"),
     # Unselected tabs
-    "bg.rail": ("#F8FAFB", "#1A2028"),
+    "bg.rail": ("#C3C7CD", "#30373F"),
     # An unselected tab under the pointer
-    "bg.rail.hover": ("#FFFFFF", "#1E2530"),
-    # QPushButton, table items and list items under the pointer
-    "bg.hover": ("#F8FAFB", "#242C38"),
-    # A teal wash under the pointer: #RelayTerminal, #InteractiveCard, help-tree items
-    "bg.hover.accent": ("#F0FDFA", "#134E4A"),
-    # #WizardBackButton under the pointer
-    "bg.hover.wizard-back": ("#F8FAFB", "#2D3748"),
-    # #MaterialCard under the pointer
-    "bg.hover.material-card": ("#FAFCFD", "#242C38"),
+    "bg.rail.hover": ("#CFD2D7", "#3A424C"),
+    # Under the pointer: QPushButton, table, list and help-tree items, #RelayTerminal,
+    # #InteractiveCard, #WizardBackButton. Darker than both table row colours in each
+    # theme, so a zebra row still changes under the pointer.
+    "bg.hover": ("#E6E9ED", "#282E36"),
     # QPushButton pressed
-    "bg.pressed": ("#F1F4F6", "#2A3441"),
+    "bg.pressed": ("#C3C7CD", "#1F242B"),
     # Progress bar and slider grooves
-    "bg.track": ("#E2E8F0", "#2D3748"),
-    # Disabled inputs, a disabled checkbox indicator
-    "bg.disabled": ("#F1F4F6", "#1A2028"),
-    # A disabled QPushButton, default or danger
-    "bg.disabled.button": ("#F8FAFB", "#1A2028"),
-    # A disabled primary button, fill and border
-    "bg.disabled.primary": ("#99D5D0", "#134E4A"),
-    # A disabled #WizardNextButton
-    "bg.disabled.wizard-next": ("#A0AEC0", "#4A5568"),
-    # Selected items: the combo popup, tables, lists, menus, the help tree
-    "bg.selected": ("#E6FFFA", "#134E4A"),
-    # Selected text inside an input
-    "bg.selected.input": ("#0D9488", "#14B8A6"),
-    # The menu-bar item under the pointer or open
-    "bg.selected.menubar": ("#F8FAFB", "#242C38"),
-    # QToolTip
-    "bg.tooltip": ("#1A1D1F", "#F0F4F8"),
+    "bg.track": ("#DADDE2", "#1F242B"),
+    # Alternate table rows (QPalette.AlternateBase)
+    "bg.alt": ("#F1F3F5", "#373E48"),
+    # Disabled inputs, buttons (default, primary, danger, #WizardNextButton) and checkbox
+    # indicators (QPalette Disabled Base and Button)
+    "bg.disabled": ("#ECEEF1", "#262B33"),
+    # Selected items and selected text: a solid fill under text.on-accent (combo popup,
+    # tables, lists, menus, the help tree, inputs; QPalette.Highlight)
+    "bg.selected": ("#0F766E", "#2DD4BF"),
+    # QToolTip (QPalette.ToolTipBase)
+    "bg.tooltip": ("#1A1D1F", "#E5E9EF"),
     # ---- Text --------------------------------------------------------------------------
-    # Body text (QWidget), titles, typed input, button labels, group-box titles, checkbox
-    # and radio labels, step and card titles; in the dark theme also tables, group boxes,
-    # lists, menus, the wizard log, the help tree and the help content
-    "text.primary": ("#1A1D1F", "#F0F4F8"),
-    # Combo popup items
-    "text.primary.combo-item": ("#1A1D1F", "#E2E8F0"),
-    # The selected tab's label (teal today)
-    "text.primary.selected-tab": ("#0D9488", "#14B8A6"),
+    # Body text (QPalette WindowText, Text, ButtonText): titles, typed input, labels,
+    # buttons, tables, lists, menus, the selected tab, the help tree
+    "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
-    # arrow, #StatusLabel, form labels, the Back button, card and step descriptions,
-    # the help breadcrumb
-    "text.secondary": ("#4E5D6C", "#A0AEC0"),
-    # #RelayNumber
-    "text.secondary.relay-number": ("#4E5D6C", "#E2E8F0"),
-    # The number in a #WizardStepCircle
-    "text.secondary.step-circle": ("#4E5D6C", "#8492A6"),
-    # Captions, placeholders, #BoardTitle, #ColumnHeader, #HealthIndicator,
-    # #TimeRemaining, a pending step, step titles, the help result count
-    "text.muted": ("#8492A6", "#718096"),
-    # #UnassignedLabel
-    "text.muted.unassigned": ("#A0AEC0", "#718096"),
-    # Disabled inputs and buttons (default and danger)
-    "text.disabled": ("#A0AEC0", "#4A5568"),
-    # A disabled primary button
-    "text.disabled.primary": ("#FFFFFF", "#5EEAD4"),
-    # A disabled #WizardNextButton
-    "text.disabled.wizard-next": ("#F8FAFB", "#718096"),
-    # Text on accent.fill: the primary button, #StatusLabel[status="open"],
-    # #DeliveryProgress
+    # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
+    # button, card and step descriptions, the help breadcrumb
+    "text.secondary": ("#2E3A4B", "#CBD5E1"),
+    # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
+    # #UnassignedLabel, #HealthIndicator, #TimeRemaining, a pending step, step titles, the
+    # help result count
+    "text.muted": ("#475366", "#B8C1CC"),
+    # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
+    "text.disabled": ("#7B8490", "#6B7480"),
+    # Teal text: #InfoBanner, #ElapsedTime, the current step, a completed step title,
+    # #CardIcon, #CardBadge, #StepIcon
+    "text.accent": ("#115E59", "#5EEAD4"),
+    # Links: #LinkLabel (QPalette Link, LinkVisited)
+    "text.link": ("#115E59", "#5EEAD4"),
+    # Text on accent.fill and bg.selected: the primary button, #InfoButton, #CageBadge,
+    # #StatusLabel[status="open"], a completed step circle, #WizardNextButton, selected
+    # items and text (QPalette.HighlightedText)
     "text.on-accent": ("#FFFFFF", "#042F2E"),
-    # Selected text inside an input (on bg.selected.input)
-    "text.on-accent.input": ("#FFFFFF", "#1A1D1F"),
-    # Selected items' text (on bg.selected)
-    "text.on-accent.selected": ("#0D9488", "#2DD4BF"),
-    # The #InfoButton's "?"
-    "text.on-accent.info-button": ("white", "white"),
-    # #CageBadge
-    "text.on-accent.cage-badge": ("white", "#042F2E"),
-    # A completed #WizardStepCircle, #WizardNextButton
-    "text.on-accent.wizard": ("#FFFFFF", "#1A2028"),
     # The danger button's label
     "text.on-danger": ("#FFFFFF", "#FFFFFF"),
-    # Teal text: #InfoBanner, #ElapsedTime, the current step, #CardIcon, #CardBadge,
-    # #StepIcon
-    "text.accent": ("#0D9488", "#2DD4BF"),
-    # A completed #WizardStepTitle
-    "text.accent.step-title": ("#0D9488", "#14B8A6"),
-    # #LinkLabel
-    "text.link": ("#0D9488", "#2DD4BF"),
-    # #LinkLabel under the pointer
-    "text.link.hover": ("#0F766E", "#5EEAD4"),
-    # QToolTip
+    # QToolTip (QPalette.ToolTipText)
     "text.tooltip": ("#FFFFFF", "#1A1D1F"),
     # ---- Borders -----------------------------------------------------------------------
-    # Decorative outlines: cards, the combo popup, tab pane and tabs, the table header
-    # rule, tables, group boxes, lists, #TrackerHeader, #MaterialCard, #RelayTerminal,
-    # #WizardLog, the menu bar, menus, #InteractiveCard, the help panes (and
-    # #HelpContent:focus, which keeps it), disabled inputs, buttons and checkboxes
-    "border.subtle": ("#E2E8F0", "#2D3748"),
-    # The #WizardConnector line between steps
-    "border.subtle.wizard-connector": ("#CBD5E0", "#4A5568"),
-    # The Card and #MaterialCard outline under the pointer. A card is not a control, so
-    # this is not border.control.hover.
-    "border.subtle.card-hover": ("#CBD5E0", "#4A5568"),
-    # Table grid lines and row rules
-    "border.divider": ("#F1F4F6", "#242C38"),
-    # #WizardSeparator
-    "border.divider.wizard-separator": ("#E2E8F0", "#2D3748"),
-    # The boundary of inputs and QPushButton
-    "border.control": ("#E2E8F0", "#2D3748"),
-    # Checkbox and radio rings, scrollbar handles, an idle drop area, #WizardStepCircle
-    "border.control.strong": ("#CBD5E0", "#4A5568"),
-    # #CageNameEdit
-    "border.control.cage-name-edit": ("#0D9488", "#14B8A6"),
-    # #WizardBackButton
-    "border.control.wizard-back": ("#E2E8F0", "#4A5568"),
-    # Inputs, QPushButton and #RelayTerminal under the pointer
-    "border.control.hover": ("#CBD5E0", "#4A5568"),
-    # QPushButton pressed
-    "border.control.pressed": ("#A0AEC0", "#4A5568"),
-    # Scrollbar handles under the pointer
-    "border.control.hover.strong": ("#A0AEC0", "#718096"),
-    # Checkbox and radio rings, #InteractiveCard under the pointer
-    "border.control.hover.accent": ("#0D9488", "#14B8A6"),
-    # #WizardBackButton under the pointer
-    "border.control.hover.wizard-back": ("#CBD5E0", "#718096"),
+    # Decorative outlines: cards, tab panes and tabs, group boxes, tables, lists, menus,
+    # the combo popup, the table header rule, #TrackerHeader, #MaterialCard,
+    # #RelayTerminal, #WizardLog, #InteractiveCard, #WizardConnector, the help panes;
+    # disabled inputs, buttons and indicators
+    "border.subtle": ("#AAB2BE", "#4F5865"),
+    # Table grid lines and row rules, #WizardSeparator
+    "border.divider": ("#CDD1D7", "#4B5461"),
+    # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
+    # rings, scrollbar handles, an idle drop area, #CageNameEdit, the wizard's step
+    # circles and Back button
+    "border.control": ("#626E7E", "#848E9B"),
+    # A control boundary under the pointer or pressed; #RelayTerminal and #InteractiveCard
+    # under the pointer
+    "border.control.hover": ("#475569", "#A3ADB9"),
     # ---- Focus -------------------------------------------------------------------------
     # The 2px focus border of inputs and QPushButton
-    "focus.ring": ("#0D9488", "#14B8A6"),
-    # A focused primary button
-    "focus.ring.primary": ("#115E59", "#5EEAD4"),
+    "focus.ring": ("#0F766E", "#2DD4BF"),
+    # A focused primary button's border, around its accent.fill
+    "focus.ring.primary": ("#042F2E", "#FFFFFF"),
     # ---- Accent (teal) -----------------------------------------------------------------
     # The primary button, #InfoButton, #StatusLabel[status="open"], #CageBadge, checked
     # checkboxes and radios, a completed step circle, #WizardNextButton
-    "accent.fill": ("#0D9488", "#14B8A6"),
-    # The primary button, the slider handle and #WizardNextButton under the pointer
-    "accent.fill.hover": ("#0F766E", "#2DD4BF"),
-    # #InfoButton under the pointer
-    "accent.fill.hover.info-button": ("#0F766E", "#0D9488"),
-    # The primary button pressed
-    "accent.fill.pressed": ("#115E59", "#5EEAD4"),
-    # #InfoButton pressed
-    "accent.fill.pressed.info-button": ("#115E59", "#0F766E"),
-    # The progress chunk, the drop-target border, #InfoBanner's stripe, #RelayTerminal's
-    # stripe and selected border, the slider, the current step's ring, a completed
+    "accent.fill": ("#0F766E", "#2DD4BF"),
+    # The primary button, #InfoButton, the slider handle and #WizardNextButton under the
+    # pointer
+    "accent.fill.hover": ("#115E59", "#5EEAD4"),
+    # The primary button and #InfoButton pressed
+    "accent.fill.pressed": ("#134E4A", "#99F6E4"),
+    # Marks that carry a state or a value: the selected tab's top bar, the progress chunk,
+    # the slider, the drop-target border, the stripes of #InfoBanner and #RelayTerminal, a
+    # selected #RelayTerminal's border, #StatusDot, the current step's ring, a completed
     # connector, a checked #InteractiveCard's border
-    "accent.indicator": ("#0D9488", "#14B8A6"),
-    # #StatusDot
-    "accent.indicator.status-dot": ("#0D9488", "#2DD4BF"),
-    # The #DeliveryProgress chunk's gradient (no widget has that objectName)
-    "accent.indicator.gradient-start": ("#0D9488", "#0D9488"),
-    "accent.indicator.gradient-end": ("#14B8A6", "#14B8A6"),
+    "accent.indicator": ("#0F766E", "#2DD4BF"),
     # A teal wash: the drop target, #InfoBanner, #ElapsedTime, a selected #RelayTerminal,
     # the current step, a checked #InteractiveCard, #CardIcon, #CardBadge
-    "accent.tint": ("#E6FFFA", "#134E4A"),
-    # ---- Status: QLabel[variant=...] banners, the master terminal, the danger button ----
+    "accent.tint": ("#CCFBF1", "#11463F"),
+    # ---- Status: today's hue families; a shade changes only where a pair fails WCAG ----
+    # QLabel[variant="success"]
     "success.tint": ("#D1FAE5", "#064E3B"),
     "success.on-tint": ("#065F46", "#A7F3D0"),
     "success.indicator": ("#10B981", "#10B981"),
@@ -217,19 +147,21 @@ TOKENS: dict[str, tuple[str, str]] = {
     "warning.indicator.master-terminal": ("#FCD34D", "#78350F"),
     # #MasterStatusDot
     "warning.indicator.status-dot": ("#F59E0B", "#FBBF24"),
+    # A selected #MasterTerminal's border: its selected state, 3:1 or more against the
+    # card and its own fill (amber-700 in light: today's amber-500 was 2.15:1)
+    "warning.indicator.selected": ("#B45309", "#FBBF24"),
     # #MasterLabel
     "warning.text": ("#92400E", "#FCD34D"),
-    # A selected #MasterTerminal's border
-    "warning.text.master-terminal": ("#F59E0B", "#FBBF24"),
-    # QPushButton[variant="danger"]
-    "danger.fill": ("#DC2626", "#EF4444"),
-    "danger.fill.hover": ("#B91C1C", "#F87171"),
-    "danger.fill.pressed": ("#991B1B", "#DC2626"),
+    # QPushButton[variant="danger"]; white reads on these in both themes (today's dark
+    # #EF4444, #F87171 gave it 3.76:1 and 2.77:1)
+    "danger.fill": ("#DC2626", "#DC2626"),
+    "danger.fill.hover": ("#B91C1C", "#B91C1C"),
+    "danger.fill.pressed": ("#991B1B", "#991B1B"),
     # QLabel[variant="error"]
     "danger.tint": ("#FEE2E2", "#7F1D1D"),
     "danger.on-tint": ("#991B1B", "#FECACA"),
     "danger.indicator": ("#EF4444", "#EF4444"),
-    # The Animals tab's cell for a run that ended short, and its text
+    # The Animals tab's bright red cell for a run that ended short, and its bold text
     # (QWidget#AnimalsTab qproperty-alertFill / qproperty-alertText)
     "danger.alert": ("#DC2626", "#DC2626"),
     "danger.on-alert": ("#FFFFFF", "#FFFFFF"),
@@ -237,6 +169,34 @@ TOKENS: dict[str, tuple[str, str]] = {
     "info.tint": ("#E0F2FE", "#0C4A6E"),
     "info.on-tint": ("#0C4A6E", "#BAE6FD"),
     "info.indicator": ("#0284C7", "#0284C7"),
+}
+
+# The QPalette StyleManager applies before the stylesheet (qt_palette.py): QPalette colour
+# role name -> token, for the Active, Inactive and Disabled groups alike.
+QPALETTE: dict[str, str] = {
+    "Window": "bg.page",
+    "WindowText": "text.primary",
+    "Base": "bg.field",
+    "AlternateBase": "bg.alt",
+    "Text": "text.primary",
+    "PlaceholderText": "text.muted",
+    "Button": "bg.surface",
+    "ButtonText": "text.primary",
+    "Highlight": "bg.selected",
+    "HighlightedText": "text.on-accent",
+    "Link": "text.link",
+    "LinkVisited": "text.link",
+    "ToolTipBase": "bg.tooltip",
+    "ToolTipText": "text.tooltip",
+}
+
+# The roles whose Disabled group differs from QPALETTE
+QPALETTE_DISABLED: dict[str, str] = {
+    "WindowText": "text.disabled",
+    "Text": "text.disabled",
+    "ButtonText": "text.disabled",
+    "Base": "bg.disabled",
+    "Button": "bg.disabled",
 }
 
 
