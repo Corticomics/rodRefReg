@@ -39,8 +39,10 @@ under "valve_calibration".
    and sets the number of pulses, `pulse_width_ms` and the inter-pulse
    interval. The width and interval start from the cage's last calibration,
    else the device's most recent usable one, else 30 ms / 1000 ms
-   (`utils/pulse_profile.wizard_starting_profile`, v2.1.0). Prime the line
-   first in the priming tab (see below).
+   (`utils/pulse_profile.wizard_starting_profile`, v2.1.0). A calibration
+   with no stored interval (before v1.16.0) gives its width and 1000 ms, not
+   the legacy 100 ms its deliveries rest. Prime the line first in the
+   priming tab (see below).
 3. Wizard fires N pulses into a beaker.
 4. The operator weighs the output and enters the measured volume
    (gravimetric; the production rig runs without a flow sensor).

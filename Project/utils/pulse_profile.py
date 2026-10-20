@@ -25,7 +25,8 @@ LEGACY_INTER_PULSE_INTERVAL_MS = 100
 
 # The production valve's validated profile (Parker 003-0257-900: 30 ms open,
 # then 1000 ms closed, which keeps the coil cool and the volume per pulse
-# steady). The wizard starts from it on a device with no calibration at all.
+# steady). The wizard starts from it on a device with no calibration at all,
+# and takes its interval for a calibration that has none stored.
 PRODUCTION_PULSE_WIDTH_MS = 30
 PRODUCTION_INTER_PULSE_INTERVAL_MS = 1000
 
@@ -39,17 +40,25 @@ LATEST_ON_DEVICE = 'latest on device'
 PRODUCTION = 'production'
 
 
-def resolve_interval_ms(raw) -> int:
-    """The rest a delivery uses for a stored interval, in ms: the interval
-    itself, or the legacy 100 ms when none was stored (NULL) or the stored one
-    is not a positive number."""
+def stored_interval_ms(raw) -> Optional[int]:
+    """A calibration's stored interval in ms, when it has one a delivery can
+    use as it is: a positive whole number of ms. None for NULL (saved before
+    v1.16.0 stored one) and for anything else: zero, negative, unreadable or
+    infinite, which only a hand edit can store."""
+    if raw is None:
+        return None
     try:
-        if raw is None:
-            return LEGACY_INTER_PULSE_INTERVAL_MS
         interval = int(raw)
     except (TypeError, ValueError, OverflowError):
-        return LEGACY_INTER_PULSE_INTERVAL_MS
-    return interval if interval > 0 else LEGACY_INTER_PULSE_INTERVAL_MS
+        return None
+    return interval if interval > 0 else None
+
+
+def resolve_interval_ms(raw) -> int:
+    """The rest a delivery uses for a stored interval, in ms: the stored
+    interval (stored_interval_ms), else the legacy 100 ms."""
+    interval = stored_interval_ms(raw)
+    return LEGACY_INTER_PULSE_INTERVAL_MS if interval is None else interval
 
 
 def profile_of(row) -> Optional[Tuple[int, int]]:
@@ -67,26 +76,37 @@ def profile_text(pulse_width_ms, interval_ms) -> str:
 
 
 class StartingProfile(NamedTuple):
-    """The pulse width and rest the calibration wizard starts a cage from."""
+    """The pulse width and interval the calibration wizard starts a cage from."""
 
     pulse_width_ms: int
     interval_ms: int
     source: str  # THIS_CAGE, LATEST_ON_DEVICE or PRODUCTION
     source_cage_id: Optional[int] = None
+    # False when the calibration it starts from has no stored interval (saved
+    # before v1.16.0): the width is that calibration's, the interval the
+    # production one.
+    interval_stored: bool = True
 
     def describe(self) -> str:
-        """One sentence for the wizard: the values, and where they came from."""
-        values = f"{self.pulse_width_ms} ms / {self.interval_ms} ms"
-        if self.source == THIS_CAGE:
-            return f"Starting from this cage's last calibration: {values}."
-        if self.source == LATEST_ON_DEVICE:
+        """What the wizard says: the values, and where they came from."""
+        if self.source == PRODUCTION:
             return (
-                f"Starting from cage {self.source_cage_id}'s calibration, the most recent "
-                f"on this device: {values}."
+                f"Starting from {self.pulse_width_ms} ms / {self.interval_ms} ms, RRR's "
+                "recommended profile for the Parker valve: no cage on this device has a "
+                "usable calibration yet."
             )
+        if self.source == THIS_CAGE:
+            start = "Starting from this cage's last calibration"
+        else:
+            start = (
+                f"Starting from cage {self.source_cage_id}'s calibration, the most recent "
+                "usable one on this device"
+            )
+        if self.interval_stored:
+            return f"{start}: {self.pulse_width_ms} ms / {self.interval_ms} ms."
         return (
-            f"Starting from {values}, the production valve's validated profile: no cage "
-            "on this device has a calibration to start from."
+            f"{start}: {self.pulse_width_ms} ms. It has no stored interval, so the interval "
+            f"starts at the recommended {self.interval_ms} ms."
         )
 
 
@@ -97,14 +117,28 @@ def _as_cage_id(value) -> Optional[int]:
         return None
 
 
-def _repeatable(profile) -> bool:
-    """Whether the wizard can run this profile again (inside its ranges)."""
+def _wizard_start(row) -> Optional[Tuple[int, int, bool]]:
+    """``(pulse width, interval, whether the interval is the row's own)`` the
+    wizard can start from ``row``, or None when the row cannot plan a delivery
+    (profile_of) or its profile is outside the wizard's ranges.
+
+    A row with no stored interval (saved before v1.16.0) starts at its width
+    and the production interval, not at the legacy 100 ms its deliveries use:
+    nobody chose that 100 ms, and its duty cycle heats the coil, which is what
+    the wizard's duty-cycle warning is about."""
+    profile = profile_of(row)
     if profile is None:
-        return False
-    width, interval = profile
+        return None
+    width = profile[0]
+    interval = stored_interval_ms(row.get('inter_pulse_interval_ms'))
+    own_interval = interval is not None
+    if not own_interval:
+        interval = PRODUCTION_INTER_PULSE_INTERVAL_MS
     low_width, high_width = PULSE_WIDTH_RANGE_MS
     low_interval, high_interval = INTER_PULSE_INTERVAL_RANGE_MS
-    return low_width <= width <= high_width and low_interval <= interval <= high_interval
+    if not (low_width <= width <= high_width and low_interval <= interval <= high_interval):
+        return None
+    return width, interval, own_interval
 
 
 def _saved_when(row) -> datetime:
@@ -124,7 +158,8 @@ def _calibration_id(row) -> int:
 
 
 def wizard_starting_profile(cage_id, calibrations) -> StartingProfile:
-    """The pulse width and rest the calibration wizard starts ``cage_id`` from.
+    """The pulse width and interval the calibration wizard starts ``cage_id``
+    from.
 
     1. The cage's own calibration, when it has a usable one. A Stale one
        counts: the valve topology changes the volume per pulse, not the
@@ -136,9 +171,10 @@ def wizard_starting_profile(cage_id, calibrations) -> StartingProfile:
 
     Usable means calibration_gate.calibration_is_usable (a positive, finite
     volume per pulse and pulse width: what Settings does not mark Invalid)
-    with a profile inside the wizard's ranges. ``calibrations`` is
-    ``get_all_valve_calibrations()``: cage id to row. Anything else counts
-    as no calibrations.
+    with a profile inside the wizard's ranges. A calibration with no stored
+    interval gives its width and the production interval (_wizard_start).
+    ``calibrations`` is ``get_all_valve_calibrations()``: cage id to row.
+    Anything else counts as no calibrations.
     """
     rows = {}
     if isinstance(calibrations, Mapping):
@@ -147,18 +183,19 @@ def wizard_starting_profile(cage_id, calibrations) -> StartingProfile:
             if cage is not None and isinstance(row, Mapping):
                 rows[cage] = row
 
-    own = profile_of(rows.get(_as_cage_id(cage_id)))
-    if _repeatable(own):
-        return StartingProfile(own[0], own[1], THIS_CAGE, _as_cage_id(cage_id))
+    own = _wizard_start(rows.get(_as_cage_id(cage_id)))
+    if own is not None:
+        width, interval, interval_stored = own
+        return StartingProfile(width, interval, THIS_CAGE, _as_cage_id(cage_id), interval_stored)
 
-    candidates = [(cage, row) for cage, row in rows.items() if _repeatable(profile_of(row))]
+    candidates = [(cage, row) for cage, row in rows.items() if _wizard_start(row) is not None]
     if candidates:
         cage, row = max(
             candidates,
             key=lambda item: (_saved_when(item[1]), _calibration_id(item[1]), item[0]),
         )
-        width, interval = profile_of(row)
-        return StartingProfile(width, interval, LATEST_ON_DEVICE, cage)
+        width, interval, interval_stored = _wizard_start(row)
+        return StartingProfile(width, interval, LATEST_ON_DEVICE, cage, interval_stored)
 
     return StartingProfile(
         PRODUCTION_PULSE_WIDTH_MS, PRODUCTION_INTER_PULSE_INTERVAL_MS, PRODUCTION

@@ -284,9 +284,9 @@ class CalibrationWizard(QDialog):
         self.db = database_handler
         self.system_controller = system_controller
 
-        # Calibration parameters. The pulse width and rest start from this
-        # cage's last calibration, else the device's most recent one, else
-        # the production valve's profile (utils.pulse_profile).
+        # Calibration parameters. The pulse width and interval start from this
+        # cage's last calibration, else the device's most recent usable one,
+        # else the production valve's profile (utils.pulse_profile).
         self.num_pulses = 250  # Default
         self.starting_profile = self._starting_profile()
         self.pulse_width_ms = self.starting_profile.pulse_width_ms

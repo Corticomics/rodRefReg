@@ -3,10 +3,12 @@
 The owner's decision (2026-10-19): the wizard starts from the cage's last
 pulse width and interval; a cage never calibrated starts from the device's
 most recent calibration, and a device with none from 30 ms / 1000 ms (the
-production Parker 003-0257-900 valve's validated profile). The configuration
-page says where its values came from, and Calibrate All Uncalibrated follows
-the same rule for every cage it opens. Against the real database, offscreen;
-the rule itself is test_pulse_profile.py's.
+production Parker 003-0257-900 valve's validated profile). A calibration saved
+before v1.16.0 has no stored interval: it gives its width, and the interval
+starts at 1000 ms. The configuration page says where its values came from,
+and Calibrate All Uncalibrated follows the same rule for every cage it opens.
+Against the real database, offscreen; the rule itself is
+test_pulse_profile.py's.
 """
 
 from __future__ import annotations
@@ -114,7 +116,8 @@ def test_a_cage_never_calibrated_starts_from_the_device_s_most_recent(qapp, data
 
     assert (width, interval) == (25, 800)
     assert says.startswith(
-        "Starting from cage 3's calibration, the most recent on this device: 25 ms / 800 ms. "
+        "Starting from cage 3's calibration, the most recent usable one on this device: "
+        "25 ms / 800 ms. "
     )
     wizard.close()
 
@@ -126,9 +129,40 @@ def test_a_device_with_no_calibration_starts_from_30_1000(qapp, database_handler
 
     assert (width, interval) == (30, 1000)
     assert says.startswith(
-        "Starting from 30 ms / 1000 ms, the production valve's validated profile: no cage "
-        "on this device has a calibration to start from. "
+        "Starting from 30 ms / 1000 ms, RRR's recommended profile for the Parker valve: no "
+        "cage on this device has a usable calibration yet. "
     )
+    wizard.close()
+
+
+@pytest.mark.parametrize("cage", [5, 9], ids=["its-own", "never-calibrated"])
+def test_a_calibration_saved_before_the_interval_was_stored_starts_at_1000_ms(
+    qapp, database_handler, cage
+):
+    """Cage 5 was calibrated at 20 ms before v1.16.0 stored an interval, so its
+    deliveries rest the legacy 100 ms. Nobody chose that 100 ms, and 20 / 100 is
+    a 17 % duty cycle, which the wizard's own warning is about: the wizard keeps
+    the 20 ms and starts the interval at 1000 ms, with no warning. Cage 9, never
+    calibrated, starts from cage 5's calibration (the only one) the same way."""
+    _calibrate(database_handler, 5, 20, None, date="2026-08-30T14:20:00")
+    wizard = _wizard(database_handler, cage)
+
+    width, interval, says = _configuration_page(wizard)
+
+    assert (width, interval) == (20, 1000)
+    assert wizard.duty_warning.isHidden(), wizard.duty_warning.text()
+    source = (
+        "this cage's last calibration"
+        if cage == 5
+        else "cage 5's calibration, the most recent usable one on this device"
+    )
+    assert says.startswith(
+        f"Starting from {source}: 20 ms. It has no stored interval, so the interval starts "
+        "at the recommended 1000 ms. "
+    )
+
+    wizard.interval_spin.setValue(100)  # the legacy cadence, if the operator wants it
+    assert not wizard.duty_warning.isHidden(), "the warning is still there for 20 / 100"
     wizard.close()
 
 

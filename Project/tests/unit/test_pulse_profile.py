@@ -1,11 +1,12 @@
-"""Where the calibration wizard starts a cage's pulse width and rest (v2.1.0).
+"""Where the calibration wizard starts a cage's pulse width and interval (v2.1.0).
 
 utils.pulse_profile.wizard_starting_profile, Qt-free: the cage's own usable
 calibration; else the device's most recent usable one (by calibration date,
 then calibration id); else the production valve's 30 ms / 1000 ms. Usable is
 calibration_gate.calibration_is_usable, with a profile inside the wizard's
-ranges. Also the one rule for a stored rest (NULL is the legacy 100 ms),
-which deliveries share.
+ranges. A calibration with no stored interval gives its pulse width and the
+production 1000 ms. Also the one rule for a stored interval (NULL is the
+legacy 100 ms), which deliveries share.
 """
 
 from __future__ import annotations
@@ -17,10 +18,12 @@ from utils.pulse_profile import (
     LATEST_ON_DEVICE,
     LEGACY_INTER_PULSE_INTERVAL_MS,
     PRODUCTION,
+    PRODUCTION_INTER_PULSE_INTERVAL_MS,
     THIS_CAGE,
     StartingProfile,
     profile_of,
     resolve_interval_ms,
+    stored_interval_ms,
     wizard_starting_profile,
 )
 
@@ -45,16 +48,43 @@ def test_a_cage_starts_from_its_own_calibration():
     assert wizard_starting_profile(2, calibrations) == StartingProfile(20, 500, THIS_CAGE, 2)
 
 
-def test_its_own_calibration_counts_when_stale_or_saved_before_the_rest_was_stored():
+def test_its_own_calibration_counts_when_stale():
     """A Stale row was measured under the other topology: that changes the
-    volume per pulse, not the profile the operator chose. A row from before
-    v1.16.0 has no rest: deliveries to it use the legacy 100 ms, so does the
-    wizard."""
+    volume per pulse, not the profile the operator chose."""
     stale = {4: _row(30, 1000, topology='independent')}
     assert wizard_starting_profile(4, stale) == StartingProfile(30, 1000, THIS_CAGE, 4)
 
-    legacy = {5: _row(20, None)}
-    assert wizard_starting_profile(5, legacy) == StartingProfile(20, 100, THIS_CAGE, 5)
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        pytest.param(None, id="saved-before-v1.16.0"),
+        pytest.param(0, id="zero"),
+        pytest.param(-5, id="negative"),
+        pytest.param("not a number", id="unreadable"),
+        pytest.param(float("inf"), id="infinite"),
+    ],
+)
+def test_a_calibration_with_no_stored_interval_gives_its_width_and_1000_ms(stored):
+    """A row from before v1.16.0 has no interval (NULL), and only a hand edit
+    stores one that is not a positive number. Deliveries to such a cage use
+    the legacy 100 ms, but nobody chose that 100 ms, and at 20 ms it is a
+    17 % duty cycle, which the wizard itself warns against: the wizard keeps
+    the cage's width and starts the interval at the production 1000 ms. The
+    same goes when it is the device's most recent calibration."""
+    assert profile_of(_row(20, stored)) == (20, 100), "what its deliveries use"
+
+    own = wizard_starting_profile(5, {5: _row(20, stored)})
+    assert own == StartingProfile(20, PRODUCTION_INTER_PULSE_INTERVAL_MS, THIS_CAGE, 5, False)
+
+    latest = wizard_starting_profile(
+        9,
+        {
+            5: _row(20, stored, date="2026-08-30T14:20:00", cal_id=2),
+            1: _row(30, 1000, date="2026-08-01T09:00:00", cal_id=1),
+        },
+    )
+    assert latest == StartingProfile(20, 1000, LATEST_ON_DEVICE, 5, False)
 
 
 def test_a_cage_never_calibrated_starts_from_the_device_s_most_recent_calibration():
@@ -118,28 +148,51 @@ def test_what_the_wizard_says_about_where_it_started():
     assert StartingProfile(30, 1000, THIS_CAGE, 2).describe() == (
         "Starting from this cage's last calibration: 30 ms / 1000 ms."
     )
+    assert StartingProfile(20, 1000, THIS_CAGE, 5, False).describe() == (
+        "Starting from this cage's last calibration: 20 ms. It has no stored interval, so "
+        "the interval starts at the recommended 1000 ms."
+    )
     assert StartingProfile(25, 800, LATEST_ON_DEVICE, 3).describe() == (
-        "Starting from cage 3's calibration, the most recent on this device: 25 ms / 800 ms."
+        "Starting from cage 3's calibration, the most recent usable one on this device: "
+        "25 ms / 800 ms."
+    )
+    assert StartingProfile(20, 1000, LATEST_ON_DEVICE, 5, False).describe() == (
+        "Starting from cage 5's calibration, the most recent usable one on this device: "
+        "20 ms. It has no stored interval, so the interval starts at the recommended 1000 ms."
     )
     assert StartingProfile(30, 1000, PRODUCTION).describe() == (
-        "Starting from 30 ms / 1000 ms, the production valve's validated profile: no cage "
-        "on this device has a calibration to start from."
+        "Starting from 30 ms / 1000 ms, RRR's recommended profile for the Parker valve: no "
+        "cage on this device has a usable calibration yet."
     )
+
+
+def test_most_recent_means_the_most_recent_usable_one():
+    """A newer Invalid calibration on another cage is passed over, which is
+    why the sentence says "the most recent usable one"."""
+    calibrations = {
+        1: _row(30, 1000, date="2026-10-11T10:40:00", cal_id=3),
+        6: _row(30, 1000, volume=0.0, date="2026-10-18T09:00:00", cal_id=4),  # Invalid
+    }
+    start = wizard_starting_profile(9, calibrations)
+    assert start == StartingProfile(30, 1000, LATEST_ON_DEVICE, 1)
+    assert "cage 1's calibration, the most recent usable one" in start.describe()
 
 
 @pytest.mark.parametrize(
-    ("raw", "rest"),
+    ("raw", "stored", "rest"),
     [
-        (None, LEGACY_INTER_PULSE_INTERVAL_MS),
-        (0, 100),
-        (-5, 100),
-        ("not a number", 100),
-        (float("inf"), 100),
-        (750, 750),
-        ("1000", 1000),
+        (None, None, LEGACY_INTER_PULSE_INTERVAL_MS),
+        (0, None, 100),
+        (-5, None, 100),
+        ("not a number", None, 100),
+        (float("inf"), None, 100),
+        (100, 100, 100),
+        (750, 750, 750),
+        ("1000", 1000, 1000),
     ],
 )
-def test_the_rest_a_delivery_uses_for_a_stored_interval(raw, rest):
+def test_the_rest_a_delivery_uses_for_a_stored_interval(raw, stored, rest):
+    assert stored_interval_ms(raw) == stored
     assert resolve_interval_ms(raw) == rest
 
 

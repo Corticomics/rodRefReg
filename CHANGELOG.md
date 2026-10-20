@@ -32,11 +32,13 @@ not listed here.
   delivery off.
 - **Change:** the calibration wizard starts from the cage's last pulse
   width and interval. A cage that was never calibrated starts from the
-  device's most recent calibration, and a device with none from 30 ms /
-  1000 ms, the production valve's validated profile (every cage used to
-  start at 20 ms / 500 ms). The configuration page says where the values
-  came from. Calibrate All Uncalibrated works the same way, so each cage it
-  opens starts from the one calibrated just before it.
+  device's most recent usable calibration, and a device with none from
+  30 ms / 1000 ms, RRR's recommended profile for the Parker valve (every
+  cage used to start at 20 ms / 500 ms). A calibration saved before v1.16.0
+  has no stored interval, so it starts at its pulse width and 1000 ms. The
+  configuration page says where the values came from. Calibrate All
+  Uncalibrated works the same way, so each cage it opens starts from the
+  one calibrated just before it.
 - **Add:** Settings > Calibration has a **Profile** column: the pulse width
   and the rest between pulses each cage was calibrated at, for example
   *30 / 1000 ms*. Every delivery to the cage uses them.
