@@ -191,7 +191,13 @@ def test_both_themes_share_every_rule():
     for (selector, light_props), (_, dark_props) in pairs:
         theme_only["light"] |= {(selector, p) for p in light_props if p not in dark_props}
         theme_only["dark"] |= {(selector, p) for p in dark_props if p not in light_props}
-    assert theme_only == {"light": set(), "dark": DARK_ONLY}, "declarations one theme lacks"
+    expected = {"light": set(), "dark": DARK_ONLY}
+    new = {t: sorted(theme_only[t] - expected[t]) for t in expected}
+    gone = {t: sorted(expected[t] - theme_only[t]) for t in expected}
+    assert not any(new.values()) and not any(gone.values()), (
+        f"declarations only one theme has: new {new}, no longer theme-only {gone} "
+        "(share them, or update DARK_ONLY on purpose)"
+    )
     for (selector, light_props), (_, dark_props) in pairs:
         shared = [p for p in dark_props if (selector, p) not in DARK_ONLY]
         assert shared == light_props, f"{selector}: the themes order their declarations apart"
