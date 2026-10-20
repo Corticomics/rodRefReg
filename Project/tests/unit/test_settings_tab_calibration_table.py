@@ -394,37 +394,43 @@ def test_the_report_quotes_notes_and_leaves_missing_ones_empty(
 # --- each cage's profile (v2.1.0) ------------------------------------------------------
 
 
+def _calibrate_profile(database_handler, cage, width, interval, **extra):
+    row = {"volume": 0.034164, "topology": "shared_manifold", **extra}
+    assert database_handler.save_valve_calibration(
+        cage_id=cage,
+        relay_id=cage,
+        pulse_width_ms=width,
+        volume_per_pulse_ml=row["volume"],
+        stddev_ml=0.001,
+        cv_pct=1.0,
+        num_samples=250,
+        inter_pulse_interval_ms=interval,
+        topology=row["topology"],
+    )
+
+
 def test_each_calibrated_row_shows_the_profile_its_deliveries_use(
     qapp, database_handler, system_controller
 ):
-    """No global pulse width any more: the table shows the width and rest each
-    cage was calibrated at, which its deliveries replay."""
-
-    def _calibrate(cage, width, rest, volume=0.034164, topology="shared_manifold"):
-        assert database_handler.save_valve_calibration(
-            cage_id=cage,
-            relay_id=cage,
-            pulse_width_ms=width,
-            volume_per_pulse_ml=volume,
-            stddev_ml=0.001,
-            cv_pct=1.0,
-            num_samples=250,
-            inter_pulse_interval_ms=rest,
-            topology=topology,
-        )
-
+    """No global pulse width any more: the table shows the width and interval
+    each cage was calibrated at, which its deliveries replay. The tooltip says
+    what the calibration was, then what applies to the row: deliveries use it
+    (and wait the settling time after each pulse, which the calibration run
+    does not), or, on a Stale row, what Run does about it."""
     system_controller.settings.update(num_hats=1, valve_topology="shared_manifold")
-    _calibrate(1, 30, 1000)
-    _calibrate(2, 20, None)  # saved before the rest was stored
-    _calibrate(3, 25, 800, topology="independent")  # Stale: the profile still shows
-    _calibrate(4, 30, 1000, volume=0.0)  # Invalid
+    _calibrate_profile(database_handler, 1, 30, 1000)
+    _calibrate_profile(database_handler, 2, 20, None)  # saved before v1.16.0 stored one
+    _calibrate_profile(database_handler, 3, 25, 800, topology="independent")  # Stale
+    _calibrate_profile(database_handler, 4, 30, 1000, volume=0.0)  # Invalid
     tab = _settings_tab(system_controller, database_handler)
     table = tab.calibration_table
 
     assert table.horizontalHeaderItem(tab.CAL_COL_PROFILE).text() == "Profile"
-    assert "Deliveries to the cage use them" in table.horizontalHeaderItem(
-        tab.CAL_COL_PROFILE
-    ).toolTip()
+    assert table.horizontalHeaderItem(tab.CAL_COL_PROFILE).toolTip() == (
+        "The pulse width / interval each cage was calibrated at: how long the valve opens "
+        "for each pulse, and the valve-closed rest between pulses. Deliveries to the cage "
+        "use them."
+    )
     profile = [table.item(row, tab.CAL_COL_PROFILE) for row in range(5)]
     assert [item.text() for item in profile] == [
         "30 / 1000 ms",
@@ -434,12 +440,24 @@ def test_each_calibrated_row_shows_the_profile_its_deliveries_use(
         "—",
     ]
     assert profile[0].toolTip() == (
-        "Deliveries to cage 1 use this profile: the valve opens for 30 ms, then stays "
-        "closed 1000 ms before the next pulse, as it was calibrated."
+        "Calibrated at 30 ms open, then 1000 ms closed before the next pulse. Deliveries "
+        "to cage 1 use this pulse width and interval; after each pulse they also wait "
+        "100 ms for the valve to settle."
     )
-    assert profile[1].toolTip().endswith(
-        "This calibration predates stored rests, so deliveries use the 100 ms rest of that time."
+    assert profile[1].toolTip() == (
+        "Calibrated at 20 ms open, before RRR recorded the interval (v1.16.0): the 100 ms "
+        "shown is the interval RRR used then. Deliveries to cage 2 use this pulse width "
+        "and interval; after each pulse they also wait 100 ms for the valve to settle."
     )
+    stale = table.item(2, tab.CAL_COL_STATUS)
+    assert stale.text() == "Stale"
+    assert profile[2].toolTip() == (
+        "Calibrated at 25 ms open, then 800 ms closed before the next pulse. A schedule "
+        "watering this cage will not start until it is recalibrated."
+    )
+    assert stale.toolTip().endswith(
+        "A schedule watering this cage will not start until it is recalibrated."
+    ), "the same consequence as its Status cell"
     assert profile[3].toolTip() == "No usable calibration: recalibrate this cage."
     assert profile[4].toolTip() == "Not calibrated"
     # An uncalibrated row's dash is the same grey as the row's other dashes.
@@ -449,4 +467,42 @@ def test_each_calibrated_row_shows_the_profile_its_deliveries_use(
     assert table.item(0, tab.CAL_COL_VOLUME).text() == "0.034164"
     assert table.item(0, tab.CAL_COL_CV).text() == "1.00%"
     assert table.item(0, tab.CAL_COL_STATUS).text() == "[OK]"
-    assert table.item(2, tab.CAL_COL_STATUS).text() == "Stale"
+
+
+def test_the_profile_tooltip_follows_the_delivery_mode_and_the_settling_time(
+    qapp, database_handler, system_controller
+):
+    """In pump mode no delivery uses a valve calibration, so the tooltip does
+    not say one does; a Stale row says what its Status cell says. The
+    settling wait is read from the settings the next run copies. A stored
+    interval that cannot be used (only a hand edit stores one) is named as
+    such."""
+    system_controller.settings.update(
+        num_hats=1, valve_topology="shared_manifold", hardware_mode="pump"
+    )
+    _calibrate_profile(database_handler, 1, 30, 1000)
+    _calibrate_profile(database_handler, 3, 25, 800, topology="independent")  # Stale
+    _calibrate_profile(database_handler, 5, 30, -5)  # a hand edit
+    tab = _settings_tab(system_controller, database_handler)
+    table = tab.calibration_table
+
+    assert table.item(0, tab.CAL_COL_PROFILE).toolTip() == (
+        "Calibrated at 30 ms open, then 1000 ms closed before the next pulse. The current "
+        "delivery mode does not use it."
+    )
+    assert table.item(2, tab.CAL_COL_PROFILE).toolTip() == (
+        "Calibrated at 25 ms open, then 800 ms closed before the next pulse. The current "
+        "delivery mode does not use it, but pulse delivery would refuse it until it is "
+        "recalibrated."
+    )
+
+    system_controller.settings.update(hardware_mode="solenoid", pulse_settling_ms=150)
+    tab.refresh_calibration_table()
+    assert table.item(0, tab.CAL_COL_PROFILE).toolTip().endswith(
+        "after each pulse they also wait 150 ms for the valve to settle."
+    )
+    assert table.item(4, tab.CAL_COL_PROFILE).text() == "30 / 100 ms"
+    assert table.item(4, tab.CAL_COL_PROFILE).toolTip().startswith(
+        "Calibrated at 30 ms open. Its stored interval cannot be used, so the 100 ms shown "
+        "is the interval RRR used before v1.16.0. Deliveries to cage 5 use"
+    )

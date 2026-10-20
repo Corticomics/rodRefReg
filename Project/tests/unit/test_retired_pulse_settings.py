@@ -192,8 +192,8 @@ def test_the_delivery_tab_has_no_pulse_width_or_pulse_mode_control(
     note = tab.pulse_profile_note
     assert note.parentWidget() is group and note.objectName() == "HelpText"
     assert note.text() == (
-        "Each cage delivers at the pulse width and interval it was calibrated at, "
-        "shown in Settings > Calibration."
+        "Deliveries to each cage use the pulse width and interval it was calibrated at: "
+        "the Profile column in Settings\u00a0>\u00a0Calibration."
     )
 
 

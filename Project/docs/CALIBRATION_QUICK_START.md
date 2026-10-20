@@ -23,7 +23,7 @@ Calibration runs in the in-app **Calibration Wizard**, one cage at a time. The s
 
 ### Step 3: Measure & Save
 1. Weigh the beaker and enter the **Measured Volume** in mL (1 g of water ≈ 1 mL).
-2. The wizard shows the volume per pulse, the estimated CV and a quality rating. **Save & Finish** stores it; the cage's row in the table then shows **[OK]**, its **Profile** (the pulse width / rest it was calibrated at, which its deliveries use), the mL/pulse and the date.
+2. The wizard shows the volume per pulse, the estimated CV and a quality rating. **Save & Finish** stores it; the cage's row in the table then shows **[OK]**, its **Profile** (the pulse width / interval it was calibrated at, which its deliveries use), the mL/pulse and the date.
 
 ### Step 4: Verify
 Run a small test schedule (e.g. 0.5 mL) and confirm the delivered volume is within ±5 %.

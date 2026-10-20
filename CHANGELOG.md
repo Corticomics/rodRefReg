@@ -40,8 +40,8 @@ not listed here.
   Uncalibrated works the same way, so each cage it opens starts from the
   one calibrated just before it.
 - **Add:** Settings > Calibration has a **Profile** column: the pulse width
-  and the rest between pulses each cage was calibrated at, for example
-  *30 / 1000 ms*. Every delivery to the cage uses them.
+  and interval each cage was calibrated at, for example *30 / 1000 ms*.
+  Every delivery to the cage uses them.
 - **Fix:** the Calibration table reads in full on the lab's 1920 x 1080
   screen. Its status, mL/pulse, CV and date were cut off ("Not ...",
   "0....", "2026-1..."), and so was the first letter of *Recalibrate*. Each

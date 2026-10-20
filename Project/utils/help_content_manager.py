@@ -1156,8 +1156,8 @@ def _build_content() -> Dict[str, HelpContent]:
 <div class='help-section'>
   <h1>Valve Calibration</h1>
   <p>Calibration establishes the exact volume delivered per relay pulse for each cage
-  valve, at the pulse width and rest between pulses it is calibrated with: every delivery
-  to the cage pulses at that same profile.  In solenoid mode (the default), Run refuses a
+  valve, at the pulse width and interval it is calibrated with: every delivery to the cage
+  pulses at that same profile.  In solenoid mode (the default), Run refuses a
   schedule while any cage it waters has no usable calibration for this device's valve
   topology, and the dialog names those cages.  Pump mode does not use these
   calibrations.</p>
@@ -1172,9 +1172,10 @@ def _build_content() -> Dict[str, HelpContent]:
     it was measured); <em>Invalid</em> (red): the stored volume per pulse or pulse width is
     missing, zero or invalid; <em>Not Calibrated</em> (red).  Hover over Stale or Invalid to
     see what Run will do about it.</li>
-    <li><strong>Profile</strong> — the pulse width and the rest between pulses the cage was
-    calibrated at, for example <em>30 / 1000 ms</em>.  Every delivery to the cage uses them.
-    A dash means no usable calibration.</li>
+    <li><strong>Profile</strong> — the pulse width / interval the cage was calibrated at
+    (how long the valve opens for each pulse, and the valve-closed rest between pulses), for
+    example <em>30 / 1000 ms</em>.  Every delivery to the cage uses them, and after each pulse
+    also waits the 100 ms settling time.  A dash means no usable calibration.</li>
     <li><strong>mL/Pulse</strong> — measured volume delivered per relay activation.</li>
     <li><strong>CV%</strong> — coefficient of variation (lower is better; &lt;5% is
     production-ready, &lt;1% is excellent).  A dash means none was stored.</li>

@@ -31,7 +31,7 @@ from utils import updater
 from utils.calibration_gate import calibration_is_usable, gate_applies
 from utils.last_run_text import outcome_word
 from utils.operation_lock import CALIBRATION, EMERGENCY, get_operation_lock
-from utils.pulse_profile import profile_of, profile_text
+from utils.pulse_profile import profile_of, profile_text, stored_interval_ms
 from utils.topology import (
     DEFAULT_MASTER_RELAY_ID,
     INDEPENDENT,
@@ -474,9 +474,10 @@ class SettingsTab(QWidget):
         pulse_layout.setContentsMargins(12, 12, 12, 12)
         pulse_layout.setSpacing(8)
 
+        # No-break spaces keep "Settings > Calibration" on one line.
         pulse_note = QLabel(
-            "Each cage delivers at the pulse width and interval it was calibrated at, "
-            "shown in Settings > Calibration."
+            "Deliveries to each cage use the pulse width and interval it was calibrated "
+            "at: the Profile column in Settings\u00a0>\u00a0Calibration."
         )
         pulse_note.setObjectName("HelpText")
         pulse_note.setWordWrap(True)
@@ -1042,8 +1043,9 @@ class SettingsTab(QWidget):
         self.calibration_table.setColumnCount(len(self.CAL_HEADERS))
         self.calibration_table.setHorizontalHeaderLabels(list(self.CAL_HEADERS))
         self.calibration_table.horizontalHeaderItem(self.CAL_COL_PROFILE).setToolTip(
-            "The pulse width and the rest between pulses each cage was calibrated at. "
-            "Deliveries to the cage use them."
+            "The pulse width / interval each cage was calibrated at: how long the valve "
+            "opens for each pulse, and the valve-closed rest between pulses. Deliveries to "
+            "the cage use them."
         )
 
         # Table styling - Match app's Material Design theme
@@ -1252,12 +1254,14 @@ class SettingsTab(QWidget):
                     status_item.setToolTip(f"Calibrated on {calibration_label(cal)}")
                 status_item.setTextAlignment(Qt.AlignCenter)
 
-                # The pulse width and rest its deliveries replay ("—" when the
-                # row cannot plan one: Invalid).
+                # The pulse width and interval its deliveries replay ("—" when
+                # the row cannot plan one: Invalid).
                 profile = profile_of(cal)
                 profile_item = QTableWidgetItem("—" if profile is None else profile_text(*profile))
                 profile_item.setTextAlignment(Qt.AlignCenter)
-                profile_item.setToolTip(self._profile_tooltip(cage_id, cal, profile))
+                profile_item.setToolTip(
+                    self._profile_tooltip(cage_id, cal, profile, stale, consequence)
+                )
 
                 volume_item = QTableWidgetItem(
                     _format_number(cal.get('volume_per_pulse_ml'), "{:.6f}")
@@ -1355,22 +1359,43 @@ class SettingsTab(QWidget):
         self._apply_calibration_lock_state()
         self._fit_action_column()
 
-    @staticmethod
-    def _profile_tooltip(cage_id, cal, profile):
-        """What a calibrated row's Profile cell says when hovered."""
+    def _profile_tooltip(self, cage_id, cal, profile, stale, consequence):
+        """What a calibrated row's Profile cell says when hovered: the profile
+        it was calibrated at, then what applies to the row. ``consequence``
+        is what Run does about a Stale row, as its Status cell says."""
         if profile is None:
             return "No usable calibration: recalibrate this cage."
         width, interval = profile
-        tip = (
-            f"Deliveries to cage {cage_id} use this profile: the valve opens for {width} ms, "
-            f"then stays closed {interval} ms before the next pulse, as it was calibrated."
-        )
-        if cal.get('inter_pulse_interval_ms') is None:
-            tip += (
-                " This calibration predates stored rests, so deliveries use the "
-                f"{interval} ms rest of that time."
+        stored = cal.get('inter_pulse_interval_ms')
+        if stored is None:
+            calibrated = (
+                f"Calibrated at {width} ms open, before RRR recorded the interval (v1.16.0): "
+                f"the {interval} ms shown is the interval RRR used then."
             )
-        return tip
+        elif stored_interval_ms(stored) is None:  # only a hand edit stores one
+            calibrated = (
+                f"Calibrated at {width} ms open. Its stored interval cannot be used, so the "
+                f"{interval} ms shown is the interval RRR used before v1.16.0."
+            )
+        else:
+            calibrated = (
+                f"Calibrated at {width} ms open, then {interval} ms closed before the next "
+                "pulse."
+            )
+        if stale:
+            return f"{calibrated} {consequence}"
+        if not gate_applies(self.settings):
+            return f"{calibrated} The current delivery mode does not use it."
+        # The strategy waits pulse_settling_ms after each pulse, then the
+        # interval; the calibration wizard waits the interval only.
+        try:
+            settling_ms = int(self.settings.get('pulse_settling_ms', 100))
+        except (TypeError, ValueError):
+            settling_ms = 100
+        return (
+            f"{calibrated} Deliveries to cage {cage_id} use this pulse width and interval; "
+            f"after each pulse they also wait {settling_ms} ms for the valve to settle."
+        )
 
     def _fit_action_column(self):
         """Size the Action column to its widest button, plus the cell's side
