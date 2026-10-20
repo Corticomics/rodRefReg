@@ -51,7 +51,7 @@ journalctl --user -u rrr.service -b | grep -E "SM16relind module not found|Faile
   stack=N: …`) — the library loaded but no HAT answered.
 
 In either case `RelayHandler` has no HAT for those stacks, and since v1.21.0
-every write to them is refused. In solenoid pulse mode (the default) the
+every write to them is refused. In solenoid mode (the default) the
 Terminal tab shows `Relay N not switched: no initialised relay HAT for it`
 and the delivery stops with `[VALVE ERROR] cage N: …; delivery stopped`; in
 any mode the ledger row is `failed` (or `partial` if some water got

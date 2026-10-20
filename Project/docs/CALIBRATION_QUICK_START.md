@@ -18,12 +18,12 @@ Calibration runs in the in-app **Calibration Wizard**, one cage at a time. The s
 
 ### Step 2: Run the Wizard
 1. Open **Settings → Calibration**. The table has one row per cage in the device's cage map, with the names set in the Cages tab. Click **Calibrate** on the cage's row (**Recalibrate** if it already has one); the wizard opens for that cage.
-2. Work through the **Pre-Flight Checklist**, then set the **Calibration Parameters**: the number of pulses, the **pulse width**, and the **inter-pulse interval**. The page shows the estimated run time and flags a hot duty cycle.
+2. Work through the **Pre-Flight Checklist**, then set the **Calibration Parameters**: the number of pulses, the **pulse width**, and the **inter-pulse interval**. The width and interval start from the cage's last calibration, and the page says where they came from (see [Where the wizard starts](#where-the-wizard-starts)). The page shows the estimated run time and flags a hot duty cycle.
 3. Click **Next**: the wizard fires the pulse train automatically. Progress updates live, and closing the wizard stops the run.
 
 ### Step 3: Measure & Save
 1. Weigh the beaker and enter the **Measured Volume** in mL (1 g of water ≈ 1 mL).
-2. The wizard shows the volume per pulse, the estimated CV and a quality rating. **Save & Finish** stores it; the cage's row in the table then shows **[OK]**, the mL/pulse and the date.
+2. The wizard shows the volume per pulse, the estimated CV and a quality rating. **Save & Finish** stores it; the cage's row in the table then shows **[OK]**, its **Profile** (the pulse width / interval it was calibrated at, which its deliveries use), the mL/pulse and the date.
 
 ### Step 4: Verify
 Run a small test schedule (e.g. 0.5 mL) and confirm the delivered volume is within ±5 %.
@@ -36,12 +36,16 @@ A calibration says "this valve delivers X mL per pulse" — but only at the cade
 
 Two controls set the profile, and both are stored with the calibration:
 
-| Control | What it does | Default |
-|---|---|---|
-| **Pulse Width** | How long the valve is held open per pulse. Wider pulses spend proportionally less time in the slow opening transient, so they are less sensitive to coil heating — but they coarsen the dose granularity. | 20 ms |
-| **Inter-Pulse Interval** | The valve-closed rest between pulses. A longer rest lowers the duty cycle, so the coil runs cooler and the output holds steady. | 500 ms |
+| Control | What it does |
+|---|---|
+| **Pulse Width** | How long the valve is held open per pulse. Wider pulses spend proportionally less time in the slow opening transient, so they are less sensitive to coil heating — but they coarsen the dose granularity. |
+| **Inter-Pulse Interval** | The valve-closed rest between pulses. A longer rest lowers the duty cycle, so the coil runs cooler and the output holds steady. |
 
-**Calibrate at the profile you intend to run.** Deliveries replay the stored profile for that cage, so the duty cycle that produced the `mL/pulse` figure is the duty cycle the animal receives.
+**Calibrate at the profile you intend to run.** Deliveries replay the stored profile for that cage, so the duty cycle that produced the `mL/pulse` figure is the duty cycle the animal receives. There is no global pulse width in Settings (2.1.0 removed it).
+
+### Where the wizard starts
+
+The two controls open at the cage's last calibration, so a recalibration repeats the profile its deliveries use. A calibration saved before v1.16.0 has no stored interval: the wizard keeps its pulse width and starts the interval at 1000 ms rather than at the 100 ms its deliveries use, a cadence nobody chose and whose duty cycle the wizard warns against (set 100 ms to repeat it). A cage that was never calibrated, or whose calibration is **Invalid**, opens at the device's most recent usable calibration; on a device with no usable calibration, at **30 ms / 1000 ms**, the validated profile of the production valve (Parker 003-0257-900). The configuration page says which, for example *Starting from cage 3's calibration, the most recent usable one on this device: 30 ms / 1000 ms*. **Calibrate All Uncalibrated** follows the same rule, so each cage it opens starts from the one calibrated just before it.
 
 **Duty cycle advisory.** Above roughly 15 % duty (`width ÷ (width + interval)`) the wizard shows a warning. It never blocks — it flags that the valve is energised for a large share of the run and the output may drift. Lengthen the interval to bring it down.
 
@@ -57,7 +61,7 @@ Two controls set the profile, and both are stored with the calibration:
 
 Water leaves the valve in whole pulses, so a dose can only ever land within one pulse of its target — at 33 µL per pulse, a 0.3 mL dose is 9.1 pulses and the app must fire 9 or 10. The default rounds to the **nearest** pulse: the dose lands within half a pulse either side of its target, and which side depends on the arithmetic (9.1 → 9, under; 8.8 → 9, over; an exact half, 8.5, rounds up to 9).
 
-**Settings → Delivery → Pulse Mode → "Round doses up to the next whole pulse"** flips that: any dose that is not an exact number of pulses gets the next whole pulse, so the plan never falls below its target and lands up to one pulse over. The rounding stays cumulative within a schedule window — a 0.6 mL window split into three chunks fires `ceil(0.6 ÷ mL/pulse)` pulses in total, not one extra per chunk.
+**Settings → Delivery → Pulse Delivery → "Round doses up to the next whole pulse"** flips that: any dose that is not an exact number of pulses gets the next whole pulse, so the plan never falls below its target and lands up to one pulse over. The rounding stays cumulative within a schedule window — a 0.6 mL window split into three chunks fires `ceil(0.6 ÷ mL/pulse)` pulses in total, not one extra per chunk.
 
 **When to use it.** Turn it on when weighed doses come out consistently short of their target and you would rather err over than under. The bench case: with a flow-restricting needle on the reservoir, 0.3–0.7 mL doses weighed 3–8 % under target at nearest rounding. Rounding up plans one more pulse per dose. At 33 µL per pulse that puts the plan at +10 / +5 / +4 / +3.5 / +2 % for 0.3 / 0.5 / 0.6 / 0.7 / 1.0 mL — the ceiling, if the hardware delivers exactly what is planned — and with the ~16 µL per-dose shortfall measured on the needle rig the bowl lands around +4.5 / +2 / +1.5 / +1 / +0.5 %. Verify with ten weighed doses at the smallest target you use — the choice is a policy, not a calibration, and only weighing tells you which side of the target your rig should sit on. If the needle comes out later, turn the setting off again: on a cage without the shortfall it still adds one pulse to every dose that rounds down.
 
@@ -109,7 +113,7 @@ Quality: POOR
 3. **Supply Level:** Head pressure affects volume (the reservoir full on a shared manifold; each cage's syringe at its normal running level on an independent rig)
 4. **Measure Water as-is:** 1g ≈ 1mL (at room temp)
 5. **Recalibrate:** Every 3 months or after valve replacement
-6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table (one saved before v1.21.0 counts as shared manifold), and in solenoid pulse mode (the default) Run refuses any schedule that waters a Stale cage until it is recalibrated. **Calibrate All Uncalibrated** includes the Stale cages.
+6. **After a topology switch** (**Settings → Delivery → Valve Topology**): recalibrate every animal cage. A calibration measured under the other valve topology shows **Stale** in the table (one saved before v1.21.0 counts as shared manifold), and in solenoid mode (the default) Run refuses any schedule that waters a Stale cage until it is recalibrated. **Calibrate All Uncalibrated** includes the Stale cages.
 
 ---
 
@@ -140,17 +144,17 @@ A relay did not switch partway through the run, so the water in the beaker no lo
    ```
    [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
-   Every cage the schedule waters has a line: since v1.21.0, in solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (see ["Valve calibration needed" when pressing Run](#valve-calibration-needed-when-pressing-run) below). These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
+   Every cage the schedule waters has a line: since v1.21.0, in solenoid mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (see ["Valve calibration needed" when pressing Run](#valve-calibration-needed-when-pressing-run) below). These lines appear only in the Terminal tab: once the window is up, the app sends its output there rather than to the system journal.
 
 ### "Valve calibration needed" when pressing Run
 
-With solenoid hardware and **Enable Pulse Mode** on (the default), Run checks every cage the schedule waters before anything starts (for an instant schedule, the cages of the deliveries still ahead). It refuses the schedule and lists the cages when a cage:
+With solenoid hardware (the default), Run checks every cage the schedule waters before anything starts (for an instant schedule, the cages of the deliveries still ahead). It refuses the schedule and lists the cages when a cage:
 
 - has no calibration (**Not Calibrated** in Settings → Calibration),
 - has one measured under the other valve topology (**Stale**; one saved before v1.21.0 counts as shared manifold), or
 - has one whose volume per pulse or pulse width is missing, zero or invalid (**Invalid**).
 
-Calibrate those cages in **Settings → Calibration** (the highlighted button on each cage's row, or **Calibrate All Uncalibrated**), then press Run again. A calibration only has to match the topology: its pulse width may differ from the one in Settings, because a delivery replays the cage's own.
+Calibrate those cages in **Settings → Calibration** (the highlighted button on each cage's row, or **Calibrate All Uncalibrated**), then press Run again. A calibration only has to match the topology: each cage keeps its own pulse width and interval, and a delivery to it replays them.
 
 A "**Not a cage on this device**" line (the dialog is titled **Cage not on this device** when that is the only problem) means the schedule waters a cage this device's cage map does not have. Edit the schedule so its animals are on cages listed in Settings → Calibration.
 

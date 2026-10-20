@@ -118,7 +118,7 @@ Now captures:
 
 #### 1. Prepare Equipment
 ```bash
-# 1. Verify system is in solenoid + pulse mode
+# 1. Verify Settings → Delivery → Hardware Mode is Solenoid (it always pulses)
 # 2. Check the cage's water supply: reservoir FULL (shared manifold),
 #    or the cage's syringe at its normal running level (independent rig)
 # 3. Place beaker under cage output
@@ -128,9 +128,11 @@ Now captures:
 #### 2. Run the Calibration Wizard
 Open **Settings → Calibration** and click **Calibrate** on the cage's row. The
 wizard (`ui/CalibrationWizard.py`) walks through a pre-flight checklist, takes
-the number of pulses, the pulse width and the inter-pulse interval, fires the
-pulse train into the beaker, asks for the weighed volume, and shows the
-result:
+the number of pulses, the pulse width and the inter-pulse interval (they start
+from the cage's last calibration, else the device's most recent usable one,
+else 30 ms / 1000 ms; a calibration with no stored interval gives its width
+and 1000 ms: `utils/pulse_profile.py`), fires the pulse train into the
+beaker, asks for the weighed volume, and shows the result:
 
 ```
 Total Volume:       18.7500 mL
@@ -147,8 +149,8 @@ command-line calibration tool used to be documented here; it was removed in
 v1.21.0 because it could not start.)
 
 #### 3. Verify Calibration
-In **Settings → Calibration** the cage's row shows **[OK]**, the mL/pulse, the
-CV and the date. The stored `valve_calibration` row (schema in
+In **Settings → Calibration** the cage's row shows **[OK]**, the **Profile**
+(pulse width / interval, e.g. `30 / 1000 ms`), the mL/pulse, the CV and the date. The stored `valve_calibration` row (schema in
 [DATABASE.md](DATABASE.md)) looks like:
 ```
 calibration_id|cage_id|relay_id|pulse_width_ms|volume_per_pulse_ml|stddev_ml|coefficient_of_variation_pct|num_samples|calibration_date|calibrated_by|notes|inter_pulse_interval_ms|topology
@@ -256,10 +258,11 @@ async def _execute_single_pulse(self, cage_id: int) -> float:
 `SolenoidFlowStrategy._get_cage_calibration(cage_id)` returns the cage's
 `(pulse_width_ms, inter_pulse_interval_ms, volume_per_pulse_ml)`. It reads the
 per-run snapshot taken at schedule start (the `[CAL SNAPSHOT]` lines), then the
-database, then the global empirical default for the Settings pulse width
-(`pulse_calibration.json`, or the built-in 0.026 mL/pulse at 20 ms). A delivery
-replays the cage's own pulse width and interval; they need not match Settings.
-Since v1.21.0, in solenoid pulse mode (the default), Run refuses a schedule
+database, then, for a cage with no calibration, the empirical fallback: 20 ms
+with its `pulse_calibration.json` figure (or the built-in 0.026 mL/pulse) and the
+legacy 100 ms rest. A delivery replays the cage's own pulse width and interval;
+no setting overrides them (2.1.0 removed the global Pulse Width).
+Since v1.21.0, in solenoid mode (the default), Run refuses a schedule
 that waters a cage with no usable calibration measured under this device's
 valve topology (*Valve calibration needed*; `utils/calibration_gate.py`), so
 the default and a Stale row are reached only as a defence in depth.
@@ -301,7 +304,7 @@ else:
   Since v1.21.0 each calibration records the topology it was measured under.
   One measured under the other valve topology shows **Stale** in Settings →
   Calibration (one saved before v1.21.0 counts as shared manifold), and in
-  solenoid pulse mode (the default) Run refuses a schedule that waters that
+  solenoid mode (the default) Run refuses a schedule that waters that
   cage until it is recalibrated.
 
 **Should calibrate:**
@@ -324,11 +327,15 @@ else:
 
 ### Sample Size Guidelines
 
-| Valve Type | Recommended Pulses | Time @ 20ms pulse |
-|-----------|-------------------|-------------------|
-| Parker Series 3 | 250 | ~8 minutes |
-| High-precision required | 300 | ~10 minutes |
-| Quick check | 100 | ~3 minutes |
+| Valve Type | Recommended Pulses | Time at 30 ms / 1000 ms |
+|-----------|-------------------|-------------------------|
+| Parker Series 3 | 250 | ~4.3 minutes |
+| High-precision required | 300 | ~5.2 minutes |
+| Quick check | 100 | ~1.7 minutes |
+
+The times are the wizard's own estimate (number of pulses × (pulse width +
+interval), plus 0.5 s for the master valve on a shared manifold). The
+configuration page shows it for the profile you set.
 
 **Math:**
 - Standard error = (scale_precision / √num_pulses)
@@ -341,7 +348,7 @@ else:
 each cage's own figure keeps delivery error under 5 %.
 
 **Global calibration is no longer an option.** Since v1.21.0, in solenoid
-pulse mode (the default), Run refuses a schedule that waters a cage with no
+mode (the default), Run refuses a schedule that waters a cage with no
 usable calibration measured under this device's valve topology (*Valve
 calibration needed*), and only a cage's own calibration counts. The global
 figures in `pulse_calibration.json` remain only as the delivery code's
@@ -396,7 +403,7 @@ Adaptive correction: sensor=0.045mL, cal=0.075mL, using=0.060mL (dev=40%)
    [CAL SNAPSHOT] cage=15 width=30ms rest=1000ms vol=0.032936 mL/pulse topology=shared_manifold
    ```
    Every cage the schedule waters has a line: since v1.21.0, in solenoid
-   pulse mode (the default), Run refuses a schedule that waters a cage with
+   mode (the default), Run refuses a schedule that waters a cage with
    no usable calibration measured under this device's valve topology (see
    [CALIBRATION_QUICK_START.md](CALIBRATION_QUICK_START.md#valve-calibration-needed-when-pressing-run)). (Once the
    window is up the app sends its output to the Terminal tab, not to the
@@ -427,7 +434,7 @@ measurement from that run. Fix the HAT, then calibrate again.
 
 ### Scenario 1: Fresh System (No Calibration)
 
-**Status:** no cage has a calibration. Since v1.21.0, in solenoid pulse mode
+**Status:** no cage has a calibration. Since v1.21.0, in solenoid mode
 (the default), Run refuses a schedule on an uncalibrated cage (*Valve
 calibration needed*), so nothing is delivered on the 0.026 mL/pulse default.
 
@@ -441,7 +448,7 @@ calibration needed*), so nothing is delivered on the 0.026 mL/pulse default.
 
 **Action:**
 1. Calibrate critical valves (used in active experiments)
-2. Only schedules whose cages all have their own calibration will start: in solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*). The global file is kept only as a last-resort fallback inside the delivery code
+2. Only schedules whose cages all have their own calibration will start: in solenoid mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology (*Valve calibration needed*). The global file is kept only as a last-resort fallback inside the delivery code
 3. Gradually calibrate remaining valves
 
 ### Scenario 3: System with Incorrect Global Calibration

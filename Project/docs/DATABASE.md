@@ -730,7 +730,32 @@ The set of keys persisted to the DB is the single source of truth
 [`SystemController._get_persisted_keys()`](../controllers/system_controller.py).
 Anything else passed to `save_settings()` stays in `self.settings` in-memory
 only — useful for runtime objects (e.g. `relay_unit_manager`) you do not want
-to serialise.
+to serialise. A retired setting is the exception: it is not kept at all.
+
+**Retired and fixed settings (v2.1.0).** `load_settings()` loads every row in
+the table and `save_settings()` never deletes one, so taking a key out of
+`_get_persisted_keys()` alone leaves its old row to be loaded at every start.
+Two class attributes on
+[`SystemController`](../controllers/system_controller.py) handle it:
+
+- **`RETIRED_KEYS`** (`pulse_width_ms`): settings this release no longer has.
+  Their rows are deleted when settings load, with a `[SETTINGS] Removed the
+  retired setting …` line in the journal. A save never writes one, and none
+  is kept in memory, even when a caller saves `self.settings` after writing
+  to it directly.
+- **`FIXED_SETTINGS`** (`use_pulse_delivery: True`): settings the operator
+  can no longer change. They are forced in memory when settings load and on
+  every save, and stored at load where an older release saved another value
+  (`[SETTINGS] Stored the fixed setting …`). If the database refuses either
+  change, the journal says so and the next start tries again.
+
+`SettingsTab.restore_from_backup` drops both kinds from a backup, since a
+backup is merged straight into the dict the next Run copies. To retire a
+setting, add it to `RETIRED_KEYS`, take it out of `_get_persisted_keys()`,
+`_get_setting_type()` and any force-merge in `ensure_solenoid_defaults()`,
+and check what a revert to the previous release does without the row
+(2.0.0 writes its `pulse_width_ms` of 20 back at its first start).
+`test_retired_pulse_settings.py` covers both.
 
 A first-launch migration on v1.5.0+ copies any existing legacy
 `settings.json` into the DB and writes a `_migrated_from_json_v1` sentinel

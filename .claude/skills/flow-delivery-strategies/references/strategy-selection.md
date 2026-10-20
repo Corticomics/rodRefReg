@@ -53,7 +53,8 @@ wear).
   `database_handler` (a `get_all_valve_calibrations()` snapshot at start,
   `get_valve_calibration(cage_id)` read-through).
 - `settings` — required. Drives the continuous-vs-pulse sub-mode:
-  `settings['use_pulse_delivery'] = True | False`.
+  `settings['use_pulse_delivery'] = True | False`, always True on a device
+  (`SystemController.FIXED_SETTINGS`, v2.1.0).
 
 Hardware footprint:
 
@@ -82,7 +83,9 @@ Hardware footprint:
 
 `use_pulse_delivery=True` (pulse, production):
 
-- Replay the cage's calibrated pulse width and rest from `valve_calibration`.
+- Replay the cage's calibrated pulse width and rest from `valve_calibration`
+  (one profile per cage). No setting overrides them: v2.1.0 removed the
+  global pulse width.
 - RelayWorker plans the dose in whole pulses (`_quantize_to_pulses`):
   the nearest whole number of pulses, or the next one up with
   `round_doses_up`.
@@ -110,7 +113,7 @@ Do you have solenoid valves?
          │       └── independent (relay 16 stays reserved, unwired)
          │
          ├── Lee Company LHD valves?
-         │   └── use_pulse_delivery = False (continuous; reset to True at every start)
+         │   └── use_pulse_delivery = False (continuous; unreachable on a device since v2.1.0)
          │
          └── Parker Series 3 valves?
              └── use_pulse_delivery = True (pulse) — production

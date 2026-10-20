@@ -22,6 +22,7 @@ import time
 from unittest.mock import MagicMock
 
 from strategies.solenoid_flow_strategy import (
+    FALLBACK_PULSE_WIDTH_MS,
     LEGACY_INTER_PULSE_INTERVAL_MS,
     SolenoidFlowStrategy,
 )
@@ -83,7 +84,7 @@ def test_uncalibrated_cage_falls_back_to_legacy_cadence():
     strategy = _make(db=_StubDB({}))
     pw, interval, vol = asyncio.run(strategy._get_cage_calibration(99))
     assert interval == LEGACY_INTER_PULSE_INTERVAL_MS
-    assert pw == strategy._pulse_width_ms
+    assert pw == FALLBACK_PULSE_WIDTH_MS
     assert vol > 0
 
 
@@ -184,7 +185,7 @@ def test_slow_profile_refusal_on_the_independent_topology_touches_nothing():
 
 
 def test_workable_profile_is_not_refused():
-    """The same dose at the default interval stays within budget."""
+    """The same dose at a 500 ms interval stays within budget."""
     valves = MagicMock()
     db = _StubDB({1: _cal(volume=0.025, interval=500)})
     strategy = _make(

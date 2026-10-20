@@ -151,7 +151,7 @@ The new schedule appears as a card in the **Schedules** hub.
 #### Starting Water Delivery
 
 1. In the **Schedules** hub, drag a schedule card onto the **Run/Stop** drop area on the right
-2. Click **Run**. In solenoid pulse mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology: it shows *Valve calibration needed* with the cages to calibrate, and the schedule does not start
+2. Click **Run**. In solenoid mode (the default), Run refuses a schedule that waters a cage with no usable calibration measured under this device's valve topology: it shows *Valve calibration needed* with the cages to calibrate, and the schedule does not start
 3. The **Execution Monitor** tab appears next to the Terminal and shows live per-cage progress
 4. Monitor the terminal output or the Execution Monitor cards for real-time updates
 
@@ -224,12 +224,12 @@ You can create a new schedule at any time. Stop the current program, create your
 
 ### How do I calibrate the system for accurate water delivery?
 
-Go to **Settings → Calibration**. The table lists every cage, with the custom names you set in the Cages tab. Click **Calibrate** on a cage's row, or **Calibrate All Uncalibrated** to go through every cage that has no calibration yet, one marked **Invalid** (its volume per pulse or pulse width is missing, zero or invalid), or one marked **Stale** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold). Set the valve topology (**Settings → Delivery → Valve Topology**) before calibrating. For each cage the wizard:
+Go to **Settings → Calibration**. The table lists every cage, with the custom names you set in the Cages tab and the pulse width / interval each was calibrated at (**Profile**), which its deliveries use. Click **Calibrate** on a cage's row, or **Calibrate All Uncalibrated** to go through every cage that has no calibration yet, one marked **Invalid** (its volume per pulse or pulse width is missing, zero or invalid), or one marked **Stale** (measured under the other valve topology; one saved before v1.21.0 counts as shared manifold). Set the valve topology (**Settings → Delivery → Valve Topology**) before calibrating. For each cage the wizard:
 
 1. Walks you through a pre-flight checklist (prime the tubing in the **Priming** sub-tab first if it holds air)
-2. Fires a fixed number of pulses into a beaker at the pulse width and interval you set
+2. Fires a fixed number of pulses into a beaker at the pulse width and interval you set (it starts from the cage's last calibration; a cage never calibrated starts from the most recent usable calibration on the device, or from 30 ms / 1000 ms on a device with none)
 3. Asks for the volume you weighed
-4. Saves that cage's mL per pulse, with the valve topology it was measured under; every later delivery to the cage uses it. In solenoid pulse mode (the default), **Run** refuses a schedule that waters a cage with no calibration, an Invalid one or a Stale one
+4. Saves that cage's mL per pulse, with the valve topology it was measured under; every later delivery to the cage uses it. In solenoid mode (the default), **Run** refuses a schedule that waters a cage with no calibration, an Invalid one or a Stale one
 
 Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used on its own any time you swap tubing, refill the reservoir or, on an independent rig, refill or replace a syringe. It is refused while a schedule or a calibration is running. Changing the valve topology restarts RRR, and Priming then shows the controls for the new topology; if RRR cannot restart itself, Priming cannot open a valve until RRR is closed and reopened.
 

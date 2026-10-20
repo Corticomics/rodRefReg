@@ -16,6 +16,42 @@ not listed here.
 
 ---
 
+## 2.1.0 — each cage's own pulse profile
+
+**What changes on the device**
+
+- **Change (safety):** Settings > Delivery no longer has *Enable Pulse
+  Mode* or *Pulse Width*. Deliveries are always pulsed, and each cage
+  pulses at the pulse width and interval it was calibrated at, as it
+  already did. Pulse Width only set the width for a cage with no
+  calibration, which Run refuses; unticking Enable Pulse Mode switched the
+  next schedule to continuous delivery, which times each valve without its
+  calibration. The group is now **Pulse Delivery** and keeps *Round doses
+  up to the next whole pulse*. A pulse width saved by an earlier release is
+  deleted when RRR starts, and restoring an older backup cannot turn pulse
+  delivery off.
+- **Change:** the calibration wizard starts from the cage's last pulse
+  width and interval. A cage that was never calibrated starts from the
+  device's most recent usable calibration, and a device with none from
+  30 ms / 1000 ms, RRR's recommended profile for the Parker valve (every
+  cage used to start at 20 ms / 500 ms). A calibration saved before v1.16.0
+  has no stored interval, so it starts at its pulse width and 1000 ms. The
+  configuration page says where the values came from. Calibrate All
+  Uncalibrated works the same way, so each cage it opens starts from the
+  one calibrated just before it.
+- **Add:** Settings > Calibration has a **Profile** column: the pulse width
+  and interval each cage was calibrated at, for example *30 / 1000 ms*.
+  Every delivery to the cage uses them.
+- **Fix:** the Calibration table reads in full on the lab's 1920 x 1080
+  screen. Its status, mL/pulse, CV and date were cut off ("Not ...",
+  "0....", "2026-1..."), and so was the first letter of *Recalibrate*. Each
+  column now takes the width of its widest entry; only a long cage name is
+  shortened, and hovering over it shows it in full. The table now has a
+  scroll bar when it holds more cages than fit, as it does at that screen
+  size: the cages below the last row shown were hidden, with nothing to
+  show they were there. The tips under the table show "CV% <5% =
+  production ready" again: those words were lost.
+
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
 **Before you update**

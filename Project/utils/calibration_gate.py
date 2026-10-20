@@ -41,7 +41,9 @@ def gate_applies(settings) -> bool:
 
     Pump mode times its triggers, and the legacy continuous mode times the
     valve from an expected flow rate; neither reads a calibration. The mode
-    is normalised as RelayWorker._resolve_hardware_mode does.
+    is normalised as RelayWorker._resolve_hardware_mode does. On a device
+    use_pulse_delivery is always True (SystemController.FIXED_SETTINGS), so
+    in solenoid mode the gate always applies.
     """
     settings = settings or {}
     mode = str(settings.get('hardware_mode') or 'solenoid').strip().lower()
@@ -96,9 +98,9 @@ def calibration_problems(cage_ids: Iterable, calibrations, settings) -> List[Cag
     ``calibrations`` is ``get_all_valve_calibrations()``: cage id to row.
     A cage passes when its row exists, has a positive, finite volume per
     pulse and pulse width, and was measured under the device's topology
-    (an untagged, pre-v1.21.0 row counts as the shared manifold). The
-    pulse width need not match the settings: a delivery replays the
-    cage's own. An id that is not a number, or not in the device's cage
+    (an untagged, pre-v1.21.0 row counts as the shared manifold). There
+    is no global pulse width to match: a delivery replays the cage's own
+    width and rest. An id that is not a number, or not in the device's cage
     map, is not a cage here: the delivery could not open a valve for it,
     and Settings has no row to calibrate.
     """

@@ -213,7 +213,6 @@ def _strategy(valves, monkeypatch, pulse=True):
         calibration_store=None,
         settings={
             'use_pulse_delivery': pulse,
-            'pulse_width_ms': 30,
             'pulse_settling_ms': 100,
             'max_pulses_per_delivery': 100,
             'max_pulse_delivery_time_s': 120.0,

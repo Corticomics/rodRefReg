@@ -884,7 +884,6 @@ def _rig(tmp_path, name, topology, q, fake_relay_handler, monkeypatch):
         calibration_store=None,
         settings={
             'use_pulse_delivery': True,
-            'pulse_width_ms': 30,
             'pulse_settling_ms': 100,
             'max_pulses_per_delivery': 100,
             'max_pulse_delivery_time_s': 120.0,
