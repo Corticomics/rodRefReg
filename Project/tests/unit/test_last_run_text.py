@@ -186,8 +186,8 @@ def test_an_instant_run_that_ended_short_sends_the_operator_to_the_delivery_log(
         SKIPS_PASSED,
         "0.600 mL was not delivered in this run. If it started after some delivery times "
         "had passed, an earlier run may already have given them. Check the delivery log "
-        "first, then create a new schedule for what is missing (0.60 mL if all of it is "
-        "missing):",
+        "first, then create a new schedule for what is missing (0.60 mL if no earlier run "
+        "gave them):",
         COMMAND,
     ]
     assert SKIPS_PASSED_INSTANT == SKIPS_PASSED
@@ -222,7 +222,7 @@ def test_an_amount_that_was_not_recorded_is_a_question_mark_whatever_the_outcome
 
 REMAINDER_0_001 = "The remaining 0.001 mL is below the smallest schedule (0.10 mL)."
 NOT_DELIVERED_0_001 = (
-    "0.001 mL was not delivered in this run, below the smallest schedule (0.10 mL)."
+    "0.001 mL was not delivered in this run. That is below the smallest schedule (0.10 mL)."
 )
 
 
@@ -329,7 +329,8 @@ def test_the_amount_agrees_with_the_remainder_on_its_line():
         (
             'instant',
             0.551,
-            "0.049 mL was not delivered in this run, below the smallest schedule (0.10 mL).",
+            "0.049 mL was not delivered in this run. That is below the smallest schedule "
+            "(0.10 mL).",
         ),
         (
             'staggered',
@@ -354,20 +355,22 @@ def test_a_remainder_below_the_smallest_schedule_offers_no_schedule(mode, delive
 
 def test_an_instant_run_checks_the_delivery_log_first_and_gives_the_amount_the_same_way():
     """Run 37 as an instant run: what was not delivered to three decimals,
-    the delivery log first, and the amount to schedule if all of it is
-    missing, at the wizard's two decimals."""
+    the delivery log first, and the amount to schedule if no earlier run
+    gave the deliveries whose times had passed (all of it is then missing),
+    at the wizard's two decimals. "Them" is those deliveries, as in the
+    sentence before; "it" there is the run."""
     _text, tooltip, _red = _cell(_run_37('instant'))
     assert tooltip.splitlines()[-3:] == [
         SKIPS_PASSED,
         "0.369 mL was not delivered in this run. If it started after some delivery times "
         "had passed, an earlier run may already have given them. Check the delivery log "
-        "first, then create a new schedule for what is missing (0.37 mL if all of it is "
-        "missing):",
+        "first, then create a new schedule for what is missing (0.37 mL if no earlier run "
+        "gave them):",
         COMMAND,
     ]
     run = _run('stopped', delivered=0.505, requested_ml=0.6, delivery_mode='instant')
     _text, tooltip, _red = _cell(run)
-    assert "(0.10 mL if all of it is missing):" in tooltip, "0.095 shows, 0.10 is offered"
+    assert "(0.10 mL if no earlier run gave them):" in tooltip, "0.095 shows, 0.10 is offered"
 
 
 def test_the_remainder_is_scheduled_minus_delivered_and_unknown_when_not_recorded():

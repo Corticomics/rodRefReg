@@ -150,13 +150,16 @@ def _next_steps(last_run):
             return lines
         if amount is None:
             return lines + [
-                f"{_ml(owed)} mL was not delivered in this run, {BELOW_SMALLEST_SCHEDULE}."
+                f"{_ml(owed)} mL was not delivered in this run. That is "
+                f"{BELOW_SMALLEST_SCHEDULE}."
             ]
+        # The amount is all of it, so it holds when no earlier run gave the
+        # passed deliveries: "them", as in the sentence before ("it" is the run).
         return lines + [
             f"{_ml(owed)} mL was not delivered in this run. If it started after some "
             "delivery times had passed, an earlier run may already have given them. "
             "Check the delivery log first, then create a new schedule for what is "
-            f"missing ({amount} mL if all of it is missing):",
+            f"missing ({amount} mL if no earlier run gave them):",
             delivery_log_command(last_run.get('started_at'), last_run.get('relay_unit_id')),
         ]
     lines = [STARTS_OVER_STAGGERED]

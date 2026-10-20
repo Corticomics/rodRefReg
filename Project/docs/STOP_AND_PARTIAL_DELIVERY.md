@@ -372,9 +372,11 @@ outcome alone (D2).
   command. Since v2.1.0 both give the amount to type in the schedule
   wizard, to its two decimals ("To deliver only the remaining 0.369 mL,
   create a new schedule for 0.37 mL."; instant: "…for what is missing
-  (0.37 mL if all of it is missing):"), or say that the remainder is
-  below the smallest schedule (0.10 mL), with no command for an instant
-  run (§9, **The remainder**). An unknown amount (D10) reads "Delivered:
+  (0.37 mL if no earlier run gave them):"), or say that the remainder is
+  below the smallest schedule (0.10 mL); an instant run's tooltip then
+  reads "0.049 mL was not delivered in this run. That is below the
+  smallest schedule (0.10 mL)." and gives no command (§9, **The
+  remainder**). An unknown amount (D10) reads "Delivered:
   not recorded." and
   gives the command to type on the Pi: `cd ~/rrr/current/Project &&
   ~/rrr/shared/venv/bin/python3 tools/gravimetric_check.py daily --since
