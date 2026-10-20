@@ -210,20 +210,36 @@ def test_the_auto_save_writes_neither_key(qapp, system_controller, database_hand
     assert system_controller.settings['use_pulse_delivery'] is True
 
 
+@pytest.mark.parametrize("widget_changes", [False, True], ids=["nothing-changes", "pump-volume"])
 @pytest.mark.parametrize("pulse_mode", [False, True])
 def test_a_backup_from_an_older_release_cannot_turn_pulse_delivery_off(
-    qapp, system_controller, database_handler, dialogs, monkeypatch, tmp_path, pulse_mode
+    qapp,
+    system_controller,
+    database_handler,
+    dialogs,
+    monkeypatch,
+    tmp_path,
+    pulse_mode,
+    widget_changes,
 ):
+    """restore_from_backup merges the backup into system_controller.settings,
+    the dict the next Run copies. When the backup changes a value a widget
+    shows (here the pump volume), the widget's auto-save runs save_settings,
+    which also normalises that dict. A backup taken on the same device
+    changes no widget and saves nothing, so there the restore's own drop is
+    all that keeps the old keys out: both cases are run."""
     from PyQt5.QtWidgets import QFileDialog  # noqa: PLC0415
     from strategies.solenoid_flow_strategy import SolenoidFlowStrategy  # noqa: PLC0415
     from utils.calibration_gate import gate_applies  # noqa: PLC0415
 
+    tab = _settings_tab(system_controller, database_handler)
+    pump_volume = tab.pump_volume.value() + (10 if widget_changes else 0)
     backup = tmp_path / "rrr_backup.json"
     backup.write_text(
         json.dumps(
             {
-                "pump_volume_ul": 60,
-                "calibration_factor": 1.0,
+                "pump_volume_ul": pump_volume,
+                "calibration_factor": tab.calibration_factor.value(),
                 "use_pulse_delivery": pulse_mode,
                 "pulse_width_ms": 50,
             }
@@ -232,12 +248,19 @@ def test_a_backup_from_an_older_release_cannot_turn_pulse_delivery_off(
     monkeypatch.setattr(
         QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(backup), ""))
     )
-    tab = _settings_tab(system_controller, database_handler)
+    saves = []
+    save_settings = system_controller.save_settings
+    monkeypatch.setattr(
+        system_controller,
+        "save_settings",
+        lambda settings_dict: saves.append(dict(settings_dict)) or save_settings(settings_dict),
+    )
 
     tab.restore_from_backup()
 
+    assert bool(saves) is widget_changes, "only a changed widget saves"
     settings = system_controller.settings
-    assert settings['pump_volume_ul'] == 60, "the rest of the backup applies"
+    assert settings['pump_volume_ul'] == pump_volume, "the rest of the backup applies"
     assert settings['use_pulse_delivery'] is True
     assert 'pulse_width_ms' not in settings
     assert 'pulse_width_ms' not in _stored(database_handler)
