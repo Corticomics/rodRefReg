@@ -323,10 +323,13 @@ def last_run_message(schedule_name, lines, window=None):
     """The question Run asks before it starts over a schedule whose last run
     ended early. ``window`` is window_note() when the start has passed.
 
-    What to do instead defers to each line and names no figure. A line gives
-    the amount to schedule, says the remainder is below the smallest
-    schedule, or points to the delivery log, and some lines give no amount
-    at all (an instant run's, an interrupted one's). "The remaining amount"
+    What to do instead names no figure. It defers to each animal's line, or
+    to its red cell's tooltip on the Animals tab (utils.last_run_text),
+    which says it where no line does: an instant run's line gives no
+    remainder, and an animal past MAX_ANIMALS has no line. That there is no
+    schedule to create below the smallest one is said of what a line or a
+    tooltip says, never as a rule: a remainder shown as 0.095 to 0.099 mL
+    is below 0.10 mL, and its line offers 0.10 mL. "The remaining amount"
     named the three-decimal remainder, which the wizard does not take, and
     "the amount on its line" would name the delivery-log line's planned
     amount."""
@@ -334,8 +337,9 @@ def last_run_message(schedule_name, lines, window=None):
         _ended_early(schedule_name, lines),
         "Run does not resume a schedule: it starts this one over, so the animals above get "
         "their full amount again, on top of what they already got. If the missing water has "
-        "not been given since, press Cancel and give it in a new schedule, as its line says; "
-        f"a remainder {BELOW_SMALLEST_SCHEDULE} cannot be scheduled.",
+        "not been given since, press Cancel and give it in a new schedule, as each animal's "
+        "line, or its red cell's tooltip on the Animals tab, says; where one says the "
+        f"remainder is {BELOW_SMALLEST_SCHEDULE}, there is none to create.",
     ]
     if window:
         paragraphs.append(window)

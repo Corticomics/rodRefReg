@@ -75,7 +75,9 @@ def test_help_quotes_the_amount_to_schedule_as_rrr_writes_it():
     assert f"says it is {BELOW_SMALLEST_SCHEDULE}" in troubleshooting
     _title, question = start_over_question("AM water", [line])
     instead = question[question.index("press Cancel") : question.index("\n\nStart")]
-    assert instead.endswith(f"a remainder {BELOW_SMALLEST_SCHEDULE} cannot be scheduled.")
+    assert instead.endswith(
+        f"where one says the remainder is {BELOW_SMALLEST_SCHEDULE}, there is none to create."
+    )
     assert instead.replace("Cancel", "<strong>Cancel</strong>") in troubleshooting, (
         "Help tells what to do instead of starting over as the question does"
     )

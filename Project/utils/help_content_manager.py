@@ -1522,8 +1522,9 @@ def _build_content() -> Dict[str, HelpContent]:
     new schedule</em>), or says it is below the smallest schedule (0.10 mL).  Run does not
     resume a schedule: <strong>Start Over</strong> gives those animals their full amount
     again.  To deliver only the missing water, press <strong>Cancel</strong> and give it in a
-    new schedule, as its line says; a remainder below the smallest schedule (0.10 mL) cannot
-    be scheduled.</li>
+    new schedule, as each animal's line, or its red cell's tooltip on the Animals tab, says;
+    where one says the remainder is below the smallest schedule (0.10 mL), there is none to
+    create.</li>
     <li><em>Last Run Completed</em>: the last run of this schedule gave every animal its full
     amount.  The dialog lists what each animal got and when; <strong>Start Over</strong> gives
     it again, on top of what it got.  Either dialog also says what is left of the window when
