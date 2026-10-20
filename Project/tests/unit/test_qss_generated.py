@@ -141,7 +141,9 @@ def test_the_committed_stylesheet_is_the_render(theme):
 
 def test_check_mode_reports_a_stale_stylesheet_and_a_build_fixes_it(tmp_path, monkeypatch):
     outputs = {}
+    committed = {}
     for theme, path in build_qss.OUTPUTS.items():
+        committed[theme] = path.read_bytes()
         outputs[theme] = tmp_path / path.name
         shutil.copyfile(path, outputs[theme])
     monkeypatch.setattr(build_qss, "OUTPUTS", outputs)
@@ -156,7 +158,7 @@ def test_check_mode_reports_a_stale_stylesheet_and_a_build_fixes_it(tmp_path, mo
     assert build_qss.main([]) == 0
     assert build_qss.main(["--check"]) == 0
     for theme in build_qss.THEMES:
-        assert outputs[theme].read_bytes() == build_qss.OUTPUTS[theme].read_bytes()
+        assert outputs[theme].read_bytes() == committed[theme], "the build restores the file"
         assert outputs[theme].read_bytes() == build_qss.render(theme).encode("utf-8")
 
 

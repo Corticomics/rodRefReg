@@ -34,9 +34,11 @@ def qapp():
 
 
 def _parse_warnings(qapp, qss):
-    """Qt's parse warnings while `qss` is the application stylesheet.
+    """Qt's warnings that it could not parse `qss` as the application stylesheet.
 
-    Qt parses it when a widget is polished, not when it is set.
+    Qt parses it when a widget is polished, not when it is set. Setting it repolishes
+    every live widget, so a widget another test left behind can add its own "Could not
+    parse stylesheet of object ..." warning; only the application's counts here.
     """
     from PyQt5.QtCore import qInstallMessageHandler  # noqa: PLC0415
     from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
@@ -50,7 +52,7 @@ def _parse_warnings(qapp, qss):
     finally:
         qInstallMessageHandler(previous)
         qapp.setStyleSheet(old)
-    return [message for message in messages if "Could not parse" in message]
+    return [message for message in messages if "Could not parse application stylesheet" in message]
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
