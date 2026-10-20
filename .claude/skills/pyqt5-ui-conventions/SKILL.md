@@ -122,7 +122,10 @@ template, a light and a dark value in the table). Edit either, run
 edited and both stylesheets ([CONTRIBUTING.md §7](CONTRIBUTING.md#7-colours-and-themes)).
 `test_qss_generated.py` fails on a stale stylesheet, and
 `test_no_new_raw_colours.py` fails when a file under `Project/ui` gains a
-raw colour (hex, `rgb()`, `QColor(200, 0, 0)`, `Qt.white`, `color: white`).
+raw colour (hex, `rgb()` or `hsv()`, `QColor(200, 0, 0)` or
+`QColor.fromRgb(…)`, `Qt.white`, `color: white`), or loses one without
+lowering its count in `BASELINE`. The Help tab's HTML palette (`_PALETTE`
+in `Project/utils/help_content_manager.py`) is counted the same way.
 
 A colour that code paints itself comes from the QSS too. Declare it as a
 `pyqtProperty(QColor)` on a named widget and set it with `qproperty-*` in

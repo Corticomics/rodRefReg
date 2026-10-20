@@ -145,22 +145,29 @@ The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 
 | File | Holds |
 |---|---|
-| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every colour, by role: `"bg.surface": ("#FFFFFF", "#1E2530")` is (light, dark) |
-| [`Project/ui/style/app.qss.tmpl`](Project/ui/style/app.qss.tmpl) | every rule, once, with `${bg.surface}`-style placeholders; `@light` / `@dark` … `@end` mark the few lines one theme lacks |
+| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every stylesheet colour, by role: `"bg.surface": ("#FFFFFF", "#1E2530")` is (light, dark) |
+| [`Project/ui/style/app.qss.tmpl`](Project/ui/style/app.qss.tmpl) | every rule, once, with `${bg.surface}`-style placeholders; `@light` / `@dark` … `@end`, each at the start of a line, mark the few lines one theme lacks |
 
 To change a colour or a rule:
 
 1. Edit `tokens.py` (a colour) or `app.qss.tmpl` (a rule).
 2. From the repo root, run `python3 Project/ui/style/build_qss.py`. It
-   rewrites both stylesheets, or stops on an unknown role or an unclosed
-   block and names the template line.
+   rewrites whichever stylesheet is out of date (it prints `wrote …` or
+   `up to date`), or stops on an unknown role, a `$role` without braces,
+   an indented directive or an unclosed block, and names the template line.
 3. Commit all three together: what you edited and both `.qss` files.
 
 `test_qss_generated.py` fails while a committed stylesheet differs from the
-render (`build_qss.py --check` says the same without writing). Name a colour
+render (`build_qss.py --check` says the same without writing), and when the
+two themes differ in anything but token values and comments.
+`test_qss_parses.py` fails when Qt cannot parse a stylesheet. Name a colour
 by what it is for, not how it looks: reuse a role that fits, or add one.
 Do not write colours into Python under `Project/ui`: give the widget an
 `objectName` or a dynamic property and style it in the template.
-`test_no_new_raw_colours.py` fails when a file gains a raw colour (the
-colours some files still hold are being moved out; lower their counts as
-they go).
+`test_no_new_raw_colours.py` counts the raw colours that UI files still hold
+(they are being moved out): it fails when a file gains one, and when a file
+loses one until you lower that file's count in the test's `BASELINE`.
+
+The Help tab's HTML is coloured from a second palette, `_PALETTE` in
+`Project/utils/help_content_manager.py`, whose colours are not in
+`tokens.py` yet; the ratchet counts it too.
