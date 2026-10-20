@@ -1200,8 +1200,8 @@ def _build_content() -> Dict[str, HelpContent]:
     Invalid or Stale.</li>
     <li>Follow the on-screen wizard — it will fire a characterization sequence (250 pulses
     by default).  The pulse width and interval start from the cage's last calibration; a
-    cage never calibrated starts from the device's most recent one, and a device with none
-    from 30 ms / 1000 ms.  The configuration page says which.</li>
+    cage never calibrated starts from the most recent usable calibration on the device,
+    and a device with none from 30 ms / 1000 ms.  The configuration page says which.</li>
     <li>Weigh the collected water on a lab scale (accuracy ±0.001 g required).</li>
     <li>Enter the measured mass; the wizard computes mL/pulse and CV%.</li>
     <li>Confirm to save.  The calibration is immediately active for all future
