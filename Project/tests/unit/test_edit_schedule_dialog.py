@@ -65,6 +65,26 @@ def test_dialog_prefills_from_schedule(qapp, database_handler):
     assert dlg._step3._name_input.text() == "Morning ration"
 
 
+def test_dialog_volume_fields_take_the_wizards_limits(qapp, database_handler):
+    """The hub's only volume fields are those of the Step 3 it reuses, built
+    from the wizard's limits (utils.schedule_volume): 0.10 to 50.00 mL at
+    two decimals, holding the schedule's own volumes. Quick Apply holds the
+    first animal's."""
+    from PyQt5.QtWidgets import QDoubleSpinBox  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415
+
+    staggered = ScheduleEditDialog(_seed_staggered(database_handler), database_handler)
+    instant = ScheduleEditDialog(
+        _seed_instant(database_handler, [(1, 1, 1.5, datetime(2026, 6, 5, 9, 0, 0))]),
+        database_handler,
+    )
+    for dlg, volumes in ((staggered, [1.0, 1.0, 2.0]), (instant, [1.5, 1.5])):
+        fields = dlg.findChildren(QDoubleSpinBox)
+        assert sorted(field.value() for field in fields) == volumes
+        for field in fields:
+            assert (field.decimals(), field.minimum(), field.maximum()) == (2, 0.1, 50.0)
+
+
 def test_dialog_save_persists_edit(qapp, database_handler):
     from PyQt5.QtWidgets import QDialog  # noqa: PLC0415
     from ui.schedules_hub import ScheduleEditDialog  # noqa: PLC0415

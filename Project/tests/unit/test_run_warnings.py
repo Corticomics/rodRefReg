@@ -8,7 +8,8 @@ passed deliveries for each animal and asks Start Run or Cancel.
 A schedule that ran before and gave water: Run does not resume a schedule, it
 starts it over, so every animal gets its full amount again. When that last
 run ended early (stopped, ended short, or RRR closed during it), Run lists
-what each animal got and what is missing (Last Run Ended Early); when it
+what each animal got, what is missing and the amount to schedule for it, at
+the schedule wizard's two decimals (Last Run Ended Early); when it
 completed, what each animal got and when (Last Run Completed). Both ask Start
 Over or Cancel. Run reads the last run of this schedule, so a later run of
 another one does not hide it, and a history it cannot read never blocks Run.
@@ -27,7 +28,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from utils.dose_rounding import whole_pulses
-from utils.last_run_text import last_run_cell, remaining_ml
+from utils.last_run_text import BELOW_SMALLEST_SCHEDULE, last_run_cell, remaining_ml
 from utils.run_warnings import (
     COMPLETED_RUN_TITLE,
     LAST_RUN_TITLE,
@@ -223,23 +224,27 @@ def test_a_stopped_or_short_animal_shows_what_went_out_what_is_missing_and_when(
     }
     assert last_run_lines(runs, [1, 2], NOW) == [
         "M-11, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; "
-        "remaining 0.590 of the 1.000 mL scheduled",
+        "remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule",
         "M-12, cage 4: 0.800 of the planned 0.991 mL, ended short; "
-        "remaining 0.200 of the 1.000 mL scheduled",
+        "remaining 0.200 of the 1.000 mL scheduled, 0.20 mL in a new schedule",
     ]
 
 
 def test_the_remainder_is_what_was_scheduled_less_what_was_delivered():
     """Under round_doses_up 1.000 mL plans 30 pulses at 0.034164 mL. After
-    12 pulses a new schedule for the remaining 0.590 mL rounds up to the 18
-    pulses that did not fire; one for planned minus delivered, 0.615 mL,
-    would fire 19. The Animals tab gives the same remainder."""
+    12 pulses a new schedule for the remaining 0.590 mL, typed 0.59 at the
+    wizard's two decimals, rounds up to the 18 pulses that did not fire; one
+    for planned minus delivered, 0.615 mL, would fire 19. The Animals tab
+    gives the same remainder."""
     q = 0.034164
     run = _last('stopped', 12 * q, planned_ml=30 * q)
     (line,) = last_run_lines({1: run}, [1], NOW)
-    assert line.endswith(", stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled")
+    assert line.endswith(
+        ", stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule"
+    )
     assert f"{remaining_ml(run):.3f}" == "0.590"
     assert whole_pulses(0.590, q, round_up=True) == 18
+    assert whole_pulses(0.59, q, round_up=True) == 18
     assert whole_pulses(0.615, q, round_up=True) == 19
 
     short = _last('stopped', 0.9997, planned_ml=30 * q)
@@ -249,19 +254,62 @@ def test_the_remainder_is_what_was_scheduled_less_what_was_delivered():
 
 
 @pytest.mark.parametrize(
-    ("delivered", "remaining"), [(0.41, "0.590"), (0.9994, "0.001"), (0.9996, None)]
+    ("delivered", "remaining", "amount"),
+    [(0.41, "0.590", "0.59"), (0.9994, "0.001", None), (0.9996, None, None)],
 )
-def test_run_offers_the_remainder_the_animals_tab_offers(delivered, remaining):
-    """One rule for both (last_run_text.owed_ml): the same figure, and a
-    remainder that would show as 0.000 mL offered by neither."""
+def test_run_offers_the_remainder_the_animals_tab_offers(delivered, remaining, amount):
+    """One rule for both (last_run_text.owed_ml, amount_to_schedule): the
+    same figure and the same amount to schedule for it; a remainder below
+    the smallest schedule is said to be so by both; one that would show as
+    0.000 mL is offered by neither."""
     run = _last('stopped', delivered)
     (line,) = last_run_lines({1: run}, [1], NOW)
     _text, tooltip, _red = last_run_cell(run, str)
     if remaining is None:
         assert "remaining" not in line and "remaining" not in tooltip
+    elif amount is None:
+        below = "below the smallest schedule (0.10 mL)"
+        assert line.endswith(f"; remaining {remaining} of the 1.000 mL scheduled, {below}")
+        assert f"The remaining {remaining} mL is {below}." in tooltip
     else:
-        assert line.endswith(f"; remaining {remaining} of the 1.000 mL scheduled")
-        assert f"To deliver only the remaining {remaining} mL," in tooltip
+        assert line.endswith(
+            f"; remaining {remaining} of the 1.000 mL scheduled, {amount} mL in a new schedule"
+        )
+        assert (
+            f"To deliver only the remaining {remaining} mL, create a new schedule for {amount} mL."
+            in tooltip
+        )
+
+
+def test_run_37_gives_an_amount_the_wizard_takes():
+    """Lab run 37 (2026-10-19): 0.6 mL scheduled, stopped after 12 pulses of
+    0.019212 mL. The line said "remaining 0.369", which the wizard's two
+    decimals cannot take, and the operator typed 0.36. It now gives the
+    measured remainder and the amount to type for it, 0.37."""
+    run = _last('stopped', 12 * 0.019212, requested_ml=0.6, planned_ml=31 * 0.019212)
+    assert last_run_lines({1: run}, [1], NOW) == [
+        "M-11, cage 3: 0.231 of the planned 0.596 mL, stopped at 10:32; "
+        "remaining 0.369 of the 0.600 mL scheduled, 0.37 mL in a new schedule"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("delivered", "line_end"),
+    [
+        (0.551, "remaining 0.049 of the 0.600 mL scheduled, below the smallest schedule (0.10 mL)"),
+        (0.506, "remaining 0.094 of the 0.600 mL scheduled, below the smallest schedule (0.10 mL)"),
+        (0.505, "remaining 0.095 of the 0.600 mL scheduled, 0.10 mL in a new schedule"),
+    ],
+    ids=["0.049", "0.094", "0.095"],
+)
+def test_a_remainder_below_the_smallest_schedule_offers_no_schedule(delivered, line_end):
+    """The wizard takes 0.10 mL or more: below that, the line says so instead
+    of an amount. 0.6 − 0.505 is 0.09499999999999997 in floating point; it
+    shows as 0.095, so the amount is 0.10, as the operator reading it
+    expects."""
+    run = _last('stopped', delivered, requested_ml=0.6)
+    (line,) = last_run_lines({1: run}, [1], NOW)
+    assert line.endswith("; " + line_end)
 
 
 @pytest.mark.parametrize(
@@ -300,7 +348,7 @@ def test_a_completed_animal_without_a_recorded_amount_keeps_the_warning():
     assert last_run_lines(runs, [1, 2], NOW) == [
         "M-11, cage 3: complete (amount not recorded)",
         "M-12, cage 4: 0.410 of the planned 0.991 mL, stopped at 10:32; "
-        "remaining 0.590 of the 1.000 mL scheduled",
+        "remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule",
     ]
     assert completed_run_lines({1: _last('completed', None)}, [1], NOW) == [
         "M-11, cage 3: completed at 10:32 (amount not recorded)"
@@ -314,7 +362,8 @@ def test_a_plan_or_a_time_that_was_not_recorded_is_left_out():
         3: _last('stopped', 0.41, cage=5, lab="M-13", requested_ml=None, ended_at="soon"),
     }
     assert last_run_lines(runs, [1, 2, 3], NOW) == [
-        "M-11, cage 3: 0.410 mL, stopped; remaining 0.590 of the 1.000 mL scheduled",
+        "M-11, cage 3: 0.410 mL, stopped; remaining 0.590 of the 1.000 mL scheduled, "
+        "0.59 mL in a new schedule",
         f"cage 4: RRR closed during that run; how much it delivered is in the delivery log: "
         f"{LOG} --cage 4",
         "M-13, cage 5: 0.410 of the planned 0.991 mL, stopped",
@@ -337,11 +386,11 @@ def test_a_line_from_an_older_run_of_the_schedule_carries_its_date():
     }
     assert last_run_lines(runs, [1, 2, 3, 4], NOW) == [
         "M-11, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; "
-        "remaining 0.590 of the 1.000 mL scheduled",
+        "remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule",
         "M-12, cage 4: 0.991 of the planned 0.991 mL, complete in the run started "
         "2026-10-09 06:00",
         "M-13, cage 5: 0.200 of the planned 0.991 mL, stopped at 2026-10-09 07:10; "
-        "remaining 0.800 of the 1.000 mL scheduled",
+        "remaining 0.800 of the 1.000 mL scheduled, 0.80 mL in a new schedule",
         "M-14, cage 6: RRR closed during that run (started 2026-10-09 05:00); how much of "
         f"the planned 0.991 mL it delivered is in the delivery log: {LOG} --since 2026-10-09 "
         "--cage 6",
@@ -380,7 +429,7 @@ def test_an_outcome_this_release_does_not_know_counts_as_ended_early():
     runs = {1: _last('paused', 0.41), 2: _last('completed', 0.991, cage=4, lab="M-12")}
     assert last_run_lines(runs, [1, 2], NOW)[0] == (
         "M-11, cage 3: 0.410 of the planned 0.991 mL, ended short at 10:32; "
-        "remaining 0.590 of the 1.000 mL scheduled"
+        "remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule"
     )
     assert completed_run_lines(runs, [1, 2], NOW) == []
 
@@ -404,13 +453,14 @@ def test_the_start_over_question():
     assert last_run_message("AM water", lines, window) == (
         'The last run of "AM water" ended early. These animals already got water in it:\n'
         "• M-011, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; remaining 0.590 "
-        "of the 1.000 mL scheduled\n"
+        "of the 1.000 mL scheduled, 0.59 mL in a new schedule\n"
         "• M-012, cage 4: 0.991 of the planned 0.991 mL, complete\n"
         "\n"
         "Run does not resume a schedule: it starts this one over, so the animals above get "
         "their full amount again, on top of what they already got. If the missing water has "
-        "not been given since, press Cancel and create a new schedule for the remaining "
-        "amount.\n"
+        "not been given since, press Cancel and give it in a new schedule, as each animal's "
+        "line, or its red cell's tooltip on the Animals tab, says; where one says the "
+        "remainder is below the smallest schedule (0.10 mL), there is none to create.\n"
         "\n"
         "The scheduled start time (2026-10-09 08:00) has already passed: the full amount "
         "goes out in the 480 minutes left until 20:00.\n"
@@ -423,6 +473,120 @@ def test_the_start_over_question():
     assert start_over_question("AM water", lines, []) == (
         LAST_RUN_TITLE,
         last_run_message("AM water", lines),
+    )
+
+
+GIVE_IT_INSTEAD = (
+    "If the missing water has not been given since, press Cancel and give it in a new "
+    "schedule, as each animal's line, or its red cell's tooltip on the Animals tab, says; "
+    "where one says the remainder is below the smallest schedule (0.10 mL), there is none "
+    "to create."
+)
+
+
+@pytest.mark.parametrize(
+    ("run", "line_end"),
+    [
+        (
+            _last('stopped', 12 * 0.019212, requested_ml=0.6, planned_ml=31 * 0.019212),
+            "; remaining 0.369 of the 0.600 mL scheduled, 0.37 mL in a new schedule",
+        ),
+        (
+            _last('stopped', 0.551, requested_ml=0.6),
+            "; remaining 0.049 of the 0.600 mL scheduled, below the smallest schedule (0.10 mL)",
+        ),
+        (
+            _last('stopped', 0.503, requested_ml=0.6),
+            "; remaining 0.097 of the 0.600 mL scheduled, 0.10 mL in a new schedule",
+        ),
+        (
+            _last('interrupted', None, ended_at=None),
+            "; how much of the planned 0.991 mL it delivered is in the delivery log: "
+            f"{LOG} --since 2026-10-09 --cage 3",
+        ),
+        (
+            _last('stopped', 0.1, delivery_mode="instant", requested_ml=0.25, planned_ml=0.239),
+            ": 0.100 of the planned 0.239 mL, stopped at 10:32",
+        ),
+    ],
+    ids=[
+        "run 37",
+        "below the smallest schedule",
+        "0.097 offered 0.10",
+        "delivery log",
+        "instant",
+    ],
+)
+def test_what_to_do_instead_of_starting_over_defers_to_each_line(run, line_end):
+    """The question names no figure for a new schedule: each line gives the
+    amount to schedule, says the remainder is below the smallest schedule,
+    or points to the delivery log, and the red cell's tooltip on the
+    Animals tab says it where the line does not (an instant run's line,
+    which gives no remainder). "The remaining amount" named run 37's
+    "remaining 0.369", which the wizard turns into 0.36, and offered a
+    schedule for a remainder below the smallest one. "The amount on its
+    line" would name the planned 0.991 mL on the delivery-log line, and on
+    the instant line 0.100 or 0.239 mL.
+
+    There is none to create only where a line says so, never by a rule: a
+    remainder shown as 0.097 mL is below 0.10 mL and its line offers
+    0.10 mL, so the question must not say that such a remainder cannot be
+    scheduled."""
+    lines = last_run_lines({1: run}, [1], NOW)
+    title, text = start_over_question("AM water", lines)
+    assert title == LAST_RUN_TITLE
+    (line,) = lines
+    assert line.endswith(line_end)
+    assert text.endswith(
+        "on top of what they already got. " + GIVE_IT_INSTEAD + '\n\nStart "AM water" over?'
+    )
+    assert "cannot be scheduled" not in text, "no rule for a line to contradict"
+    assert "remaining amount" not in text
+
+
+def test_when_every_remainder_is_below_the_smallest_schedule_no_schedule_is_offered():
+    """Two animals stopped 0.049 and 0.094 mL short, one complete: no line
+    gives an amount to schedule, and nothing in the question offers one.
+    Where a line says the remainder is below the smallest schedule, the
+    question says there is none to create, with the wizard's minimum
+    (utils.schedule_volume)."""
+    runs = {
+        1: _last('stopped', 0.551, requested_ml=0.6),
+        2: _last('stopped', 0.506, cage=4, lab="M-12", requested_ml=0.6),
+        3: _last('completed', 0.991, cage=5, lab="M-13"),
+    }
+    _title, text = start_over_question("AM water", last_run_lines(runs, [1, 2, 3], NOW))
+    for remaining in ("0.049", "0.094"):
+        assert (
+            f"; remaining {remaining} of the 0.600 mL scheduled, below the smallest schedule "
+            "(0.10 mL)\n" in text
+        )
+    assert (
+        f"where one says the remainder is {BELOW_SMALLEST_SCHEDULE}, there is none to create."
+        in text
+    )
+    assert "mL in a new schedule" not in text, "no amount to schedule"
+    assert "create a new schedule" not in text
+    assert "remaining amount" not in text
+
+
+def test_animals_the_question_does_not_list_are_sent_to_the_animals_tab():
+    """The question lists MAX_ANIMALS animals, then "...and N more animals".
+    Those have no line, so what to do instead names the red cell's tooltip
+    on the Animals tab, which gives each one's amount to schedule."""
+    runs = {
+        animal: _last('stopped', 0.41, cage=animal, lab=f"M-{animal:02d}")
+        for animal in range(1, MAX_ANIMALS + 3)
+    }
+    lines = last_run_lines(runs, list(runs), NOW)
+    assert len(lines) == MAX_ANIMALS + 2
+    _title, text = start_over_question("AM water", lines)
+    assert "\n...and 2 more animals\n\n" in text
+    assert "M-11, cage 11" not in text and "M-12, cage 12" not in text
+    assert text.endswith(GIVE_IT_INSTEAD + '\n\nStart "AM water" over?')
+    _text, tooltip, _red = last_run_cell(runs[MAX_ANIMALS + 2], str)
+    assert tooltip.endswith(
+        "To deliver only the remaining 0.590 mL, create a new schedule for 0.59 mL."
     )
 
 
@@ -856,7 +1020,7 @@ def test_a_stopped_schedule_asks_once_to_start_over(
     ((title, text, label),) = run.asked
     assert (title, label) == (LAST_RUN_TITLE, START_OVER)
     assert f"\n• M-11, cage {a + 2}: 0.410 of the planned 0.991 mL, stopped at " in text
-    assert "; remaining 0.590 of the 1.000 mL scheduled\n" in text
+    assert "; remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule\n" in text
     assert f"\n• M-12, cage {b + 2}: 0.991 of the planned 0.991 mL, complete\n" in text
     assert "\n\nThe scheduled start time (" in text, "the window is in the same question"
     assert run.questions == [], "no second question about the start time"
@@ -879,7 +1043,7 @@ def test_a_staggered_question_with_a_future_window_has_no_window_note(
     ((title, text, _label),) = run.asked
     assert title == LAST_RUN_TITLE
     assert "scheduled start time" not in text
-    assert text.endswith('remaining amount.\n\nStart "AM water" over?'), "no window note"
+    assert text.endswith('there is none to create.\n\nStart "AM water" over?'), "no window note"
     ((_schedule, _mode, window_start, _window_end),) = run.started
     assert window_start == datetime.fromisoformat(schedule.start_time).timestamp()
 

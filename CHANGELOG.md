@@ -51,6 +51,14 @@ not listed here.
   size: the cages below the last row shown were hidden, with nothing to
   show they were there. The tips under the table show "CV% <5% =
   production ready" again: those words were lost.
+- **Fix:** after a Stop, the Animals tab's tooltip and **Last Run Ended
+  Early** give the amount to schedule for the rest of the run at the
+  schedule wizard's two decimals, rounded half up: *To deliver only the
+  remaining 0.369 mL, create a new schedule for 0.37 mL.* Before, they
+  gave only the remainder, to three decimals, which the wizard's volume
+  field cannot take (typed, 0.369 became 0.36). A remainder that rounds
+  below 0.10 mL, the smallest schedule, is said to be so, and no
+  schedule is offered.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 

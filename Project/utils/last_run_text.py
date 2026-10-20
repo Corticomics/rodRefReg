@@ -3,10 +3,16 @@
 Animal.last_run is the animal's latest schedule run that started delivering
 (models/schedule_runs_repo.py), or None. last_run_cell() turns it into the
 Animals tab's "Last schedule delivered amount" cell: its text, its tooltip
-and whether it is red. outcome_word(), remaining_ml(), owed_ml() and
-delivery_log_command() serve anything else that describes a run, such as the
-animal export and Run's questions (utils.run_warnings), so every screen gives
-the same word, the same remainder and the same command.
+and whether it is red. outcome_word(), remaining_ml(), owed_ml(),
+amount_to_schedule() and delivery_log_command() serve anything else that
+describes a run, such as the animal export and Run's questions
+(utils.run_warnings), so every screen gives the same word, the same
+remainder, the same amount to schedule for it and the same command.
+
+What was not delivered is a measured figure, shown to three decimals like
+every volume here. The amount to schedule for it is one the schedule wizard
+takes (utils.schedule_volume): that figure rounded half up to two decimals,
+and at least 0.10 mL.
 
 Red follows the outcome the run recorded, never a comparison of delivered
 with scheduled: whole-pulse rounding makes a completed run differ from its
@@ -17,6 +23,8 @@ Qt-free, so the words can be tested on their own.
 """
 
 from __future__ import annotations
+
+from utils.schedule_volume import SMALLEST_SCHEDULE, can_be_scheduled, schedule_amount
 
 # The cell of an animal that has no recorded schedule run.
 NO_RUN_TEXT = "—"
@@ -34,6 +42,9 @@ SKIPS_PASSED_INSTANT = (
 
 # A smaller remainder shows as 0.000 mL, so no new schedule is offered for it.
 _SMALLEST_REMAINDER_ML = 0.0005
+
+# Said of a remainder whose amount to schedule the wizard does not take.
+BELOW_SMALLEST_SCHEDULE = f"below the smallest schedule ({SMALLEST_SCHEDULE} mL)"
 
 
 def _ml(volume):
@@ -75,6 +86,27 @@ def owed_ml(last_run):
     return remaining
 
 
+def amount_to_schedule(owed):
+    """The amount to type in the schedule wizard for the rest of a run, as
+    text: ``owed`` (owed_ml()) as it is shown, to three decimals, rounded
+    half up to the wizard's two. Lab run 37's 0.369456 mL shows as 0.369
+    and is scheduled as 0.37.
+
+    It rounds the figure shown, not the float, so the two figures on one
+    line agree: 0.3649 shows as 0.365 and is scheduled as 0.37, not 0.36.
+    Rounding the float is no more accurate overall: where the two differ,
+    each plans the pulses that did not fire about as often
+    (docs/STOP_AND_PARTIAL_DELIVERY.md §9).
+
+    None when ``owed`` is None, or when the amount is below the smallest
+    schedule (0.10 mL), which the wizard does not take.
+    """
+    if owed is None:
+        return None
+    amount = schedule_amount(_ml(owed))
+    return str(amount) if can_be_scheduled(amount) else None
+
+
 def delivery_log_command(started_at, relay_unit_id):
     """The command, typed in a terminal on the Pi, that totals what a cage
     received per day from the run's day on (tools/gravimetric_check.py daily).
@@ -102,29 +134,43 @@ def _delivery_log_lines(last_run):
 
 
 def _next_steps(last_run):
-    """How to give the rest of a run that ended short, for its delivery mode."""
+    """How to give the rest of a run that ended short, for its delivery mode:
+    what was not delivered, to three decimals, and the amount to schedule
+    for it (amount_to_schedule()), or that it is below the smallest
+    schedule."""
     owed = owed_ml(last_run)
+    amount = amount_to_schedule(owed)
     if last_run.get('delivery_mode') == 'instant':
         # A run started late counts the deliveries whose times had passed as
         # not delivered, even when an earlier run gave them: the delivery log
-        # tells, before a new schedule gives them twice.
+        # tells, before a new schedule gives them twice. What is missing is
+        # at most what was not delivered, so below the smallest schedule
+        # there is nothing to schedule, and nothing to check first.
         lines = [SKIPS_PASSED_INSTANT]
-        if owed is not None:
-            lines += [
-                f"{owed:.3f} mL was not delivered in this run. If it started after some "
-                "delivery times had passed, an earlier run may already have given them. "
-                "Check the delivery log first, then create a new schedule for what is "
-                "missing:",
-                delivery_log_command(last_run.get('started_at'), last_run.get('relay_unit_id')),
+        if owed is None:
+            return lines
+        if amount is None:
+            return lines + [
+                f"{_ml(owed)} mL was not delivered in this run. That is "
+                f"{BELOW_SMALLEST_SCHEDULE}."
             ]
-        return lines
+        # The amount is all of it, so it holds when no earlier run gave the
+        # passed deliveries: "them", as in the sentence before ("it" is the run).
+        return lines + [
+            f"{_ml(owed)} mL was not delivered in this run. If it started after some "
+            "delivery times had passed, an earlier run may already have given them. "
+            "Check the delivery log first, then create a new schedule for what is "
+            f"missing ({amount} mL if no earlier run gave them):",
+            delivery_log_command(last_run.get('started_at'), last_run.get('relay_unit_id')),
+        ]
     lines = [STARTS_OVER_STAGGERED]
-    if owed is not None:
-        lines.append(
-            f"To deliver only the remaining {owed:.3f} mL, create a new schedule for "
-            "that amount."
-        )
-    return lines
+    if owed is None:
+        return lines
+    if amount is None:
+        return lines + [f"The remaining {_ml(owed)} mL is {BELOW_SMALLEST_SCHEDULE}."]
+    return lines + [
+        f"To deliver only the remaining {_ml(owed)} mL, create a new schedule for {amount} mL."
+    ]
 
 
 def last_run_cell(last_run, when):

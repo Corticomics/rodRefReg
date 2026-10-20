@@ -48,6 +48,11 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.schedule_volume import (
+    SCHEDULE_VOLUME_DECIMALS,
+    SCHEDULE_VOLUME_MAX_ML,
+    SCHEDULE_VOLUME_MIN_ML,
+)
 from utils.topology import reserved_relay_reason
 
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
@@ -92,6 +97,22 @@ def create_step_header(icon: str, title: str, description: str) -> QWidget:
 
     layout.addLayout(text_layout, 1)
     return container
+
+
+def volume_spin_box(value: float) -> QDoubleSpinBox:
+    """A schedule volume field, starting at ``value`` mL.
+
+    Every volume field of the wizard (Quick Apply's and each animal's, in
+    both modes) is built here, with the limits a schedule can be given
+    (utils.schedule_volume). Text that gives the operator an amount to type
+    in one takes the same limits from there.
+    """
+    spin = QDoubleSpinBox()
+    spin.setDecimals(SCHEDULE_VOLUME_DECIMALS)
+    spin.setRange(SCHEDULE_VOLUME_MIN_ML, SCHEDULE_VOLUME_MAX_ML)
+    spin.setValue(value)
+    spin.setSuffix(" mL")
+    return spin
 
 
 # ============================================================================
@@ -871,10 +892,7 @@ class Step3ConfigureParameters(QWidget):
         global_layout.addWidget(QLabel("End:"))
         global_layout.addWidget(self._global_end)
 
-        self._global_volume = QDoubleSpinBox()
-        self._global_volume.setRange(0.1, 50.0)
-        self._global_volume.setValue(1.0)
-        self._global_volume.setSuffix(" mL")
+        self._global_volume = volume_spin_box(1.0)
         global_layout.addWidget(QLabel("Volume:"))
         global_layout.addWidget(self._global_volume)
 
@@ -1014,11 +1032,7 @@ class Step3ConfigureParameters(QWidget):
         layout.addWidget(end_dt)
 
         # Volume
-        volume_spin = QDoubleSpinBox()
-        volume_spin.setRange(0.1, 50.0)
-        volume_spin.setValue(config.get("volume", 1.0))
-        volume_spin.setSuffix(" mL")
-        volume_spin.setDecimals(2)
+        volume_spin = volume_spin_box(config.get("volume", 1.0))
         volume_spin.valueChanged.connect(
             lambda v, aid=animal_id: self._update_animal_config(aid, "volume", v)
         )
@@ -1100,10 +1114,7 @@ class Step3ConfigureParameters(QWidget):
         global_layout.addWidget(QLabel("Delivery Time:"))
         global_layout.addWidget(self._global_delivery_time)
 
-        self._global_volume = QDoubleSpinBox()
-        self._global_volume.setRange(0.1, 50.0)
-        self._global_volume.setValue(1.0)
-        self._global_volume.setSuffix(" mL")
+        self._global_volume = volume_spin_box(1.0)
         global_layout.addWidget(QLabel("Volume:"))
         global_layout.addWidget(self._global_volume)
 
@@ -1217,11 +1228,7 @@ class Step3ConfigureParameters(QWidget):
         layout.addWidget(delivery_dt)
 
         # Volume
-        volume_spin = QDoubleSpinBox()
-        volume_spin.setRange(0.1, 50.0)
-        volume_spin.setValue(config.get("volume", 1.0))
-        volume_spin.setSuffix(" mL")
-        volume_spin.setDecimals(2)
+        volume_spin = volume_spin_box(config.get("volume", 1.0))
         volume_spin.valueChanged.connect(
             lambda v, aid=animal_id: self._update_animal_config(aid, "volume", v)
         )
