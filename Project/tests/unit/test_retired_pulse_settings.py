@@ -78,14 +78,23 @@ def test_a_pulse_width_an_older_release_saved_is_deleted_at_load(database_handle
 
     _older_release_left(database_handler)
     assert _stored(database_handler)['pulse_width_ms'] == 50
+    assert _stored(database_handler)['use_pulse_delivery'] is False
 
     controller = SystemController(database_handler)
 
     assert 'pulse_width_ms' not in controller.settings
     assert 'pulse_width_ms' not in _stored(database_handler)
-    # Before ensure_solenoid_defaults has run: the load alone forces it.
+    # Before ensure_solenoid_defaults has run: the load alone forces it, in
+    # memory and in the database (its force-merge compares with memory, so it
+    # would leave a stored False behind; a revert would then load it).
     assert controller.settings['use_pulse_delivery'] is True
-    assert "[SETTINGS] Removed the retired setting pulse_width_ms=50" in capsys.readouterr().out
+    assert _stored(database_handler)['use_pulse_delivery'] is True
+    journal = capsys.readouterr().out
+    assert "[SETTINGS] Removed the retired setting pulse_width_ms=50" in journal
+    assert "[SETTINGS] Stored the fixed setting use_pulse_delivery=True (was False)" in journal
+
+    SystemController(database_handler)  # the next start finds nothing to change
+    assert "[SETTINGS]" not in capsys.readouterr().out
 
 
 def test_no_save_writes_a_pulse_width_or_turns_pulse_delivery_off(

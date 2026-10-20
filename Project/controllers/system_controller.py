@@ -41,13 +41,13 @@ class SystemController(QObject):
         the v1.5.1 upgrade, Slack credentials are extracted into a
         mode-0600 ``secrets.json`` (and removed from the DB). Defaults fill
         any keys still missing. See docs/UPDATE_SYSTEM.md §13.8. Retired
-        settings are deleted from the DB and fixed ones forced (see
-        RETIRED_KEYS and FIXED_SETTINGS).
+        settings are deleted from the DB and fixed ones forced, in the DB
+        too (see RETIRED_KEYS and FIXED_SETTINGS).
         """
         try:
             self._migrate_legacy_json_if_needed()
             self._ensure_secrets_migrated()
-            self._delete_retired_settings()
+            self._settle_stored_settings()
             settings = self._create_default_settings()
             settings.update(self._load_database_settings())
             settings.update(self._load_secrets())
@@ -92,8 +92,12 @@ class SystemController(QObject):
                 cleaned[key] = value
         return cleaned
 
-    def _delete_retired_settings(self):
-        """Delete the retired settings an older release saved from the DB.
+    def _settle_stored_settings(self):
+        """Bring what an older release saved under this release's rules:
+        delete the retired settings, and store a fixed one at its value where
+        it was saved with another, so the DB says what RRR does. (The force-
+        merge in ensure_solenoid_defaults compares with memory, which the
+        load has already put right, so it would not write it.)
 
         Printed as well as emitted: nothing is connected to system_status
         while settings load, and the journal is where it can be looked up.
@@ -104,11 +108,23 @@ class SystemController(QObject):
             return
         if not isinstance(stored, dict):
             return
+        messages = []
         for key in self.RETIRED_KEYS:
             if key in stored and self.database_handler.delete_system_setting(key):
-                message = f"Removed the retired setting {key}={stored[key]!r}"
-                print(f"[SETTINGS] {message}", flush=True)
-                self.system_status.emit(message)
+                messages.append(f"Removed the retired setting {key}={stored[key]!r}")
+        for key, value in self.FIXED_SETTINGS.items():
+            if key in stored and stored[key] != value:
+                try:
+                    self._write_setting_to_db(key, value)
+                except Exception as exc:
+                    messages.append(f"Could not store the fixed setting {key}={value!r}: {exc}")
+                else:
+                    messages.append(
+                        f"Stored the fixed setting {key}={value!r} (was {stored[key]!r})"
+                    )
+        for message in messages:
+            print(f"[SETTINGS] {message}", flush=True)
+            self.system_status.emit(message)
 
     def _create_default_settings(self):
         """Create default settings with proper types"""
