@@ -185,7 +185,7 @@ def test_slow_profile_refusal_on_the_independent_topology_touches_nothing():
 
 
 def test_workable_profile_is_not_refused():
-    """The same dose at the default interval stays within budget."""
+    """The same dose at a 500 ms interval stays within budget."""
     valves = MagicMock()
     db = _StubDB({1: _cal(volume=0.025, interval=500)})
     strategy = _make(

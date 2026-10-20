@@ -243,7 +243,7 @@ def test_duty_cycle_advisory_is_shown_above_threshold_only(qapp):
 
     # isVisibleTo(): the dialog itself is never shown in an offscreen test,
     # so isVisible() would be False for every child regardless.
-    # Default profile (20 ms / 500 ms = 3.8%) is comfortably quiet.
+    # A cool profile (20 ms / 500 ms = 3.8%) is comfortably quiet.
     wizard.pulse_width_spin.setValue(20)
     wizard.interval_spin.setValue(500)
     assert wizard.duty_warning.isVisibleTo(wizard) is False
