@@ -1172,6 +1172,9 @@ def _build_content() -> Dict[str, HelpContent]:
     it was measured); <em>Invalid</em> (red): the stored volume per pulse or pulse width is
     missing, zero or invalid; <em>Not Calibrated</em> (red).  Hover over Stale or Invalid to
     see what Run will do about it.</li>
+    <li><strong>Profile</strong> — the pulse width and the rest between pulses the cage was
+    calibrated at, for example <em>30 / 1000 ms</em>.  Every delivery to the cage uses them.
+    A dash means no usable calibration.</li>
     <li><strong>mL/Pulse</strong> — measured volume delivered per relay activation.</li>
     <li><strong>CV%</strong> — coefficient of variation (lower is better; &lt;5% is
     production-ready, &lt;1% is excellent).  A dash means none was stored.</li>

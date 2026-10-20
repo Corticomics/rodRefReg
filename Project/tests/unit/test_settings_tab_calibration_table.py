@@ -238,7 +238,7 @@ def test_a_calibration_run_would_refuse_is_shown_as_invalid(
     status = tab.calibration_table.item(2, 1)
     assert status.text() == "Invalid"
     assert "will not start until it is recalibrated" in status.toolTip()
-    assert tab.calibration_table.cellWidget(2, 5).property("variant") == "primary"
+    assert tab.calibration_table.cellWidget(2, tab.CAL_COL_ACTION).property("variant") == "primary"
 
 
 def test_a_missing_cv_does_not_take_the_table_down(qapp, database_handler, system_controller):
@@ -250,7 +250,7 @@ def test_a_missing_cv_does_not_take_the_table_down(qapp, database_handler, syste
 
     assert tab.calibration_table.rowCount() == 15
     assert tab.calibration_table.item(3, 1).text() == "[OK]"
-    assert tab.calibration_table.item(3, 3).text() == "—"
+    assert tab.calibration_table.item(3, tab.CAL_COL_CV).text() == "—"
     assert tab.calibration_table.item(14, 1).text() == "Not Calibrated", "the rows after it too"
 
 
@@ -389,3 +389,64 @@ def test_the_report_quotes_notes_and_leaves_missing_ones_empty(
     assert {len(row) for row in rows} == {10}, "every row has the header's ten columns"
     assert rows[3][8] == 'a "quoted", note' and rows[3][9] == "shared_manifold"
     assert rows[5][8] == "", "a missing note is empty, not 'None'"
+
+
+# --- each cage's profile (v2.1.0) ------------------------------------------------------
+
+
+def test_each_calibrated_row_shows_the_profile_its_deliveries_use(
+    qapp, database_handler, system_controller
+):
+    """No global pulse width any more: the table shows the width and rest each
+    cage was calibrated at, which its deliveries replay."""
+
+    def _calibrate(cage, width, rest, volume=0.034164, topology="shared_manifold"):
+        assert database_handler.save_valve_calibration(
+            cage_id=cage,
+            relay_id=cage,
+            pulse_width_ms=width,
+            volume_per_pulse_ml=volume,
+            stddev_ml=0.001,
+            cv_pct=1.0,
+            num_samples=250,
+            inter_pulse_interval_ms=rest,
+            topology=topology,
+        )
+
+    system_controller.settings.update(num_hats=1, valve_topology="shared_manifold")
+    _calibrate(1, 30, 1000)
+    _calibrate(2, 20, None)  # saved before the rest was stored
+    _calibrate(3, 25, 800, topology="independent")  # Stale: the profile still shows
+    _calibrate(4, 30, 1000, volume=0.0)  # Invalid
+    tab = _settings_tab(system_controller, database_handler)
+    table = tab.calibration_table
+
+    assert table.horizontalHeaderItem(tab.CAL_COL_PROFILE).text() == "Profile"
+    assert "Deliveries to the cage use them" in table.horizontalHeaderItem(
+        tab.CAL_COL_PROFILE
+    ).toolTip()
+    profile = [table.item(row, tab.CAL_COL_PROFILE) for row in range(5)]
+    assert [item.text() for item in profile] == [
+        "30 / 1000 ms",
+        "20 / 100 ms",
+        "25 / 800 ms",
+        "—",
+        "—",
+    ]
+    assert profile[0].toolTip() == (
+        "Deliveries to cage 1 use this profile: the valve opens for 30 ms, then stays "
+        "closed 1000 ms before the next pulse, as it was calibrated."
+    )
+    assert profile[1].toolTip().endswith(
+        "This calibration predates stored rests, so deliveries use the 100 ms rest of that time."
+    )
+    assert profile[3].toolTip() == "No usable calibration: recalibrate this cage."
+    assert profile[4].toolTip() == "Not calibrated"
+    # An uncalibrated row's dash is the same grey as the row's other dashes.
+    volume = table.item(4, tab.CAL_COL_VOLUME)
+    assert profile[4].foreground().color() == volume.foreground().color()
+    # The other columns kept their content.
+    assert table.item(0, tab.CAL_COL_VOLUME).text() == "0.034164"
+    assert table.item(0, tab.CAL_COL_CV).text() == "1.00%"
+    assert table.item(0, tab.CAL_COL_STATUS).text() == "[OK]"
+    assert table.item(2, tab.CAL_COL_STATUS).text() == "Stale"

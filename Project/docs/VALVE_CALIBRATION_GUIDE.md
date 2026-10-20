@@ -148,8 +148,8 @@ command-line calibration tool used to be documented here; it was removed in
 v1.21.0 because it could not start.)
 
 #### 3. Verify Calibration
-In **Settings → Calibration** the cage's row shows **[OK]**, the mL/pulse, the
-CV and the date. The stored `valve_calibration` row (schema in
+In **Settings → Calibration** the cage's row shows **[OK]**, the **Profile**
+(pulse width / rest, e.g. `30 / 1000 ms`), the mL/pulse, the CV and the date. The stored `valve_calibration` row (schema in
 [DATABASE.md](DATABASE.md)) looks like:
 ```
 calibration_id|cage_id|relay_id|pulse_width_ms|volume_per_pulse_ml|stddev_ml|coefficient_of_variation_pct|num_samples|calibration_date|calibrated_by|notes|inter_pulse_interval_ms|topology

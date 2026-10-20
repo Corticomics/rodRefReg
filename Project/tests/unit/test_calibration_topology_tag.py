@@ -379,11 +379,11 @@ def test_the_table_marks_a_stale_row_and_its_button(settings_tab, database_handl
     assert stale.text() == "Stale"
     assert (stale.foreground().color().red(), stale.foreground().color().green()) == (200, 150)
     assert "shared_manifold (legacy)" in stale.toolTip() and "runs independent" in stale.toolTip()
-    assert table.cellWidget(0, 5).property("variant") == "primary"
+    assert table.cellWidget(0, tab.CAL_COL_ACTION).property("variant") == "primary"
 
     assert table.item(1, 1).text() == "[OK]"
     assert table.item(1, 1).toolTip() == "Calibrated on independent"
-    assert table.cellWidget(1, 5).property("variant") is None
+    assert table.cellWidget(1, tab.CAL_COL_ACTION).property("variant") is None
 
 
 def test_a_manifold_device_shows_legacy_rows_as_calibrated(settings_tab, database_handler):

@@ -61,6 +61,11 @@ def profile_of(row) -> Optional[Tuple[int, int]]:
     return int(row['pulse_width_ms']), resolve_interval_ms(row.get('inter_pulse_interval_ms'))
 
 
+def profile_text(pulse_width_ms, interval_ms) -> str:
+    """A profile as Settings > Calibration shows it: ``30 / 1000 ms``."""
+    return f"{pulse_width_ms} / {interval_ms} ms"
+
+
 class StartingProfile(NamedTuple):
     """The pulse width and rest the calibration wizard starts a cage from."""
 

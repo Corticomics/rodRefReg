@@ -31,6 +31,7 @@ from utils import updater
 from utils.calibration_gate import calibration_is_usable, gate_applies
 from utils.last_run_text import outcome_word
 from utils.operation_lock import CALIBRATION, EMERGENCY, get_operation_lock
+from utils.pulse_profile import profile_of, profile_text
 from utils.topology import (
     DEFAULT_MASTER_RELAY_ID,
     INDEPENDENT,
@@ -66,6 +67,24 @@ def _format_number(value, template):
 
 class SettingsTab(QWidget):
     settings_updated = pyqtSignal(dict)
+
+    # The calibration table's columns, in order.
+    CAL_HEADERS = ("Cage", "Status", "Profile", "mL/Pulse", "CV%", "Date", "Action")
+    (
+        CAL_COL_CAGE,
+        CAL_COL_STATUS,
+        CAL_COL_PROFILE,
+        CAL_COL_VOLUME,
+        CAL_COL_CV,
+        CAL_COL_DATE,
+        CAL_COL_ACTION,
+    ) = range(len(CAL_HEADERS))
+    # Its cell padding, px. 4 above and below keep the Action buttons (32 px:
+    # 26 plus their padding and border) centred in the 40 px rows; the theme's
+    # 12 px top inset pushed them into the next row. 8 at the sides, half the
+    # theme's 16, leaves the text its room.
+    CAL_CELL_PADDING_V = 4
+    CAL_CELL_PADDING_H = 8
 
     def __init__(
         self,
@@ -1020,9 +1039,11 @@ class SettingsTab(QWidget):
 
         # Calibration table
         self.calibration_table = QTableWidget()
-        self.calibration_table.setColumnCount(6)
-        self.calibration_table.setHorizontalHeaderLabels(
-            ["Cage", "Status", "mL/Pulse", "CV%", "Date", "Action"]
+        self.calibration_table.setColumnCount(len(self.CAL_HEADERS))
+        self.calibration_table.setHorizontalHeaderLabels(list(self.CAL_HEADERS))
+        self.calibration_table.horizontalHeaderItem(self.CAL_COL_PROFILE).setToolTip(
+            "The pulse width and the rest between pulses each cage was calibrated at. "
+            "Deliveries to the cage use them."
         )
 
         # Table styling - Match app's Material Design theme
@@ -1040,42 +1061,36 @@ class SettingsTab(QWidget):
         )  # Tab scrolls instead
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        # The global `QTableWidget::item` padding has a 12px top inset, which
-        # pushes setCellWidget action buttons down so they dip into the next
-        # row. Trim the item padding for this table so the Calibrate buttons sit
-        # centred. Padding-only override keeps the theme's row border.
-        self.calibration_table.setStyleSheet("QTableWidget::item { padding: 4px 16px; }")
-        # Rely on global QSS styling
+        # Cell padding for this table (CAL_CELL_PADDING_*): padding only, so the
+        # theme keeps the row border and the colours. The header's sides are
+        # trimmed the same way.
+        side = self.CAL_CELL_PADDING_H
+        self.calibration_table.setStyleSheet(
+            f"QTableWidget::item {{ padding: {self.CAL_CELL_PADDING_V}px {side}px; }} "
+            f"QHeaderView::section {{ padding-left: {side}px; padding-right: {side}px; }}"
+        )
 
-        # Column resize modes - all fixed widths for consistent layout
         header = self.calibration_table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(40)
+        # Only the cage name stretches, and elides: its tooltip has it in full.
+        # Every data column is as wide as its widest text or its header, in
+        # whatever font the device draws them. Fixed widths cut them off on the
+        # lab's 1920 x 1080 screen ("Not ...", "0....", "2026-1...").
+        header.setSectionResizeMode(self.CAL_COL_CAGE, QHeaderView.Stretch)
+        for column in (
+            self.CAL_COL_STATUS,
+            self.CAL_COL_PROFILE,
+            self.CAL_COL_VOLUME,
+            self.CAL_COL_CV,
+            self.CAL_COL_DATE,
+        ):
+            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        # The Action column holds buttons, which ResizeToContents does not
+        # measure: _fit_action_column sizes it from them at every refresh.
+        header.setSectionResizeMode(self.CAL_COL_ACTION, QHeaderView.Fixed)
 
-        # Column 0: Cage - stretch to absorb slack (names vary in length)
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-
-        # Column 1: Status - compact fixed width (badge only)
-        header.setSectionResizeMode(1, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(1, 120)
-
-        # Column 2: mL/Pulse - fixed width (fits "0.001234")
-        header.setSectionResizeMode(2, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(2, 95)
-
-        # Column 3: CV% - fixed width
-        header.setSectionResizeMode(3, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(3, 70)
-
-        # Column 4: Date - fixed width (fits "2026-05-12")
-        header.setSectionResizeMode(4, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(4, 100)
-
-        # Column 5: Action - fixed width for button with padding
-        header.setSectionResizeMode(5, QHeaderView.Fixed)
-        self.calibration_table.setColumnWidth(5, 124)
-
-        # Populate table with 15 cages
+        # One row per cage in the device's cage map
         self._populate_calibration_table()
 
         layout.addWidget(self.calibration_table)
@@ -1126,7 +1141,10 @@ class SettingsTab(QWidget):
         # Help text
         help_text = QLabel(
             "<b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
-            "Requires lab scale (±0.001g). CV% <5% = production ready. "
+            # &lt;: a bare "<" starts a tag in rich text and hid the next words.
+            "Requires lab scale (±0.001g). CV% &lt;5% = production ready. "
+            "<b>Profile</b> = the pulse width / rest a cage was calibrated at; its "
+            "deliveries use them. "
             "<b>Stale</b> = measured under the other valve topology; a schedule "
             "watering that cage will not start until it is recalibrated."
         )
@@ -1188,8 +1206,12 @@ class SettingsTab(QWidget):
 
             cage_item = QTableWidgetItem(display_name)
             cage_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            cage_item.setToolTip(f"Cage {cage_id} - Relay {relay_id}")
-            self.calibration_table.setItem(row, 0, cage_item)
+            # The cage column is the one that elides: the tooltip keeps the name.
+            tooltip = f"Cage {cage_id} - Relay {relay_id}"
+            if display_name != f"Cage {cage_id}":
+                tooltip += f"\n{custom_name}"
+            cage_item.setToolTip(tooltip)
+            self.calibration_table.setItem(row, self.CAL_COL_CAGE, cage_item)
 
             stale = bool(cal) and calibration_is_stale(cal, self.settings)
             invalid = bool(cal) and not calibration_is_usable(cal)
@@ -1229,6 +1251,13 @@ class SettingsTab(QWidget):
                     status_item.setToolTip(f"Calibrated on {calibration_label(cal)}")
                 status_item.setTextAlignment(Qt.AlignCenter)
 
+                # The pulse width and rest its deliveries replay ("—" when the
+                # row cannot plan one: Invalid).
+                profile = profile_of(cal)
+                profile_item = QTableWidgetItem("—" if profile is None else profile_text(*profile))
+                profile_item.setTextAlignment(Qt.AlignCenter)
+                profile_item.setToolTip(self._profile_tooltip(cage_id, cal, profile))
+
                 volume_item = QTableWidgetItem(
                     _format_number(cal.get('volume_per_pulse_ml'), "{:.6f}")
                 )
@@ -1263,10 +1292,11 @@ class SettingsTab(QWidget):
                 date_item = QTableWidgetItem(date_str)
                 date_item.setTextAlignment(Qt.AlignCenter)
 
-                self.calibration_table.setItem(row, 1, status_item)
-                self.calibration_table.setItem(row, 2, volume_item)
-                self.calibration_table.setItem(row, 3, cv_item)
-                self.calibration_table.setItem(row, 4, date_item)
+                self.calibration_table.setItem(row, self.CAL_COL_STATUS, status_item)
+                self.calibration_table.setItem(row, self.CAL_COL_PROFILE, profile_item)
+                self.calibration_table.setItem(row, self.CAL_COL_VOLUME, volume_item)
+                self.calibration_table.setItem(row, self.CAL_COL_CV, cv_item)
+                self.calibration_table.setItem(row, self.CAL_COL_DATE, date_item)
 
                 # Action button - Recalibrate (compact for table); a stale or
                 # invalid row's button stands out like an uncalibrated row's.
@@ -1277,7 +1307,7 @@ class SettingsTab(QWidget):
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Recalibrate cage {cage_id}")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, btn)
+                self.calibration_table.setCellWidget(row, self.CAL_COL_ACTION, btn)
                 self._calibrate_buttons.append(btn)
 
             else:
@@ -1291,6 +1321,11 @@ class SettingsTab(QWidget):
                 volume_item.setTextAlignment(Qt.AlignCenter)
                 volume_item.setForeground(QColor(150, 150, 150))
 
+                profile_item = QTableWidgetItem("—")
+                profile_item.setTextAlignment(Qt.AlignCenter)
+                profile_item.setForeground(volume_item.foreground())  # the row's grey
+                profile_item.setToolTip("Not calibrated")
+
                 cv_item = QTableWidgetItem("—")
                 cv_item.setTextAlignment(Qt.AlignCenter)
                 cv_item.setForeground(QColor(150, 150, 150))
@@ -1299,10 +1334,11 @@ class SettingsTab(QWidget):
                 date_item.setTextAlignment(Qt.AlignCenter)
                 date_item.setForeground(QColor(150, 150, 150))
 
-                self.calibration_table.setItem(row, 1, status_item)
-                self.calibration_table.setItem(row, 2, volume_item)
-                self.calibration_table.setItem(row, 3, cv_item)
-                self.calibration_table.setItem(row, 4, date_item)
+                self.calibration_table.setItem(row, self.CAL_COL_STATUS, status_item)
+                self.calibration_table.setItem(row, self.CAL_COL_PROFILE, profile_item)
+                self.calibration_table.setItem(row, self.CAL_COL_VOLUME, volume_item)
+                self.calibration_table.setItem(row, self.CAL_COL_CV, cv_item)
+                self.calibration_table.setItem(row, self.CAL_COL_DATE, date_item)
 
                 # Action button - Calibrate (compact for table)
                 btn = QPushButton("Calibrate")
@@ -1311,11 +1347,50 @@ class SettingsTab(QWidget):
                 btn.setMinimumWidth(90)
                 btn.setToolTip(f"Calibrate cage {cage_id} (250 pulses)")
                 btn.clicked.connect(lambda checked, c=cage_id: self._launch_calibration_wizard(c))
-                self.calibration_table.setCellWidget(row, 5, btn)
+                self.calibration_table.setCellWidget(row, self.CAL_COL_ACTION, btn)
                 self._calibrate_buttons.append(btn)
 
         # Reflect the current operation-lock state on the freshly-built buttons.
         self._apply_calibration_lock_state()
+        self._fit_action_column()
+
+    @staticmethod
+    def _profile_tooltip(cage_id, cal, profile):
+        """What a calibrated row's Profile cell says when hovered."""
+        if profile is None:
+            return "No usable calibration: recalibrate this cage."
+        width, interval = profile
+        tip = (
+            f"Deliveries to cage {cage_id} use this profile: the valve opens for {width} ms, "
+            f"then stays closed {interval} ms before the next pulse, as it was calibrated."
+        )
+        if cal.get('inter_pulse_interval_ms') is None:
+            tip += (
+                " This calibration predates stored rests, so deliveries use the "
+                f"{interval} ms rest of that time."
+            )
+        return tip
+
+    def _fit_action_column(self):
+        """Size the Action column to its widest button, plus the cell's side
+        padding and the grid line. A cell's button fills the cell less its
+        padding, so each keeps its natural width, centred in its row."""
+        table = self.calibration_table
+        widest = max(
+            (
+                max(button.sizeHint().width(), button.minimumWidth())
+                for button in getattr(self, '_calibrate_buttons', [])
+            ),
+            default=0,
+        )
+        grid = 1 if table.showGrid() else 0
+        table.setColumnWidth(
+            self.CAL_COL_ACTION,
+            max(
+                widest + 2 * self.CAL_CELL_PADDING_H + grid,
+                table.horizontalHeader().sectionSizeHint(self.CAL_COL_ACTION),
+            ),
+        )
 
     def _apply_calibration_lock_state(self):
         """Grey out the calibration launch buttons while another hardware
