@@ -28,7 +28,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from utils.dose_rounding import whole_pulses
-from utils.last_run_text import last_run_cell, remaining_ml
+from utils.last_run_text import BELOW_SMALLEST_SCHEDULE, last_run_cell, remaining_ml
 from utils.run_warnings import (
     COMPLETED_RUN_TITLE,
     LAST_RUN_TITLE,
@@ -458,8 +458,8 @@ def test_the_start_over_question():
         "\n"
         "Run does not resume a schedule: it starts this one over, so the animals above get "
         "their full amount again, on top of what they already got. If the missing water has "
-        "not been given since, press Cancel and create a new schedule for the remaining "
-        "amount.\n"
+        "not been given since, press Cancel and give it in a new schedule, as its line says; "
+        "a remainder below the smallest schedule (0.10 mL) cannot be scheduled.\n"
         "\n"
         "The scheduled start time (2026-10-09 08:00) has already passed: the full amount "
         "goes out in the 480 minutes left until 20:00.\n"
@@ -473,6 +473,77 @@ def test_the_start_over_question():
         LAST_RUN_TITLE,
         last_run_message("AM water", lines),
     )
+
+
+GIVE_IT_INSTEAD = (
+    "If the missing water has not been given since, press Cancel and give it in a new "
+    "schedule, as its line says; a remainder below the smallest schedule (0.10 mL) cannot "
+    "be scheduled."
+)
+
+
+@pytest.mark.parametrize(
+    ("run", "line_end"),
+    [
+        (
+            _last('stopped', 12 * 0.019212, requested_ml=0.6, planned_ml=31 * 0.019212),
+            "; remaining 0.369 of the 0.600 mL scheduled, 0.37 mL in a new schedule",
+        ),
+        (
+            _last('stopped', 0.551, requested_ml=0.6),
+            "; remaining 0.049 of the 0.600 mL scheduled, below the smallest schedule (0.10 mL)",
+        ),
+        (
+            _last('interrupted', None, ended_at=None),
+            "; how much of the planned 0.991 mL it delivered is in the delivery log: "
+            f"{LOG} --since 2026-10-09 --cage 3",
+        ),
+        (
+            _last('stopped', 0.1, delivery_mode="instant", requested_ml=0.25, planned_ml=0.239),
+            ": 0.100 of the planned 0.239 mL, stopped at 10:32",
+        ),
+    ],
+    ids=["run 37", "below the smallest schedule", "delivery log", "instant"],
+)
+def test_what_to_do_instead_of_starting_over_defers_to_each_line(run, line_end):
+    """The question names no figure for a new schedule: each line gives the
+    amount to schedule, says the remainder is below the smallest schedule,
+    or points to the delivery log. "The remaining amount" named run 37's
+    "remaining 0.369", which the wizard turns into 0.36, and offered a
+    schedule for a remainder below the smallest one. "The amount on its
+    line" would name the planned 0.991 mL on the delivery-log line, and on
+    the instant line, which gives no remainder, 0.100 or 0.239 mL."""
+    lines = last_run_lines({1: run}, [1], NOW)
+    title, text = start_over_question("AM water", lines)
+    assert title == LAST_RUN_TITLE
+    (line,) = lines
+    assert line.endswith(line_end)
+    assert text.endswith(
+        "on top of what they already got. " + GIVE_IT_INSTEAD + '\n\nStart "AM water" over?'
+    )
+    assert "remaining amount" not in text
+
+
+def test_when_every_remainder_is_below_the_smallest_schedule_no_schedule_is_offered():
+    """Two animals stopped 0.049 and 0.094 mL short, one complete: no line
+    gives an amount to schedule, and nothing in the question offers one. As
+    the lines do, it says that such a remainder cannot be scheduled, with
+    the wizard's minimum (utils.schedule_volume)."""
+    runs = {
+        1: _last('stopped', 0.551, requested_ml=0.6),
+        2: _last('stopped', 0.506, cage=4, lab="M-12", requested_ml=0.6),
+        3: _last('completed', 0.991, cage=5, lab="M-13"),
+    }
+    _title, text = start_over_question("AM water", last_run_lines(runs, [1, 2, 3], NOW))
+    for remaining in ("0.049", "0.094"):
+        assert (
+            f"; remaining {remaining} of the 0.600 mL scheduled, below the smallest schedule "
+            "(0.10 mL)\n" in text
+        )
+    assert f"a remainder {BELOW_SMALLEST_SCHEDULE} cannot be scheduled." in text
+    assert "mL in a new schedule" not in text, "no amount to schedule"
+    assert "create a new schedule" not in text
+    assert "remaining amount" not in text
 
 
 def test_the_completed_run_question():
@@ -928,7 +999,7 @@ def test_a_staggered_question_with_a_future_window_has_no_window_note(
     ((title, text, _label),) = run.asked
     assert title == LAST_RUN_TITLE
     assert "scheduled start time" not in text
-    assert text.endswith('remaining amount.\n\nStart "AM water" over?'), "no window note"
+    assert text.endswith('cannot be scheduled.\n\nStart "AM water" over?'), "no window note"
     ((_schedule, _mode, window_start, _window_end),) = run.started
     assert window_start == datetime.fromisoformat(schedule.start_time).timestamp()
 

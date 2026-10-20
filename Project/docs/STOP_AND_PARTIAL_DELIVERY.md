@@ -475,8 +475,14 @@ animal's latest run **of this schedule** is `stopped`, `incomplete`,
 above 0, or unknown). It lists every animal that got water, completed ones
 too, since Start Over doses them again ("M-011, cage 3: 0.410 of the
 planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL
-scheduled, 0.59 mL in a new schedule"), and says to create a new schedule
-for the remaining amount.
+scheduled, 0.59 mL in a new schedule"), and says to give the missing water
+in a new schedule, as its line says, and that a remainder below the
+smallest schedule (0.10 mL) cannot be scheduled. Since v2.1.0 that
+sentence names no figure: v2.0.0's "for the remaining amount" pointed at
+the line's three-decimal remainder, which the wizard does not take, and
+offered a schedule for a remainder below the smallest one. A delivery-log
+line, or an instant run's, gives no amount to schedule, so "the amount on
+its line" would point at its planned or delivered amount.
 
 **Last Run Completed** (**Start Over** / Cancel) appears when every one of
 those runs completed and some water went out (the owner's choice on
@@ -508,7 +514,7 @@ The last run of "AM water" ended early. These animals already got water in it:
 • M-011, cage 3: 0.410 of the planned 0.991 mL, stopped at 10:32; remaining 0.590 of the 1.000 mL scheduled, 0.59 mL in a new schedule
 • M-012, cage 4: 0.991 of the planned 0.991 mL, complete
 
-Run does not resume a schedule: it starts this one over, so the animals above get their full amount again, on top of what they already got. If the missing water has not been given since, press Cancel and create a new schedule for the remaining amount.
+Run does not resume a schedule: it starts this one over, so the animals above get their full amount again, on top of what they already got. If the missing water has not been given since, press Cancel and give it in a new schedule, as its line says; a remainder below the smallest schedule (0.10 mL) cannot be scheduled.
 
 The scheduled start time (2026-10-09 08:00) has already passed: the full amount goes out in the 480 minutes left until 20:00.
 

@@ -321,13 +321,21 @@ def window_note(scheduled_start, scheduled_end, now):
 
 def last_run_message(schedule_name, lines, window=None):
     """The question Run asks before it starts over a schedule whose last run
-    ended early. ``window`` is window_note() when the start has passed."""
+    ended early. ``window`` is window_note() when the start has passed.
+
+    What to do instead defers to each line and names no figure. A line gives
+    the amount to schedule, says the remainder is below the smallest
+    schedule, or points to the delivery log, and some lines give no amount
+    at all (an instant run's, an interrupted one's). "The remaining amount"
+    named the three-decimal remainder, which the wizard does not take, and
+    "the amount on its line" would name the delivery-log line's planned
+    amount."""
     paragraphs = [
         _ended_early(schedule_name, lines),
         "Run does not resume a schedule: it starts this one over, so the animals above get "
         "their full amount again, on top of what they already got. If the missing water has "
-        "not been given since, press Cancel and create a new schedule for the remaining "
-        "amount.",
+        "not been given since, press Cancel and give it in a new schedule, as its line says; "
+        f"a remainder {BELOW_SMALLEST_SCHEDULE} cannot be scheduled.",
     ]
     if window:
         paragraphs.append(window)

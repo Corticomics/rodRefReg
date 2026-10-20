@@ -44,11 +44,13 @@ def test_help_quotes_the_amount_to_schedule_as_rrr_writes_it():
     """The Animals topic quotes the tooltip, and Troubleshooting the Last Run
     Ended Early line, for lab run 37 (0.6 mL, stopped after 12 pulses of
     0.019212 mL), with the amount at the schedule wizard's two decimals.
-    Both are taken from the code that writes them, so Help cannot drift."""
+    Troubleshooting then says what to do instead of starting over in the
+    question's own words. All of it is taken from the code that writes it,
+    so Help cannot drift."""
     from datetime import datetime  # noqa: PLC0415
 
     from utils.last_run_text import BELOW_SMALLEST_SCHEDULE, last_run_cell  # noqa: PLC0415
-    from utils.run_warnings import last_run_lines  # noqa: PLC0415
+    from utils.run_warnings import last_run_lines, start_over_question  # noqa: PLC0415
 
     run_37 = {
         'run_id': 37,
@@ -71,6 +73,12 @@ def test_help_quotes_the_amount_to_schedule_as_rrr_writes_it():
     troubleshooting = _text(HelpContentManager().get_content("Troubleshooting"))
     assert f"<em>{line.split('; ', 1)[1]}</em>" in troubleshooting
     assert f"says it is {BELOW_SMALLEST_SCHEDULE}" in troubleshooting
+    _title, question = start_over_question("AM water", [line])
+    instead = question[question.index("press Cancel") : question.index("\n\nStart")]
+    assert instead.endswith(f"a remainder {BELOW_SMALLEST_SCHEDULE} cannot be scheduled.")
+    assert instead.replace("Cancel", "<strong>Cancel</strong>") in troubleshooting, (
+        "Help tells what to do instead of starting over as the question does"
+    )
 
 
 def test_searching_for_the_column_finds_the_animals_topic():
