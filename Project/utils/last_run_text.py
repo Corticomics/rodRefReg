@@ -94,8 +94,9 @@ def amount_to_schedule(owed):
 
     It rounds the figure shown, not the float, so the two figures on one
     line agree: 0.3649 shows as 0.365 and is scheduled as 0.37, not 0.36.
-    Rounding the float would not plan the pulses that did not fire more
-    often (docs/STOP_AND_PARTIAL_DELIVERY.md §9).
+    Rounding the float is no more accurate overall: where the two differ,
+    each plans the pulses that did not fire about as often
+    (docs/STOP_AND_PARTIAL_DELIVERY.md §9).
 
     None when ``owed`` is None, or when the amount is below the smallest
     schedule (0.10 mL), which the wizard does not take.

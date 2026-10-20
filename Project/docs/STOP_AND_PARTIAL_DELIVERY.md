@@ -561,21 +561,25 @@ Start "AM water" over?
   `utils/schedule_volume.py`, which the wizard's volume fields are built
   from): the remainder as shown, rounded half up to two decimals with
   `decimal.Decimal` on the figure as written (0.365, stored as
-  0.36499999999999999, gives 0.37). When that amount is under 0.10 mL
-  they say the remainder is below the smallest schedule (0.10 mL) and
-  offer none. The amount can still fire one pulse more or fewer when the
-  remainder lies within about 0.005 mL of a whole number of pulses, and a
-  remainder under 0.1 mL cannot be scheduled (at q = 0.034164, doses
-  0.10–1.50 mL: about 7 % and 12 % of the stops). The three-decimal
+  0.36499999999999999, gives 0.37). When that amount is under 0.10 mL,
+  which is when the remainder shows under 0.095 mL, they say the
+  remainder is below the smallest schedule (0.10 mL) and offer none; from
+  0.095 mL as shown they offer 0.10 mL. The amount can still fire one
+  pulse more or fewer when the remainder lies within about 0.005 mL of a
+  whole number of pulses, and a remainder that shows under 0.095 mL
+  cannot be scheduled (at q = 0.034164, doses 0.10–1.50 mL: about 7 % and
+  12 % of the stops). The three-decimal
   figure typed as it was, its third decimal dropped, was a pulse off in
   about 12 % (20 % at q = 0.019212, against 12 % for the amount given).
 - **The amount rounds the figure shown, not the float,** so the two
   figures on one line agree: 0.3649 shows as 0.365 and is scheduled as
-  0.37, not 0.36. It is no less accurate: over every stop of doses
-  0.10–1.50 mL at q = 0.019212, the two give different amounts in 360 of
-  5,796 stops (round-up) and different pulse counts in 170, of which the
-  figure shown plans the pulses that did not fire in 81 and the float in
-  85 (nearest: 87 and 83). At q = 0.034164 they never differ.
+  0.37, not 0.36. It is about as accurate. Over every stop of doses
+  0.10–1.50 mL at q = 0.019212, under round-up, the two give different
+  amounts in 360 of 5,796 stops and different pulse counts in 170: the
+  figure shown plans the pulses that did not fire in 81 of those, the
+  float in 85. Under nearest rounding, the default, they differ in 356 of
+  5,730 stops and 170 pulse counts: the figure shown is right in 87, the
+  float in 83. At q = 0.034164 they never differ.
 - **An outcome a newer release wrote** (read after a revert) counts as
   ended short, as the Animals tab shows it red.
 - **The window note** gives the minutes and the end that **Schedule Start

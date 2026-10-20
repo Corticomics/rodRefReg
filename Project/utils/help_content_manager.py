@@ -520,8 +520,8 @@ def _build_content() -> Dict[str, HelpContent]:
   gives every animal its full amount again; running an instant schedule again skips the
   delivery times that have passed.  To deliver only what is missing, create a new schedule
   for that amount: for a staggered run the red cell's tooltip shows it; for an instant run,
-  check the delivery log first.  The tooltip gives what was not delivered to three
-  decimals, and the amount to type in the schedule wizard to its two, rounded half up:
+  check the delivery log first.  The tooltip gives what was not delivered, to three
+  decimals, and the amount to type in the schedule wizard, rounded half up to two decimals:
   <em>To deliver only the remaining 0.369 mL, create a new schedule for 0.37 mL.</em>  The
   wizard takes 0.10 mL or more: when that amount is smaller, the tooltip says the remainder
   is below the smallest schedule (0.10 mL) and offers no schedule.</p>
