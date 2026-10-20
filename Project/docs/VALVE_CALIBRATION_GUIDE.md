@@ -327,11 +327,15 @@ else:
 
 ### Sample Size Guidelines
 
-| Valve Type | Recommended Pulses | Time @ 20ms pulse |
-|-----------|-------------------|-------------------|
-| Parker Series 3 | 250 | ~8 minutes |
-| High-precision required | 300 | ~10 minutes |
-| Quick check | 100 | ~3 minutes |
+| Valve Type | Recommended Pulses | Time at 30 ms / 1000 ms |
+|-----------|-------------------|-------------------------|
+| Parker Series 3 | 250 | ~4.3 minutes |
+| High-precision required | 300 | ~5.2 minutes |
+| Quick check | 100 | ~1.7 minutes |
+
+The times are the wizard's own estimate (number of pulses × (pulse width +
+interval), plus 0.5 s for the master valve on a shared manifold). The
+configuration page shows it for the profile you set.
 
 **Math:**
 - Standard error = (scale_precision / √num_pulses)
