@@ -37,8 +37,8 @@ EXEMPT = ("ui/style/",)  # where the tokens and the stylesheets live
 ALSO_SCANNED = ("utils/help_content_manager.py",)
 # Where a file takes its colours from, when not from the stylesheet
 WHERE_COLOURS_GO = {
-    "utils/help_content_manager.py": "the Help tab's HTML takes its colours from _PALETTE in "
-    "that file: add the colour there",
+    "utils/help_content_manager.py": "the Help tab's HTML takes its colours from the roles "
+    "tokens.HELP_HTML names in Project/ui/style/tokens.py: add a role there",
 }
 
 
