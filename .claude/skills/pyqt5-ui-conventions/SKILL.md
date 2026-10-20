@@ -124,8 +124,23 @@ edited and both stylesheets ([CONTRIBUTING.md §7](CONTRIBUTING.md#7-colours-and
 `test_no_new_raw_colours.py` fails when a file under `Project/ui` gains a
 raw colour (hex, `rgb()` or `hsv()`, `QColor(200, 0, 0)` or
 `QColor.fromRgb(…)`, `Qt.white`, `color: white`), or loses one without
-lowering its count in `BASELINE`. The Help tab's HTML palette (`_PALETTE`
-in `Project/utils/help_content_manager.py`) is counted the same way.
+lowering its count in `BASELINE`. The Help tab's HTML takes its colours from
+`tokens.HELP_HTML` and is counted the same way.
+
+`StyleManager.apply` also sets a QPalette built from the same tokens
+([qt_palette.py](Project/ui/style/qt_palette.py)), before the stylesheet, and
+emits `theme_changed`. The palette colours what no rule names: the window, plain
+containers (transparent over it), input text and placeholders, alternate rows,
+selection, links. So:
+
+- **Never** add a universal `QWidget { background; color }` rule.
+- **Never** put a `color` on a rule that matches an input. Qt would draw the
+  input's placeholder at half alpha.
+- Content the stylesheet cannot reach (HTML, a painter) listens to
+  `theme_changed`, as `HelpTab` does.
+
+`test_theme_contrast.py` checks every pair of roles drawn together, in both
+themes. Add the pair when you combine two roles in a new way.
 
 A colour that code paints itself comes from the QSS too. Declare it as a
 `pyqtProperty(QColor)` on a named widget and set it with `qproperty-*` in
@@ -136,7 +151,8 @@ the cell with `AnimalsTab.alertFill` and writes `alertText`, which
 sets for each theme. Colouring a table cell:
 
 - `QTableWidgetItem.setBackground()` is not painted under the app QSS, and
-  `setForeground()` turns teal on a selected row (`::item:selected`).
+  `setForeground()` gives way on a selected row to `::item:selected`'s
+  on-accent text.
 - A widget put in a cell (`setCellWidget`) sits inside the `::item`
   padding, so it fills only a band of the cell. A delegate fills it all,
   and then paints the selected state itself (the red cell keeps its fill

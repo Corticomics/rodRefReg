@@ -140,13 +140,23 @@ paths are animal-safety-critical — treat them accordingly.
 
 ## 7. Colours and themes
 
+Every colour of the UI is a role in one table,
+[`Project/ui/style/tokens.py`](Project/ui/style/tokens.py):
+`"bg.surface": ("#FFFFFF", "#30373F")` is (light, dark). Three things read it:
+
+| Reader | Colours |
+|---|---|
+| [`app.qss.tmpl`](Project/ui/style/app.qss.tmpl) → `app-light.qss`, `app-dark.qss` | every stylesheet rule, through `${bg.surface}`-style placeholders |
+| [`qt_palette.py`](Project/ui/style/qt_palette.py) (`tokens.QPALETTE`) | the QPalette `StyleManager.apply` sets before the stylesheet: the window, plain containers, input text and placeholders, alternate rows, selection, links |
+| [`help_content_manager.py`](Project/utils/help_content_manager.py) (`tokens.HELP_HTML`) | the Help tab's HTML |
+
 The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 `app-dark.qss`, are **generated**: never edit them by hand. Their source:
 
 | File | Holds |
 |---|---|
-| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every stylesheet colour, by role: `"bg.surface": ("#FFFFFF", "#1E2530")` is (light, dark) |
-| [`Project/ui/style/app.qss.tmpl`](Project/ui/style/app.qss.tmpl) | every rule, once, with `${bg.surface}`-style placeholders; `@light` / `@dark` … `@end`, each at the start of a line, mark the few lines one theme lacks |
+| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every colour, by role |
+| [`Project/ui/style/app.qss.tmpl`](Project/ui/style/app.qss.tmpl) | every rule, once, with `${bg.surface}`-style placeholders; `@light` / `@dark` … `@end`, each at the start of a line, mark lines one theme lacks (today only comments) |
 
 To change a colour or a rule:
 
@@ -159,17 +169,34 @@ To change a colour or a rule:
 
 `test_qss_generated.py` fails while a committed stylesheet differs from the
 render (`build_qss.py --check` says the same without writing), and when the
-two themes differ in anything but token values, comments and the dark-only
-lines it lists in `DARK_ONLY` (the template's `@dark` blocks).
+two themes differ in anything but token values and comments (a declaration
+only one theme has must be listed in the test's `DARK_ONLY`; there are none
+today).
 `test_qss_parses.py` fails when Qt cannot parse a stylesheet. Name a colour
 by what it is for, not how it looks: reuse a role that fits, or add one.
 Do not write colours into Python under `Project/ui`: give the widget an
 `objectName` or a dynamic property and style it in the template.
 `test_no_new_raw_colours.py` counts the raw colours that UI files still hold
 (they are being moved out): it fails when a file gains one, and when a file
-loses one until you lower that file's count in the test's `BASELINE`.
+loses one until you lower that file's count in the test's `BASELINE`. The
+Help tab's HTML takes its colours from `tokens.HELP_HTML`: a colour it needs
+is a role there, never a literal in the HTML. The ratchet keeps counting
+`help_content_manager.py`, so none comes back.
 
-The Help tab's HTML is coloured from a second palette, `_PALETTE` in
-`Project/utils/help_content_manager.py`, whose colours are not in
-`tokens.py` yet; the ratchet counts it too. A colour that HTML needs goes
-in `_PALETTE`, not into the HTML itself.
+**Contrast is tested, in both themes.** `test_theme_contrast.py` checks every
+pair of roles the UI draws together with the unrounded WCAG 2.x ratio
+(Project/ui/style/contrast.py): 4.5:1 for text, 7:1 for body and secondary
+text on the main surfaces, 3:1 for control boundaries and state marks, the
+card-on-page step palette B was chosen for, and floors under the HDMI
+clip/wash models. When you change a colour, run it; a pair that fails is
+fixed by changing the colour, never its threshold. When you put two roles
+together in a new way, add the pair. `test_theme_structure.py` guards the
+rules the palette depends on:
+
+- no universal `QWidget` background or colour;
+- no `color` on a rule that matches an input. Qt then draws the input's
+  placeholder at half alpha, under 4.5:1;
+- no `[placeholderText]` or `QTextEdit:read-only` rule;
+- scroll areas and stacked pages transparent.
+
+`test_theme_palette.py` checks the palette on screen, offscreen.
