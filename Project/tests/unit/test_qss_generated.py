@@ -161,15 +161,17 @@ def test_every_placeholder_names_a_token():
 
 
 def test_every_token_is_used():
-    """Each role has a reader: the template or the QPalette."""
+    """Each role has a reader: the template, the QPalette or the Help tab's HTML."""
     used = set().union(*(_placeholders(theme) for theme in build_qss.THEMES))
     used |= set(tokens.QPALETTE.values()) | set(tokens.QPALETTE_DISABLED.values())
+    used |= set(tokens.HELP_HTML.values())
     unused = set(tokens.TOKENS) - used
-    assert not unused, f"tokens.py roles nothing uses (the template or QPALETTE): {sorted(unused)}"
+    readers = "the template, QPALETTE or HELP_HTML"
+    assert not unused, f"tokens.py roles nothing uses ({readers}): {sorted(unused)}"
 
 
 def test_the_palette_and_help_maps_name_tokens():
-    for table in ("QPALETTE", "QPALETTE_DISABLED"):
+    for table in ("QPALETTE", "QPALETTE_DISABLED", "HELP_HTML"):
         unknown = set(getattr(tokens, table).values()) - set(tokens.TOKENS)
         assert not unknown, f"tokens.{table} names roles tokens.py lacks: {sorted(unknown)}"
     assert set(tokens.QPALETTE_DISABLED) <= set(tokens.QPALETTE)

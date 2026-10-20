@@ -9,9 +9,9 @@ colour code paints itself is a qproperty-*, as the Animals tab's red cell does),
 build_qss.py.
 
 The UI code is every file under Project/ui except ui/style, plus the files in
-ALSO_SCANNED: the Help tab's HTML takes its colours from a light and a dark palette of its
-own, _PALETTE in Project/utils/help_content_manager.py. Code that is not themed is not
-counted (a Slack message's colour, a bring-up tool).
+ALSO_SCANNED: the Help tab's HTML is themed too, from the roles tokens.HELP_HTML names
+(Project/utils/help_content_manager.py), so no raw colour may come back there. Code that is
+not themed is not counted (a Slack message's colour, a bring-up tool).
 
 Today's UI code still holds raw colours, so this is a ratchet: each file must hold exactly
 its count in BASELINE, and a file not listed none. A file that gains a colour fails. So
@@ -51,10 +51,10 @@ def _load(name, path):
 
 colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
-# Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0.
+# Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0, less those that
+# moved to tokens since (the Help tab's: v2.1.0).
 BASELINE = {
     "ui/CalibrationWizard.py": 1,
-    "ui/HelpTab.py": 2,
     "ui/ScheduleProgressTracker.py": 28,
     "ui/SettingsTab.py": 18,
     "ui/SuggestSettingsTab.py": 2,
@@ -67,7 +67,6 @@ BASELINE = {
     "ui/schedules_hub.py": 60,
     "ui/splash_screen.py": 8,
     "ui/staggered_delivery_slot.py": 4,
-    "utils/help_content_manager.py": 28,
 }
 
 HEX = re.compile(r"(?<![\w#&])#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?!\w)")

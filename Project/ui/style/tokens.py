@@ -10,17 +10,18 @@ The palette is the robust-contrast one (palette B, v2.1.0): a grey page, white c
 fields, borders that show, and the same structure in the dark theme. Its steps stay visible
 on a monitor that clips or washes out the Pi's HDMI signal (contrast.py has the models).
 
-Two things read the roles:
+Three things read the roles:
 - the stylesheet template, through its ${role} placeholders;
 - the QPalette StyleManager sets before the stylesheet (qt_palette.py), through QPALETTE and
   QPALETTE_DISABLED below. It colours what the stylesheet does not reach: the window, plain
-  containers, placeholders, alternate rows, rich-text links, calendar popups.
+  containers, placeholders, alternate rows, rich-text links, calendar popups;
+- the Help tab's HTML (Project/utils/help_content_manager.py), through HELP_HTML below.
 
 Project/tests/unit/test_theme_contrast.py checks every pair of roles the UI draws together,
 in both themes. A pair that fails is fixed by changing a colour here, never its threshold.
 
-Data and one lookup, nothing else: build_qss.py, qt_palette.py and the tests load this file
-by path, without importing the ui package. After editing it, run
+Data and one lookup, nothing else: build_qss.py, qt_palette.py, help_content_manager.py and
+the tests load this file by path, without importing the ui package. After editing it, run
 python3 Project/ui/style/build_qss.py and commit it with both regenerated stylesheets.
 """
 
@@ -43,7 +44,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     # (QPalette.Base)
     "bg.field": ("#FFFFFF", "#30373F"),
     # Sunken areas inside a surface: a nested group box, the table header band and its
-    # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"]
+    # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"]; inline code in Help
     "bg.inset": ("#DADDE2", "#1F242B"),
     # Unselected tabs
     "bg.rail": ("#C3C7CD", "#30373F"),
@@ -65,15 +66,17 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Selected items and selected text: a solid fill under text.on-accent (combo popup,
     # tables, lists, menus, the help tree, inputs; QPalette.Highlight)
     "bg.selected": ("#0F766E", "#2DD4BF"),
+    # A Help search hit
+    "bg.highlight": ("#FDE68A", "#92400E"),
     # QToolTip (QPalette.ToolTipBase)
     "bg.tooltip": ("#1A1D1F", "#E5E9EF"),
     # ---- Text --------------------------------------------------------------------------
     # Body text (QPalette WindowText, Text, ButtonText): titles, typed input, labels,
-    # buttons, tables, lists, menus, the selected tab, the help tree
+    # buttons, tables, lists, menus, the selected tab, the help tree and Help pages
     "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
-    # button, card and step descriptions, the help breadcrumb
+    # button, card and step descriptions, the help breadcrumb; muted words in Help
     "text.secondary": ("#2E3A4B", "#CBD5E1"),
     # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
     # #UnassignedLabel, #HealthIndicator, #TimeRemaining, a pending step, step titles, the
@@ -82,9 +85,10 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
     # Teal text: #InfoBanner, #ElapsedTime, the current step, a completed step title,
-    # #CardIcon, #CardBadge, #StepIcon
+    # #CardIcon, #CardBadge, #StepIcon; Help headings
     "text.accent": ("#115E59", "#5EEAD4"),
-    # Links: #LinkLabel (QPalette Link, LinkVisited)
+    # Links: #LinkLabel, Help links (underlined: they differ from body text by colour
+    # less than 3:1) (QPalette Link, LinkVisited)
     "text.link": ("#115E59", "#5EEAD4"),
     # Text on accent.fill and bg.selected: the primary button, #InfoButton, #CageBadge,
     # #StatusLabel[status="open"], a completed step circle, #WizardNextButton, selected
@@ -100,7 +104,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # #RelayTerminal, #WizardLog, #InteractiveCard, #WizardConnector, the help panes;
     # disabled inputs, buttons and indicators
     "border.subtle": ("#AAB2BE", "#4F5865"),
-    # Table grid lines and row rules, #WizardSeparator
+    # Table grid lines and row rules, #WizardSeparator; the rule above Help's related
+    # topics
     "border.divider": ("#CDD1D7", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
     # rings, scrollbar handles, an idle drop area, #CageNameEdit, the wizard's step
@@ -126,13 +131,13 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Marks that carry a state or a value: the selected tab's top bar, the progress chunk,
     # the slider, the drop-target border, the stripes of #InfoBanner and #RelayTerminal, a
     # selected #RelayTerminal's border, #StatusDot, the current step's ring, a completed
-    # connector, a checked #InteractiveCard's border
+    # connector, a checked #InteractiveCard's border; Help note stripes
     "accent.indicator": ("#0F766E", "#2DD4BF"),
     # A teal wash: the drop target, #InfoBanner, #ElapsedTime, a selected #RelayTerminal,
-    # the current step, a checked #InteractiveCard, #CardIcon, #CardBadge
+    # the current step, a checked #InteractiveCard, #CardIcon, #CardBadge; Help notes
     "accent.tint": ("#CCFBF1", "#11463F"),
     # ---- Status: today's hue families; a shade changes only where a pair fails WCAG ----
-    # QLabel[variant="success"]
+    # QLabel[variant="success"]; Help tips
     "success.tint": ("#D1FAE5", "#064E3B"),
     "success.on-tint": ("#065F46", "#A7F3D0"),
     "success.indicator": ("#10B981", "#10B981"),
@@ -157,7 +162,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     "danger.fill": ("#DC2626", "#DC2626"),
     "danger.fill.hover": ("#B91C1C", "#B91C1C"),
     "danger.fill.pressed": ("#991B1B", "#991B1B"),
-    # QLabel[variant="error"]
+    # QLabel[variant="error"]; Help warnings
     "danger.tint": ("#FEE2E2", "#7F1D1D"),
     "danger.on-tint": ("#991B1B", "#FECACA"),
     "danger.indicator": ("#EF4444", "#EF4444"),
@@ -197,6 +202,25 @@ QPALETTE_DISABLED: dict[str, str] = {
     "ButtonText": "text.disabled",
     "Base": "bg.disabled",
     "Button": "bg.disabled",
+}
+
+# The Help tab's HTML palette (Project/utils/help_content_manager.py): CSS slot -> token
+HELP_HTML: dict[str, str] = {
+    "page_bg": "bg.surface",
+    "text": "text.primary",
+    "h1": "text.accent",
+    "h2": "text.primary",
+    "muted": "text.secondary",
+    "link": "text.link",
+    "code_bg": "bg.inset",
+    "rule": "border.divider",
+    "note_bg": "accent.tint",
+    "note_border": "accent.indicator",
+    "warn_bg": "danger.tint",
+    "warn_border": "danger.indicator",
+    "tip_bg": "success.tint",
+    "tip_border": "success.indicator",
+    "hl_bg": "bg.highlight",
 }
 
 

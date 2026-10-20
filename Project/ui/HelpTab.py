@@ -14,7 +14,13 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from utils.help_content_manager import HelpContentManager
+from utils.help_content_manager import HelpContentManager, help_colour
+
+
+def _style_manager():
+    """The application's StyleManager (main.py stores it as a property), or None."""
+    app = QApplication.instance()
+    return app.property('style_manager') if app is not None else None
 
 
 class HelpTab(QWidget):
@@ -33,6 +39,13 @@ class HelpTab(QWidget):
 
         self._init_ui()
         self._build_tree()
+
+        # The page's HTML carries its own colours, which the stylesheet cannot reach:
+        # draw it again whenever a theme is applied, including the saved theme main.py
+        # applies at start-up, after this tab exists.
+        style_manager = _style_manager()
+        if style_manager is not None and hasattr(style_manager, 'theme_changed'):
+            style_manager.theme_changed.connect(self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -132,14 +145,22 @@ class HelpTab(QWidget):
     # ------------------------------------------------------------------
 
     def _current_theme(self) -> str:
+        """The theme StyleManager applied last; without one, the palette's lightness."""
+        style_manager = _style_manager()
+        theme = getattr(style_manager, 'theme', None)
+        if theme in ('light', 'dark'):
+            return theme
         app = QApplication.instance()
         if app is None:
             return 'light'
         lightness = app.palette().color(QPalette.Window).lightness()
         return 'dark' if lightness < 128 else 'light'
 
+    def _on_theme_changed(self, _theme: str):
+        self.refresh_theme()
+
     def refresh_theme(self):
-        """Re-render current page with the detected theme (call after theme switch)."""
+        """Re-render the current page in the current theme (after every theme change)."""
         theme = self._current_theme()
         if self.current_topic_key:
             self.content_browser.setHtml(
@@ -147,6 +168,10 @@ class HelpTab(QWidget):
             )
         else:
             self.content_browser.setHtml(self.help_manager.get_landing_page(theme))
+        # setHtml drops the search hits: mark them again, in the new theme's colour.
+        q = self.search_bar.text().strip()
+        if q:
+            self._highlight(q)
 
     # ------------------------------------------------------------------
     # Content loading
@@ -302,9 +327,8 @@ class HelpTab(QWidget):
             return
 
         doc = self.content_browser.document()
-        hl = "#92400E" if self._current_theme() == 'dark' else "#FDE68A"
         fmt = QTextCharFormat()
-        fmt.setBackground(QColor(hl))
+        fmt.setBackground(QColor(help_colour('hl_bg', self._current_theme())))
 
         selections = []
         cursor = QTextCursor(doc)  # starts at position 0

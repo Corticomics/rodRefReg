@@ -1842,14 +1842,8 @@ class SettingsTab(QWidget):
         try:
             style_mgr = QApplication.instance().property('style_manager')
             if style_mgr:
+                # Its theme_changed signal also redraws the Help tab's HTML.
                 style_mgr.apply(theme)
-        except Exception:
-            pass
-        # Re-render themed HTML content that QSS can't reach (Help tab).
-        try:
-            help_tab = getattr(self.window(), 'help_tab', None)
-            if help_tab is not None and hasattr(help_tab, 'refresh_theme'):
-                help_tab.refresh_theme()
         except Exception:
             pass
         # Auto-save the theme change

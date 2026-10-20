@@ -2,7 +2,8 @@
 
 StyleManager.apply sets a QPalette built from tokens.py (qt_palette.py), then the theme's
 stylesheet. Before v2.1.0 there was no palette: Qt kept its own light one under the dark
-stylesheet, so dark tables alternated with near-white rows under light text. A
+stylesheet, so dark tables alternated with near-white rows under light text, and the Help
+pane, which asked the palette whether the theme was dark, always rendered light. A
 universal QWidget rule also painted the page colour into every container, which the grey
 page would show as boxes inside white cards. Rendered offscreen; pixels are compared with
 the tokens.
@@ -245,3 +246,46 @@ def test_a_colour_on_an_input_would_halve_its_placeholder(qapp, tokens, style):
     edit.setStyleSheet(f"QLineEdit {{ color: {tokens.value('text.primary', 'light')}; }}")
     _show(qapp, widgets, edit, 240, 40)
     assert edit.palette().color(QPalette.PlaceholderText).alpha() == 128
+
+
+# ---- The Help pane ----------------------------------------------------------------------
+
+
+def test_the_help_pane_follows_the_theme(qapp, tokens, style):
+    from ui.HelpTab import HelpTab  # noqa: PLC0415
+
+    manager, widgets = style
+    manager.apply("light")
+    help_tab = _show(qapp, widgets, HelpTab(), 1000, 700)  # opens its first topic
+
+    def page():
+        image = help_tab.content_browser.viewport().grab().toImage()
+        return _pixel(image, 6, 6)  # inside the page's padding
+
+    assert help_tab._current_theme() == "light"
+    assert page() == tokens.value("bg.surface", "light")
+
+    # main.py applies the saved theme after the GUI exists: the pane redraws itself
+    manager.apply("dark")
+    qapp.processEvents()
+    assert help_tab._current_theme() == "dark"
+    assert page() == tokens.value("bg.surface", "dark")
+    html = help_tab.content_browser.toHtml().lower()
+    assert tokens.value("text.primary", "dark").lower() in html
+    assert tokens.value("text.primary", "light").lower() not in html
+
+    # A search hit takes the theme's highlight, and keeps it across a theme change
+    help_tab.search_bar.setText("schedule")
+    help_tab.perform_search()
+    hits = help_tab.content_browser.extraSelections()
+    assert hits, "the open topic mentions 'schedule'"
+    assert hits[0].format.background().color().name().upper() == tokens.value(
+        "bg.highlight", "dark"
+    )
+    manager.apply("light")
+    qapp.processEvents()
+    hits = help_tab.content_browser.extraSelections()
+    assert hits and hits[0].format.background().color().name().upper() == tokens.value(
+        "bg.highlight", "light"
+    )
+    assert page() == tokens.value("bg.surface", "light")
