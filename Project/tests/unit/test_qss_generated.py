@@ -4,8 +4,8 @@ app-light.qss and app-dark.qss are committed, but written by
 Project/ui/style/build_qss.py from app.qss.tmpl and tokens.py. These tests fail when a
 committed stylesheet differs from the render (a hand edit, or a template or token change
 that was not regenerated), when the template names a role tokens.py lacks or holds a raw
-colour, when a role is unused, and when the two themes stop sharing their rules.
-Pure file reads and string work, no Qt.
+colour, when a role is unused, and when the two themes stop sharing their rules: a rule,
+a declaration or a value only one theme has. Pure file reads and string work, no Qt.
 """
 
 from __future__ import annotations
@@ -68,13 +68,63 @@ def _placeholders(theme):
     }
 
 
-def _rules(qss):
-    """[(selector, [property, ...])] in file order, comments removed."""
+def _declarations(template_text, theme):
+    """[(selector, [(property, value), ...])] of the template lines `theme` keeps, in order.
+
+    Comments are removed and whitespace collapsed. A placeholder stays unresolved, as
+    <role>, so a value compares by role, not by the colour the role has in `theme`.
+    """
+    text = "\n".join(line for _, line in build_qss.theme_lines(template_text, theme))
+    text = PLACEHOLDER.sub(r"<\1>", COMMENT.sub("", text))
     rules = []
-    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", COMMENT.sub("", qss)):
-        props = [d.split(":", 1)[0].strip() for d in body.split(";") if ":" in d]
-        rules.append((" ".join(selector.split()), props))
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", text):
+        declarations = []
+        for declaration in body.split(";"):
+            prop, colon, value = declaration.partition(":")
+            if colon:
+                declarations.append((prop.strip(), " ".join(value.split())))
+        rules.append((" ".join(selector.split()), declarations))
     return rules
+
+
+def _drift(template_text, dark_only):
+    """How the two themes' rules differ, beyond the `dark_only` declarations.
+
+    A list of problems, empty when both themes have the same rules in the same order, and
+    in each rule the same declarations with the same values in the same order, except
+    the (selector, property) pairs in `dark_only`, which only the dark theme has.
+    """
+    light, dark = (_declarations(template_text, theme) for theme in build_qss.THEMES)
+    if [s for s, _ in light] != [s for s, _ in dark]:
+        lacking = sorted({s for s, _ in light} ^ {s for s, _ in dark})
+        return [f"the themes' rules differ: in order, or selectors one theme lacks {lacking}"]
+    theme_only = {"light": set(), "dark": set()}
+    apart = []
+    for (selector, light_decls), (_, dark_decls) in zip(light, dark):
+        light_props = {p for p, _ in light_decls}
+        dark_props = {p for p, _ in dark_decls}
+        theme_only["light"] |= {(selector, p) for p in light_props - dark_props}
+        theme_only["dark"] |= {(selector, p) for p in dark_props - light_props}
+        shared = light_props & dark_props
+        light_shared = [d for d in light_decls if d[0] in shared]
+        dark_shared = [d for d in dark_decls if d[0] in shared]
+        if light_shared != dark_shared:
+            apart.append(f"{selector}: light {light_shared}, dark {dark_shared}")
+    problems = []
+    expected = {"light": set(), "dark": set(dark_only)}
+    new = {t: sorted(theme_only[t] - expected[t]) for t in expected}
+    gone = {t: sorted(expected[t] - theme_only[t]) for t in expected}
+    if any(new.values()) or any(gone.values()):
+        problems.append(
+            f"declarations only one theme has: new {new}, no longer theme-only {gone} "
+            "(share them, or update DARK_ONLY on purpose)"
+        )
+    if apart:
+        problems.append(
+            "the themes give a declaration a different value or order (a colour that "
+            "differs belongs in tokens.py, not in an @light/@dark block): " + "; ".join(apart)
+        )
+    return problems
 
 
 @pytest.mark.parametrize("theme", build_qss.THEMES)
@@ -188,20 +238,51 @@ def test_value_gives_each_themes_colour():
 
 
 def test_both_themes_share_every_rule():
-    light, dark = (_rules(build_qss.render(theme)) for theme in build_qss.THEMES)
-    assert [s for s, _ in light] == [s for s, _ in dark], "the themes' rules differ"
-    pairs = list(zip(light, dark))
-    theme_only = {"light": set(), "dark": set()}
-    for (selector, light_props), (_, dark_props) in pairs:
-        theme_only["light"] |= {(selector, p) for p in light_props if p not in dark_props}
-        theme_only["dark"] |= {(selector, p) for p in dark_props if p not in light_props}
-    expected = {"light": set(), "dark": DARK_ONLY}
-    new = {t: sorted(theme_only[t] - expected[t]) for t in expected}
-    gone = {t: sorted(expected[t] - theme_only[t]) for t in expected}
-    assert not any(new.values()) and not any(gone.values()), (
-        f"declarations only one theme has: new {new}, no longer theme-only {gone} "
-        "(share them, or update DARK_ONLY on purpose)"
+    problems = _drift(_template(), DARK_ONLY)
+    assert not problems, "\n".join(problems)
+
+
+@pytest.mark.parametrize(
+    ("template", "problem"),
+    [
+        ("@dark\nb { color: ${text.primary}; }\n@end\na { }\n", "the themes' rules differ"),
+        ("a {\n@dark\n    color: ${text.primary};\n@end\n}\n", "declarations only one theme has"),
+        # one theme swaps the role
+        (
+            "a {\n@light\n    color: ${text.muted};\n@dark\n    color: ${text.secondary};\n"
+            "@end\n}\n",
+            "a: light [('color', '<text.muted>')], dark [('color', '<text.secondary>')]",
+        ),
+        # one theme changes a value that is not a colour
+        (
+            "a {\n@light\n    font-size: 11px;\n@dark\n    font-size: 15px;\n@end\n}\n",
+            "a: light [('font-size', '11px')], dark [('font-size', '15px')]",
+        ),
+        # the themes order the same declarations apart
+        (
+            "a {\n@light\n    color: ${text.primary};\n    border: 0;\n"
+            "@dark\n    border: 0;\n    color: ${text.primary};\n@end\n}\n",
+            "a different value or order",
+        ),
+    ],
+)
+def test_the_drift_check_finds_each_kind_of_drift(template, problem):
+    problems = _drift(template, dark_only=set())
+    assert len(problems) == 1 and problem in problems[0], problems
+
+
+def test_the_drift_check_allows_theme_comments_and_the_listed_dark_only_lines():
+    template = (
+        "a {\n"
+        "@light\n"
+        "    /* light words */\n"
+        "@dark\n"
+        "    /* dark words */\n"
+        "    color: ${text.primary};\n"
+        "@end\n"
+        "    background: ${bg.page};\n"
+        "}\n"
     )
-    for (selector, light_props), (_, dark_props) in pairs:
-        shared = [p for p in dark_props if (selector, p) not in DARK_ONLY]
-        assert shared == light_props, f"{selector}: the themes order their declarations apart"
+    assert _drift(template, {("a", "color")}) == []
+    (problem,) = _drift(template, {("a", "color"), ("a", "border")})
+    assert "no longer theme-only {'light': [], 'dark': [('a', 'border')]}" in problem
