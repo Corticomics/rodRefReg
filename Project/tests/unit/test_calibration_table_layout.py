@@ -140,6 +140,9 @@ def _cut_texts(table):
     grid = 1 if table.showGrid() else 0
     font = table.fontMetrics()
     options = table.viewOptions()
+    # The margin Qt keeps each side of a cell's text, inside its padding, and
+    # elides the text against.
+    text_margin = style.pixelMetric(QStyle.PM_FocusFrameHMargin, None, table) + 1
     cut = []
     for column in range(table.columnCount()):
         label = table.horizontalHeaderItem(column).text()
@@ -165,8 +168,9 @@ def _cut_texts(table):
                 continue
             index = table.model().index(row, column)
             need = table.itemDelegate().sizeHint(options, index).width()
-            # Qt's size for the cell is the text's advance plus its padding.
-            assert need > font.horizontalAdvance(item.text()), item.text()
+            # Qt's size for the cell: the text's advance, its margins and the
+            # cell's padding.
+            assert need >= font.horizontalAdvance(item.text()) + 2 * text_margin, item.text()
             if need > width - grid:
                 cut.append((label, item.text(), need, width - grid))
     return cut
