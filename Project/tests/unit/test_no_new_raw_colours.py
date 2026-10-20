@@ -1,12 +1,17 @@
 """No new raw colours in the UI code: a colour comes from a theme token.
 
-A colour written into Python (a hex string, rgb()/hsv()/hsl() in a string, QColor(200, 0, 0)
-or another QColor of literals, Qt.white, `color: white` in an inline stylesheet) ignores
-the theme: it is the same in light and
-dark, and a new palette misses it. Colours live in Project/ui/style/tokens.py and reach a
-widget through the stylesheet: give the widget an objectName or a dynamic property and
-style it in app.qss.tmpl with a ${role} (a colour code paints itself is a qproperty-*, as
-the Animals tab's red cell does), then run build_qss.py.
+A colour written into Python (a hex string, rgb()/hsv()/hsl() in a string, QColor(200, 0,
+0) or another QColor of literals, Qt.white, `color: white` in an inline stylesheet)
+ignores the theme: it is the same in light and dark, and a new palette misses it. Colours
+live in Project/ui/style/tokens.py and reach a widget through the stylesheet: give the
+widget an objectName or a dynamic property and style it in app.qss.tmpl with a ${role} (a
+colour code paints itself is a qproperty-*, as the Animals tab's red cell does), then run
+build_qss.py.
+
+The UI code is every file under Project/ui except ui/style, plus the files in
+ALSO_SCANNED: the Help tab's HTML takes its colours from a light and a dark palette of its
+own, _PALETTE in Project/utils/help_content_manager.py. Code that is not themed is not
+counted (a Slack message's colour, a bring-up tool).
 
 Today's UI code still holds raw colours, so this is a ratchet: each file must hold exactly
 its count in BASELINE, and a file not listed none. A file that gains a colour fails. So
@@ -25,8 +30,11 @@ from pathlib import Path
 
 import pytest
 
-UI_DIR = Path(__file__).resolve().parents[2] / "ui"
-EXEMPT = ("style/",)  # where the tokens and the stylesheets live
+PROJECT_DIR = Path(__file__).resolve().parents[2]
+UI_DIR = PROJECT_DIR / "ui"
+EXEMPT = ("ui/style/",)  # where the tokens and the stylesheets live
+# Themed code outside Project/ui (paths relative to Project)
+ALSO_SCANNED = ("utils/help_content_manager.py",)
 
 
 def _load(name, path):
@@ -38,22 +46,23 @@ def _load(name, path):
 
 colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
-# Raw colours per file (path relative to Project/ui) on 2026-10-19, v2.0.0.
+# Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0.
 BASELINE = {
-    "CalibrationWizard.py": 1,
-    "HelpTab.py": 2,
-    "ScheduleProgressTracker.py": 28,
-    "SettingsTab.py": 18,
-    "SuggestSettingsTab.py": 2,
-    "animals_tab.py": 2,
-    "available_animals_list.py": 5,
-    "cages_visualization_tab.py": 5,
-    "components/wizard.py": 3,
-    "relay_unit_widget.py": 1,
-    "schedule_wizard.py": 16,
-    "schedules_hub.py": 60,
-    "splash_screen.py": 8,
-    "staggered_delivery_slot.py": 4,
+    "ui/CalibrationWizard.py": 1,
+    "ui/HelpTab.py": 2,
+    "ui/ScheduleProgressTracker.py": 28,
+    "ui/SettingsTab.py": 18,
+    "ui/SuggestSettingsTab.py": 2,
+    "ui/animals_tab.py": 2,
+    "ui/available_animals_list.py": 5,
+    "ui/cages_visualization_tab.py": 5,
+    "ui/components/wizard.py": 3,
+    "ui/relay_unit_widget.py": 1,
+    "ui/schedule_wizard.py": 16,
+    "ui/schedules_hub.py": 60,
+    "ui/splash_screen.py": 8,
+    "ui/staggered_delivery_slot.py": 4,
+    "utils/help_content_manager.py": 28,
 }
 
 HEX = re.compile(r"(?<![\w#&])#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?!\w)")
@@ -178,14 +187,16 @@ def raw_colours(source):
 
 
 def _ui_files():
-    for path in sorted(UI_DIR.rglob("*.py")):
-        relative = path.relative_to(UI_DIR).as_posix()
-        if not relative.startswith(EXEMPT):
+    """(path relative to Project, path) for every file the ratchet counts."""
+    paths = sorted(UI_DIR.rglob("*.py")) + [PROJECT_DIR / name for name in ALSO_SCANNED]
+    for path in paths:
+        relative = path.relative_to(PROJECT_DIR).as_posix()
+        if not relative.startswith(EXEMPT) and path.is_file():
             yield relative, path
 
 
 def _counts():
-    """{relative path: raw colours found} for every UI file, listed or not."""
+    """{path relative to Project: raw colours found} for every UI file, listed or not."""
     return {
         relative: raw_colours(path.read_text(encoding="utf-8")) for relative, path in _ui_files()
     }
@@ -197,7 +208,7 @@ def test_no_ui_file_gains_a_raw_colour():
         allowed = BASELINE.get(relative, 0)
         if len(hits) > allowed:
             listing = ", ".join(f"line {line}: {colour}" for line, colour in hits)
-            over.append(f"Project/ui/{relative}: {len(hits)} found, {allowed} allowed ({listing})")
+            over.append(f"Project/{relative}: {len(hits)} found, {allowed} allowed ({listing})")
     assert not over, (
         "New raw colours in the UI code. Use a token instead: give the widget an objectName "
         "or a dynamic property and colour it in Project/ui/style/app.qss.tmpl with a ${role} "
@@ -223,9 +234,14 @@ def test_a_file_that_loses_raw_colours_lowers_its_baseline():
 
 
 def test_the_baseline_lists_only_existing_files():
-    gone = [relative for relative in BASELINE if not (UI_DIR / relative).is_file()]
+    gone = [relative for relative in BASELINE if not (PROJECT_DIR / relative).is_file()]
     assert not gone, f"remove these from BASELINE, the files are gone: {gone}"
     assert all(count > 0 for count in BASELINE.values())
+
+
+def test_the_extra_files_exist():
+    missing = [name for name in ALSO_SCANNED if not (PROJECT_DIR / name).is_file()]
+    assert not missing, f"ALSO_SCANNED names files that are gone: {missing}"
 
 
 def test_what_counts_as_a_raw_colour():
