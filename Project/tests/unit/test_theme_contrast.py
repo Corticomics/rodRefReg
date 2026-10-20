@@ -177,8 +177,10 @@ PAIRS = [
               "Body text, values, titles, typed input; the selected tab's label (7:1 target)"),
     *_text_on("T1h", "text.primary", ["success.tint", "danger.tint", "bg.highlight"], 4.5,
               "Text inside a Help tip or warning; a Help search hit"),
-    *_text_on("T2", "text.secondary", ["bg.page", "bg.surface", "bg.field", "bg.inset"], 7,
-              "Subtitles, help text, form labels, table headers, the combo arrow (7:1 target)"),
+    *_text_on("T2", "text.secondary", ["bg.page", "bg.surface", "bg.field", "bg.inset",
+                                       "bg.alt"], 7,
+              "Subtitles, help text, form labels, table headers, the combo arrow, secondary "
+              "words in a zebra row (7:1 target)"),
     *_text_on("T2r", "text.secondary", ["bg.rail", "bg.hover", "accent.tint"], 4.5,
               "An unselected tab's label; a card description in a hovered or checked card"),
     *_text_on("T3", "text.muted", ["bg.page", "bg.surface", "bg.field", "bg.inset",
