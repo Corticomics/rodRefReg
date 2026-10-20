@@ -506,3 +506,26 @@ def test_the_profile_tooltip_follows_the_delivery_mode_and_the_settling_time(
         "Calibrated at 30 ms open. Its stored interval cannot be used, so the 100 ms shown "
         "is the interval RRR used before v1.16.0. Deliveries to cage 5 use"
     )
+
+
+def test_the_tips_under_the_table_read_in_full(qapp, database_handler, system_controller):
+    """The tips are rich text, where a bare "<" opens a tag: "CV% <5% =
+    production ready." used to vanish, and the next words with it. Rendered
+    as the label renders it, every sentence is there."""
+    from PyQt5.QtGui import QTextDocument  # noqa: PLC0415
+    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+
+    tab = _settings_tab(system_controller, database_handler)
+    [tips] = [
+        label
+        for label in tab.calibration_tab.findChildren(QLabel)
+        if label.text().startswith("<b>Tips:</b>")
+    ]
+    document = QTextDocument()
+    document.setHtml(tips.text())
+
+    assert document.toPlainText() == (
+        "Tips: Click 'Calibrate' to run 250-pulse characterization. Requires lab scale "
+        "(±0.001g). CV% <5% = production ready. Stale = measured under the other valve "
+        "topology; a schedule watering that cage will not start until it is recalibrated."
+    )
