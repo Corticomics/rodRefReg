@@ -1,7 +1,8 @@
 """No new raw colours in the UI code: a colour comes from a theme token.
 
-A colour written into Python (a hex string, rgb()/rgba(), QColor(200, 0, 0), Qt.white,
-`color: white` in an inline stylesheet) ignores the theme: it is the same in light and
+A colour written into Python (a hex string, rgb()/hsv()/hsl() in a string, QColor(200, 0, 0)
+or another QColor of literals, Qt.white, `color: white` in an inline stylesheet) ignores
+the theme: it is the same in light and
 dark, and a new palette misses it. Colours live in Project/ui/style/tokens.py and reach a
 widget through the stylesheet: give the widget an objectName or a dynamic property and
 style it in app.qss.tmpl with a ${role} (a colour code paints itself is a qproperty-*, as
@@ -18,11 +19,24 @@ same on every Python version.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import re
 from pathlib import Path
 
+import pytest
+
 UI_DIR = Path(__file__).resolve().parents[2] / "ui"
 EXEMPT = ("style/",)  # where the tokens and the stylesheets live
+
+
+def _load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
 # Raw colours per file (path relative to Project/ui) on 2026-10-19, v2.0.0.
 BASELINE = {
@@ -45,18 +59,15 @@ BASELINE = {
 HEX = re.compile(r"(?<![\w#&])#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?!\w)")
 # "#170" in "PR #170" is a number: three digits count only where a colour goes.
 COLOUR_POSITION = re.compile(r"(?:^|[:(,]|\b(?:solid|dashed|dotted|double))\s*$")
-RGB = re.compile(r"\brgba?\s*\(", re.IGNORECASE)
+# The colour functions of Qt's stylesheets: rgb(), rgba(), hsv(), hsva(), hsl(), hsla()
+RGB = re.compile(r"\b(?:rgb|hsv|hsl)a?\s*\(", re.IGNORECASE)
 QSS_COLOUR_VALUE = re.compile(
     r"(?<![\w-])(?:color|background|background-color|border(?:-top|-right|-bottom|-left)?"
     r"(?:-color)?|selection-color|selection-background-color|gridline-color"
     r"|alternate-background-color|outline(?:-color)?)\s*:([^;{}\"'<>]*)",
     re.IGNORECASE,
 )
-COLOUR_NAME = re.compile(
-    r"\b(?:white|black|red|green|blue|gray|grey|yellow|orange|cyan|magenta|navy|silver"
-    r"|maroon|teal|purple|lime|olive|aqua|fuchsia|pink|brown|gold)\b",
-    re.IGNORECASE,
-)
+COLOUR_NAME = re.compile(r"\b(?:" + "|".join(colour_names.COLOUR_NAMES) + r")\b", re.IGNORECASE)
 # Qt's global colours, but Qt.transparent, which is not a colour
 QT_COLOURS = frozenset(
     "white black red darkRed green darkGreen blue darkBlue cyan darkCyan magenta "
@@ -95,6 +106,51 @@ def _is_qt(node):
     )
 
 
+def _is_qcolor(node):
+    return (isinstance(node, ast.Name) and node.id == "QColor") or (
+        isinstance(node, ast.Attribute) and node.attr == "QColor"
+    )
+
+
+def _qcolor_constructor(func):
+    """The name of the QColor constructor a call makes (QColor, QColor.fromRgb...), or None."""
+    if _is_qcolor(func):
+        return "QColor"
+    if isinstance(func, ast.Attribute) and func.attr.startswith("from") and _is_qcolor(func.value):
+        return f"QColor.{func.attr}"
+    return None
+
+
+def _number(node):
+    """A literal number (200, 0.5, -1, 0xC80000) as text; None for anything else."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        operand = _number(node.operand)
+        return None if operand is None else f"-{operand}"
+    if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+        return repr(node.value)
+    return None
+
+
+def _literal_numbers(call):
+    """A call's arguments as text when each is a literal number, else None.
+
+    A starred tuple or list of literals counts as its items: QColor(*(200, 0, 0)).
+    """
+    args = []
+    for arg in call.args:
+        if isinstance(arg, ast.Starred) and isinstance(arg.value, (ast.Tuple, ast.List)):
+            args += arg.value.elts
+        else:
+            args.append(arg)
+    texts = [_number(arg) for arg in args]
+    for keyword in call.keywords:
+        number = _number(keyword.value)
+        texts.append(None if keyword.arg is None or number is None else f"{keyword.arg}={number}")
+    if not texts or None in texts:
+        return None
+    return ", ".join(texts)
+
+
 def raw_colours(source):
     """[(line, colour)] for every raw colour in a Python source."""
     tree = ast.parse(source)
@@ -105,17 +161,17 @@ def raw_colours(source):
             if id(node) not in docstrings:
                 hits += [(node.lineno, colour) for colour in _in_string(node.value)]
         elif isinstance(node, ast.Call):
-            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
-            args = node.args
-            if name != "QColor" or node.keywords:
+            constructor = _qcolor_constructor(node.func)
+            if constructor is None:
                 continue
-            literal = [isinstance(a, ast.Constant) for a in args]
-            if len(args) in (3, 4) and all(literal) and all(type(a.value) is int for a in args):
-                numbers = ", ".join(str(a.value) for a in args)
-                hits.append((node.lineno, f"QColor({numbers})"))
-            elif len(args) == 1 and literal[0] and isinstance(args[0].value, str):
-                if not _in_string(args[0].value):  # a hex string is counted as a string
-                    hits.append((node.lineno, f"QColor({args[0].value!r})"))
+            args = node.args
+            numbers = _literal_numbers(node)
+            if numbers is not None:  # QColor(200, 0, 0), QColor(0xC80000), fromHsv(...)
+                hits.append((node.lineno, f"{constructor}({numbers})"))
+            elif len(args) == 1 and not node.keywords and isinstance(args[0], ast.Constant):
+                name = args[0].value
+                if isinstance(name, str) and not _in_string(name):  # hex counts as a string
+                    hits.append((node.lineno, f"{constructor}({name!r})"))
         elif isinstance(node, ast.Attribute) and node.attr in QT_COLOURS and _is_qt(node.value):
             hits.append((node.lineno, f"Qt.{node.attr}"))
     return sorted(hits)
@@ -195,7 +251,18 @@ def paint(name, value):
     k = Qt.transparent
     m = "Cage #12, PR #170, QLabel#Title, &#123;, Relay #100"
     n = QColor(name)
-    return a, b, c, d, e, f, g, h, i, j, k, m, n
+    o = QColor.fromRgb(200, 0, 0)
+    p = QColor.fromHsvF(0.5, 1.0, -0.25)
+    q = QColor(0xC80000)
+    r = QColor(200, 0, 0, alpha=255)
+    s = QColor(*(200, 0, 0))
+    t = "QLabel { color: hsv(0, 255, 200); background: hsla(0, 100%, 50%, 0.5) }"
+    u = "QLabel { color: darkred; background: lightgray; border: 1px solid teal }"
+    v = QColor(name, alpha=255)
+    w = QColor(*value)
+    x = "Dark red stops a run; teal is the accent"
+    y = QColor()
+    return a, b, c, d, e, f, g, h, i, j, k, m, n, o, p, q, r, s, t, u, v, w, x, y
 '''
     assert [colour for _, colour in raw_colours(source)] == [
         "#FFF",
@@ -210,4 +277,20 @@ def paint(name, value):
         "Qt.white",
         "#666",
         "white",
+        "QColor.fromRgb(200, 0, 0)",
+        "QColor.fromHsvF(0.5, 1.0, -0.25)",
+        "QColor(13107200)",
+        "QColor(200, 0, 0, alpha=255)",
+        "QColor(200, 0, 0)",
+        "hsla(",
+        "hsv(",
+        "darkred",
+        "lightgray",
+        "teal",
     ]
+
+
+def test_the_colour_names_are_the_ones_qt_knows():
+    qtgui = pytest.importorskip("PyQt5.QtGui")
+    known = set(qtgui.QColor.colorNames()) - {"transparent"}
+    assert sorted(colour_names.COLOUR_NAMES) == sorted(known)

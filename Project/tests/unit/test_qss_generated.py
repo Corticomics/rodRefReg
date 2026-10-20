@@ -20,21 +20,23 @@ import pytest
 STYLE_DIR = Path(__file__).resolve().parents[2] / "ui" / "style"
 
 
-def _load(name, filename):
-    spec = importlib.util.spec_from_file_location(name, STYLE_DIR / filename)
+def _load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-build_qss = _load("rrr_build_qss_under_test", "build_qss.py")
-tokens = _load("rrr_tokens_under_test", "tokens.py")
+build_qss = _load("rrr_build_qss_under_test", STYLE_DIR / "build_qss.py")
+tokens = _load("rrr_tokens_under_test", STYLE_DIR / "tokens.py")
+colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
 PLACEHOLDER = re.compile(r"\$\{([^}]*)\}")
 COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+# A hex colour, a colour function (rgb, rgba, hsv, hsva, hsl, hsla) or a colour Qt names
 RAW_COLOUR = re.compile(
-    r"(?<![\w#&])#[0-9A-Fa-f]{3,8}\b|\brgba?\s*\("
-    r"|\b(?:white|black|red|green|blue|gray|grey|yellow|orange|cyan|magenta)\b",
+    r"(?<![\w#&])#[0-9A-Fa-f]{3,8}\b|\b(?:rgb|hsv|hsl)a?\s*\("
+    r"|\b(?:" + "|".join(colour_names.COLOUR_NAMES) + r")\b",
     re.IGNORECASE,
 )
 
