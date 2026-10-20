@@ -148,6 +148,9 @@ TOKENS: dict[str, tuple[str, str]] = {
     "border.subtle": ("#E2E8F0", "#2D3748"),
     # The #WizardConnector line between steps
     "border.subtle.wizard-connector": ("#CBD5E0", "#4A5568"),
+    # The Card and #MaterialCard outline under the pointer. A card is not a control, so
+    # this is not border.control.hover.
+    "border.subtle.card-hover": ("#CBD5E0", "#4A5568"),
     # Table grid lines and row rules
     "border.divider": ("#F1F4F6", "#242C38"),
     # #WizardSeparator
@@ -160,8 +163,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     "border.control.cage-name-edit": ("#0D9488", "#14B8A6"),
     # #WizardBackButton
     "border.control.wizard-back": ("#E2E8F0", "#4A5568"),
-    # Inputs, QPushButton and #RelayTerminal under the pointer; the Card and
-    # #MaterialCard hover outline
+    # Inputs, QPushButton and #RelayTerminal under the pointer
     "border.control.hover": ("#CBD5E0", "#4A5568"),
     # QPushButton pressed
     "border.control.pressed": ("#A0AEC0", "#4A5568"),
