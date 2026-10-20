@@ -159,7 +159,8 @@ To change a colour or a rule:
 
 `test_qss_generated.py` fails while a committed stylesheet differs from the
 render (`build_qss.py --check` says the same without writing), and when the
-two themes differ in anything but token values and comments.
+two themes differ in anything but token values, comments and the dark-only
+lines it lists in `DARK_ONLY` (the template's `@dark` blocks).
 `test_qss_parses.py` fails when Qt cannot parse a stylesheet. Name a colour
 by what it is for, not how it looks: reuse a role that fits, or add one.
 Do not write colours into Python under `Project/ui`: give the widget an
@@ -170,4 +171,5 @@ loses one until you lower that file's count in the test's `BASELINE`.
 
 The Help tab's HTML is coloured from a second palette, `_PALETTE` in
 `Project/utils/help_content_manager.py`, whose colours are not in
-`tokens.py` yet; the ratchet counts it too.
+`tokens.py` yet; the ratchet counts it too. A colour that HTML needs goes
+in `_PALETTE`, not into the HTML itself.

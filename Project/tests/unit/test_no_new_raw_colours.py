@@ -35,6 +35,11 @@ UI_DIR = PROJECT_DIR / "ui"
 EXEMPT = ("ui/style/",)  # where the tokens and the stylesheets live
 # Themed code outside Project/ui (paths relative to Project)
 ALSO_SCANNED = ("utils/help_content_manager.py",)
+# Where a file takes its colours from, when not from the stylesheet
+WHERE_COLOURS_GO = {
+    "utils/help_content_manager.py": "the Help tab's HTML takes its colours from _PALETTE in "
+    "that file: add the colour there",
+}
 
 
 def _load(name, path):
@@ -208,7 +213,10 @@ def test_no_ui_file_gains_a_raw_colour():
         allowed = BASELINE.get(relative, 0)
         if len(hits) > allowed:
             listing = ", ".join(f"line {line}: {colour}" for line, colour in hits)
-            over.append(f"Project/{relative}: {len(hits)} found, {allowed} allowed ({listing})")
+            entry = f"Project/{relative}: {len(hits)} found, {allowed} allowed ({listing})"
+            if relative in WHERE_COLOURS_GO:
+                entry += f"; {WHERE_COLOURS_GO[relative]}"
+            over.append(entry)
     assert not over, (
         "New raw colours in the UI code. Use a token instead: give the widget an objectName "
         "or a dynamic property and colour it in Project/ui/style/app.qss.tmpl with a ${role} "
