@@ -111,6 +111,9 @@ def test_every_placeholder_names_a_token():
     for theme in build_qss.THEMES:
         unknown = _placeholders(theme) - set(tokens.TOKENS)
         assert not unknown, f"app.qss.tmpl uses roles tokens.py lacks: {sorted(unknown)}"
+        lines = build_qss.theme_lines(_template(), theme)
+        unbraced = [number for number, line in lines if re.search(r"\$(?!\{)", line)]
+        assert not unbraced, f"write each placeholder as ${{role}}: app.qss.tmpl lines {unbraced}"
 
 
 def test_every_token_is_used():
@@ -182,11 +185,13 @@ def test_value_gives_each_themes_colour():
 
 def test_both_themes_share_every_rule():
     light, dark = (_rules(build_qss.render(theme)) for theme in build_qss.THEMES)
-    assert [selector for selector, _ in light] == [selector for selector, _ in dark]
+    assert [s for s, _ in light] == [s for s, _ in dark], "the themes' rules differ"
+    pairs = list(zip(light, dark))
     theme_only = {"light": set(), "dark": set()}
-    for (selector, light_props), (_, dark_props) in zip(light, dark):
+    for (selector, light_props), (_, dark_props) in pairs:
         theme_only["light"] |= {(selector, p) for p in light_props if p not in dark_props}
         theme_only["dark"] |= {(selector, p) for p in dark_props if p not in light_props}
+    assert theme_only == {"light": set(), "dark": DARK_ONLY}, "declarations one theme lacks"
+    for (selector, light_props), (_, dark_props) in pairs:
         shared = [p for p in dark_props if (selector, p) not in DARK_ONLY]
         assert shared == light_props, f"{selector}: the themes order their declarations apart"
-    assert theme_only == {"light": set(), "dark": DARK_ONLY}
