@@ -136,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
                 "python3 Project/ui/style/build_qss.py and commit the result",
                 file=sys.stderr,
             )
+        if not stale:
+            print("build_qss: both stylesheets are up to date")
         return 1 if stale else 0
     for theme in stale:
         with open(OUTPUTS[theme], "w", encoding="utf-8", newline="\n") as handle:
