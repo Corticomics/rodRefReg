@@ -1054,11 +1054,12 @@ class SettingsTab(QWidget):
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(40)  # Accommodate buttons
         self.calibration_table.setMinimumHeight(300)
-        # Don't set maxHeight - let the parent scroll area handle overflow
-        # This ensures the table displays naturally and the tab scrolls when needed
-        self.calibration_table.setVerticalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
-        )  # Tab scrolls instead
+        # The table takes the height the tab leaves it, so it scrolls its own
+        # rows: 15 cages (31 on two HATs) need more than the lab's 1920 x 1080
+        # window leaves, and the tab around it does not scroll (its scroll area
+        # resizes its page to fit). The bar shows the cages below the last
+        # visible row; the stretching Cage column gives up the bar's width.
+        self.calibration_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.calibration_table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         # Cell padding for this table (CAL_CELL_PADDING_*): padding only, so the
@@ -1138,13 +1139,13 @@ class SettingsTab(QWidget):
 
         layout.addWidget(actions_container)
 
-        # Help text
+        # Help text. Two lines at the lab's 1920 x 1080: a third line takes its
+        # height from the table. The Profile column's header and cells explain
+        # that column in their tooltips, and so does Help > Valve Calibration.
         help_text = QLabel(
             "<b>Tips:</b> Click 'Calibrate' to run 250-pulse characterization. "
             # &lt;: a bare "<" starts a tag in rich text and hid the next words.
             "Requires lab scale (±0.001g). CV% &lt;5% = production ready. "
-            "<b>Profile</b> = the pulse width / rest a cage was calibrated at; its "
-            "deliveries use them. "
             "<b>Stale</b> = measured under the other valve topology; a schedule "
             "watering that cage will not start until it is recalibrated."
         )

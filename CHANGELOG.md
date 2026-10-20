@@ -46,8 +46,11 @@ not listed here.
   screen. Its status, mL/pulse, CV and date were cut off ("Not ...",
   "0....", "2026-1..."), and so was the first letter of *Recalibrate*. Each
   column now takes the width of its widest entry; only a long cage name is
-  shortened, and hovering over it shows it in full. The tips under the
-  table show "CV% <5% = production ready" again: those words were lost.
+  shortened, and hovering over it shows it in full. The table now has a
+  scroll bar when it holds more cages than fit, as it does at that screen
+  size: the cages below the last row shown were hidden, with nothing to
+  show they were there. The tips under the table show "CV% <5% =
+  production ready" again: those words were lost.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 

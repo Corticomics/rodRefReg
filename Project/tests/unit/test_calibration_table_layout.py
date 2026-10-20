@@ -232,6 +232,29 @@ def test_the_action_buttons_keep_their_width_centred_in_their_cells(qapp, calibr
         assert abs(before - after) <= 1, f"row {row}: {before} px left, {after} right"
 
 
+def test_the_cages_below_the_last_visible_row_show_a_scroll_bar(qapp, calibration_table):
+    """The table scrolls its own rows. The tab around it does not: its scroll
+    area fits its page to the window. One HAT's 15 cages need 600 px, more
+    than the lab's 1920 x 1080 leaves the table, and with the table's scroll
+    bar off, the cages below the last visible row were hidden with nothing to
+    show they were there."""
+    tab = calibration_table
+    table = tab.calibration_table
+    rows = sum(table.rowHeight(row) for row in range(table.rowCount()))
+    hidden = rows - table.viewport().height()
+    assert hidden > 0, "15 rows need more height than the window leaves the table"
+    assert tab.calibration_tab.verticalScrollBar().maximum() == 0, "the tab does not scroll"
+
+    bar = table.verticalScrollBar()
+    assert bar.isVisible(), "the table shows that it holds more cages"
+    assert bar.maximum() == hidden
+    bar.setValue(bar.maximum())
+    _settle(qapp)
+    last = table.rowCount() - 1
+    assert table.rowViewportPosition(last) + table.rowHeight(last) <= table.viewport().height()
+    assert table.horizontalScrollBar().maximum() == 0, "the bar's width comes from the cage name"
+
+
 def test_only_the_cage_name_elides_and_its_tooltip_has_it(qapp, calibration_table):
     table = calibration_table.calibration_table
     name = table.item(1, 0)
