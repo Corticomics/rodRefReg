@@ -148,11 +148,13 @@ def test_the_amount_given_for_run_37_is_typed_as_shown(qapp):
     gave loses its third decimal and the field holds 0.36, the amount the
     operator scheduled. The amount the tooltip and Run give now, 0.37, is
     held as typed."""
+    from PyQt5.QtCore import QLocale  # noqa: PLC0415
     from PyQt5.QtTest import QTest  # noqa: PLC0415
 
     run_37 = amount_to_schedule(0.6 - 12 * 0.019212)
     assert run_37 == "0.37"
     field = _volume_fields(_step3("staggered"))[1]
+    field.setLocale(QLocale.c())  # typed with a "." decimal point, whatever the host's locale
     for typed, held in (("0.369", "0.36"), (run_37, "0.37")):
         field.lineEdit().selectAll()
         QTest.keyClicks(field, typed)
