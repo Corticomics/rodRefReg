@@ -133,9 +133,7 @@ def test_no_ui_file_gains_a_raw_colour():
         allowed = BASELINE.get(relative, 0)
         if len(hits) > allowed:
             listing = ", ".join(f"line {line}: {colour}" for line, colour in hits)
-            over.append(
-                f"Project/ui/{relative}: {len(hits)} raw colours, {allowed} allowed ({listing})"
-            )
+            over.append(f"Project/ui/{relative}: {len(hits)} found, {allowed} allowed ({listing})")
     assert not over, (
         "New raw colours in the UI code. Use a token instead: give the widget an objectName "
         "or a dynamic property and colour it in Project/ui/style/app.qss.tmpl with a ${role} "
