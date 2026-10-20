@@ -37,11 +37,11 @@ TOKENS: dict[str, tuple[str, str]] = {
     "bg.page": ("#DADDE2", "#1F242B"),
     # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
     # menus, the combo popup, QPushButton, an idle drop area, #TrackerHeader,
-    # #MaterialCard, #RelayTerminal, #InteractiveCard, the wizard's step circles and Back
-    # button, the help panes (QPalette.Button)
+    # #MaterialCard, #RelayTerminal, #InteractiveCard, #ScheduleCard, the wizard's step
+    # circles and Back button, the help panes (QPalette.Button)
     "bg.surface": ("#FFFFFF", "#30373F"),
-    # Editable fields, focused or not; checkbox and radio indicators; #CageNameEdit
-    # (QPalette.Base)
+    # Editable fields, focused or not; checkbox and radio indicators; #CageNameEdit,
+    # #SchedulesHubSearch (QPalette.Base)
     "bg.field": ("#FFFFFF", "#30373F"),
     # Sunken areas inside a surface: a nested group box, the table header band and its
     # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"]; inline code in Help
@@ -51,8 +51,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # An unselected tab under the pointer
     "bg.rail.hover": ("#CFD2D7", "#3A424C"),
     # Under the pointer: QPushButton, table, list and help-tree items, #RelayTerminal,
-    # #InteractiveCard, #WizardBackButton. Darker than both table row colours in each
-    # theme, so a zebra row still changes under the pointer.
+    # #InteractiveCard, #ScheduleCard, #WizardBackButton. Darker than both table row
+    # colours in each theme, so a zebra row still changes under the pointer.
     "bg.hover": ("#E6E9ED", "#282E36"),
     # QPushButton pressed
     "bg.pressed": ("#C3C7CD", "#1F242B"),
@@ -76,52 +76,58 @@ TOKENS: dict[str, tuple[str, str]] = {
     "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
-    # button, card and step descriptions, the help breadcrumb; muted words in Help
+    # button, card and step descriptions, #ScheduleCardMeta, #SchedulesHubEmptyTitle, the
+    # help breadcrumb; muted words in Help
     "text.secondary": ("#2E3A4B", "#CBD5E1"),
     # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
-    # #UnassignedLabel, #HealthIndicator, #TimeRemaining, a pending step, step titles, the
-    # help result count
+    # #UnassignedLabel, #HealthIndicator, #TimeRemaining, #ScheduleCardHint,
+    # #SchedulesHubEmptyText, the hint on a schedule's drag pixmap, a pending step, step
+    # titles, the help result count
     "text.muted": ("#475366", "#B8C1CC"),
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
     # Teal text: #InfoBanner, #ElapsedTime, the current step, a completed step title,
-    # #CardIcon, #CardBadge, #StepIcon; Help headings
+    # #CardIcon, #CardBadge, #StepIcon, #ScheduleCardCreated, the name on a schedule's drag
+    # pixmap; Help headings
     "text.accent": ("#115E59", "#5EEAD4"),
     # Links: #LinkLabel, Help links (underlined: they differ from body text by colour
     # less than 3:1) (QPalette Link, LinkVisited)
     "text.link": ("#115E59", "#5EEAD4"),
     # Text on accent.fill and bg.selected: the primary button, #InfoButton, #CageBadge,
-    # #StatusLabel[status="open"], a completed step circle, #WizardNextButton, selected
-    # items and text (QPalette.HighlightedText)
+    # #StatusLabel[status="open"], a completed step circle, #WizardNextButton, the
+    # Staggered badge, selected items and text (QPalette.HighlightedText)
     "text.on-accent": ("#FFFFFF", "#042F2E"),
     # The danger button's label
     "text.on-danger": ("#FFFFFF", "#FFFFFF"),
+    # The Instant badge's label, on instant.fill
+    "text.on-instant": ("#FFFFFF", "#1E1B4B"),
     # QToolTip (QPalette.ToolTipText)
     "text.tooltip": ("#FFFFFF", "#1A1D1F"),
     # ---- Borders -----------------------------------------------------------------------
     # Decorative outlines: cards, tab panes and tabs, group boxes, tables, lists, menus,
     # the combo popup, the table header rule, #TrackerHeader, #MaterialCard,
-    # #RelayTerminal, #WizardLog, #InteractiveCard, #WizardConnector, the help panes;
-    # disabled inputs, buttons and indicators
+    # #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard, #WizardConnector, the
+    # help panes; disabled inputs, buttons and indicators
     "border.subtle": ("#AAB2BE", "#4F5865"),
     # Table grid lines and row rules, #WizardSeparator; the rule above Help's related
     # topics
     "border.divider": ("#CDD1D7", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
-    # rings, scrollbar handles, an idle drop area, #CageNameEdit, the wizard's step
-    # circles and Back button
+    # rings, scrollbar handles, an idle drop area, #CageNameEdit, #SchedulesHubSearch,
+    # #SchedulesHubSelect, the wizard's step circles and Back button
     "border.control": ("#626E7E", "#848E9B"),
-    # A control boundary under the pointer or pressed; #RelayTerminal and #InteractiveCard
-    # under the pointer
+    # A control boundary under the pointer or pressed; #RelayTerminal, #InteractiveCard
+    # and #ScheduleCard under the pointer
     "border.control.hover": ("#475569", "#A3ADB9"),
     # ---- Focus -------------------------------------------------------------------------
-    # The 2px focus border of inputs and QPushButton
+    # The 2px focus border of inputs and QPushButton; the 1px one of #SchedulesHubSearch
     "focus.ring": ("#0F766E", "#2DD4BF"),
     # A focused primary button's border, around its accent.fill
     "focus.ring.primary": ("#042F2E", "#FFFFFF"),
     # ---- Accent (teal) -----------------------------------------------------------------
-    # The primary button, #InfoButton, #StatusLabel[status="open"], #CageBadge, checked
-    # checkboxes and radios, a completed step circle, #WizardNextButton
+    # The primary button, #InfoButton, #StatusLabel[status="open"], #CageBadge, the
+    # Staggered badge, checked checkboxes and radios, a completed step circle,
+    # #WizardNextButton
     "accent.fill": ("#0F766E", "#2DD4BF"),
     # The primary button, #InfoButton, the slider handle and #WizardNextButton under the
     # pointer
@@ -130,12 +136,19 @@ TOKENS: dict[str, tuple[str, str]] = {
     "accent.fill.pressed": ("#134E4A", "#99F6E4"),
     # Marks that carry a state or a value: the selected tab's top bar, the progress chunk,
     # the slider, the drop-target border, the stripes of #InfoBanner and #RelayTerminal, a
-    # selected #RelayTerminal's border, #StatusDot, the current step's ring, a completed
-    # connector, a checked #InteractiveCard's border; Help note stripes
+    # selected #RelayTerminal's or #ScheduleCard's border, the border of a schedule's
+    # drag pixmap, #StatusDot, the current step's ring, a completed connector, a checked
+    # #InteractiveCard's border; Help note stripes
     "accent.indicator": ("#0F766E", "#2DD4BF"),
-    # A teal wash: the drop target, #InfoBanner, #ElapsedTime, a selected #RelayTerminal,
-    # the current step, a checked #InteractiveCard, #CardIcon, #CardBadge; Help notes
+    # A teal wash: the drop target, #InfoBanner, #ElapsedTime, a selected #RelayTerminal
+    # or #ScheduleCard, a schedule's drag pixmap, the current step, a checked
+    # #InteractiveCard, #CardIcon, #CardBadge; Help notes
     "accent.tint": ("#CCFBF1", "#11463F"),
+    # ---- The Instant delivery mode (indigo; Staggered's colour is the accent) ----------
+    # The Instant badge on a schedule card. Today's indigo, a shade darker in light so its
+    # white label reads (#6366F1 gave 4.47:1), and in dark a light indigo under dark text,
+    # as accent.fill is
+    "instant.fill": ("#4F46E5", "#A5B4FC"),
     # ---- Status: today's hue families; a shade changes only where a pair fails WCAG ----
     # QLabel[variant="success"]; Help tips
     "success.tint": ("#D1FAE5", "#064E3B"),
@@ -162,9 +175,12 @@ TOKENS: dict[str, tuple[str, str]] = {
     "danger.fill": ("#DC2626", "#DC2626"),
     "danger.fill.hover": ("#B91C1C", "#B91C1C"),
     "danger.fill.pressed": ("#991B1B", "#991B1B"),
-    # QLabel[variant="error"]; Help warnings
+    # QLabel[variant="error"]; Help warnings; Cancel in the Schedules hub's select mode
+    # (#SchedulesHubSelect[selecting="true"])
     "danger.tint": ("#FEE2E2", "#7F1D1D"),
     "danger.on-tint": ("#991B1B", "#FECACA"),
+    # A deeper danger tint: the edge of that Cancel button, and its fill under the pointer
+    "danger.tint.strong": ("#FECACA", "#991B1B"),
     "danger.indicator": ("#EF4444", "#EF4444"),
     # The Animals tab's bright red cell for a run that ended short, and its bold text
     # (QWidget#AnimalsTab qproperty-alertFill / qproperty-alertText)

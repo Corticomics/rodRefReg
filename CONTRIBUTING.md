@@ -175,7 +175,10 @@ today).
 `test_qss_parses.py` fails when Qt cannot parse a stylesheet. Name a colour
 by what it is for, not how it looks: reuse a role that fits, or add one.
 Do not write colours into Python under `Project/ui`: give the widget an
-`objectName` or a dynamic property and style it in the template.
+`objectName` or a dynamic property and style it in the template. Code that
+paints itself (a `QPainter`, a drag pixmap) asks for a role when it paints,
+with `theme_colour(role)` from [`theme.py`](Project/ui/style/theme.py), never
+at import: the theme can change while the app runs.
 `test_no_new_raw_colours.py` counts the raw colours that UI files still hold
 (they are being moved out): it fails when a file gains one, and when a file
 loses one until you lower that file's count in the test's `BASELINE`. The

@@ -10,6 +10,10 @@ Features:
 - Edit existing schedules using wizard UI
 - Delete schedules with confirmation
 - Drag schedules to Run/Stop section for execution
+
+Colours come from the theme: the widgets carry objectNames and dynamic properties that
+the theme stylesheet styles (Project/ui/style/app.qss.tmpl, SCHEDULES HUB), and the drag
+pixmap asks the theme for its colours when it paints.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ from typing import Any, Dict, List
 
 from models.Schedule import Schedule
 from PyQt5.QtCore import QMimeData, QPoint, Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QDrag, QFont, QLinearGradient, QPainter, QPen, QPixmap
+from PyQt5.QtGui import QDrag, QFont, QPainter, QPen, QPixmap
 from PyQt5.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -44,6 +48,7 @@ from .schedule_wizard import (
     build_schedule_from_config,
     estimate_min_window_seconds,
 )
+from .style.theme import restyle, theme_colour
 
 # ============================================================================
 # SCHEDULE EDIT DIALOG (reuses schedule_wizard.Step3ConfigureParameters)
@@ -434,22 +439,15 @@ class ScheduleCard(QFrame):
         header = QHBoxLayout()
         header.setSpacing(8)
 
-        # Selection checkbox (hidden by default)
+        # Selection checkbox (hidden by default; the app's checkbox style)
         self._checkbox = QCheckBox()
         self._checkbox.setVisible(False)
-        self._checkbox.setStyleSheet("""
-            QCheckBox::indicator { width: 18px; height: 18px; }
-            QCheckBox::indicator:unchecked { border: 2px solid #D1D5DB; border-radius: 4px; background: white; }
-            QCheckBox::indicator:checked { border: 2px solid #0D9488; border-radius: 4px; background: #0D9488; }
-        """)
         self._checkbox.stateChanged.connect(self._on_checkbox_changed)
         header.addWidget(self._checkbox)
 
         name = self._schedule.name or "Untitled"
         name_label = QLabel(name if len(name) <= 16 else name[:14] + "...")
-        name_label.setStyleSheet(
-            "font-size: 13px; font-weight: 600; color: #1F2937; background: transparent;"
-        )
+        name_label.setObjectName("ScheduleCardName")
         if len(name) > 16:
             name_label.setToolTip(name)
         header.addWidget(name_label, 1)
@@ -457,16 +455,9 @@ class ScheduleCard(QFrame):
         # Mode badge (Staggered/Instant)
         mode = getattr(self._schedule, 'delivery_mode', 'staggered') or 'staggered'
         mode_text = "Staggered" if mode == "staggered" else "Instant"
-        badge_color = "#0D9488" if mode == "staggered" else "#6366F1"
         mode_badge = QLabel(mode_text)
-        mode_badge.setStyleSheet(f"""
-            background-color: {badge_color};
-            color: white;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 9px;
-            padding: 3px 8px;
-        """)
+        mode_badge.setObjectName("ScheduleModeBadge")
+        mode_badge.setProperty("mode", "staggered" if mode == "staggered" else "instant")
         header.addWidget(mode_badge)
 
         layout.addLayout(header)
@@ -479,14 +470,14 @@ class ScheduleCard(QFrame):
         )
         animal_word = "animal" if animal_count == 1 else "animals"
         animals_label = QLabel(f"{animal_count} {animal_word}")
-        animals_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
+        animals_label.setObjectName("ScheduleCardMeta")
         layout.addWidget(animals_label)
 
         # Row 3: Time range (below animal count)
         time_str = self._format_time_range()
         if time_str:
             time_label = QLabel(time_str)
-            time_label.setStyleSheet("color: #6B7280; font-size: 11px; background: transparent;")
+            time_label.setObjectName("ScheduleCardMeta")
             layout.addWidget(time_label)
 
         # Row 4: Hint + Created at
@@ -494,7 +485,7 @@ class ScheduleCard(QFrame):
         footer.setSpacing(4)
 
         hint = QLabel("Drag · Right-click")
-        hint.setStyleSheet("color: #9CA3AF; font-size: 9px; background: transparent;")
+        hint.setObjectName("ScheduleCardHint")
         footer.addWidget(hint)
 
         footer.addStretch()
@@ -502,9 +493,7 @@ class ScheduleCard(QFrame):
         created_str = self._format_created_time()
         if created_str:
             created_label = QLabel(created_str)
-            created_label.setStyleSheet(
-                "color: #0D9488; font-size: 9px; font-weight: 500; background: transparent;"
-            )
+            created_label.setObjectName("ScheduleCardCreated")
             footer.addWidget(created_label)
 
         layout.addLayout(footer)
@@ -568,26 +557,9 @@ class ScheduleCard(QFrame):
         return ""
 
     def _update_card_style(self) -> None:
-        if self._selected:
-            self.setStyleSheet("""
-                QFrame#ScheduleCard {
-                    background-color: #F0FDFA;
-                    border: 2px solid #0D9488;
-                    border-radius: 10px;
-                }
-            """)
-        else:
-            self.setStyleSheet("""
-                QFrame#ScheduleCard {
-                    background-color: #FFFFFF;
-                    border: 1px solid #E5E7EB;
-                    border-radius: 10px;
-                }
-                QFrame#ScheduleCard:hover {
-                    border: 1px solid #0D9488;
-                    background-color: #F0FDFA;
-                }
-            """)
+        # QFrame#ScheduleCard[selected="true"] in the theme stylesheet (its border is 2px)
+        self.setProperty("selected", self._selected)
+        restyle(self)
 
     def set_select_mode(self, enabled: bool) -> None:
         self._select_mode = enabled
@@ -663,20 +635,17 @@ class ScheduleCard(QFrame):
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        gradient = QLinearGradient(0, 0, 0, 50)
-        gradient.setColorAt(0, QColor("#F0FDFA"))
-        gradient.setColorAt(1, QColor("#CCFBF1"))
-
-        painter.setBrush(gradient)
-        painter.setPen(QPen(QColor("#0D9488"), 2))
+        # The current theme's colours, asked for now: a selected card's tint and border
+        painter.setBrush(theme_colour("accent.tint"))
+        painter.setPen(QPen(theme_colour("accent.indicator"), 2))
         painter.drawRoundedRect(1, 1, 198, 48, 8, 8)
 
         painter.setFont(QFont("Arial", 10, QFont.Bold))
-        painter.setPen(QColor("#0D9488"))
+        painter.setPen(theme_colour("text.accent"))
         painter.drawText(12, 24, schedule.name[:22] if schedule.name else "Schedule")
 
         painter.setFont(QFont("Arial", 9))
-        painter.setPen(QColor("#6B7280"))
+        painter.setPen(theme_colour("text.muted"))
         painter.drawText(12, 40, "Drop on Run/Stop...")
 
         painter.end()
@@ -692,11 +661,7 @@ class ScheduleCard(QFrame):
             return
 
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu { background-color: white; border: 1px solid #E5E7EB; border-radius: 6px; padding: 4px; }
-            QMenu::item { padding: 8px 16px; border-radius: 4px; }
-            QMenu::item:selected { background-color: #F0FDFA; color: #0D9488; }
-        """)
+        menu.setObjectName("ScheduleCardMenu")
 
         edit_action = menu.addAction("Edit Schedule")
         edit_action.triggered.connect(lambda: self.edit_requested.emit(self._schedule))
@@ -771,7 +736,7 @@ class SchedulesHub(QWidget):
         header.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel("My Schedules")
-        title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1F2937;")
+        title.setObjectName("SchedulesHubTitle")
         header.addWidget(title, alignment=Qt.AlignVCenter)
 
         # Info button (uses global QSS via InfoButton objectName)
@@ -785,12 +750,9 @@ class SchedulesHub(QWidget):
 
         # Select mode button
         self._select_btn = QPushButton("Select")
+        self._select_btn.setObjectName("SchedulesHubSelect")
         self._select_btn.setMinimumHeight(28)
         self._select_btn.setCursor(Qt.PointingHandCursor)
-        self._select_btn.setStyleSheet("""
-            QPushButton { background-color: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; border-radius: 6px; padding: 5px 12px; font-weight: 500; font-size: 11px; }
-            QPushButton:hover { background-color: #E5E7EB; }
-        """)
         self._select_btn.clicked.connect(self._toggle_select_mode)
         header.addWidget(self._select_btn)
 
@@ -798,37 +760,30 @@ class SchedulesHub(QWidget):
         # Editing is single-schedule, so it stays disabled unless exactly one
         # schedule is selected.
         self._edit_selected_btn = QPushButton("Edit Schedule")
+        self._edit_selected_btn.setObjectName("SchedulesHubEdit")
+        self._edit_selected_btn.setProperty("variant", "primary")
         self._edit_selected_btn.setMinimumHeight(28)
         self._edit_selected_btn.setVisible(False)
         self._edit_selected_btn.setCursor(Qt.PointingHandCursor)
         self._edit_selected_btn.setToolTip("Select exactly one schedule to edit")
-        self._edit_selected_btn.setStyleSheet("""
-            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-weight: 500; font-size: 11px; }
-            QPushButton:hover { background-color: #0F766E; }
-            QPushButton:disabled { background-color: #CBD5E1; color: #F8FAFC; }
-        """)
         self._edit_selected_btn.clicked.connect(self._edit_selected)
         header.addWidget(self._edit_selected_btn)
 
         # Delete selected button (hidden by default)
         self._delete_selected_btn = QPushButton("Delete Selected")
+        self._delete_selected_btn.setObjectName("SchedulesHubDelete")
+        self._delete_selected_btn.setProperty("variant", "danger")
         self._delete_selected_btn.setMinimumHeight(28)
         self._delete_selected_btn.setVisible(False)
-        self._delete_selected_btn.setStyleSheet("""
-            QPushButton { background-color: #DC2626; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-weight: 500; font-size: 11px; }
-            QPushButton:hover { background-color: #B91C1C; }
-        """)
         self._delete_selected_btn.clicked.connect(self._delete_selected)
         header.addWidget(self._delete_selected_btn)
 
         # New Schedule Button
         new_btn = QPushButton("+ New Schedule")
+        new_btn.setObjectName("SchedulesHubNew")
+        new_btn.setProperty("variant", "primary")
         new_btn.setMinimumHeight(28)
         new_btn.setCursor(Qt.PointingHandCursor)
-        new_btn.setStyleSheet("""
-            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 6px; padding: 5px 12px; font-weight: 600; font-size: 11px; }
-            QPushButton:hover { background-color: #0F766E; }
-        """)
         new_btn.clicked.connect(self._on_new_schedule)
         header.addWidget(new_btn)
 
@@ -836,12 +791,9 @@ class SchedulesHub(QWidget):
 
         # Search bar
         self._search_input = QLineEdit()
+        self._search_input.setObjectName("SchedulesHubSearch")
         self._search_input.setPlaceholderText("Search schedules...")
         self._search_input.setMinimumHeight(32)
-        self._search_input.setStyleSheet("""
-            QLineEdit { border: 1px solid #E5E7EB; border-radius: 6px; padding: 6px 10px; font-size: 12px; background-color: #FAFAFA; }
-            QLineEdit:focus { border-color: #0D9488; background-color: #FFFFFF; }
-        """)
         self._search_input.textChanged.connect(self._on_search_text_changed)
         layout.addWidget(self._search_input)
 
@@ -852,8 +804,9 @@ class SchedulesHub(QWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         scroll.setStyleSheet("QScrollArea { background: transparent; }")
 
+        # No stylesheet of its own: the theme keeps a scroll area's content transparent,
+        # and a selector-less sheet here would outrank the cards' theme rules.
         self._grid_container = QWidget()
-        self._grid_container.setStyleSheet("background: transparent;")
         self._grid_layout = QGridLayout(self._grid_container)
         self._grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self._grid_layout.setSpacing(10)
@@ -863,28 +816,25 @@ class SchedulesHub(QWidget):
         self._scroll = scroll
         layout.addWidget(self._scroll, 1)
 
-        # Empty state
+        # Empty state (a plain container: transparent, so no stylesheet of its own)
         self._empty_state = QWidget()
-        self._empty_state.setStyleSheet("background: transparent;")
         empty_layout = QVBoxLayout(self._empty_state)
         empty_layout.setAlignment(Qt.AlignCenter)
 
         empty_title = QLabel("No Schedules")
-        empty_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #6B7280;")
+        empty_title.setObjectName("SchedulesHubEmptyTitle")
         empty_title.setAlignment(Qt.AlignCenter)
         empty_layout.addWidget(empty_title)
 
         empty_desc = QLabel("Create your first schedule using the wizard")
-        empty_desc.setStyleSheet("font-size: 12px; color: #9CA3AF;")
+        empty_desc.setObjectName("SchedulesHubEmptyText")
         empty_desc.setAlignment(Qt.AlignCenter)
         empty_layout.addWidget(empty_desc)
 
         create_btn = QPushButton("Create Schedule")
+        create_btn.setObjectName("SchedulesHubCreate")
+        create_btn.setProperty("variant", "primary")
         create_btn.clicked.connect(self._on_new_schedule)
-        create_btn.setStyleSheet("""
-            QPushButton { background-color: #0D9488; color: white; border: none; border-radius: 6px; padding: 8px 20px; font-weight: 600; }
-            QPushButton:hover { background-color: #0F766E; }
-        """)
         empty_layout.addWidget(create_btn, alignment=Qt.AlignCenter)
 
         self._empty_state.hide()
@@ -899,22 +849,17 @@ class SchedulesHub(QWidget):
 
         if self._select_mode:
             self._select_btn.setText("Cancel")
-            self._select_btn.setStyleSheet("""
-                QPushButton { background-color: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; border-radius: 6px; padding: 5px 12px; font-weight: 500; font-size: 11px; }
-                QPushButton:hover { background-color: #FECACA; }
-            """)
             self._delete_selected_btn.setVisible(True)
             self._delete_selected_btn.setEnabled(False)
             self._edit_selected_btn.setVisible(True)
             self._edit_selected_btn.setEnabled(False)
         else:
             self._select_btn.setText("Select")
-            self._select_btn.setStyleSheet("""
-                QPushButton { background-color: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; border-radius: 6px; padding: 5px 12px; font-weight: 500; font-size: 11px; }
-                QPushButton:hover { background-color: #E5E7EB; }
-            """)
             self._delete_selected_btn.setVisible(False)
             self._edit_selected_btn.setVisible(False)
+        # Cancel wears the danger tint: QPushButton#SchedulesHubSelect[selecting="true"]
+        self._select_btn.setProperty("selecting", self._select_mode)
+        restyle(self._select_btn)
 
         for card in self._schedule_cards:
             card.set_select_mode(self._select_mode)

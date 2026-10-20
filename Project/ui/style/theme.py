@@ -3,13 +3,45 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict
 
-from PyQt5.QtCore import QObject, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QEvent, QObject, pyqtSignal
+from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import QApplication
 
 from .qt_palette import build_palette, tokens
 
 THEMES = tokens.THEMES
+
+
+def current_theme() -> str:
+    """The theme the application's StyleManager applied last; "light" without one.
+
+    main.py keeps the StyleManager as the application's style_manager property.
+    """
+    app = QApplication.instance()
+    manager = app.property("style_manager") if app is not None else None
+    theme = getattr(manager, "theme", None)
+    return theme if theme in THEMES else "light"
+
+
+def theme_colour(role: str) -> QColor:
+    """The colour of a tokens.py role in the current theme, for code that paints itself.
+
+    Call it when painting, never at import: the theme can change while the app runs.
+    KeyError for an unknown role.
+    """
+    return QColor(tokens.value(role, current_theme()))
+
+
+def restyle(widget) -> None:
+    """Apply the stylesheet to `widget` again after a dynamic property its rules select on
+    changed, e.g. setProperty("selected", True) for QFrame#ScheduleCard[selected="true"].
+
+    It also sends the StyleChange event setStyleSheet would send, so a QFrame re-reads its
+    frame width when the new rule changes the border's width.
+    """
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    QApplication.sendEvent(widget, QEvent(QEvent.StyleChange))
 
 
 class StyleManager(QObject):

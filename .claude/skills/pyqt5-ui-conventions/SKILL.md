@@ -142,13 +142,24 @@ selection, links. So:
 `test_theme_contrast.py` checks every pair of roles drawn together, in both
 themes. Add the pair when you combine two roles in a new way.
 
+A state that changes a widget's look is a dynamic property the template
+selects on (`QFrame#ScheduleCard[selected="true"]`), never a second
+`setStyleSheet`. After `setProperty`, call `restyle(widget)` from
+`ui.style.theme`: it unpolishes and polishes the widget and sends the
+`QEvent.StyleChange` that `setStyleSheet` would, so a `QFrame` re-reads its
+frame width when the rule changes a border's width.
+
 A colour that code paints itself comes from the QSS too. Declare it as a
 `pyqtProperty(QColor)` on a named widget and set it with `qproperty-*` in
 the template, from a token; a theme switch sets it again. The Animals tab's
 red cell is the pattern: `_LastRunDelegate` (a `QStyledItemDelegate`) fills
 the cell with `AnimalsTab.alertFill` and writes `alertText`, which
 `QWidget#AnimalsTab { qproperty-alertFill: ${danger.alert}; qproperty-alertText: ${danger.on-alert}; }`
-sets for each theme. Colouring a table cell:
+sets for each theme. A one-off painting, such as the Schedules hub's drag
+pixmap, can instead ask for the role when it paints: `theme_colour("accent.tint")`
+from `ui.style.theme` is the current theme's `QColor`. Never read a colour at
+import, and redraw what stays on screen on `theme_changed`. Colouring a table
+cell:
 
 - `QTableWidgetItem.setBackground()` is not painted under the app QSS, and
   `setForeground()` gives way on a selected row to `::item:selected`'s

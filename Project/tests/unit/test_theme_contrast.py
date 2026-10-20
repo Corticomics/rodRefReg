@@ -114,6 +114,8 @@ PAIRS = [
          "A zebra row under the pointer: hover had the zebra colour in the dark draft"),
     Pair("C3", "bg.alt", "bg.surface", "cue", 1.05,
          "Zebra rows: an alternate row against a plain one"),
+    Pair("C4", "danger.tint.strong", "danger.tint", "cue", 1.10,
+         "The Schedules hub's Cancel under the pointer, and its edge, against its tint"),
     # ---- Control boundaries (WCAG 1.4.11) ------------------------------------------
     Pair("N1", "border.control", "bg.surface", "nontext", 3,
          "An input, button, checkbox or radio ring, scrollbar handle on a card",
@@ -134,7 +136,10 @@ PAIRS = [
     Pair("N7", "border.control.hover", "bg.hover", "nontext", 3,
          "A hovered button's boundary against its own hover fill"),
     Pair("N8", "border.control.hover", "bg.page", "nontext", 3,
-         "A hovered control on the page"),
+         "A hovered control on the page; a schedule card's border under the pointer"),
+    Pair("N9", "border.control", "bg.hover", "nontext", 3,
+         "An unchecked checkbox on a schedule card under the pointer (select mode)",
+         MARK_ROBUST),
     # ---- State and value marks (WCAG 1.4.11) ---------------------------------------
     Pair("M1", "accent.indicator", "bg.page", "nontext", 3,
          "The selected tab's 3px bar against its pane; a progress chunk on the page",
@@ -157,6 +162,8 @@ PAIRS = [
          "A checked checkbox or radio on a card", MARK_ROBUST),
     Pair("M9", "accent.fill", "bg.page", "nontext", 3,
          "A checked checkbox or radio on the page", MARK_ROBUST),
+    Pair("M12", "accent.fill", "accent.tint", "nontext", 3,
+         "The checked checkbox of a selected schedule card", MARK_ROBUST),
     Pair("M10", "warning.indicator.selected", "bg.surface", "nontext", 3,
          "A selected master terminal's border, against the card"),
     Pair("M11", "warning.indicator.selected", "warning.tint", "nontext", 3,
@@ -184,11 +191,13 @@ PAIRS = [
     *_text_on("T2r", "text.secondary", ["bg.rail", "bg.hover", "accent.tint"], 4.5,
               "An unselected tab's label; a card description in a hovered or checked card"),
     *_text_on("T3", "text.muted", ["bg.page", "bg.surface", "bg.field", "bg.inset",
-                                   "bg.hover"], 4.5,
-              "Captions, placeholders, column headers, pending steps, an unassigned relay"),
-    *_text_on("T4", "text.accent", ["bg.page", "bg.surface", "accent.tint"], 4.5,
+                                   "bg.hover", "accent.tint"], 4.5,
+              "Captions, placeholders, column headers, pending steps, an unassigned relay; "
+              "a schedule card's hint, on a selected card and on its drag pixmap too"),
+    *_text_on("T4", "text.accent", ["bg.page", "bg.surface", "bg.hover", "accent.tint"], 4.5,
               "Teal text: the info banner, elapsed time, the current and completed steps, "
-              "card icons and badges, Help headings"),
+              "card icons and badges, a schedule card's date (hovered or selected too) and "
+              "its drag pixmap, Help headings"),
     *_text_on("T5", "text.link", ["bg.page", "bg.surface", "accent.tint", "success.tint",
                                   "danger.tint"], 4.5,
               "Links: Show password, and Help links, in callouts too"),
@@ -204,12 +213,18 @@ PAIRS = [
          "The Animals tab's bright red cell: bold white on red, as the owner asked"),
     Pair("T10s", "success.on-tint", "success.tint", "text", 4.5, "A success banner"),
     Pair("T10w", "warning.on-tint", "warning.tint", "text", 4.5, "A warning banner"),
-    Pair("T10d", "danger.on-tint", "danger.tint", "text", 4.5, "An error banner"),
+    Pair("T10d", "danger.on-tint", "danger.tint", "text", 4.5,
+         "An error banner; Cancel in the Schedules hub's select mode"),
+    Pair("T10dh", "danger.on-tint", "danger.tint.strong", "text", 4.5,
+         "That Cancel under the pointer"),
     Pair("T10i", "info.on-tint", "info.tint", "text", 4.5, "An info banner"),
     Pair("T11", "warning.text", "warning.tint.master-terminal", "text", 4.5,
          "MASTER SOLENOID on the master terminal"),
     Pair("T11h", "warning.text", "warning.tint", "text", 4.5,
          "MASTER SOLENOID on a hovered or selected master terminal"),
+    # The delivery modes' badges (Staggered's is text.on-accent on accent.fill, T6)
+    Pair("T12", "text.on-instant", "instant.fill", "text", 4.5,
+         "Instant on a schedule card's mode badge"),
     # ---- Reported, not asserted ----------------------------------------------------
     Pair("I1", "text.disabled", "bg.disabled", "info", 3,
          "Disabled labels: WCAG exempts a control that is really disabled"),
@@ -231,6 +246,9 @@ PAIRS = [
          "Secondary against muted text (the light step was 1.33:1 in the draft)"),
     Pair("I10", "border.divider", "bg.alt", "info", 1.5,
          "Grid lines on a zebra row"),
+    Pair("I11", "danger.tint.strong", "bg.page", "info", 3,
+         "The edge of the Schedules hub's Cancel against the page: a labelled button needs "
+         "no 3:1 boundary"),
 ]
 # fmt: on
 

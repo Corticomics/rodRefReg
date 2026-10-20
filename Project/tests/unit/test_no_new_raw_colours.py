@@ -52,7 +52,7 @@ def _load(name, path):
 colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
 # Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0, less those that
-# moved to tokens since (the Help tab's: v2.1.0).
+# moved to tokens since (the Help tab's and the Schedules hub's: v2.1.0).
 BASELINE = {
     "ui/CalibrationWizard.py": 1,
     "ui/ScheduleProgressTracker.py": 28,
@@ -64,7 +64,6 @@ BASELINE = {
     "ui/components/wizard.py": 3,
     "ui/relay_unit_widget.py": 1,
     "ui/schedule_wizard.py": 16,
-    "ui/schedules_hub.py": 60,
     "ui/splash_screen.py": 8,
     "ui/staggered_delivery_slot.py": 4,
 }
