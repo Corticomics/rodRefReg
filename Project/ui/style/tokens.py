@@ -101,8 +101,9 @@ TOKENS: dict[str, tuple[str, str]] = {
     # #CardIcon, #CardBadge, #StepIcon, #ScheduleCardCreated, the name on a schedule's drag
     # pixmap, #DeliveryStatus[status="delivering"], #WizardSummarySection; Help headings
     "text.accent": ("#115E59", "#5EEAD4"),
-    # Links: #LinkLabel, Help links (underlined: they differ from body text by colour
-    # less than 3:1) (QPalette Link, LinkVisited)
+    # Links (QPalette Link, LinkVisited): Help links, underlined because they differ from
+    # body text by colour less than 3:1, and #LinkLabel (Show password), underlined only
+    # under the pointer
     "text.link": ("#115E59", "#5EEAD4"),
     # Text on accent.fill and bg.selected: the primary button, #InfoButton, #CageBadge,
     # #StatusLabel[status="open"], a completed step circle, #WizardNextButton, the

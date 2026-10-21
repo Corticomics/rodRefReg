@@ -196,7 +196,10 @@ text on the main surfaces, 3:1 for control boundaries and state marks, the
 card-on-page step palette B was chosen for, and floors under the HDMI
 clip/wash models. When you change a colour, run it; a pair that fails is
 fixed by changing the colour, never its threshold. When you put two roles
-together in a new way, add the pair. `test_theme_structure.py` guards the
+together in a new way, add the pair: every role a `color:` declaration of
+the template names needs one. The status-word colours (`success.text`,
+`warning.text`, `danger.text`) also stay at least 25 apart in CIEDE2000
+(`contrast.delta_e_2000`), so two of them never look alike in one column. `test_theme_structure.py` guards the
 rules the palette depends on:
 
 - no universal `QWidget` background or colour;

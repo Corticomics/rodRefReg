@@ -140,7 +140,9 @@ selection, links. So:
   `theme_changed`, as `HelpTab` does.
 
 `test_theme_contrast.py` checks every pair of roles drawn together, in both
-themes. Add the pair when you combine two roles in a new way.
+themes. Add the pair when you combine two roles in a new way (every role a
+`color:` declaration names needs one), and keep the status-word colours
+apart (it checks them with CIEDE2000).
 
 A state that changes a widget's look is a dynamic property the template
 selects on (`QFrame#ScheduleCard[selected="true"]`), never a second
