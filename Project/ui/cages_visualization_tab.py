@@ -266,7 +266,7 @@ class CagesVisualizationTab(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
 
         title = QLabel("Relay Board Layout")
-        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1F2937;")
+        title.setObjectName("CagesTitle")
         header_layout.addWidget(title, alignment=Qt.AlignVCenter)
 
         # Info button (uses global QSS via InfoButton objectName)
@@ -285,26 +285,17 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         # BOARD VISUALIZATION — one tab per HAT
         # ═══════════════════════════════════════════════════════════════
+        # A card of the theme (QFrame#Card)
         board_frame = QFrame()
         board_frame.setObjectName("Card")
         board_frame.setProperty("card", True)
-        board_frame.setStyleSheet("""
-            QFrame#Card {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 12px;
-            }
-        """)
 
         board_layout = QVBoxLayout(board_frame)
         board_layout.setContentsMargins(16, 12, 16, 16)
         board_layout.setSpacing(8)
 
         subtitle = QLabel("Double-click a cage to rename it")
-        subtitle.setStyleSheet(
-            "color: #6B7280; font-size: 13px; font-style: italic;"
-            " padding: 4px 8px; background: transparent;"
-        )
+        subtitle.setObjectName("CagesSubtitle")
         subtitle.setAlignment(Qt.AlignCenter)
         board_layout.addWidget(subtitle)
 
@@ -406,7 +397,7 @@ class CagesVisualizationTab(QWidget):
             center_column.addWidget(board_image)
         else:
             placeholder = QLabel("[Board Diagram Not Found]")
-            placeholder.setStyleSheet("color: #9CA3AF; font-size: 14px;")
+            placeholder.setObjectName("CagesBoardPlaceholder")
             placeholder.setAlignment(Qt.AlignCenter)
             placeholder.setMinimumSize(400, 500)
             center_column.addWidget(placeholder)

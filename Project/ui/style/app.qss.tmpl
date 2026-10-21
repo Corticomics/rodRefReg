@@ -918,6 +918,25 @@ QLabel#DeliveryStatus[status="failed"] {
    CAGES VISUALIZATION TAB
    ============================================ */
 
+/* The tab's title, and the hint at the top of its board card */
+QLabel#CagesTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: ${text.primary};
+}
+QLabel#CagesSubtitle {
+    font-size: 13px;
+    font-style: italic;
+    color: ${text.secondary};
+    padding: 4px 8px;
+    background: transparent;
+}
+/* In place of the board's picture when its file is missing */
+QLabel#CagesBoardPlaceholder {
+    font-size: 14px;
+    color: ${text.muted};
+}
+
 /* Board title - centered, subtle */
 QLabel#BoardTitle {
     font-size: 12px;

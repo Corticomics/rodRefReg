@@ -73,20 +73,21 @@ TOKENS: dict[str, tuple[str, str]] = {
     # ---- Text --------------------------------------------------------------------------
     # Body text (QPalette WindowText, Text, ButtonText): titles, typed input, labels,
     # buttons, tables, lists, menus, the selected tab, the help tree and Help pages; the
-    # value written in a #TrackerProgress bar, #WizardSummaryValue
+    # value written in a #TrackerProgress bar, #WizardSummaryValue, #CagesTitle
     "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
     # button, card and step descriptions, #ScheduleCardMeta, #SchedulesHubEmptyTitle, the
     # help breadcrumb, #GroupDescription, the Calibration tab's description,
-    # #WizardSummaryLabel; muted words in Help
+    # #WizardSummaryLabel, #CagesSubtitle; muted words in Help
     "text.secondary": ("#2E3A4B", "#CBD5E1"),
     # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
     # #UnassignedLabel, #HealthIndicator, #TimeRemaining, #ScheduleCardHint,
     # #SchedulesHubEmptyText, the hint on a schedule's drag pixmap, #DeliveryStatus
     # (Waiting and other words), a pending step, step titles, the help result count,
     # #SlackStatus before any message, the dashes of an uncalibrated row and a missing CV
-    # in the Calibration table, #WizardSelectionCounter (none selected), #WizardEmptyState
+    # in the Calibration table, #WizardSelectionCounter (none selected), #WizardEmptyState,
+    # #CagesBoardPlaceholder
     "text.muted": ("#475366", "#B8C1CC"),
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
