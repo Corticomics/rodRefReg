@@ -242,3 +242,35 @@ def test_steps_three_and_four_follow_the_theme(
         assert (_text(label), label.font().pixelSize()) == (colour("text.secondary"), 11)
     for value in values:
         assert (_text(value), value.font().pixelSize()) == (colour("text.primary"), 11)
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_start_over_is_a_default_button_of_the_theme(
+    qapp, tokens, style, database_handler, system_controller, theme
+):
+    """Start Over had a light grey inline fill, so in the dark theme it was a pale box
+    under the theme's light text."""
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from PyQt5.QtGui import QPalette  # noqa: PLC0415
+    from PyQt5.QtTest import QTest  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply("light")
+    window, wizard, settle = _wizard(qapp, windows, database_handler, system_controller)
+    manager.apply(theme)
+    settle()
+
+    def colour(role):
+        return tokens.value(role, theme)
+
+    button = wizard._wizard._start_over_button
+    middle = button.height() // 2
+    assert button.palette().color(QPalette.ButtonText).name().upper() == colour("text.primary")
+    assert _pixel(window, button, 4, middle) == colour("bg.surface")
+    assert _pixel(window, button, 0, middle) == colour("border.control")
+    QTest.mouseMove(button, QPoint(button.width() // 2, middle))
+    settle()
+    assert _pixel(window, button, 4, middle) == colour("bg.hover")
+    assert _pixel(window, button, 0, middle) == colour("border.control"), "its edge stays"
+    QTest.mouseMove(window, QPoint(2, window.height() - 2))
+    settle()

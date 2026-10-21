@@ -119,7 +119,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     "border.divider": ("#CDD1D7", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
     # rings, scrollbar handles, an idle drop area, #CageNameEdit, #SchedulesHubSearch,
-    # #SchedulesHubSelect, the wizard's step circles and Back button
+    # #SchedulesHubSelect, the wizard's step circles, Back and Start Over buttons
     "border.control": ("#626E7E", "#848E9B"),
     # A control boundary under the pointer or pressed; #RelayTerminal, #InteractiveCard
     # and #ScheduleCard under the pointer

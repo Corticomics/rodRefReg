@@ -1256,6 +1256,14 @@ QPushButton#WizardNextButton:disabled {
     background: #ECEEF1;
     color: #7B8490;
 }
+/* Start Over, beside the steps: a default button, smaller. Its own 1px border outranks
+   QPushButton:focus, so focus does not thicken it, as before v2.1.0. */
+QPushButton#WizardStartOverButton {
+    border: 1px solid #626E7E;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: 500;
+}
 
 /* ============================================
    INTERACTIVE CARD COMPONENT
