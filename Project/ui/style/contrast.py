@@ -206,4 +206,3 @@ def delta_e_2000(a: str, b: str) -> float:
     """CIEDE2000 difference of two #RRGGBB colours: about 1 is just noticeable side by side;
     the status words of v2.0.0's Calibration table, mustard and red, were 40.7 apart."""
     return delta_e_2000_lab(lab(a), lab(b))
-
