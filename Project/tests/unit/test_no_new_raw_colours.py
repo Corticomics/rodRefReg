@@ -51,10 +51,9 @@ def _load(name, path):
 
 colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
-# Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0, less those that
-# moved to tokens since (v2.1.0: the Help tab's, the Schedules hub's, the progress
-# tracker's, the Settings tab's, the schedule wizard's, its Start Over button's, the
-# Cages tab's, the calibration wizard's, the Animals tab's and the splash screen's).
+# Raw colours per file (path relative to Project). On 2026-10-19, v2.0.0, 15 files held
+# 183; v2.1.0 moved every colour of the UI in use to tokens. What is left is in four
+# modules nothing uses, which a follow-up deletes.
 BASELINE = {
     "ui/SuggestSettingsTab.py": 2,
     "ui/available_animals_list.py": 5,

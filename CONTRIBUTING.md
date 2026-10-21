@@ -182,8 +182,9 @@ rich text) asks for a role when it paints, with `theme_colour(role)` from
 while the app runs. What stays on screen paints again when
 `style_manager().theme_changed` fires, as the Calibration table does.
 `test_no_new_raw_colours.py` counts the raw colours that UI files still hold
-(they are being moved out): it fails when a file gains one, and when a file
-loses one until you lower that file's count in the test's `BASELINE`. The
+(today only four modules nothing uses, which are to be deleted): it fails when
+a file gains one, and when a file loses one until you lower that file's count
+in the test's `BASELINE`. The
 Help tab's HTML takes its colours from `tokens.HELP_HTML`: a colour it needs
 is a role there, never a literal in the HTML. The ratchet keeps counting
 `help_content_manager.py`, so none comes back.
