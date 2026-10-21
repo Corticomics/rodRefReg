@@ -47,6 +47,7 @@ from utils.topology import (
 )
 
 from ui.PrimingControlWidget import PrimingControlWidget
+from ui.style.theme import restyle, style_manager, theme_colour
 from ui.UpdatesTab import UpdatesTab
 from ui.widgets.safe_spinbox import SafeDoubleSpinBox, SafeSpinBox
 
@@ -85,6 +86,9 @@ class SettingsTab(QWidget):
     # theme's 16, leaves the text its room.
     CAL_CELL_PADDING_V = 4
     CAL_CELL_PADDING_H = 8
+    # The colour of a cell's text, as a role of ui/style/tokens.py (success.text for
+    # [OK], ...), kept on the item: a theme change paints it again (_on_theme_applied).
+    CAL_TONE_ROLE = Qt.UserRole + 1
 
     def __init__(
         self,
@@ -123,6 +127,19 @@ class SettingsTab(QWidget):
             )
 
         self.init_ui()
+
+        # The Calibration table's status words and its header's description take their
+        # colours from the theme in code, which the stylesheet does not reach: paint them
+        # again whenever a theme is applied, including the saved theme main.py applies at
+        # start-up, after this tab exists.
+        manager = style_manager()
+        if manager is not None and hasattr(manager, 'theme_changed'):
+            manager.theme_changed.connect(self._on_theme_applied)
+
+    def _on_theme_applied(self, _theme: str):
+        """Repaint what this tab colours in code in the theme just applied."""
+        self._calibration_header.setText(self._calibration_header_html())
+        self._recolour_calibration_table()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -1006,6 +1023,15 @@ class SettingsTab(QWidget):
                 except Exception as cleanup_error:
                     self.print_to_terminal(f"Warning: Error during port cleanup: {cleanup_error}")
 
+    @staticmethod
+    def _calibration_header_html():
+        """The Calibration tab's title and description, in the current theme's colours."""
+        return (
+            "<b>Calibration</b><br>"
+            f"<span style='color: {theme_colour('text.secondary').name()};'>"
+            "Per-valve empirical calibration for precision water delivery</span>"
+        )
+
     def _create_calibration_tab(self):
         """
         Integrated Calibration UI (Option A)
@@ -1031,12 +1057,10 @@ class SettingsTab(QWidget):
         layout = QVBoxLayout()
 
         # Header with info
-        header = QLabel(
-            "<b>Calibration</b><br>"
-            "<span style='color: #666;'>Per-valve empirical calibration for precision water delivery</span>"
-        )
+        header = QLabel(self._calibration_header_html())
         header.setWordWrap(True)
         layout.addWidget(header)
+        self._calibration_header = header
 
         # Calibration table
         self.calibration_table = QTableWidget()
@@ -1164,12 +1188,38 @@ class SettingsTab(QWidget):
         scroll.setFrameShape(QFrame.NoFrame)  # Remove border for cleaner look
         return scroll
 
+    def _tone(self, item, role):
+        """Write `item`'s text in the current theme's colour for `role` (a tokens.py role)."""
+        item.setData(self.CAL_TONE_ROLE, role)
+        item.setForeground(theme_colour(role))
+
+    def _recolour_calibration_table(self):
+        """Paint each toned cell of the Calibration table in the current theme again."""
+        table = self.calibration_table
+        for row in range(table.rowCount()):
+            for column in range(table.columnCount()):
+                item = table.item(row, column)
+                role = item.data(self.CAL_TONE_ROLE) if item is not None else None
+                if role:
+                    item.setForeground(theme_colour(role))
+
+    @staticmethod
+    def _cv_tone(cv_pct):
+        """The colour role of a CV% cell, by quality: under 1 % excellent and under 3 %
+        good (success), under 5 % acceptable (warning), else poor (danger)."""
+        if cv_pct is None:
+            return "text.muted"
+        if cv_pct < 3.0:
+            return "success.text"
+        if cv_pct < 5.0:
+            return "warning.text"
+        return "danger.text"
+
     def _populate_calibration_table(self):
         """Load calibration data from database and populate table"""
         from datetime import datetime
 
         from PyQt5.QtCore import Qt
-        from PyQt5.QtGui import QColor
         from PyQt5.QtWidgets import QPushButton
 
         # One row per cage in the device's real cage map: 15 on one HAT, 31
@@ -1233,7 +1283,7 @@ class SettingsTab(QWidget):
                 # this cage will not start until it is recalibrated.
                 if invalid:
                     status_item = QTableWidgetItem("Invalid")
-                    status_item.setForeground(QColor(200, 0, 0))
+                    self._tone(status_item, "danger.text")
                     status_item.setToolTip(
                         "The stored volume per pulse or pulse width is missing, zero or "
                         f"invalid. {consequence}"
@@ -1241,7 +1291,7 @@ class SettingsTab(QWidget):
                 elif stale:
                     device = topology_from(self.settings)
                     status_item = QTableWidgetItem("Stale")
-                    status_item.setForeground(QColor(200, 150, 0))
+                    self._tone(status_item, "warning.text")
                     status_item.setToolTip(
                         f"Measured on {calibration_label(cal)}: "
                         f"{describe(calibration_topology(cal))}. "
@@ -1250,7 +1300,7 @@ class SettingsTab(QWidget):
                     )
                 else:
                     status_item = QTableWidgetItem("[OK]")
-                    status_item.setForeground(QColor(0, 150, 0))
+                    self._tone(status_item, "success.text")
                     status_item.setToolTip(f"Calibrated on {calibration_label(cal)}")
                 status_item.setTextAlignment(Qt.AlignCenter)
 
@@ -1275,16 +1325,7 @@ class SettingsTab(QWidget):
                 cv_item.setTextAlignment(Qt.AlignCenter)
 
                 # Color code quality
-                if cv_pct is None:
-                    cv_item.setForeground(QColor(150, 150, 150))
-                elif cv_pct < 1.0:
-                    cv_item.setForeground(QColor(0, 150, 0))  # Excellent - green
-                elif cv_pct < 3.0:
-                    cv_item.setForeground(QColor(50, 150, 50))  # Good - lighter green
-                elif cv_pct < 5.0:
-                    cv_item.setForeground(QColor(200, 150, 0))  # Acceptable - yellow
-                else:
-                    cv_item.setForeground(QColor(200, 0, 0))  # Poor - red
+                self._tone(cv_item, self._cv_tone(cv_pct))
 
                 # Format date
                 raw_date = str(cal.get('calibration_date') or '')
@@ -1318,26 +1359,27 @@ class SettingsTab(QWidget):
             else:
                 # Not calibrated - show warning
                 status_item = QTableWidgetItem("Not Calibrated")
-                status_item.setForeground(QColor(200, 0, 0))
+                self._tone(status_item, "danger.text")
                 status_item.setTextAlignment(Qt.AlignCenter)
                 status_item.setToolTip("Not calibrated")
 
+                # The row's dashes are grey (muted)
                 volume_item = QTableWidgetItem("—")
                 volume_item.setTextAlignment(Qt.AlignCenter)
-                volume_item.setForeground(QColor(150, 150, 150))
+                self._tone(volume_item, "text.muted")
 
                 profile_item = QTableWidgetItem("—")
                 profile_item.setTextAlignment(Qt.AlignCenter)
-                profile_item.setForeground(volume_item.foreground())  # the row's grey
+                self._tone(profile_item, "text.muted")
                 profile_item.setToolTip("Not calibrated")
 
                 cv_item = QTableWidgetItem("—")
                 cv_item.setTextAlignment(Qt.AlignCenter)
-                cv_item.setForeground(QColor(150, 150, 150))
+                self._tone(cv_item, "text.muted")
 
                 date_item = QTableWidgetItem("—")
                 date_item.setTextAlignment(Qt.AlignCenter)
-                date_item.setForeground(QColor(150, 150, 150))
+                self._tone(date_item, "text.muted")
 
                 self.calibration_table.setItem(row, self.CAL_COL_STATUS, status_item)
                 self.calibration_table.setItem(row, self.CAL_COL_PROFILE, profile_item)
@@ -1868,6 +1910,7 @@ class SettingsTab(QWidget):
         # The label is refreshed once a second by self._slack_status_timer
         # (started below) reading NotificationHandler.last_status.
         self.slack_status_label = QLabel()
+        self.slack_status_label.setObjectName("SlackStatus")
         self.slack_status_label.setWordWrap(True)
         self.slack_status_label.setMinimumHeight(48)
         self.slack_status_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -1898,10 +1941,12 @@ class SettingsTab(QWidget):
         icon, message = format_status(status)
 
         glyph = {"ok": "✓", "warn": "⚠", "unknown": "•"}.get(icon, "•")
-        # Conservative palette — readable on both light and dark themes.
-        color = {"ok": "#0a7d28", "warn": "#9c4a00", "unknown": "#666666"}.get(icon, "#666666")
         self.slack_status_label.setText(f"{glyph}  {message}")
-        self.slack_status_label.setStyleSheet(f"color: {color}; padding: 6px; border-radius: 4px;")
+        # The theme colours the status (QLabel#SlackStatus[status=...]). This runs once a
+        # second: restyle only when the status changes.
+        if self.slack_status_label.property("status") != icon:
+            self.slack_status_label.setProperty("status", icon)
+            restyle(self.slack_status_label)
 
     def _create_backup_restore(self):
         backup_group = QGroupBox("Backup and Restore")
@@ -2004,7 +2049,7 @@ class SettingsTab(QWidget):
             "Switch between Normal and Super mode to access all animals/schedules."
         )
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #666; font-size: 11px;")
+        desc_label.setObjectName("GroupDescription")
         mode_layout.addWidget(desc_label)
 
         # Mode toggle button

@@ -201,9 +201,10 @@ PAIRS = [
     *_text_on("T2r", "text.secondary", ["bg.rail", "bg.hover", "accent.tint"], 4.5,
               "An unselected tab's label; a card description in a hovered or checked card"),
     *_text_on("T3", "text.muted", ["bg.page", "bg.surface", "bg.field", "bg.inset",
-                                   "bg.hover", "accent.tint"], 4.5,
+                                   "bg.hover", "accent.tint", "bg.alt"], 4.5,
               "Captions, placeholders, column headers, pending steps, an unassigned relay; "
-              "a schedule card's hint, on a selected card and on its drag pixmap too"),
+              "a schedule card's hint, on a selected card and on its drag pixmap too; the "
+              "dashes of an uncalibrated row in the Calibration table, on a zebra row too"),
     *_text_on("T4", "text.accent", ["bg.page", "bg.surface", "bg.hover", "accent.tint"], 4.5,
               "Teal text: the info banner, elapsed time, the current and completed steps, "
               "card icons and badges, a schedule card's date (hovered or selected too) and "
@@ -240,9 +241,23 @@ PAIRS = [
     *_text_on("T13", "text.primary", ["progress.fill", "progress.fill.complete",
                                       "progress.fill.failed"], 4.5,
               "The value written in a tracker bar, over its fill"),
-    Pair("T14w", "warning.text", "bg.surface", "text", 4.5, "Paused on a progress card"),
-    Pair("T14s", "success.text", "bg.surface", "text", 4.5, "Complete on a progress card"),
-    Pair("T14d", "danger.text", "bg.surface", "text", 4.5, "Failed on a progress card"),
+    Pair("T14w", "warning.text", "bg.surface", "text", 4.5,
+         "Paused on a progress card; Stale and an acceptable CV in the Calibration table; "
+         "a failed Slack message"),
+    Pair("T14s", "success.text", "bg.surface", "text", 4.5,
+         "Complete on a progress card; [OK] and a good CV in the Calibration table; a "
+         "delivered Slack message"),
+    Pair("T14d", "danger.text", "bg.surface", "text", 4.5,
+         "Failed on a progress card; Invalid, Not Calibrated and a poor CV in the "
+         "Calibration table"),
+    # The Calibration table's status words on a zebra row and on a row under the pointer
+    # (a selected row writes them in text.on-accent, T6)
+    *_text_on("T15s", "success.text", ["bg.alt", "bg.hover"], 4.5,
+              "[OK] and a good CV in the Calibration table", robust=None),
+    *_text_on("T15w", "warning.text", ["bg.alt", "bg.hover"], 4.5,
+              "Stale and an acceptable CV in the Calibration table", robust=None),
+    *_text_on("T15d", "danger.text", ["bg.alt", "bg.hover"], 4.5,
+              "Invalid, Not Calibrated and a poor CV in the Calibration table", robust=None),
     # ---- Reported, not asserted ----------------------------------------------------
     Pair("I1", "text.disabled", "bg.disabled", "info", 3,
          "Disabled labels: WCAG exempts a control that is really disabled"),

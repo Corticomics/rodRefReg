@@ -594,6 +594,29 @@ QLabel#HelpText {
 }
 
 /* ============================================
+   SETTINGS
+   ============================================ */
+/* A group box's one-line description (General > User Mode) */
+QLabel#GroupDescription {
+    color: ${text.secondary};
+    font-size: 11px;
+}
+
+/* General > Slack Integration > Status: the colour of the last message's fate, which its
+   words also give (Delivered at, Failed at, Status unknown) */
+QLabel#SlackStatus {
+    color: ${text.muted};
+    padding: 6px;
+    border-radius: 4px;
+}
+QLabel#SlackStatus[status="ok"] {
+    color: ${success.text};
+}
+QLabel#SlackStatus[status="warn"] {
+    color: ${warning.text};
+}
+
+/* ============================================
    PRIMING STATUS
    ============================================ */
 QLabel#StatusLabel {

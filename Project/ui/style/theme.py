@@ -12,14 +12,19 @@ from .qt_palette import build_palette, tokens
 THEMES = tokens.THEMES
 
 
-def current_theme() -> str:
-    """The theme the application's StyleManager applied last; "light" without one.
+def style_manager():
+    """The application's StyleManager, or None before there is one.
 
-    main.py keeps the StyleManager as the application's style_manager property.
+    main.py keeps it as the application's style_manager property. Content painted from
+    the theme connects to its theme_changed signal to repaint after every theme applied.
     """
     app = QApplication.instance()
-    manager = app.property("style_manager") if app is not None else None
-    theme = getattr(manager, "theme", None)
+    return app.property("style_manager") if app is not None else None
+
+
+def current_theme() -> str:
+    """The theme the application's StyleManager applied last; "light" without one."""
+    theme = getattr(style_manager(), "theme", None)
     return theme if theme in THEMES else "light"
 
 

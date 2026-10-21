@@ -78,12 +78,15 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
     # button, card and step descriptions, #ScheduleCardMeta, #SchedulesHubEmptyTitle, the
-    # help breadcrumb; muted words in Help
+    # help breadcrumb, #GroupDescription, the Calibration tab's description; muted words
+    # in Help
     "text.secondary": ("#2E3A4B", "#CBD5E1"),
     # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
     # #UnassignedLabel, #HealthIndicator, #TimeRemaining, #ScheduleCardHint,
     # #SchedulesHubEmptyText, the hint on a schedule's drag pixmap, #DeliveryStatus
-    # (Waiting and other words), a pending step, step titles, the help result count
+    # (Waiting and other words), a pending step, step titles, the help result count,
+    # #SlackStatus before any message, the dashes of an uncalibrated row and a missing CV
+    # in the Calibration table
     "text.muted": ("#475366", "#B8C1CC"),
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
@@ -168,8 +171,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "success.tint": ("#D1FAE5", "#064E3B"),
     "success.on-tint": ("#065F46", "#A7F3D0"),
     "success.indicator": ("#10B981", "#10B981"),
-    # A success word on a card: #DeliveryStatus[status="complete"] (today's #059669 gave
-    # 3.77:1)
+    # A success word: #DeliveryStatus[status="complete"] (today's #059669 gave 3.77:1),
+    # #SlackStatus[status="ok"], [OK] and a CV under 3 % in the Calibration table
     "success.text": ("#065F46", "#6EE7B7"),
     # QLabel[variant="warning"]; #MasterTerminal under the pointer and selected
     "warning.tint": ("#FEF3C7", "#78350F"),
@@ -185,7 +188,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # A selected #MasterTerminal's border: its selected state, 3:1 or more against the
     # card and its own fill (amber-700 in light: today's amber-500 was 2.15:1)
     "warning.indicator.selected": ("#B45309", "#FBBF24"),
-    # #MasterLabel; #DeliveryStatus[status="paused"] (today's #D97706 gave 3.19:1)
+    # #MasterLabel; #DeliveryStatus[status="paused"] (today's #D97706 gave 3.19:1),
+    # #SlackStatus[status="warn"], Stale and a CV under 5 % in the Calibration table
     "warning.text": ("#92400E", "#FCD34D"),
     # QPushButton[variant="danger"]; white reads on these in both themes (today's dark
     # #EF4444, #F87171 gave it 3.76:1 and 2.77:1)
@@ -200,8 +204,9 @@ TOKENS: dict[str, tuple[str, str]] = {
     "danger.indicator": ("#EF4444", "#EF4444"),
     # A deeper danger tint: the edge of that Cancel button, and its fill under the pointer
     "danger.tint.strong": ("#FECACA", "#991B1B"),
-    # A danger word on a card: #DeliveryStatus[status="failed"] (today's #DC2626 would give
-    # 2.49:1 on the dark card)
+    # A danger word: #DeliveryStatus[status="failed"] (today's #DC2626 would give 2.49:1 on
+    # the dark card); Invalid, Not Calibrated and a CV of 5 % or more in the Calibration
+    # table
     "danger.text": ("#B91C1C", "#FCA5A5"),
     # The Animals tab's bright red cell for a run that ended short, and its bold text
     # (QWidget#AnimalsTab qproperty-alertFill / qproperty-alertText)

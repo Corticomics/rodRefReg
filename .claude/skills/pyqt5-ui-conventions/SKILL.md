@@ -164,6 +164,10 @@ cell:
 - `QTableWidgetItem.setBackground()` is not painted under the app QSS, and
   `setForeground()` gives way on a selected row to `::item:selected`'s
   on-accent text.
+- A word in a status colour (the Calibration table's *[OK]*, *Stale*, CV%):
+  `setForeground(theme_colour(role))` as the table fills, with the role kept
+  on the item (`SettingsTab.CAL_TONE_ROLE`) so that a slot on
+  `style_manager().theme_changed` can set it again.
 - A widget put in a cell (`setCellWidget`) sits inside the `::item`
   padding, so it fills only a band of the cell. A delegate fills it all,
   and then paints the selected state itself (the red cell keeps its fill

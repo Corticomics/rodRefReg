@@ -176,9 +176,11 @@ today).
 by what it is for, not how it looks: reuse a role that fits, or add one.
 Do not write colours into Python under `Project/ui`: give the widget an
 `objectName` or a dynamic property and style it in the template. Code that
-paints itself (a `QPainter`, a drag pixmap) asks for a role when it paints,
-with `theme_colour(role)` from [`theme.py`](Project/ui/style/theme.py), never
-at import: the theme can change while the app runs.
+paints itself (a `QPainter`, a drag pixmap, a table cell's text, a colour in
+rich text) asks for a role when it paints, with `theme_colour(role)` from
+[`theme.py`](Project/ui/style/theme.py), never at import: the theme can change
+while the app runs. What stays on screen paints again when
+`style_manager().theme_changed` fires, as the Calibration table does.
 `test_no_new_raw_colours.py` counts the raw colours that UI files still hold
 (they are being moved out): it fails when a file gains one, and when a file
 loses one until you lower that file's count in the test's `BASELINE`. The
