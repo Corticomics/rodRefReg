@@ -300,6 +300,10 @@ PAIRS = [
               "Stale and an acceptable CV in the Calibration table", robust=None),
     *_text_on("T15d", "danger.text", ["bg.alt", "bg.hover"], 4.5,
               "Invalid, Not Calibrated and a poor CV in the Calibration table", robust=None),
+    # A calendar popup's weekend: Qt's red, a shade that reads, held to WCAG like the words
+    *_text_on("T16", "text.weekend", ["bg.surface", "bg.alt"], 4.5,
+              "A calendar popup's weekend dates, and their names in the weekday row",
+              robust=None),
     # ---- Reported, not asserted ----------------------------------------------------
     Pair("I1", "text.disabled", "bg.disabled", "info", 3,
          "Disabled labels: WCAG exempts a control that is really disabled"),

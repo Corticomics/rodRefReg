@@ -160,13 +160,35 @@ def test_every_placeholder_names_a_token():
         assert not unbraced, f"write each placeholder as ${{role}}: app.qss.tmpl lines {unbraced}"
 
 
+# A role UI code asks for by name, as a string: theme_colour("accent.tint"). tokens.py
+# itself names every role, so it is not read.
+ROLE_LITERAL = re.compile(r"[\"']([a-z]+(?:\.[a-z][a-z-]*)+)[\"']")
+
+
+def _roles_ui_code_names():
+    ui = STYLE_DIR.parent
+    named = set()
+    for path in ui.rglob("*.py"):
+        if path != STYLE_DIR / "tokens.py":
+            named |= set(ROLE_LITERAL.findall(path.read_text(encoding="utf-8")))
+    return named & set(tokens.TOKENS)
+
+
+def test_the_scan_finds_the_roles_ui_code_asks_for():
+    named = _roles_ui_code_names()
+    # the drag pixmap, the calibration wizard's warning line, a calendar's weekend dates
+    assert {"accent.tint", "danger.text", "text.weekend"} <= named, sorted(named)
+
+
 def test_every_token_is_used():
-    """Each role has a reader: the template, the QPalette or the Help tab's HTML."""
+    """Each role has a reader: the template, the QPalette, the Help tab's HTML, or UI code
+    that asks for it by name when it paints (theme_colour, theme.tone_weekend)."""
     used = set().union(*(_placeholders(theme) for theme in build_qss.THEMES))
     used |= set(tokens.QPALETTE.values()) | set(tokens.QPALETTE_DISABLED.values())
     used |= set(tokens.HELP_HTML.values())
+    used |= _roles_ui_code_names()
     unused = set(tokens.TOKENS) - used
-    readers = "the template, QPALETTE or HELP_HTML"
+    readers = "the template, QPALETTE, HELP_HTML or UI code"
     assert not unused, f"tokens.py roles nothing uses ({readers}): {sorted(unused)}"
 
 

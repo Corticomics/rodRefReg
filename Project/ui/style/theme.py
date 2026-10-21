@@ -3,13 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict
 
-from PyQt5.QtCore import QEvent, QObject, pyqtSignal
-from PyQt5.QtGui import QColor, QFont
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QEvent, QObject, Qt, pyqtSignal
+from PyQt5.QtGui import QBrush, QColor, QFont, QTextCharFormat
+from PyQt5.QtWidgets import QApplication, QCalendarWidget
 
 from .qt_palette import build_palette, tokens
 
 THEMES = tokens.THEMES
+
+# The days a calendar marks as the weekend, in Qt's own red, which no stylesheet reaches
+WEEKEND = (Qt.Saturday, Qt.Sunday)
 
 
 def style_manager():
@@ -37,6 +40,15 @@ def theme_colour(role: str) -> QColor:
     return QColor(tokens.value(role, current_theme()))
 
 
+def tone_weekend(calendar, theme: str) -> None:
+    """Write a calendar's weekend dates, and their weekday names, in `theme`'s text.weekend
+    instead of Qt's red (#FF0000: 4.0:1 on a light card, 3.0:1 on a dark one)."""
+    weekend = QTextCharFormat()
+    weekend.setForeground(QBrush(QColor(tokens.value("text.weekend", theme))))
+    for day in WEEKEND:
+        calendar.setWeekdayTextFormat(day, weekend)
+
+
 def restyle(widget) -> None:
     """Apply the stylesheet to `widget` again after a dynamic property its rules select on
     changed, e.g. setProperty("selected", True) for QFrame#ScheduleCard[selected="true"].
@@ -57,6 +69,11 @@ class StyleManager(QObject):
     - Sets a readable, widely available font for Raspberry Pi.
     - Emits theme_changed after every apply, so content the stylesheet cannot reach
       (the Help tab's HTML) can redraw itself.
+    - Writes every calendar's weekend dates in the theme's colour (tone_weekend). A date
+      field makes its calendar popup on the first click, and the popup takes the focus as it
+      opens, before it paints: a calendar takes the colour then, and again after every
+      apply. Focus changes are rare: unlike an application event filter, this adds nothing
+      to the handling of every event.
     """
 
     theme_changed = pyqtSignal(str)
@@ -66,6 +83,7 @@ class StyleManager(QObject):
         self._app = app
         self._theme = "light"
         self._base_dir = Path(__file__).resolve().parent
+        app.focusChanged.connect(self._on_focus_changed)
 
     @property
     def theme(self) -> str:
@@ -78,6 +96,18 @@ class StyleManager(QObject):
     def colour(self, role: str) -> str:
         """The current theme's colour for a role of tokens.py (KeyError if unknown)."""
         return tokens.value(role, self._theme)
+
+    def _on_focus_changed(self, _old, now) -> None:
+        """The focus moved into a calendar (a date field's popup opening): it takes the
+        theme's weekend colour before it paints."""
+        owner = style_manager()
+        if owner is not None and owner is not self:  # the application's StyleManager tones
+            return
+        widget = now
+        while widget is not None and not isinstance(widget, QCalendarWidget):
+            widget = widget.parentWidget()
+        if widget is not None:
+            tone_weekend(widget, self._theme)
 
     def apply(self, theme: str = "light") -> None:
         if theme not in THEMES:
@@ -104,5 +134,9 @@ class StyleManager(QObject):
         except Exception as exc:
             print(f"[THEME ERROR] the {theme} stylesheet was not applied: {exc}")
             self._app.setStyleSheet("")
+
+        for widget in QApplication.allWidgets():
+            if isinstance(widget, QCalendarWidget):
+                tone_weekend(widget, theme)
 
         self.theme_changed.emit(theme)

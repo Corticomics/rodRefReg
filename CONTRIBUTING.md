@@ -142,13 +142,14 @@ paths are animal-safety-critical — treat them accordingly.
 
 Every colour of the UI is a role in one table,
 [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py):
-`"bg.surface": ("#FFFFFF", "#30373F")` is (light, dark). Three things read it:
+`"bg.surface": ("#FFFFFF", "#30373F")` is (light, dark). Four things read it:
 
 | Reader | Colours |
 |---|---|
 | [`app.qss.tmpl`](Project/ui/style/app.qss.tmpl) → `app-light.qss`, `app-dark.qss` | every stylesheet rule, through `${bg.surface}`-style placeholders |
 | [`qt_palette.py`](Project/ui/style/qt_palette.py) (`tokens.QPALETTE`) | the QPalette `StyleManager.apply` sets before the stylesheet: the window, plain containers, input text and placeholders, alternate rows, selection, links |
 | [`help_content_manager.py`](Project/utils/help_content_manager.py) (`tokens.HELP_HTML`) | the Help tab's HTML |
+| UI code that paints itself ([`theme.py`](Project/ui/style/theme.py) `theme_colour(role)`, `tone_weekend`) | a painter, a drag pixmap, a table cell's text, a colour in rich text, a calendar's weekend dates |
 
 The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 `app-dark.qss`, are **generated**: never edit them by hand. Their source:

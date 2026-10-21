@@ -10,13 +10,15 @@ The palette is the robust-contrast one (palette B, v2.1.0): a grey page, white c
 fields, borders that show, and the same structure in the dark theme. Its steps stay visible
 on a monitor that clips or washes out the Pi's HDMI signal (contrast.py has the models).
 
-Three things read the roles:
+Four things read the roles:
 - the stylesheet template, through its ${role} placeholders;
 - the QPalette StyleManager sets before the stylesheet (qt_palette.py), through QPALETTE and
   QPALETTE_DISABLED below. It colours what the stylesheet does not reach: the window, plain
   containers, placeholders, alternate rows, rich-text links, the days of a calendar popup
-  (its navigation bar has a rule; Qt's own red for weekend dates is not themed);
-- the Help tab's HTML (Project/utils/help_content_manager.py), through HELP_HTML below.
+  (its navigation bar has a rule);
+- the Help tab's HTML (Project/utils/help_content_manager.py), through HELP_HTML below;
+- UI code that paints itself, which asks for a role by name when it paints: theme_colour()
+  in theme.py, and theme.tone_weekend for a calendar's weekend dates (text.weekend).
 
 Project/tests/unit/test_theme_contrast.py checks every pair of roles the UI draws together,
 in both themes. A pair that fails is fixed by changing a colour here, never its threshold.
@@ -97,6 +99,9 @@ TOKENS: dict[str, tuple[str, str]] = {
     "text.muted": ("#475366", "#B8C1CC"),
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
+    # A calendar popup's weekend dates and weekday names (theme.tone_weekend): Qt's red, a
+    # shade that reads (its #FF0000 gave 4.0:1 on the light card and 3.0:1 on the dark one)
+    "text.weekend": ("#B91C1C", "#FCA5A5"),
     # Teal text: #InfoBanner, #ElapsedTime, the current step, a completed step title,
     # #CardIcon, #CardBadge, #StepIcon, #ScheduleCardCreated, the name on a schedule's drag
     # pixmap, #DeliveryStatus[status="delivering"], #WizardSummarySection; Help headings

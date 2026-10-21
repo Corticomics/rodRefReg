@@ -383,7 +383,7 @@ QWidget#AnimalsTab {
    writes the month and year in HighlightedText: a solid teal band. The bar is the inset
    surface instead, the page colour it had before v2.1.0, under body text. Its days are
    a table (the rules above and the palette: Base, AlternateBase for the weekday row,
-   Highlight for the chosen day). */
+   Highlight for the chosen day); theme.py writes the weekend in text.weekend. */
 QCalendarWidget QWidget#qt_calendar_navigationbar {
     background-color: #1F242B;
 }

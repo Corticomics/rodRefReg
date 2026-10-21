@@ -397,6 +397,66 @@ def test_a_calendar_popups_navigation_bar_is_the_inset_under_body_text(qapp, tok
         assert tokens.value("text.on-accent", theme) not in drawn, name
 
 
+@pytest.mark.parametrize("theme", THEMES)
+def test_a_calendars_weekend_dates_take_the_themes_colour(qapp, tokens, style, theme):
+    """Qt writes a calendar's weekend dates and weekday names in its own red, #FF0000: 4.0:1
+    on the light card, 3.0:1 on the dark one. A date field makes its calendar popup on the
+    first click, and the popup takes the focus as it opens: StyleManager tones a calendar
+    then, before it paints, and again after every theme applied."""
+    from collections import Counter  # noqa: PLC0415
+
+    from PyQt5.QtCore import QDate, QDateTime, Qt  # noqa: PLC0415
+    from PyQt5.QtTest import QTest  # noqa: PLC0415
+    from PyQt5.QtWidgets import (  # noqa: PLC0415
+        QAbstractItemView,
+        QCalendarWidget,
+        QDateTimeEdit,
+        QStyle,
+        QStyleOptionComboBox,
+    )
+
+    manager, widgets = style
+    manager.apply(theme)
+
+    def weekend(calendar):
+        return {
+            calendar.weekdayTextFormat(day).foreground().color().name().upper()
+            for day in (Qt.Saturday, Qt.Sunday)
+        }
+
+    # A date field's popup, opened with a click on its arrow as an operator opens it
+    edit = QDateTimeEdit(QDateTime(2030, 1, 15, 9, 0))
+    edit.setCalendarPopup(True)
+    _show(qapp, widgets, edit, 240, 30)
+    edit.activateWindow()
+    option = QStyleOptionComboBox()
+    option.initFrom(edit)
+    option.editable = True
+    option.subControls = QStyle.SC_All
+    arrow = edit.style().subControlRect(QStyle.CC_ComboBox, option, QStyle.SC_ComboBoxArrow, edit)
+    QTest.mouseClick(edit, Qt.LeftButton, Qt.NoModifier, arrow.center())
+    qapp.processEvents()
+    popup = edit.calendarWidget()
+    assert popup.window().isVisible(), "the click opened the popup"
+    assert weekend(popup) == {tokens.value("text.weekend", theme)}
+    popup.window().hide()
+
+    # A calendar on screen, and a theme applied after it exists
+    calendar = QCalendarWidget()
+    calendar.setSelectedDate(QDate(2030, 1, 15))
+    _show(qapp, widgets, calendar, 320, 240)
+    other = "dark" if theme == "light" else "light"
+    manager.apply(other)
+    qapp.processEvents()
+    assert weekend(calendar) == weekend(popup) == {tokens.value("text.weekend", other)}
+    image = calendar.findChild(QAbstractItemView).viewport().grab().toImage()
+    drawn = Counter(
+        _pixel(image, x, y) for x in range(image.width()) for y in range(image.height())
+    )
+    assert tokens.value("text.weekend", other) in drawn
+    assert "#FF0000" not in drawn
+
+
 # ---- The Help pane ----------------------------------------------------------------------
 
 
