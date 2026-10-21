@@ -153,3 +153,31 @@ def test_the_board_placeholder_follows_the_theme(
     assert placeholder.text() == "[Board Diagram Not Found]"
     assert _text(placeholder) == tokens.value("text.muted", theme)
     assert placeholder.font().pixelSize() == 14
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_cage_name_editor_keeps_its_teal_edge(
+    qapp, tokens, style, database_handler, system_controller, theme
+):
+    """Double-clicking a cage opens its name editor with the focus; it hides again when
+    editing ends. Its own rule outranks QLineEdit:focus, so its 1px edge is its focus cue:
+    focus.ring, as it was teal before v2.1.0."""
+    from PyQt5.QtWidgets import QFrame  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply("light")
+    window, tab = _cages_tab(qapp, windows, database_handler, system_controller)
+    manager.apply(theme)  # a theme applied after the tab exists reaches it
+    terminal = next(
+        frame
+        for frame in tab.findChildren(QFrame, "RelayTerminal")
+        if getattr(frame, "_name_edit", None) is not None
+    )
+    terminal._start_editing()
+    qapp.processEvents()
+
+    edit = terminal._name_edit
+    assert edit.isVisible()
+    ring = tokens.value("focus.ring", theme)
+    assert _pixel(window, edit, edit.width() // 2, 0) == ring  # top edge
+    assert _pixel(window, edit, 0, edit.height() // 2) == ring  # left edge

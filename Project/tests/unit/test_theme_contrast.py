@@ -200,6 +200,10 @@ PAIRS = [
          "The focus border against the page around the control", MARK_ROBUST),
     Pair("F4", "focus.ring", "bg.inset", "nontext", 3,
          "The focus border inside a nested group box", MARK_ROBUST),
+    Pair("F5", "focus.ring", "bg.hover", "nontext", 3,
+         "The cage-name editor's edge on its relay terminal under the pointer", MARK_ROBUST),
+    Pair("F6", "focus.ring", "accent.tint", "nontext", 3,
+         "The cage-name editor's edge on a selected relay terminal", MARK_ROBUST),
     # ---- Text (WCAG 1.4.3) ---------------------------------------------------------
     *_text_on("T1", "text.primary",
               ["bg.page", "bg.surface", "bg.field", "bg.inset", "bg.alt", "bg.hover",

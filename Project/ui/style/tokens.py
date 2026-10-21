@@ -126,14 +126,15 @@ TOKENS: dict[str, tuple[str, str]] = {
     # topics
     "border.divider": ("#CDD1D7", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
-    # rings, scrollbar handles, an idle drop area, #CageNameEdit, #SchedulesHubSearch,
+    # rings, scrollbar handles, an idle drop area, #SchedulesHubSearch,
     # #SchedulesHubSelect, the wizard's step circles, Back and Start Over buttons
     "border.control": ("#626E7E", "#848E9B"),
     # A control boundary under the pointer or pressed; #RelayTerminal, #InteractiveCard
     # and #ScheduleCard under the pointer
     "border.control.hover": ("#475569", "#A3ADB9"),
     # ---- Focus -------------------------------------------------------------------------
-    # The 2px focus border of inputs and QPushButton; the 1px one of #SchedulesHubSearch
+    # The 2px focus border of inputs and QPushButton; the 1px one of #SchedulesHubSearch and
+    # of #CageNameEdit, which shows only while it has the focus
     "focus.ring": ("#0F766E", "#2DD4BF"),
     # A focused primary button's border, around its accent.fill
     "focus.ring.primary": ("#042F2E", "#FFFFFF"),

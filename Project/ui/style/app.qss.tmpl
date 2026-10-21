@@ -1009,10 +1009,11 @@ QFrame#MasterTerminal[selected="true"] {
     border-color: ${warning.indicator.selected};
 }
 
-/* Inline cage name editor */
+/* Inline cage name editor. It shows only while a name is edited, with the focus, and its
+   own rule outranks QLineEdit:focus: its teal edge is its focus cue, as before v2.1.0. */
 QLineEdit#CageNameEdit {
     background: ${bg.field};
-    border: 1px solid ${border.control};
+    border: 1px solid ${focus.ring};
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 13px;
