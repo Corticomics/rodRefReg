@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (
 from utils.last_run_text import last_run_cell
 
 from .edit_animal_dialog import EditAnimalDialog
+from .style.theme import theme_colour
 
 # Item data role marking a "Last schedule delivered amount" cell that is painted red.
 LAST_RUN_ALERT_ROLE = Qt.UserRole + 1
@@ -74,11 +75,11 @@ class _LastRunDelegate(QStyledItemDelegate):
 class AnimalsTab(QWidget):
     def __init__(self, settings, print_to_terminal, database_handler, login_system):
         super().__init__()
-        # The red cell's colours until the theme stylesheet sets them: the
-        # stylesheets style this widget by name (QWidget#AnimalsTab) through
-        # qproperty-alertFill and qproperty-alertText.
-        self._alert_fill = QColor("#DC2626")
-        self._alert_text = QColor("#FFFFFF")
+        # The red cell's colours, the theme's roles, until the theme stylesheet
+        # sets them: the stylesheets style this widget by name (QWidget#AnimalsTab)
+        # through qproperty-alertFill and qproperty-alertText.
+        self._alert_fill = theme_colour("danger.alert")
+        self._alert_text = theme_colour("danger.on-alert")
         self.setObjectName("AnimalsTab")
         self.settings = settings
         self.print_to_terminal = print_to_terminal or (lambda x: None)  # Fallback if not provided

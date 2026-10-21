@@ -311,6 +311,26 @@ def test_a_theme_switch_sets_the_red_cell_colours(make_tab, theme_qss):
         assert tab.alertText.name().upper() == ink.upper(), qss_name
 
 
+def test_until_a_stylesheet_sets_them_the_red_cell_has_the_themes_roles(
+    qapp, make_tab, monkeypatch
+):
+    """The tab starts from danger.alert and danger.on-alert in the current theme
+    (sentinels here: both themes give the same red and white), not from literals."""
+    import ui.animals_tab as module  # noqa: PLC0415
+    from PyQt5.QtGui import QColor  # noqa: PLC0415
+
+    sentinels = {"danger.alert": "#010203", "danger.on-alert": "#040506"}
+    monkeypatch.setattr(module, "theme_colour", lambda role: QColor(sentinels[role]))
+    old = qapp.styleSheet()
+    qapp.setStyleSheet("")  # no theme stylesheet to set them
+    try:
+        tab = make_tab([_animal(*OUTCOMES[2])])
+        assert (tab.alertFill.name(), tab.alertText.name()) == ("#010203", "#040506")
+    finally:
+        qapp.setStyleSheet(old)
+        qapp.processEvents()
+
+
 def test_selecting_the_animals_tab_reloads_it(qapp, database_handler, system_controller):
     """A run's record opens at its first delivery, on the worker thread, and
     nothing reloads the tab then. Selecting the Animals tab does: it shows the
