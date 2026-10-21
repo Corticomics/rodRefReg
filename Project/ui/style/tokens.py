@@ -69,8 +69,10 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Selected items and selected text: a solid fill under text.on-accent (combo popup,
     # tables, lists, menus, the help tree, inputs; QPalette.Highlight)
     "bg.selected": ("#0F766E", "#2DD4BF"),
-    # A Help search hit
-    "bg.highlight": ("#FDE68A", "#92400E"),
+    # A Help search hit, under whatever text it lands on: body text, a heading, a link or the
+    # muted related-topics line (amber-900 in dark: today's amber-800 #92400E gave teal
+    # headings and links 4.79:1, 4.0:1 washed out)
+    "bg.highlight": ("#FDE68A", "#78350F"),
     # QToolTip (QPalette.ToolTipBase)
     "bg.tooltip": ("#1A1D1F", "#E5E9EF"),
     # ---- Text --------------------------------------------------------------------------

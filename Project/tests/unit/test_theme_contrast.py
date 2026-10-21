@@ -128,6 +128,8 @@ PAIRS = [
          "The same, Complete"),
     Pair("C7", "progress.fill.failed", "danger.tint", "cue", 1.25,
          "The same, Failed"),
+    Pair("C8", "bg.highlight", "bg.surface", "cue", 1.20,
+         "A Help search hit against the page it marks (the hit's hue helps it too)"),
     # ---- Control boundaries (WCAG 1.4.11) ------------------------------------------
     Pair("N1", "border.control", "bg.surface", "nontext", 3,
          "An input, button, checkbox or radio ring, scrollbar handle on a card",
@@ -206,20 +208,23 @@ PAIRS = [
                                        "bg.alt"], 7,
               "Subtitles, help text, form labels, table headers, the combo arrow, secondary "
               "words in a zebra row (7:1 target)"),
-    *_text_on("T2r", "text.secondary", ["bg.rail", "bg.hover", "accent.tint"], 4.5,
-              "An unselected tab's label; a card description in a hovered or checked card"),
+    *_text_on("T2r", "text.secondary", ["bg.rail", "bg.hover", "accent.tint", "bg.highlight"],
+              4.5,
+              "An unselected tab's label; a card description in a hovered or checked card; "
+              "Help's related topics under a search hit"),
     *_text_on("T3", "text.muted", ["bg.page", "bg.surface", "bg.field", "bg.inset",
                                    "bg.hover", "accent.tint", "bg.alt"], 4.5,
               "Captions, placeholders, column headers, pending steps, an unassigned relay; "
               "a schedule card's hint, on a selected card and on its drag pixmap too; the "
               "dashes of an uncalibrated row in the Calibration table, on a zebra row too"),
-    *_text_on("T4", "text.accent", ["bg.page", "bg.surface", "bg.hover", "accent.tint"], 4.5,
+    *_text_on("T4", "text.accent", ["bg.page", "bg.surface", "bg.hover", "accent.tint",
+                                    "bg.highlight"], 4.5,
               "Teal text: the info banner, elapsed time, the current and completed steps, "
               "card icons and badges, a schedule card's date (hovered or selected too) and "
-              "its drag pixmap, Help headings"),
+              "its drag pixmap, Help headings (under a search hit too)"),
     *_text_on("T5", "text.link", ["bg.page", "bg.surface", "accent.tint", "success.tint",
-                                  "danger.tint"], 4.5,
-              "Links: Show password, and Help links, in callouts too"),
+                                  "danger.tint", "bg.highlight"], 4.5,
+              "Links: Show password, and Help links, in callouts and under a search hit too"),
     *_text_on("T6", "text.on-accent", ["accent.fill", "accent.fill.hover",
                                        "accent.fill.pressed", "bg.selected"], 4.5,
               "Labels on teal fills: buttons, badges, the open status, selected items and "
