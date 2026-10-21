@@ -28,6 +28,7 @@ threshold. Pure Python: tokens.py and contrast.py are loaded by path.
 from __future__ import annotations
 
 import importlib.util
+import math
 import re
 from pathlib import Path
 from typing import NamedTuple, Optional
@@ -349,15 +350,41 @@ def failures(pair, theme, value=tokens.value):
 # ---- The formula ---------------------------------------------------------------------
 
 
-def test_the_formula_gives_w3cs_published_ratios():
-    # W3C, Understanding SC 1.4.3 and 1.4.11
-    assert round(contrast.contrast_ratio("#767676", "#FFFFFF"), 2) == 4.54
-    assert round(contrast.contrast_ratio("#949494", "#FFFFFF"), 2) == 3.03
-    assert round(contrast.contrast_ratio("#CCCCCC", "#FFFFFF"), 2) == 1.61
+# Ratios W3C prints, as it prints them: mostly cut to the digits shown (3.657 is printed 3.6,
+# 9.398 is 9.39, 15.609 is 15), once rounded (1.185 is 1.2)
+W3C_RATIOS = [
+    # ACT rule afw4f7, "Text has minimum contrast"
+    ("#333333", "#FFFFFF", "12.6"),  # Passed Example 1
+    ("#000000", "#666666", "3.6"),  # Passed Example 5
+    ("#0000EE", "#FFFFFF", "9.39"),  # Passed Example 10
+    ("#AAAAAA", "#FFFFFF", "2.3"),  # Failed Example 1
+    ("#777777", "#EEEEEE", "3.85"),  # Failed Example 9
+    # Understanding WCAG 2.2, Success Criterion 1.4.11 "Non-text Contrast"
+    ("#949494", "#FFFFFF", "3"),  # Figure 1
+    ("#E5E5E5", "#6221EA", "5.6"),  # Figure 4
+    ("#FFF000", "#FFFFFF", "1.2"),  # Figure 7
+    ("#CCCCCC", "#FFFFFF", "1.6"),  # Figure 33
+    ("#FFFFFF", "#6E747B", "4.7"),  # Figure 36
+    ("#000000", "#DEDEDE", "15"),  # Figure 40
+    ("#9D9D9D", "#FFFFFF", "2.7"),  # Figure 42
+]
+
+
+@pytest.mark.parametrize("fg, bg, printed", W3C_RATIOS)
+def test_the_formula_gives_the_ratios_w3c_prints(fg, bg, printed):
+    ratio = contrast.contrast_ratio(fg, bg)
+    digits = len(printed.partition(".")[2])
+    cut = math.floor(ratio * 10**digits) / 10**digits
+    assert float(printed) in (cut, round(ratio, digits)), f"{fg} on {bg}: {ratio:.4f}"
+
+
+def test_the_formula_at_its_ends():
     assert contrast.contrast_ratio("#FFFFFF", "#000000") == pytest.approx(21.0)
     assert contrast.contrast_ratio("#000000", "#FFFFFF") == pytest.approx(21.0)
     assert contrast.contrast_ratio("#FFFFFF", "#FFFFFF") == pytest.approx(1.0)
     assert contrast.contrast_ratio("#FFF", "#000") == pytest.approx(21.0)
+    # The lightest grey that passes 4.5:1 on white (#777777, 4.478, fails: see below)
+    assert round(contrast.contrast_ratio("#767676", "#FFFFFF"), 2) == 4.54
 
 
 def test_a_ratio_is_never_rounded():
