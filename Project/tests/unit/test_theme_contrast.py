@@ -175,6 +175,8 @@ PAIRS = [
          "A checked checkbox or radio on the page", MARK_ROBUST),
     Pair("M12", "accent.fill", "accent.tint", "nontext", 3,
          "The checked checkbox of a selected schedule card", MARK_ROBUST),
+    Pair("M13", "text.on-accent", "accent.fill.pressed", "nontext", 3,
+         "The splash screen's progress chunk against its groove", MARK_ROBUST),
     Pair("M10", "warning.indicator.selected", "bg.surface", "nontext", 3,
          "A selected master terminal's border, against the card"),
     Pair("M11", "warning.indicator.selected", "warning.tint", "nontext", 3,
@@ -218,7 +220,8 @@ PAIRS = [
               "Links: Show password, and Help links, in callouts too"),
     *_text_on("T6", "text.on-accent", ["accent.fill", "accent.fill.hover",
                                        "accent.fill.pressed", "bg.selected"], 4.5,
-              "Labels on teal fills: buttons, badges, the open status, selected items and text"),
+              "Labels on teal fills: buttons, badges, the open status, selected items and "
+              "text; the splash screen's title and status on both ends of its gradient"),
     Pair("T7", "text.tooltip", "bg.tooltip", "text", 7, "Tooltips", TEXT_ROBUST),
     # Status colours: today's hue families, held to WCAG
     *_text_on("T8", "text.on-danger", ["danger.fill", "danger.fill.hover",

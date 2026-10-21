@@ -100,7 +100,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "text.link": ("#115E59", "#5EEAD4"),
     # Text on accent.fill and bg.selected: the primary button, #InfoButton, #CageBadge,
     # #StatusLabel[status="open"], a completed step circle, #WizardNextButton, the
-    # Staggered badge, selected items and text (QPalette.HighlightedText)
+    # Staggered badge, selected items and text (QPalette.HighlightedText); the splash
+    # screen's #SplashTitle and #SplashStatus, and its bar's chunk
     "text.on-accent": ("#FFFFFF", "#042F2E"),
     # The danger button's label
     "text.on-danger": ("#FFFFFF", "#FFFFFF"),
@@ -133,12 +134,12 @@ TOKENS: dict[str, tuple[str, str]] = {
     # ---- Accent (teal) -----------------------------------------------------------------
     # The primary button, #InfoButton, #StatusLabel[status="open"], #CageBadge, the
     # Staggered badge, checked checkboxes and radios, a completed step circle,
-    # #WizardNextButton
+    # #WizardNextButton; the splash screen's gradient, which ends in accent.fill.hover
     "accent.fill": ("#0F766E", "#2DD4BF"),
     # The primary button, #InfoButton, the slider handle and #WizardNextButton under the
     # pointer
     "accent.fill.hover": ("#115E59", "#5EEAD4"),
-    # The primary button and #InfoButton pressed
+    # The primary button and #InfoButton pressed; the groove of #SplashProgress
     "accent.fill.pressed": ("#134E4A", "#99F6E4"),
     # Marks that carry a state or a value: the selected tab's top bar, the progress chunk,
     # the slider, the drop-target border, the stripes of #InfoBanner and #RelayTerminal, a

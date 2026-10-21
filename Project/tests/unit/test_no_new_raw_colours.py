@@ -54,12 +54,11 @@ colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.
 # Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0, less those that
 # moved to tokens since (v2.1.0: the Help tab's, the Schedules hub's, the progress
 # tracker's, the Settings tab's, the schedule wizard's, its Start Over button's, the
-# Cages tab's, the calibration wizard's and the Animals tab's).
+# Cages tab's, the calibration wizard's, the Animals tab's and the splash screen's).
 BASELINE = {
     "ui/SuggestSettingsTab.py": 2,
     "ui/available_animals_list.py": 5,
     "ui/relay_unit_widget.py": 1,
-    "ui/splash_screen.py": 8,
     "ui/staggered_delivery_slot.py": 4,
 }
 

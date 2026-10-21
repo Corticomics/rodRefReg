@@ -1456,6 +1456,25 @@ QLabel#WizardSummaryValue {
 }
 
 /* ============================================
+   SPLASH SCREEN
+   ============================================ */
+/* On the splash's teal gradient, which SplashScreen paints from accent.fill to
+   accent.fill.hover: the title and the status (an error too, which its words name) in
+   text.on-accent, and the bar in it over a deeper teal groove */
+QLabel#SplashTitle, QLabel#SplashStatus {
+    color: ${text.on-accent};
+}
+QProgressBar#SplashProgress {
+    background: ${accent.fill.pressed};
+    border: none;
+    border-radius: 4px;
+}
+QProgressBar#SplashProgress::chunk {
+    background: ${text.on-accent};
+    border-radius: 4px;
+}
+
+/* ============================================
    HELP TAB
    ============================================ */
 
