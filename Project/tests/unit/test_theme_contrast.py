@@ -116,6 +116,15 @@ PAIRS = [
          "Zebra rows: an alternate row against a plain one"),
     Pair("C4", "danger.tint.strong", "danger.tint", "cue", 1.10,
          "The Schedules hub's Cancel under the pointer, and its edge, against its tint"),
+    # A tracker bar writes its value inside it, in one colour over the fill and the groove:
+    # with these grooves, no fill is 3:1 from its groove and 4.5:1 from that text. The
+    # value is the text (and the volume under the bar), so the fill is held to a step.
+    Pair("C5", "progress.fill", "bg.track", "cue", 1.25,
+         "A tracker bar's fill against its groove, while a delivery runs"),
+    Pair("C6", "progress.fill.complete", "success.tint", "cue", 1.25,
+         "The same, Complete"),
+    Pair("C7", "progress.fill.failed", "danger.tint", "cue", 1.25,
+         "The same, Failed"),
     # ---- Control boundaries (WCAG 1.4.11) ------------------------------------------
     Pair("N1", "border.control", "bg.surface", "nontext", 3,
          "An input, button, checkbox or radio ring, scrollbar handle on a card",
@@ -180,8 +189,9 @@ PAIRS = [
     # ---- Text (WCAG 1.4.3) ---------------------------------------------------------
     *_text_on("T1", "text.primary",
               ["bg.page", "bg.surface", "bg.field", "bg.inset", "bg.alt", "bg.hover",
-               "bg.pressed", "bg.rail.hover", "accent.tint"], 7,
-              "Body text, values, titles, typed input; the selected tab's label (7:1 target)"),
+               "bg.pressed", "bg.rail.hover", "accent.tint", "bg.track"], 7,
+              "Body text, values, titles, typed input; the selected tab's label; the value "
+              "in a tracker bar, over its groove (7:1 target)"),
     *_text_on("T1h", "text.primary", ["success.tint", "danger.tint", "bg.highlight"], 4.5,
               "Text inside a Help tip or warning; a Help search hit"),
     *_text_on("T2", "text.secondary", ["bg.page", "bg.surface", "bg.field", "bg.inset",
@@ -225,6 +235,14 @@ PAIRS = [
     # The delivery modes' badges (Staggered's is text.on-accent on accent.fill, T6)
     Pair("T12", "text.on-instant", "instant.fill", "text", 4.5,
          "Instant on a schedule card's mode badge"),
+    # The progress tracker: the value in a bar where the fill passes under it (over a
+    # complete or failed bar's groove: T1h), and the status words on a card
+    *_text_on("T13", "text.primary", ["progress.fill", "progress.fill.complete",
+                                      "progress.fill.failed"], 4.5,
+              "The value written in a tracker bar, over its fill"),
+    Pair("T14w", "warning.text", "bg.surface", "text", 4.5, "Paused on a progress card"),
+    Pair("T14s", "success.text", "bg.surface", "text", 4.5, "Complete on a progress card"),
+    Pair("T14d", "danger.text", "bg.surface", "text", 4.5, "Failed on a progress card"),
     # ---- Reported, not asserted ----------------------------------------------------
     Pair("I1", "text.disabled", "bg.disabled", "info", 3,
          "Disabled labels: WCAG exempts a control that is really disabled"),
@@ -351,7 +369,7 @@ def test_every_pair_names_real_tokens_and_a_known_kind():
 def test_every_text_role_has_its_pairs():
     """A role that colours text is checked against at least one background."""
     text_roles = {name for name in tokens.TOKENS if name.startswith("text.")}
-    text_roles |= {name for name in tokens.TOKENS if ".on-" in name or name == "warning.text"}
+    text_roles |= {name for name in tokens.TOKENS if ".on-" in name or name.endswith(".text")}
     checked = {p.fg for p in ASSERTED if p.kind == "text"}
     unchecked = text_roles - checked - {"text.disabled"}  # exempt; reported as I1
     assert not unchecked, f"text roles with no asserted pair: {sorted(unchecked)}"

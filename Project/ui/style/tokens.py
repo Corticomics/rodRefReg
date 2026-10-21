@@ -56,7 +56,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     "bg.hover": ("#E6E9ED", "#282E36"),
     # QPushButton pressed
     "bg.pressed": ("#C3C7CD", "#1F242B"),
-    # Progress bar and slider grooves
+    # Progress bar and slider grooves (#TrackerProgress's too)
     "bg.track": ("#DADDE2", "#1F242B"),
     # Alternate table rows (QPalette.AlternateBase)
     "bg.alt": ("#F1F3F5", "#373E48"),
@@ -72,7 +72,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "bg.tooltip": ("#1A1D1F", "#E5E9EF"),
     # ---- Text --------------------------------------------------------------------------
     # Body text (QPalette WindowText, Text, ButtonText): titles, typed input, labels,
-    # buttons, tables, lists, menus, the selected tab, the help tree and Help pages
+    # buttons, tables, lists, menus, the selected tab, the help tree and Help pages; the
+    # value written in a #TrackerProgress bar
     "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
@@ -81,14 +82,14 @@ TOKENS: dict[str, tuple[str, str]] = {
     "text.secondary": ("#2E3A4B", "#CBD5E1"),
     # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
     # #UnassignedLabel, #HealthIndicator, #TimeRemaining, #ScheduleCardHint,
-    # #SchedulesHubEmptyText, the hint on a schedule's drag pixmap, a pending step, step
-    # titles, the help result count
+    # #SchedulesHubEmptyText, the hint on a schedule's drag pixmap, #DeliveryStatus
+    # (Waiting and other words), a pending step, step titles, the help result count
     "text.muted": ("#475366", "#B8C1CC"),
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
     # Teal text: #InfoBanner, #ElapsedTime, the current step, a completed step title,
     # #CardIcon, #CardBadge, #StepIcon, #ScheduleCardCreated, the name on a schedule's drag
-    # pixmap; Help headings
+    # pixmap, #DeliveryStatus[status="delivering"]; Help headings
     "text.accent": ("#115E59", "#5EEAD4"),
     # Links: #LinkLabel, Help links (underlined: they differ from body text by colour
     # less than 3:1) (QPalette Link, LinkVisited)
@@ -106,8 +107,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # ---- Borders -----------------------------------------------------------------------
     # Decorative outlines: cards, tab panes and tabs, group boxes, tables, lists, menus,
     # the combo popup, the table header rule, #TrackerHeader, #MaterialCard,
-    # #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard, #WizardConnector, the
-    # help panes; disabled inputs, buttons and indicators
+    # #TrackerProgress, #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard,
+    # #WizardConnector, the help panes; disabled inputs, buttons and indicators
     "border.subtle": ("#AAB2BE", "#4F5865"),
     # Table grid lines and row rules, #WizardSeparator; the rule above Help's related
     # topics
@@ -149,11 +150,27 @@ TOKENS: dict[str, tuple[str, str]] = {
     # white label reads (#6366F1 gave 4.47:1), and in dark a light indigo under dark text,
     # as accent.fill is
     "instant.fill": ("#4F46E5", "#A5B4FC"),
+    # ---- The progress tracker's bars (#TrackerProgress) ------------------------------
+    # A bar writes its value inside it, in text.primary over the groove and the fill
+    # alike, so each fill is a shade that text reads on (4.5:1 or more): light in the
+    # light theme, dark in the dark one. A fill stays under 3:1 against its groove
+    # (1.3 to 2.3:1): the value is the text in the bar and the volume under it, and the
+    # fill only supports them.
+    # A running delivery (teal-500 in light, the light end of today's gradient)
+    "progress.fill": ("#14B8A6", "#115E59"),
+    # Complete, on the success.tint groove
+    "progress.fill.complete": ("#10B981", "#065F46"),
+    # Failed, on the danger.tint groove
+    "progress.fill.failed": ("#F87171", "#B91C1C"),
     # ---- Status: today's hue families; a shade changes only where a pair fails WCAG ----
-    # QLabel[variant="success"]; Help tips
+    # QLabel[variant="success"]; Help tips; the tint is a complete #TrackerProgress's
+    # groove
     "success.tint": ("#D1FAE5", "#064E3B"),
     "success.on-tint": ("#065F46", "#A7F3D0"),
     "success.indicator": ("#10B981", "#10B981"),
+    # A success word on a card: #DeliveryStatus[status="complete"] (today's #059669 gave
+    # 3.77:1)
+    "success.text": ("#065F46", "#6EE7B7"),
     # QLabel[variant="warning"]; #MasterTerminal under the pointer and selected
     "warning.tint": ("#FEF3C7", "#78350F"),
     # #MasterTerminal
@@ -168,7 +185,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     # A selected #MasterTerminal's border: its selected state, 3:1 or more against the
     # card and its own fill (amber-700 in light: today's amber-500 was 2.15:1)
     "warning.indicator.selected": ("#B45309", "#FBBF24"),
-    # #MasterLabel
+    # #MasterLabel; #DeliveryStatus[status="paused"] (today's #D97706 gave 3.19:1)
     "warning.text": ("#92400E", "#FCD34D"),
     # QPushButton[variant="danger"]; white reads on these in both themes (today's dark
     # #EF4444, #F87171 gave it 3.76:1 and 2.77:1)
@@ -176,12 +193,16 @@ TOKENS: dict[str, tuple[str, str]] = {
     "danger.fill.hover": ("#B91C1C", "#B91C1C"),
     "danger.fill.pressed": ("#991B1B", "#991B1B"),
     # QLabel[variant="error"]; Help warnings; Cancel in the Schedules hub's select mode
-    # (#SchedulesHubSelect[selecting="true"])
+    # (#SchedulesHubSelect[selecting="true"]); the tint is a failed #TrackerProgress's
+    # groove
     "danger.tint": ("#FEE2E2", "#7F1D1D"),
     "danger.on-tint": ("#991B1B", "#FECACA"),
+    "danger.indicator": ("#EF4444", "#EF4444"),
     # A deeper danger tint: the edge of that Cancel button, and its fill under the pointer
     "danger.tint.strong": ("#FECACA", "#991B1B"),
-    "danger.indicator": ("#EF4444", "#EF4444"),
+    # A danger word on a card: #DeliveryStatus[status="failed"] (today's #DC2626 would give
+    # 2.49:1 on the dark card)
+    "danger.text": ("#B91C1C", "#FCA5A5"),
     # The Animals tab's bright red cell for a run that ended short, and its bold text
     # (QWidget#AnimalsTab qproperty-alertFill / qproperty-alertText)
     "danger.alert": ("#DC2626", "#DC2626"),

@@ -790,12 +790,19 @@ QScrollArea#TrackerScrollArea {
     border: none;
 }
 
-/* Material Cards */
+/* Material Cards: one per animal */
 QFrame#MaterialCard {
     background-color: ${bg.surface};
     border: 1px solid ${border.subtle};
     border-radius: 12px;
     padding: 0;
+}
+/* A QLabel is a QFrame. Before v2.1.0 the card's own `QFrame {...}` sheet also gave every
+   label in it a 1px border: it drew a box around each, and QLabel indents the text of a
+   framed label by half an "x". The border stays, transparent, so no label moves; removing
+   it is a layout change for later. */
+QFrame#MaterialCard QLabel {
+    border: 1px solid transparent;
 }
 
 QLabel#CardTitle {
@@ -805,13 +812,83 @@ QLabel#CardTitle {
     background: transparent;
 }
 
+QLabel#TrackerAnimal {
+    font-size: 13px;
+    font-weight: 600;
+    color: ${text.primary};
+}
+
 QLabel#CageBadge {
     background-color: ${accent.fill};
     color: ${text.on-accent};
-    padding: 6px 12px;
-    border-radius: 12px;
+    padding: 5px 10px;
+    border-radius: 10px;
     font-weight: 600;
     font-size: 11px;
+}
+
+/* The animal's progress. The bar writes its value inside it in one colour, over the
+   groove and the fill alike: each fill is a shade text.primary reads on (tokens.py,
+   progress.*). A complete or failed bar keeps its state (state="complete"|"failed"). */
+QProgressBar#TrackerProgress {
+    border: 1px solid ${border.subtle};
+    border-radius: 11px;
+    background: ${bg.track};
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: ${text.primary};
+}
+QProgressBar#TrackerProgress::chunk {
+    border-radius: 10px;
+    background: ${progress.fill};
+}
+QProgressBar#TrackerProgress[state="complete"] {
+    background: ${success.tint};
+}
+QProgressBar#TrackerProgress[state="complete"]::chunk {
+    background: ${progress.fill.complete};
+}
+QProgressBar#TrackerProgress[state="failed"] {
+    background: ${danger.tint};
+}
+QProgressBar#TrackerProgress[state="failed"]::chunk {
+    background: ${progress.fill.failed};
+}
+
+QLabel#VolumeLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: ${text.primary};
+    background: transparent;
+}
+
+/* The status word: muted and regular until the card's first update, then bold in its
+   status's colour. Waiting, and a word with no colour of its own (Incomplete: "other"),
+   stay muted. */
+QLabel#DeliveryStatus {
+    font-size: 11px;
+    color: ${text.muted};
+}
+QLabel#DeliveryStatus[status="waiting"],
+QLabel#DeliveryStatus[status="other"] {
+    font-weight: 600;
+}
+QLabel#DeliveryStatus[status="delivering"] {
+    font-weight: 600;
+    color: ${text.accent};
+}
+QLabel#DeliveryStatus[status="paused"] {
+    font-weight: 600;
+    color: ${warning.text};
+}
+QLabel#DeliveryStatus[status="complete"] {
+    font-weight: 600;
+    color: ${success.text};
+}
+QLabel#DeliveryStatus[status="failed"] {
+    font-weight: 600;
+    color: ${danger.text};
 }
 
 /* ============================================
@@ -922,13 +999,6 @@ QLabel#StatusDot {
 QLabel#MasterStatusDot {
     font-size: 10px;
     color: ${warning.indicator.status-dot};
-    background: transparent;
-}
-
-QLabel#VolumeLabel {
-    font-size: 14px;
-    font-weight: 600;
-    color: ${text.primary};
     background: transparent;
 }
 
