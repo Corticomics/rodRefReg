@@ -190,6 +190,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # #MasterTerminal
     "warning.tint.master-terminal": ("#FFFBEB", "#451A03"),
     "warning.on-tint": ("#92400E", "#FDE68A"),
+    # #MasterLabel: MASTER SOLENOID on the master terminal's fills
+    "warning.on-tint.master-terminal": ("#92400E", "#FCD34D"),
     # QLabel[variant="warning"]'s stripe, #MasterTerminal's stripe, #WizardLimitBanner's
     # edge
     "warning.indicator": ("#F59E0B", "#F59E0B"),
@@ -200,9 +202,11 @@ TOKENS: dict[str, tuple[str, str]] = {
     # A selected #MasterTerminal's border: its selected state, 3:1 or more against the
     # card and its own fill (amber-700 in light: today's amber-500 was 2.15:1)
     "warning.indicator.selected": ("#B45309", "#FBBF24"),
-    # #MasterLabel; #DeliveryStatus[status="paused"] (today's #D97706 gave 3.19:1),
-    # #SlackStatus[status="warn"], Stale and a CV under 5 % in the Calibration table
-    "warning.text": ("#92400E", "#FCD34D"),
+    # A warning word: #DeliveryStatus[status="paused"] (today's #D97706 gave 3.19:1),
+    # #SlackStatus[status="warn"], Stale and a CV under 5 % in the Calibration table. In
+    # light, today's mustard there, (200, 150, 0) at 2.69:1, a shade darker: it keeps its
+    # hue, so it stays apart from danger.text (CIEDE2000 32.4; amber-800 #92400E gave 13.2)
+    "warning.text": ("#7A5C00", "#FCD34D"),
     # QPushButton[variant="danger"]; white reads on these in both themes (today's dark
     # #EF4444, #F87171 gave it 3.76:1 and 2.77:1)
     "danger.fill": ("#DC2626", "#DC2626"),

@@ -609,7 +609,7 @@ QLabel#SlackStatus[status="ok"] {
     color: #065F46;
 }
 QLabel#SlackStatus[status="warn"] {
-    color: #92400E;
+    color: #7A5C00;
 }
 
 /* ============================================
@@ -902,7 +902,7 @@ QLabel#DeliveryStatus[status="delivering"] {
 }
 QLabel#DeliveryStatus[status="paused"] {
     font-weight: 600;
-    color: #92400E;
+    color: #7A5C00;
 }
 QLabel#DeliveryStatus[status="complete"] {
     font-weight: 600;

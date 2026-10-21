@@ -243,9 +243,9 @@ PAIRS = [
     Pair("T10dh", "danger.on-tint", "danger.tint.strong", "text", 4.5,
          "That Cancel under the pointer"),
     Pair("T10i", "info.on-tint", "info.tint", "text", 4.5, "An info banner"),
-    Pair("T11", "warning.text", "warning.tint.master-terminal", "text", 4.5,
+    Pair("T11", "warning.on-tint.master-terminal", "warning.tint.master-terminal", "text", 4.5,
          "MASTER SOLENOID on the master terminal"),
-    Pair("T11h", "warning.text", "warning.tint", "text", 4.5,
+    Pair("T11h", "warning.on-tint.master-terminal", "warning.tint", "text", 4.5,
          "MASTER SOLENOID on a hovered or selected master terminal"),
     # The delivery modes' badges (Staggered's is text.on-accent on accent.fill, T6)
     Pair("T12", "text.on-instant", "instant.fill", "text", 4.5,
@@ -475,6 +475,25 @@ def test_pair_meets_its_threshold(pair, theme):
         f"{pair.id} ({pair.kind}) {pair.fg} {fg} on {pair.bg} {bg}, {theme}: {missed}. "
         f"{pair.why}. Change the colour in tokens.py, not the threshold."
     )
+
+
+# Status words that share a column and say different things: [OK] or a good CV, Stale or an
+# acceptable CV, Invalid or a poor CV in the Calibration table; Complete, Paused and Failed.
+STATUS_WORDS = ("success.text", "warning.text", "danger.text")
+# CIEDE2000 between any two. v2.0.0's tracker words, Paused and Failed, were 24.8 apart and
+# its Calibration table's mustard and red 40.7; the brown and red of the first palette B
+# draft were 13.2, and looked alike.
+STATUS_WORDS_APART = 25
+
+
+@pytest.mark.parametrize("theme", tokens.THEMES)
+def test_status_words_differ_in_colour_not_only_in_their_words(theme):
+    """The words carry the meaning, and their colour is the cue at a glance: two status
+    colours that look alike lose it, whatever their contrast with the row."""
+    for i, first in enumerate(STATUS_WORDS):
+        for second in STATUS_WORDS[i + 1 :]:
+            apart = contrast.delta_e_2000(tokens.value(first, theme), tokens.value(second, theme))
+            assert apart >= STATUS_WORDS_APART, f"{first} and {second}, {theme}: {apart:.1f}"
 
 
 def test_the_judges_fixes_hold():
