@@ -1,9 +1,8 @@
 from urllib.parse import unquote
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QPalette, QTextCharFormat, QTextCursor
+from PyQt5.QtGui import QColor, QFont, QTextCharFormat, QTextCursor
 from PyQt5.QtWidgets import (
-    QApplication,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -16,11 +15,7 @@ from PyQt5.QtWidgets import (
 )
 from utils.help_content_manager import HelpContentManager, help_colour
 
-
-def _style_manager():
-    """The application's StyleManager (main.py stores it as a property), or None."""
-    app = QApplication.instance()
-    return app.property('style_manager') if app is not None else None
+from .style.theme import current_theme, style_manager
 
 
 class HelpTab(QWidget):
@@ -43,9 +38,9 @@ class HelpTab(QWidget):
         # The page's HTML carries its own colours, which the stylesheet cannot reach:
         # draw it again whenever a theme is applied, including the saved theme main.py
         # applies at start-up, after this tab exists.
-        style_manager = _style_manager()
-        if style_manager is not None and hasattr(style_manager, 'theme_changed'):
-            style_manager.theme_changed.connect(self._on_theme_changed)
+        manager = style_manager()
+        if manager is not None and hasattr(manager, 'theme_changed'):
+            manager.theme_changed.connect(self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -145,16 +140,8 @@ class HelpTab(QWidget):
     # ------------------------------------------------------------------
 
     def _current_theme(self) -> str:
-        """The theme StyleManager applied last; without one, the palette's lightness."""
-        style_manager = _style_manager()
-        theme = getattr(style_manager, 'theme', None)
-        if theme in ('light', 'dark'):
-            return theme
-        app = QApplication.instance()
-        if app is None:
-            return 'light'
-        lightness = app.palette().color(QPalette.Window).lightness()
-        return 'dark' if lightness < 128 else 'light'
+        """The theme StyleManager applied last ("light" without one): ui.style.theme's."""
+        return current_theme()
 
     def _on_theme_changed(self, _theme: str):
         self.refresh_theme()
