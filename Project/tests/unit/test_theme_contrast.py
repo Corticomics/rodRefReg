@@ -107,6 +107,8 @@ PAIRS = [
          "Table grid lines and row rules, separators", {"clip": 1.3}),
     Pair("D5", "border.subtle", "bg.inset", "line", 1.5,
          "A nested group box's outline on its own fill", LINE_ROBUST),
+    Pair("D6", "warning.indicator", "bg.page", "line", 1.5,
+         "The edge of the schedule wizard's limit banner against the page"),
     # ---- Supplemental fills: hover and zebra rows ----------------------------------
     Pair("C1", "bg.hover", "bg.surface", "cue", 1.10,
          "A row, item or button under the pointer, on a card"),
@@ -192,8 +194,10 @@ PAIRS = [
                "bg.pressed", "bg.rail.hover", "accent.tint", "bg.track"], 7,
               "Body text, values, titles, typed input; the selected tab's label; the value "
               "in a tracker bar, over its groove (7:1 target)"),
-    *_text_on("T1h", "text.primary", ["success.tint", "danger.tint", "bg.highlight"], 4.5,
-              "Text inside a Help tip or warning; a Help search hit"),
+    *_text_on("T1h", "text.primary", ["success.tint", "danger.tint", "bg.highlight",
+                                      "warning.tint"], 4.5,
+              "Text inside a Help tip or warning; a Help search hit; the ⚠ of the schedule "
+              "wizard's limit banner"),
     *_text_on("T2", "text.secondary", ["bg.page", "bg.surface", "bg.field", "bg.inset",
                                        "bg.alt"], 7,
               "Subtitles, help text, form labels, table headers, the combo arrow, secondary "

@@ -1331,6 +1331,82 @@ QLabel#StepDescription {
 }
 
 /* ============================================
+   SCHEDULE WIZARD STEPS
+   ============================================ */
+/* Step 2's banner: how many animals the relays allow. The warning tint, with a 1px edge
+   all round. */
+QFrame#WizardLimitBanner {
+    background: #78350F;
+    border: 1px solid #F59E0B;
+    border-radius: 6px;
+}
+/* A QLabel is a QFrame: before v2.1.0 the banner's own `QFrame {...}` sheet also framed its
+   icon and its text. That 1px border stays, transparent, so neither moves; removing it is
+   a layout change for later. */
+QFrame#WizardLimitBanner QLabel {
+    border: 1px solid transparent;
+}
+QLabel#WizardLimitText {
+    color: #FDE68A;
+    font-size: 11px;
+}
+
+/* Step 2's count of selected animals: muted at 11px until the selection first changes,
+   then 12px in the colour of the count (count="none"|"some"|"over") */
+QLabel#WizardSelectionCounter {
+    color: #B8C1CC;
+    font-size: 11px;
+}
+QLabel#WizardSelectionCounter[count="none"],
+QLabel#WizardSelectionCounter[count="some"],
+QLabel#WizardSelectionCounter[count="over"] {
+    font-size: 12px;
+}
+QLabel#WizardSelectionCounter[count="some"] {
+    color: #6EE7B7;
+}
+QLabel#WizardSelectionCounter[count="over"] {
+    color: #FCA5A5;
+}
+
+/* Step 3 with no animals selected */
+QLabel#WizardEmptyState {
+    color: #B8C1CC;
+    font-size: 14px;
+}
+
+/* Step 3's row for each animal (the schedule edit dialog's too): outlined in its group
+   box */
+QFrame#AnimalConfigRow {
+    background: #30373F;
+    border: 1px solid #4F5865;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 4px 0;
+}
+
+/* Step 4's summary, on the page: section titles with a rule under them, then label and
+   value rows */
+QLabel#WizardSummarySection {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5EEAD4;
+    padding-top: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #4F5865;
+}
+QLabel#WizardSummaryLabel {
+    font-size: 11px;
+    font-weight: 500;
+    color: #CBD5E1;
+}
+QLabel#WizardSummaryValue {
+    font-size: 11px;
+    font-weight: 600;
+    color: #E5E9EF;
+}
+
+/* ============================================
    HELP TAB
    ============================================ */
 

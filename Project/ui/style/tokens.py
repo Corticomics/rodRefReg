@@ -38,7 +38,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
     # menus, the combo popup, QPushButton, an idle drop area, #TrackerHeader,
     # #MaterialCard, #RelayTerminal, #InteractiveCard, #ScheduleCard, the wizard's step
-    # circles and Back button, the help panes (QPalette.Button)
+    # circles and Back button, #AnimalConfigRow, the help panes (QPalette.Button)
     "bg.surface": ("#FFFFFF", "#30373F"),
     # Editable fields, focused or not; checkbox and radio indicators; #CageNameEdit,
     # #SchedulesHubSearch (QPalette.Base)
@@ -73,26 +73,26 @@ TOKENS: dict[str, tuple[str, str]] = {
     # ---- Text --------------------------------------------------------------------------
     # Body text (QPalette WindowText, Text, ButtonText): titles, typed input, labels,
     # buttons, tables, lists, menus, the selected tab, the help tree and Help pages; the
-    # value written in a #TrackerProgress bar
+    # value written in a #TrackerProgress bar, #WizardSummaryValue
     "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
     # button, card and step descriptions, #ScheduleCardMeta, #SchedulesHubEmptyTitle, the
-    # help breadcrumb, #GroupDescription, the Calibration tab's description; muted words
-    # in Help
+    # help breadcrumb, #GroupDescription, the Calibration tab's description,
+    # #WizardSummaryLabel; muted words in Help
     "text.secondary": ("#2E3A4B", "#CBD5E1"),
     # Captions, placeholders (QPalette.PlaceholderText), #BoardTitle, #ColumnHeader,
     # #UnassignedLabel, #HealthIndicator, #TimeRemaining, #ScheduleCardHint,
     # #SchedulesHubEmptyText, the hint on a schedule's drag pixmap, #DeliveryStatus
     # (Waiting and other words), a pending step, step titles, the help result count,
     # #SlackStatus before any message, the dashes of an uncalibrated row and a missing CV
-    # in the Calibration table
+    # in the Calibration table, #WizardSelectionCounter (none selected), #WizardEmptyState
     "text.muted": ("#475366", "#B8C1CC"),
     # Disabled controls only (QPalette Disabled WindowText, Text and ButtonText)
     "text.disabled": ("#7B8490", "#6B7480"),
     # Teal text: #InfoBanner, #ElapsedTime, the current step, a completed step title,
     # #CardIcon, #CardBadge, #StepIcon, #ScheduleCardCreated, the name on a schedule's drag
-    # pixmap, #DeliveryStatus[status="delivering"]; Help headings
+    # pixmap, #DeliveryStatus[status="delivering"], #WizardSummarySection; Help headings
     "text.accent": ("#115E59", "#5EEAD4"),
     # Links: #LinkLabel, Help links (underlined: they differ from body text by colour
     # less than 3:1) (QPalette Link, LinkVisited)
@@ -111,7 +111,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # Decorative outlines: cards, tab panes and tabs, group boxes, tables, lists, menus,
     # the combo popup, the table header rule, #TrackerHeader, #MaterialCard,
     # #TrackerProgress, #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard,
-    # #WizardConnector, the help panes; disabled inputs, buttons and indicators
+    # #WizardConnector, #AnimalConfigRow, the rule under #WizardSummarySection, the help
+    # panes; disabled inputs, buttons and indicators
     "border.subtle": ("#AAB2BE", "#4F5865"),
     # Table grid lines and row rules, #WizardSeparator; the rule above Help's related
     # topics
@@ -172,14 +173,17 @@ TOKENS: dict[str, tuple[str, str]] = {
     "success.on-tint": ("#065F46", "#A7F3D0"),
     "success.indicator": ("#10B981", "#10B981"),
     # A success word: #DeliveryStatus[status="complete"] (today's #059669 gave 3.77:1),
-    # #SlackStatus[status="ok"], [OK] and a CV under 3 % in the Calibration table
+    # #SlackStatus[status="ok"], [OK] and a CV under 3 % in the Calibration table,
+    # #WizardSelectionCounter[count="some"]
     "success.text": ("#065F46", "#6EE7B7"),
-    # QLabel[variant="warning"]; #MasterTerminal under the pointer and selected
+    # QLabel[variant="warning"]; #MasterTerminal under the pointer and selected;
+    # #WizardLimitBanner, with its text (#WizardLimitText) in warning.on-tint
     "warning.tint": ("#FEF3C7", "#78350F"),
     # #MasterTerminal
     "warning.tint.master-terminal": ("#FFFBEB", "#451A03"),
     "warning.on-tint": ("#92400E", "#FDE68A"),
-    # QLabel[variant="warning"]'s stripe, #MasterTerminal's stripe
+    # QLabel[variant="warning"]'s stripe, #MasterTerminal's stripe, #WizardLimitBanner's
+    # edge
     "warning.indicator": ("#F59E0B", "#F59E0B"),
     # #MasterTerminal's outline
     "warning.indicator.master-terminal": ("#FCD34D", "#78350F"),
@@ -206,7 +210,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     "danger.tint.strong": ("#FECACA", "#991B1B"),
     # A danger word: #DeliveryStatus[status="failed"] (today's #DC2626 would give 2.49:1 on
     # the dark card); Invalid, Not Calibrated and a CV of 5 % or more in the Calibration
-    # table
+    # table, #WizardSelectionCounter[count="over"]
     "danger.text": ("#B91C1C", "#FCA5A5"),
     # The Animals tab's bright red cell for a run that ended short, and its bold text
     # (QWidget#AnimalsTab qproperty-alertFill / qproperty-alertText)

@@ -57,6 +57,7 @@ from utils.topology import reserved_relay_reason
 
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
 from .components.wizard import WizardContainer, WizardStep
+from .style.theme import restyle
 
 
 # ============================================================================
@@ -493,15 +494,9 @@ class Step2SelectAnimals(QWidget):
         )
         layout.addWidget(header)
 
-        # Hardware limit info (compact)
+        # Hardware limit info (compact), in the theme's warning tint (#WizardLimitBanner)
         limit_container = QFrame()
-        limit_container.setStyleSheet("""
-            QFrame {
-                background: #FEF3C7;
-                border: 1px solid #F59E0B;
-                border-radius: 6px;
-            }
-        """)
+        limit_container.setObjectName("WizardLimitBanner")
         limit_layout = QHBoxLayout(limit_container)
         limit_layout.setContentsMargins(8, 4, 8, 4)
         limit_layout.setSpacing(6)
@@ -515,7 +510,7 @@ class Step2SelectAnimals(QWidget):
             f"(Relay {self._master_relay} is "
             f"{reserved_relay_reason(_settings_of(self._system_controller))})"
         )
-        self._limit_label.setStyleSheet("color: #92400E; font-size: 11px;")
+        self._limit_label.setObjectName("WizardLimitText")
         self._limit_label.setWordWrap(True)
         limit_layout.addWidget(self._limit_label, 1)
 
@@ -528,9 +523,10 @@ class Step2SelectAnimals(QWidget):
         list_layout.setContentsMargins(8, 8, 8, 8)
         list_layout.setSpacing(6)
 
-        # Selection counter
+        # Selection counter: muted until the first change, then in the colour of the
+        # count (its `count` property, #WizardSelectionCounter)
         self._selection_counter = QLabel("0 selected")
-        self._selection_counter.setStyleSheet("color: #6B7280; font-size: 11px;")
+        self._selection_counter.setObjectName("WizardSelectionCounter")
         list_layout.addWidget(self._selection_counter)
 
         self._animals_list = QListWidget()
@@ -626,9 +622,11 @@ class Step2SelectAnimals(QWidget):
 
         # Update counter
         count = len(self._selected_animals)
-        color = "#DC2626" if count > self._max_cages else ("#059669" if count > 0 else "#6B7280")
+        state = "over" if count > self._max_cages else ("some" if count > 0 else "none")
         self._selection_counter.setText(f"{count} of {self._max_cages} max selected")
-        self._selection_counter.setStyleSheet(f"color: {color}; font-size: 12px;")
+        if self._selection_counter.property("count") != state:
+            self._selection_counter.setProperty("count", state)
+            restyle(self._selection_counter)
 
         self.selection_changed.emit(self._selected_animals)
 
@@ -846,7 +844,7 @@ class Step3ConfigureParameters(QWidget):
         """Show empty state when no animals selected."""
         label = QLabel("No animals selected. Please go back and select animals.")
         label.setAlignment(Qt.AlignCenter)
-        label.setStyleSheet("color: #9CA3AF; font-size: 14px;")
+        label.setObjectName("WizardEmptyState")
         self._params_layout.addWidget(label)
         self._params_layout.addStretch()
 
@@ -942,15 +940,6 @@ class Step3ConfigureParameters(QWidget):
 
         container = QFrame()
         container.setObjectName("AnimalConfigRow")
-        container.setStyleSheet("""
-            QFrame#AnimalConfigRow {
-                background: #F8FAFB;
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
-                padding: 8px;
-                margin: 4px 0;
-            }
-        """)
 
         layout = QHBoxLayout(container)
         layout.setSpacing(12)
@@ -1159,15 +1148,6 @@ class Step3ConfigureParameters(QWidget):
 
         container = QFrame()
         container.setObjectName("AnimalConfigRow")
-        container.setStyleSheet("""
-            QFrame#AnimalConfigRow {
-                background: #F8FAFB;
-                border: 1px solid #E5E7EB;
-                border-radius: 8px;
-                padding: 8px;
-                margin: 4px 0;
-            }
-        """)
 
         layout = QHBoxLayout(container)
         layout.setSpacing(12)
@@ -1575,24 +1555,17 @@ class Step4Review(QWidget):
         """Add a section header to the summary with proper spacing."""
         # Section header label - compact, spans both columns
         section = QLabel(title)
-        section.setStyleSheet("""
-            font-size: 12px; 
-            font-weight: 600;
-            color: #0D9488; 
-            padding-top: 6px;
-            padding-bottom: 4px;
-            border-bottom: 1px solid #E5E7EB;
-        """)
+        section.setObjectName("WizardSummarySection")
         section.setWordWrap(False)
         self._summary_layout.addRow(section)
 
     def _add_summary_row(self, label: str, value: str) -> None:
         """Add a compact row to the summary."""
         label_widget = QLabel(label)
-        label_widget.setStyleSheet("font-weight: 500; color: #4E5D6C; font-size: 11px;")
+        label_widget.setObjectName("WizardSummaryLabel")
 
         value_widget = QLabel(value)
-        value_widget.setStyleSheet("font-weight: 600; color: #1A1D1F; font-size: 11px;")
+        value_widget.setObjectName("WizardSummaryValue")
         value_widget.setAlignment(Qt.AlignRight)
         value_widget.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
