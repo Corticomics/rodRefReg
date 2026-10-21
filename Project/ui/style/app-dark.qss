@@ -377,6 +377,21 @@ QWidget#AnimalsTab {
 }
 
 /* ============================================
+   CALENDAR POPUP
+   ============================================ */
+/* A date field's calendar fills its navigation bar with the palette's Highlight and
+   writes the month and year in HighlightedText: a solid teal band. The bar is the inset
+   surface instead, the page colour it had before v2.1.0, under body text. Its days are
+   a table (the rules above and the palette: Base, AlternateBase for the weekday row,
+   Highlight for the chosen day). */
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #1F242B;
+}
+QCalendarWidget QToolButton {
+    color: #E5E9EF;
+}
+
+/* ============================================
    PROGRESS BARS
    ============================================ */
 QProgressBar {

@@ -248,6 +248,43 @@ def test_a_colour_on_an_input_would_halve_its_placeholder(qapp, tokens, style):
     assert edit.palette().color(QPalette.PlaceholderText).alpha() == 128
 
 
+# ---- The calendar popup -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_a_calendar_popups_navigation_bar_is_the_inset_under_body_text(qapp, tokens, style, theme):
+    """A date field's calendar fills its navigation bar with the palette's Highlight and
+    writes the month and year in HighlightedText: under the solid selection, a teal band.
+    The stylesheet makes the bar the inset surface, under body text."""
+    from collections import Counter  # noqa: PLC0415
+
+    from PyQt5.QtCore import QDate, QPoint  # noqa: PLC0415
+    from PyQt5.QtWidgets import QCalendarWidget, QToolButton, QWidget  # noqa: PLC0415
+
+    manager, widgets = style
+    manager.apply("light")
+    calendar = QCalendarWidget()
+    calendar.setSelectedDate(QDate(2030, 1, 15))
+    _show(qapp, widgets, calendar, 320, 240)
+    manager.apply(theme)  # a theme applied after the calendar exists reaches it
+    qapp.processEvents()
+
+    bar = calendar.findChild(QWidget, "qt_calendar_navigationbar")
+    image = calendar.grab().toImage()
+    middle = bar.mapTo(calendar, QPoint(bar.width() // 2, 2))
+    assert _pixel(image, middle.x(), middle.y()) == tokens.value("bg.inset", theme)
+    for name in ("qt_calendar_monthbutton", "qt_calendar_yearbutton"):
+        button = bar.findChild(QToolButton, name)
+        corner = button.mapTo(calendar, QPoint(0, 0))
+        drawn = Counter(
+            _pixel(image, corner.x() + x, corner.y() + y)
+            for x in range(button.width())
+            for y in range(button.height())
+        )
+        assert tokens.value("text.primary", theme) in drawn, name
+        assert tokens.value("text.on-accent", theme) not in drawn, name
+
+
 # ---- The Help pane ----------------------------------------------------------------------
 
 

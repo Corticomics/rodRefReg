@@ -195,7 +195,8 @@ PAIRS = [
               ["bg.page", "bg.surface", "bg.field", "bg.inset", "bg.alt", "bg.hover",
                "bg.pressed", "bg.rail.hover", "accent.tint", "bg.track"], 7,
               "Body text, values, titles, typed input; the selected tab's label; the value "
-              "in a tracker bar, over its groove (7:1 target)"),
+              "in a tracker bar, over its groove; a calendar popup's month and year, on its "
+              "inset navigation bar, and its weekday row (7:1 target)"),
     *_text_on("T1h", "text.primary", ["success.tint", "danger.tint", "bg.highlight",
                                       "warning.tint"], 4.5,
               "Text inside a Help tip or warning; a Help search hit; the ⚠ of the schedule "

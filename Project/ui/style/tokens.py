@@ -14,7 +14,8 @@ Three things read the roles:
 - the stylesheet template, through its ${role} placeholders;
 - the QPalette StyleManager sets before the stylesheet (qt_palette.py), through QPALETTE and
   QPALETTE_DISABLED below. It colours what the stylesheet does not reach: the window, plain
-  containers, placeholders, alternate rows, rich-text links, calendar popups;
+  containers, placeholders, alternate rows, rich-text links, the days of a calendar popup
+  (its navigation bar has a rule; Qt's own red for weekend dates is not themed);
 - the Help tab's HTML (Project/utils/help_content_manager.py), through HELP_HTML below.
 
 Project/tests/unit/test_theme_contrast.py checks every pair of roles the UI draws together,
@@ -44,7 +45,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # #SchedulesHubSearch (QPalette.Base)
     "bg.field": ("#FFFFFF", "#30373F"),
     # Sunken areas inside a surface: a nested group box, the table header band and its
-    # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"]; inline code in Help
+    # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"], a calendar popup's
+    # navigation bar; inline code in Help
     "bg.inset": ("#DADDE2", "#1F242B"),
     # Unselected tabs
     "bg.rail": ("#C3C7CD", "#30373F"),
@@ -73,7 +75,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     # ---- Text --------------------------------------------------------------------------
     # Body text (QPalette WindowText, Text, ButtonText): titles, typed input, labels,
     # buttons, tables, lists, menus, the selected tab, the help tree and Help pages; the
-    # value written in a #TrackerProgress bar, #WizardSummaryValue, #CagesTitle
+    # value written in a #TrackerProgress bar, #WizardSummaryValue, #CagesTitle, the month
+    # and year of a calendar popup
     "text.primary": ("#1A1D1F", "#E5E9EF"),
     # Subtitles, help text, tab labels, table headers, nested group-box titles, the combo
     # arrow, #StatusLabel, form labels, #RelayNumber, the step-circle number, the Back
