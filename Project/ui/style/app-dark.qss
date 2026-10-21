@@ -394,13 +394,16 @@ QCalendarWidget QToolButton {
 /* ============================================
    PROGRESS BARS
    ============================================ */
+/* The groove is bg.track, which is the page's colour: a 1px outline shows the bar's whole
+   length where it sits on the page (the calibration wizard's run, the Stopping dialog) as
+   well as on a card. The outline takes 2px of the 8px height, so the bar keeps its size. */
 QProgressBar {
-    border: none;
+    border: 1px solid #4F5865;
     border-radius: 8px;
     text-align: center;
     background: #1F242B;
-    min-height: 8px;
-    max-height: 8px;
+    min-height: 6px;
+    max-height: 6px;
 }
 QProgressBar::chunk {
     background: #2DD4BF;
@@ -854,6 +857,9 @@ QProgressBar#TrackerProgress {
     font-size: 11px;
     font-weight: 500;
     color: #E5E9EF;
+    /* 8px inside its outline: 10px tall, as before v2.1.0 */
+    min-height: 8px;
+    max-height: 8px;
 }
 QProgressBar#TrackerProgress::chunk {
     border-radius: 10px;
@@ -1461,6 +1467,9 @@ QProgressBar#SplashProgress {
     background: #99F6E4;
     border: none;
     border-radius: 4px;
+    /* No outline: 8px tall, as before v2.1.0 */
+    min-height: 8px;
+    max-height: 8px;
 }
 QProgressBar#SplashProgress::chunk {
     background: #042F2E;

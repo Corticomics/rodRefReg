@@ -107,6 +107,7 @@ def test_the_splash_screen_takes_the_themes_colours(qapp, tokens, style, theme, 
             "text.on-accent"
         ), label.text()
     bar = splash.progress_bar
+    assert bar.height() == 8  # no outline: its own rule keeps the app's 8px
     middle = bar.height() // 2
     assert pixel(bar, 6, middle).name().upper() == colour("text.on-accent")  # the 45 %
     assert pixel(bar, bar.width() - 6, middle).name().upper() == colour("accent.fill.pressed")

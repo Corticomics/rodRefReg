@@ -169,7 +169,7 @@ def test_a_label_keeps_the_frame_it_had_so_nothing_moves(qapp, style):
     card = tracker.cards[1]
     for label in (card.animal_label, card.volume_label, card.status_label):
         assert label.frameWidth() == 1, label.objectName()
-    assert card.progress_bar.height() == 10, "the app's QProgressBar max-height and its border"
+    assert card.progress_bar.height() == 10, "its rule's 8px max-height inside its outline"
 
 
 def test_a_status_is_restyled_only_when_it_changes(qapp, style, monkeypatch):

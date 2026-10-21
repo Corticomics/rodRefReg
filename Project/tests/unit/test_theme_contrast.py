@@ -89,16 +89,17 @@ PAIRS = [
     Pair("S2", "bg.field", "bg.page", "step", 1.30,
          "An input placed straight on the page", CARD_STEP, 1.25, CARD_STEP_DARK),
     Pair("S3", "bg.inset", "bg.surface", "step", 1.30,
-         "A nested group box, the table header band or the wizard log inside a card",
-         CARD_STEP, 1.25, CARD_STEP_DARK),
+         "A nested group box, the table header band, a relay number or the closed priming "
+         "status inside a card", CARD_STEP, 1.25, CARD_STEP_DARK),
     Pair("S4", "bg.rail", "bg.page", "step", 1.20,
          "Unselected tabs against the selected tab and its pane",
          {"clip": 1.15, "wash": 1.15}, 1.25),
     Pair("S5", "bg.track", "bg.surface", "step", 1.30,
-         "A progress or slider groove on a card",
+         "A tracker bar's groove on its card (a slider's too)",
          {"clip": 1.15, "wash": 1.25}, 1.25, {"clip": 1.15, "wash": 1.15}),
     Pair("D1", "border.subtle", "bg.page", "line", 1.5,
-         "A card, group box, table or tab-pane outline, outside edge", LINE_ROBUST),
+         "A card, group box, table or tab-pane outline, outside edge; the outline of a "
+         "progress bar or the wizard log on the page (I12, I13)", LINE_ROBUST),
     Pair("D2", "border.subtle", "bg.surface", "line", 1.5,
          "The same outline, inside edge", LINE_ROBUST),
     Pair("D3", "border.subtle", "bg.rail", "line", 1.2,
@@ -290,6 +291,12 @@ PAIRS = [
     Pair("I11", "danger.tint.strong", "bg.page", "info", 3,
          "The edge of the Schedules hub's Cancel against the page: a labelled button needs "
          "no 3:1 boundary"),
+    Pair("I12", "bg.track", "bg.page", "info", 1.25,
+         "A progress bar's groove on the page (the calibration wizard's run, the Stopping "
+         "dialog): the same colour; the bar's outline (D1) shows its length"),
+    Pair("I13", "bg.inset", "bg.page", "info", 1.25,
+         "The calibration wizard's log on its dialog's page: the same colour; its outline "
+         "(D1) shows its edge"),
 ]
 # fmt: on
 

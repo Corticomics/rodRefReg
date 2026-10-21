@@ -1,9 +1,10 @@
-"""The calibration wizard's warning line follows the theme (v2.1.0).
+"""The calibration wizard follows the theme (v2.1.0).
 
 Its first step wrote "Before proceeding, ensure:" in a fixed red (#d32f2f), 2.42:1 on the
 dark card. The rich text now takes the theme's danger.text when the step is built; the
-wizard is modal, so the theme cannot change while the step shows. Rendered offscreen in
-both themes; colours are compared with the tokens.
+wizard is modal, so the theme cannot change while the step shows. The run's progress bar
+and the log sit on the dialog's page, whose colour their fills share: their outlines show
+them. Rendered offscreen in both themes; colours are compared with the tokens.
 """
 
 from __future__ import annotations
@@ -65,14 +66,9 @@ def style(qapp):
     qapp.processEvents()
 
 
-@pytest.mark.parametrize("theme", THEMES)
-def test_the_first_steps_warning_line_is_in_the_themes_danger_colour(qapp, tokens, style, theme):
-    from PyQt5.QtCore import QPoint  # noqa: PLC0415
-    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+def _wizard(qapp, windows):
     from ui.CalibrationWizard import CalibrationWizard  # noqa: PLC0415
 
-    manager, windows = style
-    manager.apply(theme)
     controller = MagicMock()
     controller.settings = {"valve_topology": "shared_manifold"}
     database = MagicMock()
@@ -82,6 +78,17 @@ def test_the_first_steps_warning_line_is_in_the_themes_danger_colour(qapp, token
     wizard.show()
     qapp.processEvents()
     windows.append(wizard)
+    return wizard
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_first_steps_warning_line_is_in_the_themes_danger_colour(qapp, tokens, style, theme):
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply(theme)
+    wizard = _wizard(qapp, windows)
 
     danger = tokens.value("danger.text", theme)
     intro = next(
@@ -103,3 +110,39 @@ def test_the_first_steps_warning_line_is_in_the_themes_danger_colour(qapp, token
         for y in range(intro.height())
     }
     assert danger in drawn
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_runs_progress_bar_shows_its_length_on_the_page(qapp, tokens, style, theme):
+    """The bar's groove is bg.track, the page's colour, so only its outline shows how long
+    it is: 2px of the bar's 8px, which it had before the outline."""
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply(theme)
+    wizard = _wizard(qapp, windows)
+    bar = wizard.progress_bar
+    bar.setVisible(True)  # as the run shows it, 100 pulses into 250
+    bar.setRange(0, 250)
+    bar.setValue(100)
+    qapp.processEvents()
+
+    def colour(role):
+        return tokens.value(role, theme)
+
+    image = wizard.grab().toImage()
+
+    def pixel(widget, x, y):
+        return image.pixelColor(widget.mapTo(wizard, QPoint(x, y))).name().upper()
+
+    assert bar.height() == 8
+    middle = bar.height() // 2
+    assert pixel(bar, bar.width() // 2, -3) == colour("bg.page")  # the dialog around it
+    assert pixel(bar, bar.width() - 1, middle) == colour("border.subtle")  # its far end
+    assert pixel(bar, bar.width() * 3 // 4, middle) == colour("bg.track")  # still to go
+    assert pixel(bar, bar.width() // 5, middle) == colour("accent.indicator")  # done
+    assert colour("bg.track") == colour("bg.page"), "the outline is what shows the groove"
+
+    log = wizard.log_output
+    assert pixel(log, 0, log.height() // 2) == colour("border.subtle")
+    assert pixel(log, 6, log.height() // 2) == colour("bg.inset")

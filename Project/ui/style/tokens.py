@@ -58,7 +58,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "bg.hover": ("#E6E9ED", "#282E36"),
     # QPushButton pressed
     "bg.pressed": ("#C3C7CD", "#1F242B"),
-    # Progress bar and slider grooves (#TrackerProgress's too)
+    # Progress bar and slider grooves (#TrackerProgress's too). The page's colour: a bar on
+    # the page shows its length by its border.subtle outline
     "bg.track": ("#DADDE2", "#1F242B"),
     # Alternate table rows (QPalette.AlternateBase)
     "bg.alt": ("#F1F3F5", "#373E48"),
@@ -114,8 +115,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "text.tooltip": ("#FFFFFF", "#1A1D1F"),
     # ---- Borders -----------------------------------------------------------------------
     # Decorative outlines: cards, tab panes and tabs, group boxes, tables, lists, menus,
-    # the combo popup, the table header rule, #TrackerHeader, #MaterialCard,
-    # #TrackerProgress, #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard,
+    # the combo popup, the table header rule, #TrackerHeader, #MaterialCard, progress bars
+    # (#TrackerProgress too), #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard,
     # #WizardConnector, #AnimalConfigRow, the rule under #WizardSummarySection, the help
     # panes; disabled inputs, buttons and indicators
     "border.subtle": ("#AAB2BE", "#4F5865"),
