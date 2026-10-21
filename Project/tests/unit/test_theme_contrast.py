@@ -79,6 +79,22 @@ CARD_STEP_DARK = {"clip": 1.15, "wash": 1.15}
 LINE_ROBUST = {"clip": 1.3, "wash": 1.4}
 
 
+def fusion_frame(theme):
+    """The frame Fusion draws round a control no stylesheet rule styles (a QDateTimeEdit):
+    its palette's Window, bg.page, made darker(140), i.e. each channel times 100/140."""
+    channels = contrast._rgb(tokens.value("bg.page", theme))
+    return "#" + "".join(f"{round(c * 100 / 140):02X}" for c in channels)
+
+
+# Colours Qt derives from a token where no rule reaches, named like roles for the pairs below
+DERIVED = {"qt.fusion-frame": fusion_frame}
+
+
+def colour(role, theme):
+    """A role's colour in `theme`: a token, or a colour Qt derives from one (DERIVED)."""
+    return DERIVED[role](theme) if role in DERIVED else tokens.value(role, theme)
+
+
 def _text_on(pid, fg, backgrounds, need, why, robust=TEXT_ROBUST):
     return [Pair(f"{pid}:{bg}", fg, bg, "text", need, why, robust) for bg in backgrounds]
 
@@ -312,6 +328,12 @@ PAIRS = [
     Pair("I13", "bg.inset", "bg.page", "info", 1.25,
          "The calibration wizard's log on its dialog's page: the same colour; its outline "
          "(D1) shows its edge"),
+    # A known failure, left for a follow-up: QDateTimeEdit is not in the input rule (adding
+    # it changes the field's drop-down and size), so Fusion draws its frame
+    Pair("I14", "qt.fusion-frame", "bg.surface", "info", 3,
+         "A date field's frame on a card (wizard step 3, the schedule edit dialog)"),
+    Pair("I15", "qt.fusion-frame", "bg.page", "info", 3,
+         "A date field's frame on a dialog's page (Add and Edit Animal)"),
 ]
 # fmt: on
 
@@ -328,10 +350,10 @@ def measure(model, fg, bg):
     return contrast.contrast_ratio(fg, bg, model)
 
 
-def failures(pair, theme, value=tokens.value):
+def failures(pair, theme, value=colour):
     """What `pair` misses in `theme`: [] when it meets every floor.
 
-    `value(role, theme)` gives a role's colour; tokens.value unless a test passes another.
+    `value(role, theme)` gives a role's colour; colour() unless a test passes another.
     """
     fg, bg = value(pair.fg, theme), value(pair.bg, theme)
     found = []
@@ -484,7 +506,8 @@ def test_the_display_models():
 
 def test_every_pair_names_real_tokens_and_a_known_kind():
     named = {n for p in PAIRS for n in (p.fg, p.bg)}
-    assert named <= set(tokens.TOKENS), sorted(named - set(tokens.TOKENS))
+    known = set(tokens.TOKENS) | set(DERIVED)
+    assert named <= known, sorted(named - known)
     assert {p.kind for p in PAIRS} <= set(KINDS)
     ids = [p.id for p in PAIRS]
     assert len(ids) == len(set(ids)), "pair ids must be unique"
@@ -520,7 +543,7 @@ def test_every_text_role_has_its_pairs():
 @pytest.mark.parametrize("pair", ASSERTED, ids=lambda p: p.id)
 def test_pair_meets_its_threshold(pair, theme):
     missed = failures(pair, theme)
-    fg, bg = tokens.value(pair.fg, theme), tokens.value(pair.bg, theme)
+    fg, bg = colour(pair.fg, theme), colour(pair.bg, theme)
     assert not missed, (
         f"{pair.id} ({pair.kind}) {pair.fg} {fg} on {pair.bg} {bg}, {theme}: {missed}. "
         f"{pair.why}. Change the colour in tokens.py, not the threshold."

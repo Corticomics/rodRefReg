@@ -311,6 +311,55 @@ def test_a_colour_on_an_input_would_halve_its_placeholder(qapp, tokens, style):
     assert edit.palette().color(QPalette.PlaceholderText).alpha() == 128
 
 
+# ---- Date fields ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_a_date_fields_frame_is_fusions_until_the_input_rule_takes_it(qapp, tokens, style, theme):
+    """A known contrast failure, reported by the contrast test as I14 and I15: QDateTimeEdit
+    is not in the input rule, so Fusion draws its frame in the palette's Window made
+    darker(140), under 3:1 on a card and on the page. When the field joins the input rule,
+    this test gives way to that rule's check."""
+    from PyQt5.QtCore import QDateTime, QPoint  # noqa: PLC0415
+    from PyQt5.QtGui import QColor  # noqa: PLC0415
+    from PyQt5.QtWidgets import (  # noqa: PLC0415
+        QDateTimeEdit,
+        QFrame,
+        QLineEdit,
+        QVBoxLayout,
+        QWidget,
+    )
+
+    manager, widgets = style
+    manager.apply(theme)
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    sink = QLineEdit()  # takes the focus: a focused date field draws Fusion's focus frame
+    layout.addWidget(sink)
+    card = QFrame()
+    card.setObjectName("Card")
+    QVBoxLayout(card).setContentsMargins(16, 16, 16, 16)
+    on_card = QDateTimeEdit(QDateTime(2030, 1, 15, 9, 0))
+    on_card.setCalendarPopup(True)
+    card.layout().addWidget(on_card)
+    layout.addWidget(card)
+    on_page = QDateTimeEdit(QDateTime(2030, 1, 15, 9, 0))
+    on_page.setCalendarPopup(True)
+    layout.addWidget(on_page)
+    _show(qapp, widgets, window, 400, 220)
+    sink.setFocus()
+    qapp.processEvents()
+
+    page = QColor(tokens.value("bg.page", theme))
+    frame = page.darker(140).name().upper()
+    channels = (page.red(), page.green(), page.blue())
+    assert frame == "#" + "".join(f"{round(c * 100 / 140):02X}" for c in channels)
+    image = window.grab().toImage()
+    for edit in (on_card, on_page):
+        top = edit.mapTo(window, QPoint(edit.width() // 2, 0))
+        assert _pixel(image, top.x(), top.y()) == frame
+
+
 # ---- The calendar popup -----------------------------------------------------------------
 
 
