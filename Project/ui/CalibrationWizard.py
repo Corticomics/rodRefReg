@@ -35,6 +35,8 @@ from utils.pulse_profile import (
     wizard_starting_profile,
 )
 
+from .style.theme import theme_colour
+
 
 def _rig_is_independent(system_controller) -> bool:
     """Whether the device runs the independent topology (one syringe per animal)."""
@@ -415,13 +417,16 @@ class CalibrationWizard(QDialog):
         """Step 1: Introduction & Pre-flight checks"""
         self.step_label.setText("Step 1 of 5: Pre-Flight Checklist")
 
+        # The theme's danger colour, read as the step is built: the wizard is modal, so
+        # the theme cannot change while the step shows.
+        danger = theme_colour("danger.text").name()
         intro_text = QLabel(
             f"<b>Welcome to the Calibration Wizard for Cage {self.cage_id}</b><br><br>"
             "This process will empirically measure the valve's delivery volume by:<br>"
             "1. Executing 200-300 calibrated pulses<br>"
             "2. Measuring the total output with a lab scale<br>"
             "3. Calculating volume per pulse<br><br>"
-            "<b style='color: #d32f2f;'>Before proceeding, ensure:</b>"
+            f"<b style='color: {danger};'>Before proceeding, ensure:</b>"
         )
         intro_text.setWordWrap(True)
         self.content_layout.addWidget(intro_text)

@@ -211,7 +211,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "danger.tint.strong": ("#FECACA", "#991B1B"),
     # A danger word: #DeliveryStatus[status="failed"] (today's #DC2626 would give 2.49:1 on
     # the dark card); Invalid, Not Calibrated and a CV of 5 % or more in the Calibration
-    # table, #WizardSelectionCounter[count="over"]
+    # table, #WizardSelectionCounter[count="over"], the calibration wizard's "Before
+    # proceeding, ensure:"
     "danger.text": ("#B91C1C", "#FCA5A5"),
     # The Animals tab's bright red cell for a run that ended short, and its bold text
     # (QWidget#AnimalsTab qproperty-alertFill / qproperty-alertText)
