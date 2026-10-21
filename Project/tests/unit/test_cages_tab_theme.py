@@ -127,6 +127,11 @@ def test_the_cages_tab_follows_the_theme(
     assert _text(hint) == colour("text.secondary")
     assert (hint.font().pixelSize(), hint.font().italic()) == (13, True)
 
+    # The legend's dots key the terminals' colours, on the page (M1, M14)
+    legend = tab._master_legend_dot
+    assert legend.objectName() == "MasterStatusDot"
+    assert _text(legend) == colour("warning.indicator.status-dot")
+
 
 @pytest.mark.parametrize("theme", THEMES)
 def test_the_board_placeholder_follows_the_theme(

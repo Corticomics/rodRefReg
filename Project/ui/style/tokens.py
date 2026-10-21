@@ -197,8 +197,10 @@ TOKENS: dict[str, tuple[str, str]] = {
     "warning.indicator": ("#F59E0B", "#F59E0B"),
     # #MasterTerminal's outline
     "warning.indicator.master-terminal": ("#FCD34D", "#78350F"),
-    # #MasterStatusDot
-    "warning.indicator.status-dot": ("#F59E0B", "#FBBF24"),
+    # #MasterStatusDot: on the master terminal, and in the Cages tab's legend on the page,
+    # where it keys the master's colour: 3:1 or more there (amber-700 in light: today's
+    # amber-500 was 1.58:1 on the page)
+    "warning.indicator.status-dot": ("#B45309", "#FBBF24"),
     # A selected #MasterTerminal's border: its selected state, 3:1 or more against the
     # card and its own fill (amber-700 in light: today's amber-500 was 2.15:1)
     "warning.indicator.selected": ("#B45309", "#FBBF24"),

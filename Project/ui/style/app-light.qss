@@ -1039,7 +1039,7 @@ QLabel#StatusDot {
 
 QLabel#MasterStatusDot {
     font-size: 10px;
-    color: #F59E0B;
+    color: #B45309;
     background: transparent;
 }
 

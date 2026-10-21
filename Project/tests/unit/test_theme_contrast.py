@@ -28,6 +28,7 @@ threshold. Pure Python: tokens.py and contrast.py are loaded by path.
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -156,8 +157,8 @@ PAIRS = [
          MARK_ROBUST),
     # ---- State and value marks (WCAG 1.4.11) ---------------------------------------
     Pair("M1", "accent.indicator", "bg.page", "nontext", 3,
-         "The selected tab's 3px bar against its pane; a progress chunk on the page",
-         MARK_ROBUST),
+         "The selected tab's 3px bar against its pane; a progress chunk on the page; the "
+         "cage valve's dot in the Cages tab's legend", MARK_ROBUST),
     Pair("M2", "accent.indicator", "bg.rail", "nontext", 3,
          "The selected tab's bar where it meets an unselected tab", {"clip": 3}),
     Pair("M3", "accent.indicator", "bg.surface", "nontext", 3,
@@ -184,6 +185,12 @@ PAIRS = [
          "A selected master terminal's border, against the card"),
     Pair("M11", "warning.indicator.selected", "warning.tint", "nontext", 3,
          "A selected master terminal's border, against its own fill"),
+    Pair("M14", "warning.indicator.status-dot", "bg.page", "nontext", 3,
+         "The master valve's dot in the Cages tab's legend, on the page"),
+    Pair("M15", "warning.indicator.status-dot", "warning.tint.master-terminal", "nontext", 3,
+         "The master terminal's dot"),
+    Pair("M16", "warning.indicator.status-dot", "warning.tint", "nontext", 3,
+         "The master terminal's dot, hovered or selected"),
     Pair("F1", "focus.ring", "bg.field", "nontext", 3,
          "The 2px focus border of an input or button against the control's fill",
          MARK_ROBUST),
@@ -287,8 +294,6 @@ PAIRS = [
          "The red cell against a zebra row: its status word carries the meaning"),
     Pair("I7", "warning.indicator", "warning.tint", "info", 3,
          "A warning banner's stripe: decorative, the text carries the warning"),
-    Pair("I8", "warning.indicator.status-dot", "warning.tint.master-terminal", "info", 3,
-         "The master terminal's dot: decorative, MASTER SOLENOID names it"),
     Pair("I9", "text.secondary", "text.muted", "info", 1.45,
          "Secondary against muted text (the light step was 1.33:1 in the draft)"),
     Pair("I10", "border.divider", "bg.alt", "info", 1.5,
@@ -457,13 +462,27 @@ def test_every_pair_names_real_tokens_and_a_known_kind():
             assert set(pair.models(theme)) <= {"clip", "wash", "hicon", "flare10", "apca"}
 
 
+def _roles_the_template_writes_in():
+    """Every role of a `color: ${role}` declaration in the template: text, or a glyph."""
+    template = (STYLE_DIR / "app.qss.tmpl").read_text(encoding="utf-8")
+    return set(re.findall(r"(?<![\w-])color\s*:\s*\$\{([^}]+)\}", template))
+
+
 def test_every_text_role_has_its_pairs():
-    """A role that colours text is checked against at least one background."""
+    """A role that colours text is checked against at least one background, and so is
+    every role the template writes in: a glyph such as a status dot is a mark, so its pair
+    may be text or nontext."""
     text_roles = {name for name in tokens.TOKENS if name.startswith("text.")}
     text_roles |= {name for name in tokens.TOKENS if ".on-" in name or name.endswith(".text")}
     checked = {p.fg for p in ASSERTED if p.kind == "text"}
     unchecked = text_roles - checked - {"text.disabled"}  # exempt; reported as I1
     assert not unchecked, f"text roles with no asserted pair: {sorted(unchecked)}"
+
+    written = _roles_the_template_writes_in()
+    assert {"text.primary", "accent.indicator"} <= written, "the template's color: rules"
+    marked = {p.fg for p in ASSERTED if p.kind in ("text", "nontext")}
+    unmarked = written - text_roles - marked
+    assert not unmarked, f"roles the template writes in with no asserted pair: {sorted(unmarked)}"
 
 
 @pytest.mark.parametrize("theme", tokens.THEMES)
