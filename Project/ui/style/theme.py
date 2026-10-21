@@ -90,16 +90,19 @@ class StyleManager(QObject):
         # The palette first. Setting the stylesheet polishes every widget against the palette
         # it has then: in the other order, what no rule colours (a plain label, typed text,
         # a placeholder) keeps the previous theme's colours after a switch.
+        # A failure is printed (the log and System Messages show it): without the palette
+        # the stylesheet runs over Qt's own light one, unreadable under the dark theme.
         try:
             self._app.setPalette(build_palette(theme))
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[THEME ERROR] the {theme} palette was not applied: {exc}")
 
         qss_path = self._base_dir / f"app-{theme}.qss"
         try:
             with qss_path.open("r", encoding="utf-8") as f:
                 self._app.setStyleSheet(f.read())
-        except Exception:
+        except Exception as exc:
+            print(f"[THEME ERROR] the {theme} stylesheet was not applied: {exc}")
             self._app.setStyleSheet("")
 
         self.theme_changed.emit(theme)

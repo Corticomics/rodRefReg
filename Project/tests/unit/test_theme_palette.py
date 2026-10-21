@@ -124,6 +124,36 @@ def test_apply_sets_the_palette_and_the_stylesheet_and_says_so(qapp, tokens, sty
     assert seen == ["dark", "light"]
 
 
+def test_apply_says_when_the_palette_or_the_stylesheet_fails(
+    qapp, style, capsys, monkeypatch, tmp_path
+):
+    """Without the palette the dark stylesheet would run over Qt's own light palette, the
+    unreadable state the palette exists to prevent: apply() prints why, and still applies
+    the rest and announces the theme."""
+    import ui.style.theme as theme_module  # noqa: PLC0415
+
+    manager, _ = style
+    seen = []
+    manager.theme_changed.connect(seen.append)
+
+    def broken(theme):
+        raise KeyError("bg.page")
+
+    monkeypatch.setattr(theme_module, "build_palette", broken)
+    manager.apply("dark")
+    out = capsys.readouterr().out
+    assert "[THEME ERROR] the dark palette was not applied: 'bg.page'" in out
+    assert qapp.styleSheet() == (STYLE_DIR / "app-dark.qss").read_text(encoding="utf-8")
+    monkeypatch.undo()
+
+    manager._base_dir = tmp_path  # no stylesheets there
+    manager.apply("light")
+    out = capsys.readouterr().out
+    assert "[THEME ERROR] the light stylesheet was not applied:" in out
+    assert qapp.styleSheet() == ""
+    assert seen == ["dark", "light"]
+
+
 @pytest.mark.parametrize("first", THEMES)
 def test_a_theme_switch_reaches_what_only_the_palette_colours(qapp, tokens, style, first):
     """main.py applies light, builds the GUI, then applies the saved theme, and Settings
