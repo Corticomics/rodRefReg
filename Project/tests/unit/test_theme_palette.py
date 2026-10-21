@@ -124,6 +124,39 @@ def test_apply_sets_the_palette_and_the_stylesheet_and_says_so(qapp, tokens, sty
     assert seen == ["dark", "light"]
 
 
+@pytest.mark.parametrize("first", THEMES)
+def test_a_theme_switch_reaches_what_only_the_palette_colours(qapp, tokens, style, first):
+    """main.py applies light, builds the GUI, then applies the saved theme, and Settings
+    switches the theme while the app runs. Setting the stylesheet polishes every widget
+    against the palette it has then, so apply() sets the palette first: in the other order a
+    plain label, typed text and a placeholder keep the previous theme's colours."""
+    from PyQt5.QtGui import QPalette  # noqa: PLC0415
+    from PyQt5.QtWidgets import QFrame, QLabel, QLineEdit, QVBoxLayout  # noqa: PLC0415
+
+    manager, widgets = style
+    manager.apply(first)
+    card = QFrame()
+    card.setObjectName("Card")
+    label = QLabel("A plain label")  # no rule colours it
+    edit = QLineEdit()
+    edit.setPlaceholderText("Search animals...")
+    layout = QVBoxLayout(card)
+    layout.addWidget(label)
+    layout.addWidget(edit)
+    _show(qapp, widgets, card)
+
+    other = "dark" if first == "light" else "light"
+    for theme in (other, first):
+        manager.apply(theme)
+        qapp.processEvents()
+        primary = tokens.value("text.primary", theme)
+        assert label.palette().color(QPalette.WindowText).name().upper() == primary, theme
+        assert edit.palette().color(QPalette.Text).name().upper() == primary, theme
+        placeholder = edit.palette().color(QPalette.PlaceholderText)
+        assert placeholder.name().upper() == tokens.value("text.muted", theme), theme
+        assert placeholder.alpha() == 255, theme
+
+
 # ---- Containers, tables, placeholders --------------------------------------------------
 
 

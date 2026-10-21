@@ -87,7 +87,9 @@ class StyleManager(QObject):
         # Font: fast and present in most Raspberry Pi images
         self._app.setFont(QFont("DejaVu Sans", 10))
 
-        # The palette first: the stylesheet is then polished against it.
+        # The palette first. Setting the stylesheet polishes every widget against the palette
+        # it has then: in the other order, what no rule colours (a plain label, typed text,
+        # a placeholder) keeps the previous theme's colours after a switch.
         try:
             self._app.setPalette(build_palette(theme))
         except Exception:
