@@ -39,6 +39,20 @@ not listed here.
   configuration page says where the values came from. Calibrate All
   Uncalibrated works the same way, so each cage it opens starts from the
   one calibrated just before it.
+- **Change:** the screens are easier to read on the lab monitor, in both
+  themes. In the light theme the page stays near-white, and the tab panes
+  and cards are white with a darker outline. Profile, Controls, Schedule
+  Queue, the Cages board and the wizard's two type cards cast a soft
+  shadow, and a schedule card lifts under the pointer. Inside a card,
+  sections are divided by a line instead of a box within the box, and a
+  table has one line under each row and none between its columns. In the
+  dark theme the tables' alternate rows, the Help pane, the Schedules tab,
+  the Execution Monitor's cards, the wizard's steps and the date fields'
+  calendars are now dark and readable; before, some stayed white or light.
+  In both themes a selected row is solid teal, the selected tab has a teal
+  bar, and a field or button with the keyboard focus has a black (light)
+  or white (dark) outline. The Animals tab's red *Last schedule delivered
+  amount* cell is unchanged.
 - **Add:** Settings > Calibration has a **Profile** column: the pulse width
   and interval each cage was calibrated at, for example *30 / 1000 ms*.
   Every delivery to the cage uses them.
