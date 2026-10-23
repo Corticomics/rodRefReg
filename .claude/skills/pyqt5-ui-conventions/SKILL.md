@@ -159,7 +159,8 @@ box inside a box: a group box in a group box or a card is drawn as a section
 a table or list in a box has no frame of its own. Radii are WinUI's: 8px for a
 container, 4px for a control, 7px just inside a container's 1px stroke, and
 half the height for a pill or a circle (CONTRIBUTING.md §7). A tab pane's
-top-left corner, under the first tab, is square, as in WinUI's TabView.
+top-left corner, under the first tab, is square, as in WinUI's TabView, and so
+is what lies just inside it (Help's sidebar, the Terminal log's focus stroke).
 
 Card shadows ([elevation.py](Project/ui/style/elevation.py), CONTRIBUTING.md §7):
 

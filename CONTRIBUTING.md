@@ -163,10 +163,11 @@ held equal to it by `test_dark_default.py`). `main.py` applies it before
 the first window shows, so every window is built and shown in it, and the
 operator switches it with Settings > General's theme button. The choice is
 saved as `ui_theme` (`SystemController.THEME_KEY`), a setting no release
-before 2.1.0 reads or writes. A device without it starts dark and stores
-it: that is the one-time switch to dark. The `theme` setting those
-releases keep is never written, deleted or read as the theme, so a revert
-opens them in the theme they saved ([DATABASE.md §6](Project/docs/DATABASE.md)).
+before 2.1.0 uses or writes (2.0.0 loads it with every row and ignores
+it). A device without it starts dark and stores it: that is the one-time
+switch to dark. The `theme` setting those releases keep is never written,
+deleted or read as the theme, so a revert opens them in the theme they
+saved ([DATABASE.md §6](Project/docs/DATABASE.md)).
 
 The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 `app-dark.qss`, are **generated**: never edit them by hand. Their source:
@@ -225,13 +226,14 @@ inside a box:
 Radii are WinUI's two: 8px for containers (cards, group boxes, tab panes and
 their tabs, tables, lists, menus and popups, progress bars, the drop area)
 and 4px for controls (inputs, buttons, list and menu items, scroll handles,
-checkboxes, banners and status labels, relay terminals, tooltips). What lies
-just inside a container's 1px stroke takes 7px, so its corners follow the
-container's (Help's two panes, the Terminal log's focus stroke). Pills and
-circles keep half their height (badges, the info button, the wizard's step
-circles, radio and slider handles). A tab pane's top-left corner is square,
-as in WinUI's TabView: the first tab sits on it, and the selected one meets
-the pane in one straight edge.
+checkboxes, banners and status labels, relay terminals, tooltips). A tab
+pane's top-left corner is square, as in WinUI's TabView: the first tab sits
+on it, and the selected one meets the pane in one straight edge. What lies
+just inside a container's 1px stroke follows the container's corners: 7px
+inside a rounded one, and square inside a tab pane's square top-left (Help's
+two panes, the Terminal log's focus stroke). Pills and circles keep half
+their height (badges, the info button, the wizard's step circles, radio and
+slider handles).
 
 The dark theme has the same structure, its surfaces separated by tint steps
 (`bg.page` to `bg.surface`, held to S1–S3) and the same strokes, and it
@@ -297,9 +299,10 @@ rules the palette depends on:
   on the Pi's 5.15.8 at full strength, like typed text;
 - no `[placeholderText]` or `QTextEdit:read-only` rule;
 - scroll areas and stacked pages transparent;
-- tab panes on the content layer, square under the first tab, and unselected
-  tabs flat on the page with a separator between two of them
-  (`test_tab_pane_corner.py` checks the corner's pixels);
+- tab panes on the content layer, square under the first tab, as is what
+  lies just inside that corner, and unselected tabs flat on the page with a
+  separator between two of them (`test_tab_pane_corner.py` checks the
+  corners' pixels);
 - sections, strips and rows under a rule, never a box in a box; the table
   header on a rule, with no grid.
 
