@@ -100,7 +100,13 @@ load and never saved or kept in memory, and `SystemController.FIXED_SETTINGS`
 (`use_pulse_delivery: True`) are forced at load (in the DB and in memory) and
 on every save. `SettingsTab.restore_from_backup` drops both from a backup.
 See [`Project/docs/DATABASE.md` §6](Project/docs/DATABASE.md) and
-`test_retired_pulse_settings.py`.
+`test_retired_pulse_settings.py`. A one-time change of a stored setting
+follows the dark-theme switch of v2.1.0: a persisted marker
+(`ui_dark_default_applied`), stored *before* the change so a database error
+can lose the change but never repeat it (`test_dark_default.py`).
+`DatabaseHandler.peek_system_settings()` reads the rows read-only, without
+`create_tables()`, for code that must know a setting before the handler
+exists (main.py's start-up theme).
 
 ## Idempotent schema (the contract)
 

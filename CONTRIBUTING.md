@@ -151,6 +151,12 @@ Every colour of the UI is a role in one table,
 | [`help_content_manager.py`](Project/utils/help_content_manager.py) (`tokens.HELP_HTML`) | the Help tab's HTML |
 | UI code that paints itself ([`theme.py`](Project/ui/style/theme.py) `theme_colour(role)`, `tone_weekend`) | a painter, a drag pixmap, a table cell's text, a colour in rich text, a calendar's weekend dates |
 
+**RRR starts in the saved theme, dark by default** (`DEFAULT_THEME` in
+`tokens.py`; the settings' default, `SystemController.DEFAULT_THEME`, is
+held equal to it by `test_dark_default.py`). `main.py` applies it before
+the first window shows, so every window is built and shown in it, and the
+operator switches it with Settings > General's theme button.
+
 The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 `app-dark.qss`, are **generated**: never edit them by hand. Their source:
 

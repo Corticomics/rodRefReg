@@ -501,12 +501,17 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
       and an empty end time. The dialog's default, **Excel Files
       (*.xlsx)**, needs `openpyxl`: note whether it saves or shows
       **Export Error**.
-    - Settings → General → Appearance → Theme → dark. On the Animals tab
-      the red cell keeps white text on red, and a clicked red cell keeps
-      its white frame; type `interrupted` in the filter: the row stays
-      listed. Run the step-4 schedule (Start Over): Settings → Priming's
-      greyed-out CLOSE ALL RELAYS is grey, not red. Stop, clear the
-      filter and switch back to light.
+    - The theme. RRR is dark (the default since 2.1.0), and Settings →
+      General → Appearance has a **Switch to light mode** button where the
+      Theme drop-down was. On the Animals tab the red cell keeps white text
+      on red, and a clicked red cell keeps its white frame; type
+      `interrupted` in the filter: the row stays listed. Run the step-4
+      schedule (Start Over): Settings → Priming's greyed-out CLOSE ALL
+      RELAYS is grey, not red. Stop and clear the filter. Press **Switch to
+      light mode**: the screens turn light at once, and the button reads
+      **Switch to dark mode**. Quit RRR and start it again: it starts in
+      the light theme. Press **Switch to dark mode** to leave the device as
+      it was.
     - On the Pi's own screen (its desktop or VNC; over `ssh -Y` the window
       has another size), the Animals tab has no horizontal scroll bar,
       every header reads in full on one or two lines, and neither

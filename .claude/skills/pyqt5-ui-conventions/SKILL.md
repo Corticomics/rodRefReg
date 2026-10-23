@@ -130,6 +130,12 @@ raw colour (hex, `rgb()` or `hsv()`, `QColor(200, 0, 0)` or
 lowering its count in `BASELINE`. The Help tab's HTML takes its colours from
 `tokens.HELP_HTML` and is counted the same way.
 
+The app starts in the saved theme, dark by default (`tokens.DEFAULT_THEME`):
+main.py applies it before any window shows, and the main window is built in
+it. Settings > General's `#ThemeButton` switches it at run time; it is a
+default button whose label names the switch (*Switch to light mode* while
+dark is on screen), and it saves the choice through the tab's auto-save.
+
 `StyleManager.apply` also sets a QPalette built from the same tokens
 ([qt_palette.py](Project/ui/style/qt_palette.py)), before the stylesheet, and
 emits `theme_changed`. The palette colours what no rule names: the window, plain

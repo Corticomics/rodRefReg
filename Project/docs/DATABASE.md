@@ -684,6 +684,7 @@ join `trainers`.
 | Method | Purpose |
 |---|---|
 | `get_system_settings()` | Read all `system_settings` rows; decode by `setting_type` (`int`/`float`/`bool`/`json`/`str`). |
+| `peek_system_settings(db_path=None)` (static) | The same rows, decoded the same way, read-only and without a handler: no `create_tables()`, no file created where there is none, `{}` on any error. `main.py` reads the saved theme with it before the first window shows (v2.1.0). |
 | `update_system_setting(key, value, setting_type)` | Upsert one row with `datetime('now')`. |
 
 ### Calibration
@@ -756,6 +757,21 @@ setting, add it to `RETIRED_KEYS`, take it out of `_get_persisted_keys()`,
 and check what a revert to the previous release does without the row
 (2.0.0 writes its `pulse_width_ms` of 20 back at its first start).
 `test_retired_pulse_settings.py` covers both.
+
+**The one-time switch to the dark theme (v2.1.0).** Dark is the default
+theme (`SystemController.DEFAULT_THEME`, and `DEFAULT_THEME` in
+`ui/style/tokens.py`). At a device's first start of 2.1.0, `load_settings()`
+stores a `theme` other than dark as `dark`, with one `[SETTINGS] Switched
+the theme to 'dark' …` line in the journal, and stores
+`ui_dark_default_applied` (`bool`, a persisted key), which stops it from
+ever switching again: from then on the operator's choice in Settings >
+General > Appearance stays. A fresh install stores the marker too, with
+nothing to switch. The marker is written first: if the database refuses
+it, nothing is switched and the next start tries again; if it then refuses
+the theme, the device keeps its theme and is not switched later. A revert is
+safe: 2.0.0 loads `dark` into its own dark theme and neither writes nor
+deletes the marker, so the next update does not switch a second time.
+`test_dark_default.py` covers it.
 
 A first-launch migration on v1.5.0+ copies any existing legacy
 `settings.json` into the DB and writes a `_migrated_from_json_v1` sentinel
