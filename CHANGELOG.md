@@ -16,10 +16,16 @@ not listed here.
 
 ---
 
-## 2.1.0 — each cage's own pulse profile
+## 2.1.0 — Dark theme by default, clearer cards, each cage's own pulse profile
 
 **What changes on the device**
 
+- **Change:** the screens are dark by default. Each device switches to the
+  dark theme once, the first time 2.1.0 starts. To go back to the light
+  theme, log in and press **Switch to light mode** in Settings > General >
+  Appearance (it replaces the Theme drop-down; in the light theme it reads
+  **Switch to dark mode**). RRR keeps that choice: no later start switches
+  it again.
 - **Change (safety):** Settings > Delivery no longer has *Enable Pulse
   Mode* or *Pulse Width*. Deliveries are always pulsed, and each cage
   pulses at the pulse width and interval it was calibrated at, as it
