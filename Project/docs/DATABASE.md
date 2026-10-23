@@ -686,6 +686,7 @@ join `trainers`.
 | `get_system_settings()` | Read all `system_settings` rows; decode by `setting_type` (`int`/`float`/`bool`/`json`/`str`). |
 | `peek_system_settings(db_path=None)` (static) | The same rows, decoded the same way, read-only and without a handler: no `create_tables()`, no file created where there is none, `{}` on any error. `main.py` reads the saved theme with it before the first window shows (v2.1.0). |
 | `update_system_setting(key, value, setting_type)` | Upsert one row with `datetime('now')`. |
+| `update_system_settings(rows)` | Upsert several `(key, value, setting_type)` rows in one transaction: all of them, or none when the database refuses one, and then `False`. The one-time switch to the dark theme stores its marker and the theme with it (v2.1.0). |
 
 ### Calibration
 
