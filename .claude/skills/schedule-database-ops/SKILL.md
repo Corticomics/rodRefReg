@@ -107,7 +107,9 @@ saved it, never written, deleted or read as the setting, so a revert finds
 it as it was. The older release writes only the keys it knows, so the new
 row waits for the next update. A missing new row means the release has not
 run yet: storing it is the one-time change, and a database error leaves it
-for the next start (`test_dark_default.py`).
+for the next start. A failed read is no missing row: `get_system_settings()`
+returns `{}` then, so make no one-time change on an empty read
+(`test_dark_default.py`).
 `DatabaseHandler.peek_system_settings()` reads the rows read-only, without
 `create_tables()`, for code that must know a setting before the handler
 exists (main.py's start-up theme).

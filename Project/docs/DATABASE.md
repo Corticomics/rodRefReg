@@ -764,11 +764,15 @@ the default theme (`SystemController.DEFAULT_THEME`, and `DEFAULT_THEME` in
 `ui_theme` (`SystemController.THEME_KEY`, a persisted `str`). A device
 without that row is fresh, or on its first start of 2.1.0, and
 `load_settings()` stores `dark` there: that is the one-time switch. Where
-the older release's theme was not dark, the journal gets one `[SETTINGS]
-Switched the theme to 'dark' …` line, which says that the old theme is
-kept for a revert to 2.0.0. From then on the row holds the operator's
-choice in Settings > General > Appearance. If the database refuses the
-row, the device starts dark all the same, and the next start stores it.
+the older release saved a theme other than dark, the journal gets one
+`[SETTINGS] Switched the theme to 'dark' …` line, which says that the old
+theme is kept for a revert to 2.0.0 (a device that never saved one gets
+no line). From then on the row holds the operator's choice in Settings >
+General > Appearance. If the database refuses the row, the device starts
+dark all the same, and the next start stores it. A read that fails is
+not taken for a device without the row: `get_system_settings()` returns
+`{}` then, and the switch waits for the next start instead of storing
+dark over the operator's choice.
 
 `theme`, the row v1.5.0 to 2.0.0 keep their theme in
 (`SystemController.LEGACY_THEME_KEY`), is left to those releases. 2.1.0
