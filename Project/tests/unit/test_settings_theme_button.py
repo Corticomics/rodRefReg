@@ -140,8 +140,8 @@ def test_appearance_has_a_button_and_no_drop_down(
 def test_the_theme_label_reads_level_with_the_button(
     qapp, style, system_controller, database_handler, theme
 ):
-    """QFormLayout puts a label at the top of its row, and the button is 20px taller than a
-    line of text: 'Theme:' sat 17px above the button's text. As tall as the button and
+    """QFormLayout puts a label at the top of its row: 'Theme:', 28px tall, sat at the top
+    of the button's 62px, its middle 17px above the button's. As tall as the button and
     centred, it reads level with it. The drawn text's middle rows are compared."""
     from PyQt5.QtCore import QPoint  # noqa: PLC0415
     from PyQt5.QtWidgets import QFormLayout, QGroupBox  # noqa: PLC0415
