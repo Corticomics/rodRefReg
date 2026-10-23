@@ -366,14 +366,26 @@ def test_the_tile_is_made_once(qapp):
     assert first.ext == (6, 4, 6, 8)
 
 
+# A graphics effect made or set in code: QGraphicsDropShadowEffect(…), any other
+# QGraphics…Effect(…), or setGraphicsEffect(…). A mention in a comment names no call.
+GRAPHICS_EFFECT = re.compile(r"\b(?:setGraphicsEffect|QGraphics\w*Effect)\s*\(")
+
+
 def test_no_graphics_effect_outside_the_splash():
     """QGraphicsEffect re-renders a widget and its children on every change, fills the
     global QPixmapCache, and on Qt 5.15.8 (the Pi's) composites a drop shadow over its own
-    output until it turns near-black (QTBUG-102374). Elevation is ui.style.elevation's."""
+    output until it turns near-black (QTBUG-102374). Elevation is ui.style.elevation's.
+    Every Python file of the app is read (all of Project but its tests): the splash
+    screen, which shows before the main window, is the one that may make one."""
     allowed = {"ui/splash_screen.py"}
+    tests = PROJECT / "tests"
     found = sorted(
         path.relative_to(PROJECT).as_posix()
-        for path in (PROJECT / "ui").rglob("*.py")
-        if "setGraphicsEffect" in path.read_text(encoding="utf-8")
+        for path in PROJECT.rglob("*.py")
+        if tests not in path.parents
+        and GRAPHICS_EFFECT.search(path.read_text(encoding="utf-8", errors="replace"))
     )
     assert set(found) <= allowed, found
+    assert GRAPHICS_EFFECT.search("shadow = QGraphicsDropShadowEffect()")
+    assert GRAPHICS_EFFECT.search("label.setGraphicsEffect(QGraphicsOpacityEffect(label))")
+    assert not GRAPHICS_EFFECT.search("QGraphicsDropShadowEffect is ruled out for cards")
