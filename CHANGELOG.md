@@ -83,9 +83,9 @@ not listed here.
 - **Revert to previous version** (Settings > Updates) goes back to 2.0.0
   in the theme it finds. On a device that 2.1.0 switched to dark, that is
   2.0.0's own dark theme, where every other table row shows white: log in
-  and choose *light* in 2.0.0's Settings > General > Theme. A device that
-  never saved a theme goes back to light. Updating to 2.1.0 again keeps
-  the theme chosen there.
+  and choose *light* in 2.0.0's Settings > General > Theme. Updating to
+  2.1.0 again keeps the theme chosen there. A device that never saved a
+  theme goes back to light, and is dark again after the next update.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
