@@ -86,11 +86,11 @@ QLabel#CardHeader {
     padding: 12px 16px 10px 16px;
 }
 
-/* Logged-out login prompt: the card surface instead of the page */
+/* Logged-out login prompt. It stands where the Projects tab pane stands once logged in, so it
+   is drawn as that pane: the content layer's fill and stroke, in both themes */
 QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
-    background-color: ${bg.surface};
+    background-color: ${bg.pane};
 }
-/* It stands where a tab pane stands when logged in: the content layer's stroke */
 QWidget#LoginGatePrompt {
     border: 1px solid ${border.subtle};
     border-radius: 8px;

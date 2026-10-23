@@ -309,8 +309,8 @@ PAIRS = [
               "in a tracker bar, over its groove; a calendar popup's month and year, on its "
               "inset navigation bar, and its weekday row (7:1 target)"),
     *_text_on("T1p", "text.primary", ["bg.pane"], 7,
-              "Body text, titles and labels straight on a tab pane; the selected tab's label "
-              "(7:1 target)"),
+              "Body text, titles and labels straight on a tab pane; the selected tab's label; "
+              "the logged-out prompt's message (7:1 target)"),
     *_text_on("T2p", "text.secondary", ["bg.pane"], 7,
               "Help text, form labels and subtitles on a tab pane (7:1 target)"),
     *_text_on("T3p", "text.muted", ["bg.pane"], 4.5, "Captions and hints on a tab pane"),

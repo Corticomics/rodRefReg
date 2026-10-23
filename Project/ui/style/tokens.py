@@ -47,10 +47,11 @@ TOKENS: dict[str, tuple[str, str]] = {
     # The page, the base layer (QPalette.Window): windows and dialogs, the strip the tabs
     # stand on (unselected tabs show it), the help sidebar
     "bg.page": ("#F8FAFB", "#1F242B"),
-    # The content layer: tab panes, and the selected tab that joins its pane (WinUI's two
-    # layers: a lighter content layer on the base; in dark the panes keep the page's colour)
+    # The content layer: tab panes, the selected tab that joins its pane, and the logged-out
+    # prompt that stands where the Projects pane stands (WinUI's two layers: a lighter
+    # content layer on the base; in dark the panes keep the page's colour)
     "bg.pane": ("#FFFFFF", "#1F242B"),
-    # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
+    # Cards and other raised surfaces: Card, group boxes, tables, lists,
     # menus, the combo popup, QPushButton, an idle drop area, #MaterialCard,
     # #RelayTerminal, #InteractiveCard, #ScheduleCard (under the pointer too), the wizard's
     # step circles and Back button, the help content pane (QPalette.Button)
