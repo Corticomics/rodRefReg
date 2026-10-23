@@ -370,7 +370,7 @@ QTabBar {
 QTabWidget QTabWidget::pane {
     background: transparent;
     border: none;
-    border-top: 1px solid #CDD1D7;
+    border-top: 1px solid #D9DEE5;
     border-radius: 0;
 }
 QTabWidget QTabWidget > QTabBar::tab {
@@ -419,7 +419,7 @@ QTableView, QTableWidget {
     alternate-background-color: #F1F3F5;
     border: 1px solid #C8CED6;
     border-radius: 12px;
-    gridline-color: #CDD1D7;
+    gridline-color: #D9DEE5;
     selection-background-color: #0F766E;
     selection-color: #FFFFFF;
     color: #1A1D1F;
@@ -429,7 +429,7 @@ QTableView, QTableWidget {
 }
 QTableView::item, QTableWidget::item {
     padding: 12px 16px;
-    border-bottom: 1px solid #CDD1D7;
+    border-bottom: 1px solid #D9DEE5;
 }
 /* Hover first: a selected row under the pointer keeps the selection colours. */
 QTableView::item:hover, QTableWidget::item:hover {
@@ -521,7 +521,7 @@ QGroupBox::title {
 QGroupBox QGroupBox, QFrame#Card QGroupBox, QFrame[card="true"] QGroupBox {
     background: transparent;
     border: none;
-    border-top: 1px solid #CDD1D7;
+    border-top: 1px solid #D9DEE5;
     border-radius: 0;
     margin-top: 24px;
     padding: 16px 0 0 0;
@@ -872,7 +872,7 @@ QMenu#ScheduleCardMenu::item {
 QFrame#TrackerHeader {
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid #CDD1D7;
+    border-bottom: 1px solid #D9DEE5;
     border-radius: 0;
     padding: 12px;
 }
@@ -1352,7 +1352,7 @@ QFrame#WizardConnector[state="completed"] {
 /* Wizard Separator: an HLine. Without a border Qt draws no line of its own (a Plain HLine
    drew one in WindowText, near-black, 3px tall): 1px of the divider */
 QFrame#WizardSeparator {
-    background: #CDD1D7;
+    background: #D9DEE5;
     border: none;
     min-height: 1px;
     max-height: 1px;
@@ -1516,7 +1516,7 @@ QLabel#WizardEmptyState {
 QFrame#AnimalConfigRow {
     background: transparent;
     border: none;
-    border-bottom: 1px solid #CDD1D7;
+    border-bottom: 1px solid #D9DEE5;
     border-radius: 0;
     padding: 8px 0;
     margin: 0;
@@ -1530,7 +1530,7 @@ QLabel#WizardSummarySection {
     color: #115E59;
     padding-top: 6px;
     padding-bottom: 4px;
-    border-bottom: 1px solid #CDD1D7;
+    border-bottom: 1px solid #D9DEE5;
 }
 QLabel#WizardSummaryLabel {
     font-size: 11px;

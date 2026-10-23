@@ -138,10 +138,14 @@ TOKENS: dict[str, tuple[str, str]] = {
     # #ScheduleCard, #WizardConnector, the Help sidebar's edge; disabled inputs, buttons and
     # indicators
     "border.subtle": ("#C8CED6", "#4F5865"),
-    # Rules inside a card: table row rules, a section's rule (a group box inside a group box
-    # or a card), #WizardSeparator, the rule under #TrackerHeader, an #AnimalConfigRow, a
-    # nested tab strip and #WizardSummarySection; the rule above Help's related topics
-    "border.divider": ("#CDD1D7", "#4B5461"),
+    # Rules inside a card, a step lighter than the outline (Fluent's colorNeutralStroke2):
+    # table row rules, a section's rule (a group box inside a group box or a card),
+    # #WizardSeparator, the rule under #TrackerHeader, an #AnimalConfigRow, a nested tab
+    # strip and #WizardSummarySection; the rule above Help's related topics. A decorative
+    # rule, not a control's boundary, so WCAG 1.4.11 asks nothing of it: the light one has
+    # a floor of its own, 1.30:1 and 1.10 clipped, and stays a step under border.subtle
+    # (D4L and H1 in test_theme_contrast.py)
+    "border.divider": ("#D9DEE5", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
     # rings, scrollbar handles, an idle drop area, #SchedulesHubSearch,
     # #SchedulesHubSelect, the wizard's step circles, Back and Start Over buttons

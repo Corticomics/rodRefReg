@@ -39,6 +39,21 @@ reported in both themes: unselected tabs lie flat on the page in both (WinUI's T
 and the separator between two of them (D3), the selected tab's stroke and its bar (D1p,
 M1p) mark them.
 
+The light divider (border.divider) has a floor of its own, not D4's 1.5:1. D4 held every
+inner line to an outline's floor when palette B's dividers drew a table's grid, as strong
+as its outlines. Now the divider is a decorative rule inside a card: row rules, a
+section's rule, separators. It identifies no control, shows no state and is no part of a
+graphic needed to understand the content, so WCAG 1.4.11 asks nothing of it; what it must
+do is stay visible and sit a step under the card's stroke, as Fluent's
+colorNeutralStroke2 sits under Stroke1, so that a section never reads as a box edge (H1).
+Under the 1.58:1 stroke the owner chose, a 1.5:1 divider cannot be that step: #CDD2D9
+meets 1.5 (1.52, 1.30 clipped) and stands 0.06 under the stroke, and holding both would
+take a stroke of 1.65:1 or more, back toward palette B's heavier lines. So in light the
+divider is held to the lab monitor's band for a line inside a card, 1.30:1, 1.10 clipped
+and 1.25 washed out (D4L), and to H1: at least 0.15 under the stroke on a card, unclipped
+and clipped, and 3 apart in CIEDE2000. D4 stays asserted in dark, where the divider still
+meets 1.5, and is reported in light (D4i).
+
 The card shadows (tokens.SHADOWS) have a contract of their own, below the pairs: the first
 pixel row under a card must read as a shadow on every display model (E1), and the row
 beside it as a halo on a correct display (E2).
@@ -159,7 +174,14 @@ PAIRS = [
          "The separator between two unselected tabs, on their flat fill", {"clip": 1.15}, 1.5,
          {"clip": 1.3}),
     Pair("D4", "border.divider", "bg.surface", "line", 1.5,
-         "Table row rules, a section's rule, separators", {"clip": 1.3}),
+         "Table row rules, a section's rule, separators", {"clip": 1.3}, themes=("dark",)),
+    Pair("D4i", "border.divider", "bg.surface", "info", 1.5,
+         "Light: a rule inside a card is a step under the outline by design (Fluent's "
+         "Stroke2 under Stroke1): D4L holds it visible, H1 under the outline"),
+    Pair("D4L", "border.divider", "bg.surface", "line", 1.30,
+         "Light: a rule inside a card (row rules, a section's rule, separators), visible on "
+         "every display model (the lab monitor's band for a line inside a card) and a step "
+         "under the outline (H1)", {"clip": 1.10, "wash": 1.25}, themes=("light",)),
     Pair("D5", "border.subtle", "bg.inset", "line", 1.5,
          "The wizard log's outline on its own well", LINE_ROBUST),
     Pair("D6", "warning.indicator", "bg.page", "line", 1.5,
@@ -640,6 +662,23 @@ def test_the_judges_fixes_hold():
         tokens.value("text.secondary", "light"), tokens.value("text.muted", "light")
     )
     assert light >= 1.45, f"light secondary vs muted text {light:.3f}"
+
+
+# ---- Lines inside a card, under the outline (H1) ------------------------------------------
+
+
+def test_rules_stay_a_step_under_the_outline():
+    """H1, light: a rule inside a card (border.divider) reads as a quieter line than the
+    card's outline (border.subtle), so a section never looks like a box edge: at least 0.15
+    lower in ratio on a card, unclipped and clipped, and 3 apart in CIEDE2000. (In dark the
+    two are 1.06:1 apart: palette B's dark divider, kept; dark nests no box in a box either.)"""
+    surface = tokens.value("bg.surface", "light")
+    outline, rule = tokens.value("border.subtle", "light"), tokens.value("border.divider", "light")
+    for model in ("nominal", "clip"):
+        stroke = contrast.contrast_ratio(outline, surface, model)
+        inner = contrast.contrast_ratio(rule, surface, model)
+        assert inner <= stroke - 0.15, f"{model}: rule {inner:.3f}, outline {stroke:.3f}"
+    assert contrast.delta_e_2000(outline, rule) >= 3
 
 
 # ---- The shadow contract (E1, E2) -----------------------------------------------------------
