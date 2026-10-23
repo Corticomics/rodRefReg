@@ -20,7 +20,9 @@ near-black (QTBUG-102374, fixed in 5.15.10, which Debian bookworm does not ship)
   sets a new stylesheet, which repaints every widget, so the shadow follows with no signal.
 
 A card in a layout is bigger than its box by the room: a parent that aligns the box with
-other edges gives the room back in its own margins (see the cards' modules).
+other edges gives the room back in its own margins (see the cards' modules). The room takes
+no press: a press, a double-click or a right-click there goes to what lies under the card,
+as it did before the room was added.
 
 tokens.ELEVATION is the one source of a card's shadow: to change it, name another recipe
 of tokens.SHADOWS there. Every recipe fits the reserved room, so nothing moves.
@@ -31,7 +33,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from PyQt5.QtCore import QRect
+from PyQt5.QtCore import QEvent, QRect
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 
 from . import shadow
@@ -40,6 +42,11 @@ from .theme import current_theme
 
 # The room every elevated card reserves (the stylesheet's margin, from the same recipes)
 ROOM = shadow.reserved(tokens)
+
+# A press that lands in the room, outside the box an operator sees, belongs to what lies
+# under the card; so do the moves and the release that follow it
+_PRESSES = (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick, QEvent.ContextMenu)
+_AFTER_A_PRESS = (QEvent.MouseMove, QEvent.MouseButtonRelease)
 
 
 def recipe(level: str, theme: str):
@@ -128,9 +135,16 @@ class ElevatedMixin:
 
     at_rest=False: the shadow shows only while the pointer is on the card (a card that lifts
     under the pointer); entering and leaving the card repaint it.
+
+    The room takes no press (event): a press, a double-click or a right-click there is
+    ignored, so Qt passes it to the card's parent, and so are the moves and the release that
+    follow it, so a drag cannot start from the room. In the Schedules hub the cards' room
+    fills the gap between two cards, where a click selected nothing before. (The pointer
+    still lifts a card, and shows its hand cursor, over the room.)
     """
 
     _elev_level = None
+    _elev_pressed_in_room = False
 
     def init_elevation(
         self, level: str = "card", radius: float = 8.0, at_rest: bool = True
@@ -178,6 +192,23 @@ class ElevatedMixin:
                 paint_tile(painter, self.elevation_box(), tile)
                 painter.end()
         super().paintEvent(event)
+
+    def event(self, event) -> bool:
+        if self._elev_level is not None:
+            kind = event.type()
+            if kind in _PRESSES:
+                in_room = not self.elevation_box().contains(event.pos())
+                if kind != QEvent.ContextMenu:
+                    self._elev_pressed_in_room = in_room
+                if in_room:
+                    event.ignore()
+                    return False
+            elif kind in _AFTER_A_PRESS and self._elev_pressed_in_room:
+                if kind == QEvent.MouseButtonRelease and not event.buttons():
+                    self._elev_pressed_in_room = False
+                event.ignore()
+                return False
+        return super().event(event)
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)

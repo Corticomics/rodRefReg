@@ -193,6 +193,114 @@ def test_a_card_that_lifts_shows_its_shadow_under_the_pointer(qapp, style):
     assert under_the_card() == page_colour
 
 
+def test_a_press_in_the_shadows_room_goes_to_what_lies_under_the_card(qapp, style, monkeypatch):
+    """The room a card reserves for its shadow lies outside the box an operator sees. A
+    press, a double-click or a right-click there goes to what lies under the card (here a
+    page that records them), as before the room was added: in the Schedules hub the cards'
+    room fills the 12px gap between two cards, where a click selected nothing. Inside the
+    box each card acts as before. A schedule card: a press in its room selects nothing and
+    starts no drag, even after a press in its box, and a right-click there asks for no
+    menu. A wizard type card: a press in its room toggles nothing."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from models.Schedule import Schedule  # noqa: PLC0415
+    from PyQt5.QtCore import QEvent, QPoint, Qt  # noqa: PLC0415
+    from PyQt5.QtGui import QContextMenuEvent, QDrag, QMouseEvent  # noqa: PLC0415
+    from PyQt5.QtTest import QTest  # noqa: PLC0415
+    from PyQt5.QtWidgets import QApplication, QMenu, QWidget  # noqa: PLC0415
+    from ui.components.interactive_card import InteractiveCard  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleCard  # noqa: PLC0415
+
+    class Page(QWidget):
+        """What lies under the cards: it records the presses and right-clicks it gets."""
+
+        def __init__(self):
+            super().__init__()
+            self.presses, self.menus = [], []
+
+        def mousePressEvent(self, event):
+            self.presses.append(event.pos())
+
+        def mouseDoubleClickEvent(self, event):
+            self.presses.append(event.pos())
+
+        def contextMenuEvent(self, event):
+            self.menus.append(event.pos())
+
+    drags = []
+    monkeypatch.setattr(QDrag, "exec_", lambda drag, *_a: drags.append(drag) or Qt.IgnoreAction)
+    monkeypatch.setattr(QMenu, "exec_", lambda _menu, *_a: None)
+    manager, widgets = style
+    manager.apply("light")
+    page = Page()
+    page.resize(720, 260)
+    schedule = Schedule(1, "Morning", 1.0, "2030-01-15T09:00:00", "2030-01-15T11:00:00", 1, 0)
+    database = SimpleNamespace(
+        get_schedule_details=lambda _id: [{"delivery_mode": "staggered", "animal_ids": [1]}]
+    )
+    card = ScheduleCard(schedule, database, page)
+    card.setGeometry(20, 20, 300, card.height())
+    toggle = InteractiveCard("Staggered Delivery", "Spread the water over a window", parent=page)
+    toggle.setGeometry(360, 20, 300, 140)
+    widgets.append(page)
+    page.show()
+    qapp.processEvents()
+    clicked, menus = [], []
+    card.clicked.connect(clicked.append)
+    card.customContextMenuRequested.connect(menus.append)
+
+    def move(widget, pos):
+        """The pointer moves to `pos` with the left button held."""
+        event = QMouseEvent(
+            QEvent.MouseMove,
+            pos,
+            widget.mapToGlobal(pos),
+            Qt.NoButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        )
+        QApplication.sendEvent(widget, event)
+
+    def right_click(widget, pos):
+        event = QContextMenuEvent(QContextMenuEvent.Mouse, pos, widget.mapToGlobal(pos))
+        QApplication.sendEvent(widget, event)
+
+    box = card.elevation_box()
+    inside = box.center()
+    rooms = [QPoint(box.left() - 3, box.center().y()), QPoint(box.center().x(), box.bottom() + 4)]
+    for spot in rooms:
+        assert card.rect().contains(spot) and not box.contains(spot), spot
+
+    # In the box: a press selects the card and a drag starts from it
+    QTest.mousePress(card, Qt.LeftButton, Qt.NoModifier, inside)
+    move(card, inside + QPoint(30, 0))
+    QTest.mouseRelease(card, Qt.LeftButton, Qt.NoModifier, inside + QPoint(30, 0))
+    assert len(clicked) == 1 and len(drags) == 1
+    right_click(card, inside)
+    assert len(menus) == 1
+
+    # In the room: the page gets the press, the double-click and the right-click; the card
+    # does nothing, and the moves after the press start no drag
+    for spot in rooms:
+        QTest.mousePress(card, Qt.LeftButton, Qt.NoModifier, spot)
+        assert page.presses[-1] == card.mapTo(page, spot)
+        move(card, spot + QPoint(40, 0))
+        QTest.mouseRelease(card, Qt.LeftButton, Qt.NoModifier, spot + QPoint(40, 0))
+        QTest.mouseDClick(card, Qt.LeftButton, Qt.NoModifier, spot)
+        assert page.presses[-1] == card.mapTo(page, spot)
+        right_click(card, spot)
+        assert page.menus[-1] == card.mapTo(page, spot)
+    assert len(clicked) == 1 and len(drags) == 1 and len(menus) == 1
+
+    # The type card: a press in its room toggles nothing; one in its box checks it
+    assert not toggle.is_checked()
+    edge = toggle.elevation_box()
+    QTest.mouseClick(toggle, Qt.LeftButton, Qt.NoModifier, QPoint(edge.left() - 3, edge.top() + 9))
+    assert not toggle.is_checked()
+    QTest.mouseClick(toggle, Qt.LeftButton, Qt.NoModifier, edge.center())
+    assert toggle.is_checked()
+
+
 def test_the_tokens_alone_choose_the_shadow(qapp, monkeypatch):
     """tokens.ELEVATION is the one source of a card's shadow. The prototype's environment
     knobs are gone: RRR_SHADOW no longer swaps the recipe, and RRR_SCHEDULE_CARD_SHADOW no
