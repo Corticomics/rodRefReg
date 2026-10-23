@@ -81,11 +81,10 @@ not listed here.
   below 0.10 mL, the smallest schedule, is said to be so, and no
   schedule is offered.
 - **Revert to previous version** (Settings > Updates) goes back to 2.0.0
-  in the theme it finds. On a device that 2.1.0 switched to dark, that is
-  2.0.0's own dark theme, where every other table row shows white: log in
-  and choose *light* in 2.0.0's Settings > General > Theme. Updating to
-  2.1.0 again keeps the theme chosen there. A device that never saved a
-  theme goes back to light, and is dark again after the next update.
+  in the theme it had before the update, light unless dark was chosen in
+  2.0.0, whichever theme 2.1.0 shows: 2.1.0 keeps its own theme setting
+  and leaves 2.0.0's as it was. Updating to 2.1.0 again starts in the
+  theme last chosen in 2.1.0, dark if none was chosen.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
