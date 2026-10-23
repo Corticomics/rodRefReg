@@ -8,7 +8,8 @@ of the palette's way and covers the places the palette cannot reach:
 - no universal QWidget or `*` background or colour: it painted the page colour inside
   every card, and with the grey page that shows as grey boxes;
 - no `color` on a rule that matches an input, and no [placeholderText] rule: Qt draws an
-  input's placeholder at half the alpha of such a colour, under 4.5:1 for any colour;
+  input's placeholder in such a colour, at half its alpha from Qt 5.15.12 (under 4.5:1 for
+  any colour) and as typed text up to 5.15.11 (the Pi's 5.15.8);
 - no QTextEdit:read-only rule: it would outrank QTextBrowser#HelpContent and grey the
   Help pane;
 - a scroll area's content widget and stacked pages are transparent (Qt fills a scroll
@@ -155,7 +156,8 @@ def test_no_universal_background_or_colour(theme):
 
 @pytest.mark.parametrize("theme", THEMES)
 def test_no_colour_on_an_input(theme):
-    """A `color` on a rule that matches an input halves its placeholder's alpha."""
+    """A `color` on a rule that matches an input becomes its placeholder's colour: at half
+    alpha from Qt 5.15.12, as typed text on the Pi's 5.15.8 (test_theme_palette.py)."""
     offenders = [
         selector
         for selectors, decls in _stylesheet_rules(theme)
@@ -174,7 +176,7 @@ def test_no_placeholder_rule(theme):
     text = build_qss.OUTPUTS[theme].read_text(encoding="utf-8")
     assert "placeholderText" not in COMMENT.sub("", text), (
         "placeholders are the palette's PlaceholderText (text.muted): a stylesheet rule "
-        "can only draw them at half alpha"
+        "draws them in the input's text colour, at half alpha from Qt 5.15.12"
     )
 
 

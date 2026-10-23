@@ -205,7 +205,8 @@ rules the palette depends on:
 
 - no universal `QWidget` background or colour;
 - no `color` on a rule that matches an input. Qt then draws the input's
-  placeholder at half alpha, under 4.5:1;
+  placeholder in that colour: at half alpha from Qt 5.15.12, under 4.5:1, and
+  on the Pi's 5.15.8 at full strength, like typed text;
 - no `[placeholderText]` or `QTextEdit:read-only` rule;
 - scroll areas and stacked pages transparent.
 

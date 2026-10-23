@@ -297,18 +297,57 @@ def test_a_placeholder_keeps_its_full_colour(qapp, tokens, style, theme):
     )
 
 
-def test_a_colour_on_an_input_would_halve_its_placeholder(qapp, tokens, style):
-    """Why no rule colours an input: Qt draws the placeholder at half that colour's alpha."""
+def test_a_colour_on_an_input_takes_its_placeholder_colour_away(qapp, tokens, style):
+    """Why no rule colours an input. A stylesheet `color` on an input sets the palette's
+    PlaceholderText to that colour too, so the hint is no longer drawn in text.muted. What
+    Qt draws instead depends on its version (qstylesheetstyle.cpp, configurePalette):
+    - from 5.15.12, the colour at half its alpha: the hint falls under 4.5:1;
+    - up to 5.15.11, the Pi's and CI's Debian 5.15.8 among them, the colour itself: the
+      hint is drawn exactly as typed text is, so an empty field reads as filled in.
+    Without the rule the hint is text.muted, drawn at full strength."""
+    from PyQt5.QtCore import QT_VERSION, Qt  # noqa: PLC0415
     from PyQt5.QtGui import QPalette  # noqa: PLC0415
     from PyQt5.QtWidgets import QLineEdit  # noqa: PLC0415
+    from ui.style import contrast  # noqa: PLC0415
 
     manager, widgets = style
     manager.apply("light")
-    edit = QLineEdit()
-    edit.setPlaceholderText("Search animals...")
-    edit.setStyleSheet(f"QLineEdit {{ color: {tokens.value('text.primary', 'light')}; }}")
-    _show(qapp, widgets, edit, 240, 40)
-    assert edit.palette().color(QPalette.PlaceholderText).alpha() == 128
+    primary, muted = tokens.value("text.primary", "light"), tokens.value("text.muted", "light")
+    field = tokens.value("bg.field", "light")
+
+    def darkest_ink(edit, text):
+        """The darkest pixel the words draw: their fully covered pixels' colour."""
+        edit.setText(text)
+        qapp.processEvents()
+        image = edit.grab().toImage()
+        inks = {
+            image.pixelColor(x, y).name().upper()
+            for x in range(4, image.width() - 4)
+            for y in range(4, image.height() - 4)
+        } - {field}
+        return min(inks, key=lambda ink: contrast.relative_luminance(ink))
+
+    def field_with(sheet):
+        edit = QLineEdit()
+        edit.setFocusPolicy(Qt.NoFocus)  # no focus ring and no text cursor in the picture
+        edit.setPlaceholderText("Search animals...")
+        edit.setStyleSheet(sheet)
+        return _show(qapp, widgets, edit, 240, 40)
+
+    plain = field_with("")
+    assert darkest_ink(plain, "") == muted, "the hint, drawn in text.muted"
+
+    edit = field_with(f"QLineEdit {{ color: {primary}; }}")
+    placeholder = edit.palette().color(QPalette.PlaceholderText)
+    assert placeholder.name().upper() == primary, "the rule's colour, not text.muted"
+    hint, typed = darkest_ink(edit, ""), darkest_ink(edit, "Search animals...")
+    assert typed == primary
+    if QT_VERSION >= 0x050F0C:  # 5.15.12
+        assert placeholder.alpha() == 128
+        assert contrast.contrast_ratio(hint, field) < 4.5, hint
+    else:
+        assert placeholder.alpha() == 255
+        assert hint == typed, "the hint is drawn as typed text"
 
 
 # ---- Focus ------------------------------------------------------------------------------

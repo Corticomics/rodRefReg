@@ -25,8 +25,9 @@
 /* No universal QWidget background or colour: the window and dialogs paint the
    palette's Window (bg.page), and plain containers stay transparent, so a container
    inside a card shows the card. A `color` on any rule that matches an input would
-   make Qt draw its placeholder at half alpha, below 4.5:1; inputs take their text and
-   placeholder colours from the palette. */
+   become its placeholder's colour too: at half alpha from Qt 5.15.12 (below 4.5:1), as
+   typed text on the Pi's 5.15.8. Inputs take their text and placeholder colours from the
+   palette. */
 
 /* A scroll area's viewport and content widget fill themselves with the palette's
    Window, which would paint the page colour inside a card: they show what the scroll

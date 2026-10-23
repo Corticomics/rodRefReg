@@ -5,9 +5,10 @@ the widgets its rules name; everything else draws with the palette, so the palet
 follow the theme too:
 - the window and dialogs (Window), and every plain container, which is transparent over it;
 - the text of labels, inputs, tables and lists (WindowText, Text, ButtonText);
-- placeholders (PlaceholderText). Qt draws a placeholder at half the alpha of any `color`
-  a stylesheet rule gives the input, which no colour can lift to 4.5:1, so no rule colours
-  an input and the palette gives the placeholder its full colour;
+- placeholders (PlaceholderText). A `color` a stylesheet rule gives an input becomes its
+  placeholder's colour too: from Qt 5.15.12 at half its alpha, which no colour can lift to
+  4.5:1, and up to 5.15.11 (the Pi's 5.15.8) at full strength, so the hint looks like typed
+  text. So no rule colours an input, and the palette gives the placeholder its colour;
 - alternate table rows (AlternateBase): Fusion's own light grey under the dark theme's
   light text is what made the dark zebra rows unreadable;
 - selection, rich-text links, tooltips, and the Disabled group of disabled widgets.

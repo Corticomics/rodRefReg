@@ -135,7 +135,8 @@ selection, links. So:
 
 - **Never** add a universal `QWidget { background; color }` rule.
 - **Never** put a `color` on a rule that matches an input. Qt would draw the
-  input's placeholder at half alpha.
+  input's placeholder in that colour: at half alpha from Qt 5.15.12 (under
+  4.5:1), and on the Pi's 5.15.8 at full strength, like typed text.
 - Content the stylesheet cannot reach (HTML, a painter) listens to
   `theme_changed`, as `HelpTab` does.
 
