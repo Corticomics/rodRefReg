@@ -334,7 +334,10 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    the theme to 'dark', the default from 2.1.0, once (it was 'light',
    which is kept for a revert to 2.0.0); …` and RRR opens dark; the next
    start prints no such line. A Pi with no theme saved, or dark, opens
-   dark with no line.
+   dark with no `Switched` line. Every Pi that ran 2.0.0 also prints
+   `[SETTINGS] Removed the retired setting pulse_width_ms=20` at its
+   first start of 2.1.0, which is expected: 2.0.0 writes that row back at
+   each of its starts, so after a revert the update back prints it again.
 2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
    Selected on a cage (its relay clicks), Close Master (both click off).
    Run is greyed out while the session is open and comes back after
