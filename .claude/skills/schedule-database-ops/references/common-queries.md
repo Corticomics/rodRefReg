@@ -83,7 +83,7 @@ system_controller.load_settings()
 ## "Write a system setting"
 
 ```python
-system_controller.save_settings({'num_hats': 4, 'theme': 'dark'})
+system_controller.save_settings({'num_hats': 4, 'ui_theme': 'dark'})
 # Only managed keys get persisted; unknown keys are dropped silently.
 # Managed-key list is the union of:
 #   - _create_default_settings() keys

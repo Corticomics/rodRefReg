@@ -100,12 +100,14 @@ load and never saved or kept in memory, and `SystemController.FIXED_SETTINGS`
 (`use_pulse_delivery: True`) are forced at load (in the DB and in memory) and
 on every save. `SettingsTab.restore_from_backup` drops both from a backup.
 See [`Project/docs/DATABASE.md` §6](Project/docs/DATABASE.md) and
-`test_retired_pulse_settings.py`. A one-time change of a stored setting
-follows the dark-theme switch of v2.1.0: a persisted marker
-(`ui_dark_default_applied`), stored in one transaction with the change
-(`DatabaseHandler.update_system_settings`), so a database error stores
-neither and the next start tries again, and a stored marker means the change
-is never made again (`test_dark_default.py`).
+`test_retired_pulse_settings.py`. A setting whose meaning changes in a
+release follows the theme of v2.1.0: it moves to a key of its own
+(`ui_theme`), and the old row (`theme`) is left exactly as the older release
+saved it, never written, deleted or read as the setting, so a revert finds
+it as it was. The older release writes only the keys it knows, so the new
+row waits for the next update. A missing new row means the release has not
+run yet: storing it is the one-time change, and a database error leaves it
+for the next start (`test_dark_default.py`).
 `DatabaseHandler.peek_system_settings()` reads the rows read-only, without
 `create_tables()`, for code that must know a setting before the handler
 exists (main.py's start-up theme).
