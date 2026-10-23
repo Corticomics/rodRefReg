@@ -53,12 +53,13 @@ not listed here.
   sections are divided by a line instead of a box within the box, and a
   table has one line under each row and none between its columns. In the
   dark theme the tables' alternate rows, the Help pane, the Schedules tab,
-  the Execution Monitor's cards, the wizard's steps and the date fields'
-  calendars are now dark and readable; before, some stayed white or light.
-  In both themes a selected row is solid teal, the selected tab has a teal
-  bar, and a field or button with the keyboard focus has a black (light)
-  or white (dark) outline. The Animals tab's red *Last schedule delivered
-  amount* cell is unchanged.
+  the Execution Monitor's cards, the wizard's steps, the date fields'
+  calendars and the Cages tab's board picture are now dark and readable;
+  before, some stayed white or light. In both themes a selected row is
+  solid teal, the selected tab has a teal bar, and most fields and buttons
+  with the keyboard focus have a black (light) or white (dark) outline; a
+  teal button's is black in both. The Animals tab's red *Last schedule
+  delivered amount* cell is unchanged.
 - **Add:** Settings > Calibration has a **Profile** column: the pulse width
   and interval each cage was calibrated at, for example *30 / 1000 ms*.
   Every delivery to the cage uses them.
@@ -79,6 +80,12 @@ not listed here.
   field cannot take (typed, 0.369 became 0.36). A remainder that rounds
   below 0.10 mL, the smallest schedule, is said to be so, and no
   schedule is offered.
+- **Revert to previous version** (Settings > Updates) goes back to 2.0.0
+  in the theme it finds. On a device that 2.1.0 switched to dark, that is
+  2.0.0's own dark theme, where every other table row shows white: log in
+  and choose *light* in 2.0.0's Settings > General > Theme. A device that
+  never saved a theme goes back to light. Updating to 2.1.0 again keeps
+  the theme chosen there.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 
