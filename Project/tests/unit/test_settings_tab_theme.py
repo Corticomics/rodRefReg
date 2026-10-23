@@ -225,28 +225,32 @@ def _rgb(hex_colour):
 def _coverage(pixels, background, ink):
     """How strongly `pixels` show `ink` drawn over `background`, as anti-aliasing draws it.
 
-    A glyph's pixel is background + a * (ink - background), with a its coverage in [0, 1].
-    Returns (the highest coverage, the largest distance from that segment, in RGB units,
-    among the pixels at least 15 % covered; a pixel past `ink` counts by how far past). A font whose strokes never cover a whole pixel (CI's
-    Ubuntu runner, which installs no fonts) never draws `ink` exactly, so an exact colour
-    match fails there although the words are drawn in `ink`; the line keeps any other
-    colour apart: its pixels lie off it.
+    Each channel of a glyph's pixel is background + a * (ink - background), with a its
+    coverage in [0, 1]. Grey-scale anti-aliasing gives one a per pixel; sub-pixel (LCD)
+    anti-aliasing gives each channel its own, so an edge pixel is a coloured fringe
+    between the two colours (CI's Ubuntu runner drew pixels up to 82 RGB units off the
+    grey line between them). A font whose strokes never cover a
+    whole pixel never draws `ink` exactly, so an exact colour match fails there although
+    the words are drawn in `ink`.
+
+    Returns (the highest coverage of a pixel, its coverage being its least-covered
+    channel's; how far, in RGB units, the worst pixel lies outside the box the two colours
+    span, channel by channel; that pixel). A colour other than `ink` leaves the box in a
+    channel where it is not between the two, or never reaches a high coverage.
     """
     b, i = _rgb(background), _rgb(ink)
-    d = [i[k] - b[k] for k in range(3)]
-    norm = sum(c * c for c in d)
-    best, worst = 0.0, 0.0
+    channels = [k for k in range(3) if abs(i[k] - b[k]) >= 8]
+    best, worst, culprit = 0.0, 0.0, None
     for pixel in pixels:
         p = _rgb(pixel)
-        a = sum((p[k] - b[k]) * d[k] for k in range(3)) / norm
-        if a < 0.15:
+        if pixel == background:
             continue
-        best = max(best, min(a, 1.0))
-        off = sum((p[k] - (b[k] + a * d[k])) ** 2 for k in range(3)) ** 0.5
-        if a > 1.0:  # past `ink`: a stronger colour than the one expected
-            off = max(off, (a - 1.0) * norm**0.5)
-        worst = max(worst, off)
-    return best, worst
+        low = min((p[k] - b[k]) / (i[k] - b[k]) for k in channels)
+        best = max(best, min(max(low, 0.0), 1.0))
+        out = max(max(min(b[k], i[k]) - p[k], p[k] - max(b[k], i[k]), 0) for k in range(3))
+        if out > worst:
+            worst, culprit = out, pixel
+    return best, worst, culprit
 
 
 @pytest.mark.parametrize("theme", THEMES)
@@ -274,9 +278,9 @@ def test_a_selected_row_writes_its_words_in_the_selection_colours(
     }
     selected, words = tokens.value("bg.selected", theme), tokens.value("text.on-accent", theme)
     assert selected in found
-    covered, off_line = _coverage(found, selected, words)
+    covered, outside, culprit = _coverage(found, selected, words)
     assert covered >= 0.75, f"the words, in text.on-accent: coverage {covered:.2f}"
-    assert off_line <= 16, f"a pixel {off_line:.1f} off the selection's text colour"
+    assert outside <= 16, f"{culprit} is {outside} outside the selection's text colours"
     assert tokens.value("danger.text", theme) not in found
 
 
