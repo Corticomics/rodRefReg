@@ -103,6 +103,9 @@ class RodentRefreshmentGUI(QWidget):
         terminal_layout = QVBoxLayout(terminal_container)
         terminal_layout.setContentsMargins(0, 0, 0, 0)
         self.terminal_output = QPlainTextEdit()
+        # A read-only log that fills its pane: QPlainTextEdit#TerminalLog draws no frame of
+        # its own, the pane is its frame
+        self.terminal_output.setObjectName("TerminalLog")
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
         terminal_layout.addWidget(self.terminal_output)

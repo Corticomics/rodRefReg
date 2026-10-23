@@ -461,6 +461,8 @@ def test_a_calendars_weekend_dates_take_the_themes_colour(qapp, tokens, style, t
 
 
 def test_the_help_pane_follows_the_theme(qapp, tokens, style):
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from PyQt5.QtWidgets import QWidget  # noqa: PLC0415
     from ui.HelpTab import HelpTab  # noqa: PLC0415
 
     manager, widgets = style
@@ -474,14 +476,20 @@ def test_the_help_pane_follows_the_theme(qapp, tokens, style):
     assert help_tab._current_theme() == "light"
     assert page() == tokens.value("bg.surface", "light")
 
-    # The selected topic is one solid block: its indent keeps the tree's surface
+    # The selected topic is one solid block: its indent keeps the surface the tree stands
+    # on, the sidebar's (the tree has no box of its own: the navigation column on the base
+    # layer, as WinUI's NavigationView)
     tree = help_tab.topic_tree
     rect = tree.visualItemRect(tree.currentItem())
-    image = tree.viewport().grab().toImage()
-    assert _pixel(image, rect.left() + 12, rect.center().y()) == tokens.value(
-        "bg.selected", "light"
-    )
-    assert _pixel(image, 4, rect.center().y()) == tokens.value("bg.surface", "light")
+    sidebar = help_tab.findChild(QWidget, "HelpSidebar")
+    image = sidebar.grab().toImage()
+
+    def at(x, y):
+        point = tree.viewport().mapTo(sidebar, QPoint(x, y))
+        return _pixel(image, point.x(), point.y())
+
+    assert at(rect.left() + 12, rect.center().y()) == tokens.value("bg.selected", "light")
+    assert at(4, rect.center().y()) == tokens.value("bg.page", "light")
 
     # main.py applies the saved theme after the GUI exists: the pane redraws itself
     manager.apply("dark")

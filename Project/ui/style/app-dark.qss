@@ -3,8 +3,8 @@
  * Rodent Refreshment Regulator - Dark Theme
  *
  * Fluent 2 / WinUI layers (v2.1.0): a near-white page (the base layer) under white tab panes
- * (the content layer), one hairline stroke round every pane, card, box and table, teal
- * accent. Every colour is a role in Project/ui/style/tokens.py, and
+ * (the content layer), one hairline stroke round every pane, card, box and table, rules
+ * between sections, teal accent. Every colour is a role in Project/ui/style/tokens.py, and
  * Project/tests/unit/test_theme_contrast.py checks the pairs the UI draws, in both themes.
  *
  * Base colours come from the QPalette StyleManager builds from the same tokens (window,
@@ -130,6 +130,15 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
 }
 
 /* Placeholder text is the palette's PlaceholderText (text.muted): no rule here. */
+
+/* The Terminal: a read-only log that fills its tab pane, so the pane is its frame. No control
+   boundary of its own (with it, the pane's stroke and the log's made a double edge), and no
+   fill: it shows the pane. */
+QPlainTextEdit#TerminalLog, QPlainTextEdit#TerminalLog:focus {
+    background: transparent;
+    border: none;
+    padding: 10px 12px;
+}
 
 /* ComboBox dropdown */
 QComboBox::drop-down {
@@ -354,6 +363,30 @@ QTabBar::tab:selected {
 QTabBar {
     qproperty-expanding: false;
 }
+/* A tab widget inside a pane or a card (Settings' sub-tabs, the Cages HAT tabs) is a Fluent
+   TabList: a strip over a rule, not a second box. Its tabs are transparent, so they show
+   the pane or card they sit on, with no separators; the selected one carries the 3px bar at
+   its foot, on the rule, and the bar takes 3px of the padding, so no tab moves. */
+QTabWidget QTabWidget::pane {
+    background: transparent;
+    border: none;
+    border-top: 1px solid #4B5461;
+    border-radius: 0;
+}
+QTabWidget QTabWidget > QTabBar::tab {
+    background: transparent;
+}
+QTabWidget QTabWidget > QTabBar::tab:!selected {
+    border-right-color: transparent;
+}
+QTabWidget QTabWidget > QTabBar::tab:selected {
+    background: transparent;
+    border-color: transparent;
+    border-top: 1px solid transparent;
+    border-bottom: 3px solid #2DD4BF;
+    padding-top: 8px;
+    padding-bottom: 5px;
+}
 
 /* ============================================
    TABLES
@@ -363,10 +396,12 @@ QTabBar {
 QHeaderView {
     background: transparent;
 }
+/* No band under the column titles: a rule (Fluent's TableHeader), one step stronger than
+   the row rules below it */
 QHeaderView::section {
-    background: #1F242B;
+    background: transparent;
     border: none;
-    border-bottom: 2px solid #4F5865;
+    border-bottom: 1px solid #4F5865;
     padding: 12px 16px;
     font-weight: 600;
     color: #CBD5E1;
@@ -375,9 +410,9 @@ QHeaderView::section {
     letter-spacing: 0.5px;
 }
 QTableCornerButton::section {
-    background: #1F242B;
+    background: transparent;
     border: none;
-    border-bottom: 2px solid #4F5865;
+    border-bottom: 1px solid #4F5865;
 }
 QTableView, QTableWidget {
     background: #30373F;
@@ -388,6 +423,9 @@ QTableView, QTableWidget {
     selection-background-color: #2DD4BF;
     selection-color: #042F2E;
     color: #E5E9EF;
+    /* Each row is ruled once, by its item's bottom rule below: no grid as well (it drew a
+       second rule under every row and 1px slits between zebra cells) */
+    qproperty-showGrid: false;
 }
 QTableView::item, QTableWidget::item {
     padding: 12px 16px;
@@ -400,6 +438,14 @@ QTableView::item:hover, QTableWidget::item:hover {
 QTableView::item:selected, QTableWidget::item:selected {
     background: #2DD4BF;
     color: #042F2E;
+}
+
+/* A table or a list inside a group box or a card is content: the box frames it, so it
+   draws no outline of its own */
+QGroupBox QTableView, QGroupBox QTableWidget, QGroupBox QListWidget,
+QFrame#Card QTableView, QFrame#Card QTableWidget, QFrame#Card QListWidget {
+    border: none;
+    border-radius: 0;
 }
 
 /* Animals tab: the "Last schedule delivered amount" cell of a run that ended short
@@ -470,17 +516,22 @@ QGroupBox::title {
     background: transparent;
 }
 
-/* Nested GroupBox */
-QGroupBox QGroupBox {
-    background: #1F242B;
-    border: 1px solid #4F5865;
-    border-radius: 8px;
-    margin-top: 20px;
-    padding: 20px 16px 16px 16px;
+/* A group box inside a group box or a card is a section, not a second box: its title over
+   a 1px rule (Fluent's Divider), on the box it sits in */
+QGroupBox QGroupBox, QFrame#Card QGroupBox, QFrame[card="true"] QGroupBox {
+    background: transparent;
+    border: none;
+    border-top: 1px solid #4B5461;
+    border-radius: 0;
+    margin-top: 24px;
+    padding: 16px 0 0 0;
 }
-QGroupBox QGroupBox::title {
+QGroupBox QGroupBox::title, QFrame#Card QGroupBox::title, QFrame[card="true"] QGroupBox::title {
+    left: 0;
+    top: 4px;
+    padding: 0;
     color: #CBD5E1;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 12px;
 }
 
@@ -816,11 +867,13 @@ QMenu#ScheduleCardMenu::item {
    SCHEDULE PROGRESS TRACKER
    ============================================ */
 
-/* Header frame */
+/* Header strip: flush with its pane on three sides, so a rule under it, not a box (a box
+   drew a second hairline beside the pane's) */
 QFrame#TrackerHeader {
-    background-color: #30373F;
-    border: 1px solid #4F5865;
-    border-radius: 12px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid #4B5461;
+    border-radius: 0;
     padding: 12px;
 }
 
@@ -1296,9 +1349,12 @@ QFrame#WizardConnector[state="completed"] {
     background: #2DD4BF;
 }
 
-/* Wizard Separator */
+/* Wizard Separator: an HLine. Without a border Qt draws no line of its own (a Plain HLine
+   drew one in WindowText, near-black, 3px tall): 1px of the divider */
 QFrame#WizardSeparator {
     background: #4B5461;
+    border: none;
+    min-height: 1px;
     max-height: 1px;
 }
 
@@ -1395,11 +1451,6 @@ QLabel#CardBadge {
 /* ============================================
    WIZARD STEP CONTENT AREA
    ============================================ */
-QWidget#WizardStepContent {
-    background: #1F242B;
-    padding: 24px;
-}
-
 /* Step Header */
 QLabel#StepIcon {
     font-size: 24px;
@@ -1460,14 +1511,15 @@ QLabel#WizardEmptyState {
     font-size: 14px;
 }
 
-/* Step 3's row for each animal (the schedule edit dialog's too): outlined in its group
-   box */
+/* Step 3's row for each animal (the schedule edit dialog's too): a list row under a rule
+   in its group box, not a box inside the box */
 QFrame#AnimalConfigRow {
-    background: #30373F;
-    border: 1px solid #4F5865;
-    border-radius: 8px;
-    padding: 8px;
-    margin: 4px 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #4B5461;
+    border-radius: 0;
+    padding: 8px 0;
+    margin: 0;
 }
 
 /* Step 4's summary, on the page: section titles with a rule under them, then label and
@@ -1478,7 +1530,7 @@ QLabel#WizardSummarySection {
     color: #5EEAD4;
     padding-top: 6px;
     padding-bottom: 4px;
-    border-bottom: 1px solid #4F5865;
+    border-bottom: 1px solid #4B5461;
 }
 QLabel#WizardSummaryLabel {
     font-size: 11px;
@@ -1517,22 +1569,27 @@ QProgressBar#SplashProgress::chunk {
    HELP TAB
    ============================================ */
 
-/* Sidebar container */
+/* Sidebar: the navigation column on the base layer, as WinUI's NavigationView pane; one
+   stroke divides it from the content. Its outer corners follow the pane's (its radius less
+   its 1px border), so its square corners do not cover the pane's rounded ones. */
 QWidget#HelpSidebar {
     background-color: #1F242B;
     border-right: 1px solid #4F5865;
+    border-top-left-radius: 11px;
+    border-bottom-left-radius: 11px;
 }
 
 /* Content pane container */
 QWidget#HelpContentPane {
     background-color: #30373F;
+    border-top-right-radius: 11px;
+    border-bottom-right-radius: 11px;
 }
 
-/* Topic tree */
+/* Topic tree: straight on the sidebar, no box of its own */
 QTreeWidget#HelpTree {
-    background-color: #30373F;
-    border: 1px solid #4F5865;
-    border-radius: 8px;
+    background-color: transparent;
+    border: none;
     outline: none;
     color: #E5E9EF;
     /* The selection is the rounded item alone, not a second block in the indent */
@@ -1582,14 +1639,16 @@ QLabel#HelpResultCount {
 
 /* Content browser — override QTextEdit form-input rules. Its text colours come from
    the Help page's own HTML. */
+/* No box: the content pane is the box. Its viewport is square and a stylesheet radius
+   cannot round it, so a margin keeps it off the pane's rounded bottom-right corner. */
 QTextBrowser#HelpContent {
     background-color: #30373F;
-    border: 1px solid #4F5865;
-    border-radius: 8px;
+    border: none;
+    border-radius: 0;
     padding: 0;
-    /* Suppress focus thickening inherited from QTextEdit:focus */
+    margin: 0px 4px 4px 0px;
 }
 QTextBrowser#HelpContent:focus {
-    border: 1px solid #4F5865;
+    border: none;
     padding: 0;
 }

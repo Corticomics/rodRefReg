@@ -8,7 +8,8 @@ colour (bg.page and bg.inset do): they still say different things.
 
 The light palette (v2.1.0) follows Fluent 2 and WinUI: a near-white page (the base
 layer) under white tab panes (the content layer), and white cards, all outlined by one
-hairline stroke. The edges are strokes, not tints, so they stay visible on a monitor that
+hairline stroke, with rules between the sections inside them, never a box in a box. The
+edges are strokes, not tints, so they stay visible on a monitor that
 clips or washes out the Pi's HDMI signal (contrast.py has the models). The dark theme keeps
 the robust-contrast palette's values (palette B), but for its unselected tabs, flat as in
 light: it separates its surfaces by tint and stroke.
@@ -39,23 +40,22 @@ THEMES = ("light", "dark")
 TOKENS: dict[str, tuple[str, str]] = {
     # ---- Backgrounds -------------------------------------------------------------------
     # The page, the base layer (QPalette.Window): windows and dialogs, the strip the tabs
-    # stand on (unselected tabs show it), the help sidebar, #WizardStepContent
+    # stand on (unselected tabs show it), the help sidebar
     "bg.page": ("#F8FAFB", "#1F242B"),
     # The content layer: tab panes, and the selected tab that joins its pane (WinUI's two
     # layers: a lighter content layer on the base; in dark the panes keep the page's colour)
     "bg.pane": ("#FFFFFF", "#1F242B"),
     # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
-    # menus, the combo popup, QPushButton, an idle drop area, #TrackerHeader,
-    # #MaterialCard, #RelayTerminal, #InteractiveCard, #ScheduleCard, the wizard's step
-    # circles and Back button, #AnimalConfigRow, the help panes (QPalette.Button)
+    # menus, the combo popup, QPushButton, an idle drop area, #MaterialCard,
+    # #RelayTerminal, #InteractiveCard, #ScheduleCard, the wizard's step circles and Back
+    # button, the help content pane (QPalette.Button)
     "bg.surface": ("#FFFFFF", "#30373F"),
     # Editable fields, focused or not; checkbox and radio indicators; #CageNameEdit,
     # #SchedulesHubSearch (QPalette.Base)
     "bg.field": ("#FFFFFF", "#30373F"),
-    # Sunken areas inside a surface: a nested group box, the table header band and its
-    # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"], a calendar popup's
-    # navigation bar; inline code in Help. In light the page's tint, a hint only: each of
-    # them keeps its outline, its rule or its words
+    # Wells inside a white surface: #WizardLog, #RelayNumber, #StatusLabel[status="closed"],
+    # a calendar popup's navigation bar; inline code in Help. The page's tint, a hint only:
+    # each of them keeps its outline or its words
     "bg.inset": ("#F8FAFB", "#1F242B"),
     # Unselected tabs: the page's colour in both themes, flat on the base layer as WinUI's
     # TabView draws them; a separator between two of them keeps their boundary
@@ -132,14 +132,15 @@ TOKENS: dict[str, tuple[str, str]] = {
     "text.tooltip": ("#FFFFFF", "#1A1D1F"),
     # ---- Borders -----------------------------------------------------------------------
     # The one structural stroke (Fluent's colorNeutralStroke1): cards, tab panes and the
-    # selected tab, the separator between unselected tabs, group boxes, tables, lists,
-    # menus, the combo popup, the login prompt, the table header rule, #TrackerHeader,
-    # #MaterialCard, progress bars (#TrackerProgress too), #RelayTerminal, #WizardLog,
-    # #InteractiveCard, #ScheduleCard, #WizardConnector, #AnimalConfigRow, the rule under
-    # #WizardSummarySection, the help panes; disabled inputs, buttons and indicators
+    # selected tab, the separator between unselected tabs, group boxes, tables and the rule
+    # under their header, lists, menus, the combo popup, the login prompt, #MaterialCard,
+    # progress bars (#TrackerProgress too), #RelayTerminal, #WizardLog, #InteractiveCard,
+    # #ScheduleCard, #WizardConnector, the Help sidebar's edge; disabled inputs, buttons and
+    # indicators
     "border.subtle": ("#C8CED6", "#4F5865"),
-    # Table grid lines and row rules, #WizardSeparator; the rule above Help's related
-    # topics
+    # Rules inside a card: table row rules, a section's rule (a group box inside a group box
+    # or a card), #WizardSeparator, the rule under #TrackerHeader, an #AnimalConfigRow, a
+    # nested tab strip and #WizardSummarySection; the rule above Help's related topics
     "border.divider": ("#CDD1D7", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
     # rings, scrollbar handles, an idle drop area, #SchedulesHubSearch,

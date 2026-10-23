@@ -1076,7 +1076,7 @@ class SettingsTab(QWidget):
         self.calibration_table.setAlternatingRowColors(True)
         self.calibration_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.calibration_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.calibration_table.setShowGrid(True)
+        # No grid: each row is ruled once by the theme (QTableView's qproperty-showGrid)
         self.calibration_table.verticalHeader().setVisible(False)
         self.calibration_table.verticalHeader().setDefaultSectionSize(40)  # Accommodate buttons
         self.calibration_table.setMinimumHeight(300)

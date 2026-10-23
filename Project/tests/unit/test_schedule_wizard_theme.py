@@ -216,10 +216,14 @@ def test_steps_three_and_four_follow_the_theme(
         rows = [w for w in step3.findChildren(QFrame, "AnimalConfigRow") if w.isVisible()]
         assert len(rows) == 2, mode
         for row in rows:
-            # Inside its 4px margin: the edge, then the fill (clear of the fields)
-            assert _pixel(window, row, row.width() // 2, 4) == colour("border.subtle"), mode
+            # A list row in its group box, not a box in the box: no outline at its top, the
+            # group box's surface through it (clear of the fields), a rule at its foot
+            assert _pixel(window, row, row.width() // 2, 0) == colour("bg.surface"), mode
             assert _pixel(window, row, row.width() - 12, row.height() // 2) == colour(
                 "bg.surface"
+            ), mode
+            assert _pixel(window, row, row.width() // 2, row.height() - 1) == colour(
+                "border.divider"
             ), mode
 
     step3.set_schedule_type("staggered")
@@ -232,7 +236,7 @@ def test_steps_three_and_four_follow_the_theme(
     assert section.text() == "Animal Configurations"
     assert _text(section) == colour("text.accent")
     assert _pixel(window, section, section.width() // 2, section.height() - 1) == colour(
-        "border.subtle"
+        "border.divider"
     )
     labels = step4.findChildren(QLabel, "WizardSummaryLabel")
     values = step4.findChildren(QLabel, "WizardSummaryValue")

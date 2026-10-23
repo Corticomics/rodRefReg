@@ -159,7 +159,7 @@ class AnimalsTab(QWidget):
 
         # Table appearance - uses global QSS styles
         self.animals_table.setAlternatingRowColors(True)
-        self.animals_table.setShowGrid(True)
+        # No grid: each row is ruled once by the theme (QTableView's qproperty-showGrid)
 
         # Add table to layout with a title
         table_container = QWidget()

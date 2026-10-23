@@ -24,7 +24,7 @@ class ScheduleTable(QTableWidget):
 
         # Table appearance - uses global QSS styles (app-light.qss / app-dark.qss)
         self.setAlternatingRowColors(True)
-        self.setShowGrid(True)
+        # No grid: each row is ruled once by the theme (QTableView's qproperty-showGrid)
 
         # Set minimum height for better visibility
         self.setMinimumHeight(200)

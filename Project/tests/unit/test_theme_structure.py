@@ -12,11 +12,13 @@ of the palette's way and covers the places the palette cannot reach:
 - no QTextEdit:read-only rule: it would outrank QTextBrowser#HelpContent and grey the
   Help pane;
 - a scroll area's content widget and stacked pages are transparent (Qt fills a scroll
-  area's content with the page colour), and so are the header band and its corner;
+  area's content with the page colour), and so are the table header and its corner, which
+  stand on a rule, not a band;
 - item views alternate rows in bg.alt; a selected fill always carries its on-accent text,
   and a hovered selected row keeps the selection colours;
 - a tab pane is the content layer (bg.pane) the selected tab joins, and unselected tabs lie
-  flat on the page with a separator between two of them.
+  flat on the page with a separator between two of them;
+- never a box inside a box: sections, strips and rows under a rule, a 1px separator.
 """
 
 from __future__ import annotations
@@ -203,12 +205,25 @@ def test_scroll_content_and_stacked_pages_are_transparent(theme):
 
 
 @pytest.mark.parametrize("theme", THEMES)
-def test_the_header_band_and_its_corner_are_styled(theme):
+def test_the_header_and_its_corner_stand_on_a_rule(theme):
+    """No band under the column titles (Fluent's TableHeader): the header, its sections
+    and its corner are transparent over the table, over one 1px rule in the outline's
+    colour, a step stronger than the row rules under it. Each row is ruled once: no grid
+    as well, which drew a second rule under every row and slits between zebra cells.
+    (Palette B's header was a bg.inset band, which this test pinned; v2.1.0's layers have
+    no band, so the test pins the rule and the rows instead.)"""
     rules = _stylesheet_rules(theme)
     assert _find(rules, "QHeaderView")[0].get("background") == "transparent"
-    section = _find(rules, "QHeaderView::section")[0]
-    corner = _find(rules, "QTableCornerButton::section")[0]
-    assert corner.get("background") == section.get("background") == tokens.value("bg.inset", theme)
+    rule = f"1px solid {tokens.value('border.subtle', theme)}"
+    for selector in ("QHeaderView::section", "QTableCornerButton::section"):
+        decls = _find(rules, selector)[0]
+        assert decls.get("background") == "transparent", selector
+        assert decls.get("border-bottom") == rule, selector
+    divider = f"1px solid {tokens.value('border.divider', theme)}"
+    rows = [d for names, d in rules if "QTableView::item" in names and "border-bottom" in d]
+    assert rows and rows[0]["border-bottom"] == divider
+    tables = [d for selectors, d in rules if "QTableView" in selectors and "background" in d]
+    assert tables[0].get("qproperty-showGrid") == "false", "each row is ruled once, no grid"
 
 
 @pytest.mark.parametrize("theme", THEMES)
@@ -262,7 +277,7 @@ def test_disabled_menu_items_stay_grey(theme):
         assert _find(rules, "QMenu::item:disabled")[0].get("color") == "<text.disabled>"
 
 
-# ---- Layers and tabs (v2.1.0, Fluent 2 / WinUI) ---------------------------------------------
+# ---- Layers, tabs and division (v2.1.0, Fluent 2 / WinUI) ---------------------------------
 
 
 def _decls(rules, selector):
@@ -302,3 +317,35 @@ def test_tabs_open_onto_the_content_layer(theme):
     for state in ("next-selected", "last", "hover"):
         decls = _decls(rules, f"QTabBar::tab:!selected:{state}")
         assert decls["border-right-color"] == "transparent", state
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_boxes_inside_boxes_are_sections_and_strips(theme):
+    """Never a box inside a box: a group box in a group box or a card is a section (its
+    title over a rule), a nested tab widget a strip over a rule, the tracker header and an
+    animal's row a strip or a row over a rule, a table or a list in a box has no frame of
+    its own. Every one of those rules is the divider's colour."""
+    rules = _stylesheet_rules(theme)
+    rule = f"1px solid {tokens.value('border.divider', theme)}"
+    section = _decls(rules, "QGroupBox QGroupBox")
+    assert section["background"] == "transparent" and section["border"] == "none"
+    assert section["border-top"] == rule
+    for selector in ("QFrame#Card QGroupBox", 'QFrame[card="true"] QGroupBox'):
+        assert _decls(rules, selector)["border-top"] == rule, selector
+    nested = _decls(rules, "QTabWidget QTabWidget::pane")
+    assert nested["border"] == "none" and nested["border-top"] == rule
+    for selector in ("QFrame#TrackerHeader", "QFrame#AnimalConfigRow"):
+        strip = _decls(rules, selector)
+        assert strip["border"] == "none" and strip["border-bottom"] == rule, selector
+    for selector in ("QGroupBox QTableView", "QGroupBox QListWidget", "QFrame#Card QTableView"):
+        assert _decls(rules, selector)["border"] == "none", selector
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_wizards_separator_is_one_pixel_of_the_divider(theme):
+    """#WizardSeparator is an HLine, which Qt drew 3px tall in near-black WindowText: with no
+    border, Qt draws no line of its own, and the rule paints 1px of border.divider."""
+    decls = _decls(_stylesheet_rules(theme), "QFrame#WizardSeparator")
+    assert decls["background"] == tokens.value("border.divider", theme)
+    assert decls["border"] == "none"
+    assert decls["min-height"] == decls["max-height"] == "1px"
