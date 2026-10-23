@@ -390,6 +390,23 @@ def test_tabs_open_onto_the_content_layer(theme):
 
 
 @pytest.mark.parametrize("theme", THEMES)
+def test_what_lies_inside_a_panes_square_corner_is_square_too(theme):
+    """What lies just inside a container's 1px stroke takes 7px, so its corners follow the
+    container's, and under a tab pane's square top-left it is square: Help's sidebar, and
+    the Terminal log's focus stroke, whose corner comes after its shorthand, as Qt applies
+    them in order (test_tab_pane_corner.py checks the pixels)."""
+    rules = _stylesheet_rules(theme)
+    sidebar = _decls(rules, "QWidget#HelpSidebar")
+    assert sidebar["border-top-left-radius"] == "0"
+    assert sidebar["border-bottom-left-radius"] == "7px"
+    focus = _decls(rules, "QPlainTextEdit#TerminalLog:focus")
+    assert focus["border-radius"] == "7px"
+    assert focus["border-top-left-radius"] == "0"
+    corners = list(focus)
+    assert corners.index("border-top-left-radius") > corners.index("border-radius")
+
+
+@pytest.mark.parametrize("theme", THEMES)
 def test_boxes_inside_boxes_are_sections_and_strips(theme):
     """Never a box inside a box: a group box in a group box or a card is a section (its
     title over a rule), a nested tab widget a strip over a rule, the tracker header and an

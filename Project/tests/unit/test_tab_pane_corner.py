@@ -6,6 +6,10 @@ left edge bend into a small arc where it met the pane. The pane's top-left corne
 the first tab sits, is now square, as in WinUI's TabView, so the selected first tab and the
 pane share one straight edge. The other three corners keep the container radius, 8px.
 
+What lies just inside a pane's stroke follows its corners, 7px inside the rounded ones,
+so it is square inside the square one too: the Terminal log's focus stroke and Help's
+sidebar, which drew a small curve there while they kept 7px.
+
 A top-level tab widget on the page, as RRR's three are, rendered offscreen in both themes
 under StyleManager; pixels are compared with the tokens. A tab widget inside a pane is a
 strip over a rule with no corners at all (test_theme_structure.py).
@@ -100,6 +104,34 @@ def _tabs_on_the_page(qapp, widgets, selected):
     return page.grab().toImage(), origin.x(), tab_top, pane_top, right, bottom
 
 
+def _in_a_pane(qapp, widgets, pages, selected, size):
+    """`pages`, (title, widget) pairs, as the tabs of a tab widget on a plain page, tab
+    `selected` current, the page `size` (width, height) and shown. Returns the page, the
+    tab widget, and the pane stroke's left x, top y (the tab bar overlaps the pane by its
+    margin-top of -1px), right x and bottom y."""
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from PyQt5.QtWidgets import QTabWidget, QVBoxLayout, QWidget  # noqa: PLC0415
+
+    page = QWidget()
+    layout = QVBoxLayout(page)
+    layout.setContentsMargins(20, 20, 20, 20)
+    tabs = QTabWidget()
+    for title, widget in pages:
+        tabs.addTab(widget, title)
+    tabs.setCurrentIndex(selected)
+    layout.addWidget(tabs)
+    widgets.append(page)
+    page.resize(*size)
+    page.show()
+    qapp.processEvents()
+
+    bar = tabs.tabBar()
+    origin = tabs.mapTo(page, QPoint(0, 0))
+    top = bar.mapTo(page, QPoint(0, bar.height())).y() - 1
+    edges = (origin.x(), top, origin.x() + tabs.width() - 1, origin.y() + tabs.height() - 1)
+    return page, tabs, edges
+
+
 def _pixel(image, x, y):
     return image.pixelColor(x, y).name().upper()
 
@@ -158,3 +190,66 @@ def test_the_panes_other_three_corners_keep_the_container_radius(qapp, tokens, s
     assert _pixel(image, left + RADIUS, bottom) == stroke
     assert _pixel(image, right, bottom - RADIUS) == stroke
     assert _pixel(image, right - RADIUS, bottom) == stroke
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_a_focused_terminal_logs_stroke_is_square_in_the_panes_square_corner(
+    qapp, tokens, style, theme
+):
+    """The Terminal log fills the first tab's pane, as gui.py builds it, and when Tab
+    reaches it, it draws the 2px focus stroke just inside the pane's stroke. In the pane's
+    square top-left the focus stroke is square too, flush with the pane's: its rows and
+    columns meet with no arc. In the three rounded corners it keeps 7px, so the page shows
+    outside both arcs there. With 7px in the top-left, the stroke curved beside the
+    straight pane edge, the kind of curve the square corner takes away."""
+    from PyQt5.QtCore import Qt  # noqa: PLC0415
+    from PyQt5.QtWidgets import QLabel, QPlainTextEdit, QVBoxLayout, QWidget  # noqa: PLC0415
+
+    manager, widgets = style
+    manager.apply(theme)
+    terminal = QWidget()
+    terminal_layout = QVBoxLayout(terminal)
+    terminal_layout.setContentsMargins(0, 0, 0, 0)
+    log = QPlainTextEdit("System Messages")
+    log.setObjectName("TerminalLog")
+    log.setReadOnly(True)
+    terminal_layout.addWidget(log)
+    pages = [("Terminal", terminal), ("Execution Monitor", QLabel("monitor"))]
+    page, _tabs, (left, top, right, bottom) = _in_a_pane(qapp, widgets, pages, 0, (420, 240))
+    log.setFocus(Qt.TabFocusReason)
+    qapp.processEvents()
+    assert log.hasFocus()
+    image = page.grab().toImage()
+    ring = tokens.value("focus.ring", theme)
+
+    rows = {_pixel(image, x, top + y) for x in range(left + 1, left + RADIUS + 1) for y in (1, 2)}
+    columns = {
+        _pixel(image, left + x, y) for x in (1, 2) for y in range(top + 1, top + RADIUS + 1)
+    }
+    assert rows == columns == {ring}, "the focus stroke's corner is square"
+    assert _pixel(image, left + 3, top + 3) == tokens.value("bg.pane", theme), "2px wide"
+    assert {_pixel(image, left, y) for y in range(top, top + RADIUS)} == {
+        tokens.value("border.subtle", theme)
+    }, "flush with the pane's stroke"
+    for x, y in ((right - 1, top + 1), (left + 1, bottom - 1), (right - 1, bottom - 1)):
+        assert _pixel(image, x, y) == tokens.value("bg.page", theme), (x, y)
+
+
+def test_helps_sidebar_fills_the_panes_square_corner(qapp, tokens, style):
+    """Help's sidebar, on the page colour, lies just inside the pane's stroke (Help is the
+    third tab of the right-hand tab widget). In the pane's square top-left it is square
+    too, so the corner inside the stroke is the sidebar's colour. With 7px there, a wedge of
+    the white pane showed between the square stroke and the sidebar's arc. Light only: in
+    dark the page and the pane are one colour, so no wedge can show."""
+    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+    from ui.HelpTab import HelpTab  # noqa: PLC0415
+
+    manager, widgets = style
+    manager.apply("light")
+    pages = [("Profile", QLabel("profile")), ("Settings", QLabel("settings")), ("Help", HelpTab())]
+    page, _tabs, (left, top, _right, _bottom) = _in_a_pane(qapp, widgets, pages, 2, (900, 500))
+    image = page.grab().toImage()
+
+    inside = {_pixel(image, left + x, top + y) for x in range(1, RADIUS) for y in range(1, RADIUS)}
+    assert inside == {tokens.value("bg.page", "light")}
+    assert tokens.value("bg.page", "dark") == tokens.value("bg.pane", "dark"), "dark: no wedge"

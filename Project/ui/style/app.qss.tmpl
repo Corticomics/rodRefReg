@@ -174,11 +174,13 @@ QPlainTextEdit#TerminalLog {
     padding: 10px 12px;
 }
 /* Tab reaches the log (it scrolls with the keys), so focus draws the focus stroke inside the
-   pane's edge, round the pane's inner corners; the padding gives the 2px back, so the text
-   does not move */
+   pane's edge, following its corners: 7px inside the pane's rounded ones, square inside its
+   square top-left (after the shorthand, which Qt applies in order). The padding gives the
+   2px back, so the text does not move */
 QPlainTextEdit#TerminalLog:focus {
     border: 2px solid ${focus.ring};
     border-radius: 7px;
+    border-top-left-radius: 0;
     padding: 8px 10px;
 }
 
@@ -1626,12 +1628,13 @@ QProgressBar#SplashProgress::chunk {
    ============================================ */
 
 /* Sidebar: the navigation column on the base layer, as WinUI's NavigationView pane; one
-   stroke divides it from the content. Its outer corners follow the pane's (its radius less
-   its 1px border), so its square corners do not cover the pane's rounded ones. */
+   stroke divides it from the content. Its outer corners follow the pane's: 7px inside the
+   pane's rounded bottom-left (its radius less its 1px border), so the sidebar does not cover
+   it, and square inside the pane's square top-left, so no wedge of the pane shows there. */
 QWidget#HelpSidebar {
     background-color: ${bg.page};
     border-right: 1px solid ${border.subtle};
-    border-top-left-radius: 7px;
+    border-top-left-radius: 0;
     border-bottom-left-radius: 7px;
 }
 
