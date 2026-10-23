@@ -329,7 +329,11 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    topology: shared_manifold`, and no `Failed to initialize hat stack=…`.
    Do not check this in `journalctl --user -u rrr`: under the service the
    output is buffered, and only the `[TOPOLOGY]` line reaches the journal
-   before RRR quits.
+   before RRR quits. On a Pi whose data 2.0.0 last ran on with the light
+   theme saved, the first start of 2.1.0 also prints `[SETTINGS] Switched
+   the theme to 'dark', the default from 2.1.0, once (it was 'light'); …`
+   and RRR opens dark; the next start prints no such line. A Pi with no
+   theme saved, or dark, opens dark with no line.
 2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
    Selected on a cage (its relay clicks), Close Master (both click off).
    Run is greyed out while the session is open and comes back after
@@ -555,6 +559,12 @@ After `git push origin v<x.y.z>`:
    To rehearse a rollback as well, press **Revert to previous version**
    after the update and restart: the previous release must start on the
    updated database and run a schedule. Then update again.
+   From 2.1.0 back to 2.0.0: 2.0.0 opens in its own dark theme where 2.1.0
+   switched the theme, and its tables show every other row white
+   (expected: 2.0.0's dark theme has no zebra fix); on a Pi that never
+   saved a theme it opens light. Choose *light* in 2.0.0's Settings →
+   General → Theme, then update again: 2.1.0 starts light and prints no
+   `Switched the theme` line.
 5. **Watch the test Pi for ~5 minutes** under a real schedule before
    declaring victory. The launcher's boot sentinel
    ([scripts/runtime/launch.sh](../../scripts/runtime/launch.sh)) auto-rolls
