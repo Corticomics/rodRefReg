@@ -11,23 +11,27 @@ WCAG 2.x formula, unrounded (4.499 fails 4.5), in the light and the dark theme:
   shows a state (selected, checked, the selected tab, the focus ring) or a value (the
   progress chunk);
 - step: a surface against the one around it (a card on the page). WCAG asks nothing here;
-  the floors are the robust-contrast palette's (1.30:1 light, 1.25:1 dark for a card);
+  the floors are the robust-contrast palette's (1.25:1 for a card in dark, 1.30:1 for a
+  tracker bar's groove on its card in light);
 - line: a decorative outline or divider, 1.5:1;
 - cue: a hover or zebra fill, which only supports another cue; it must differ from the
   fills around it (hover from both row colours);
 - info: reported by tools, not asserted (the reason is in each pair's note).
 
 A pair is asserted in both themes unless its `themes` say otherwise. Many pairs also have
-floors under the display-chain models of contrast.py (clip, wash, hicon, flare, APCA),
-which the palette's neutral and teal roles were chosen to meet. The status colours keep
-today's hue families, so they are held to WCAG alone.
+floors under the display-chain models of contrast.py: a monitor that clips the HDMI signal
+(clip) or washes it out (wash), and for N1, a control's boundary on a card, ambient flare
+(flare10). The palette's neutral and teal roles were chosen to meet them. The status
+colours keep today's hue families, so they are held to WCAG alone.
 
 A pair that fails is fixed by changing a colour in tokens.py, never by lowering its
 threshold. Pure Python: tokens.py, contrast.py and shadow.py are loaded by path.
 
 The light theme's structure changed in v2.1.0, so its surface steps changed contract.
-Palette B met S1-S4 with a grey page (#DADDE2, L* 88), which the owner rejected on the lab
-monitor as dated, and chose Fluent 2 / WinUI's layers instead: a near-white page (the base
+Palette B met S1-S4 with a grey page (#DADDE2, L* 88). On 2026-10-21 the owner saw it live
+on the second Pi, on a Samsung LF27T35 like the lab rig's, and rejected it: the grey page
+under white cards looked "old and ugly as if it was in windows XP". On 2026-10-22 the owner
+chose Fluent 2 / WinUI's layers instead: a near-white page (the base
 layer) under white tab panes (the content layer) and white cards. A white card on a
 near-white page is a tint step of 1.05:1, and no near-white step survives a monitor that
 clips the HDMI signal (it shows every channel of 235 or more as 255), so no light colour
@@ -52,7 +56,9 @@ take a stroke of 1.65:1 or more, back toward palette B's heavier lines. So in li
 divider is held to the lab monitor's band for a line inside a card, 1.30:1, 1.10 clipped
 and 1.25 washed out (D4L), and to H1: at least 0.15 under the stroke on a card, unclipped
 and clipped, and 3 apart in CIEDE2000. D4 stays asserted in dark, where the divider still
-meets 1.5, and is reported in light (D4i).
+meets 1.5, and is reported in light (D4i). Dark, the default theme since 2.1.0, keeps
+palette B's divider and outline, 1.06:1 apart, so its rules read about as strongly as its
+box edges: it has no H1 (test_rules_stay_a_step_under_the_outline says why).
 
 The card shadows (tokens.SHADOWS) have a contract of their own, below the pairs: the first
 pixel row under a card must read as a shadow on every display model (E1), and the row
@@ -117,7 +123,6 @@ class Pair(NamedTuple):
 # Display-model floors, as the palette was designed (contrast.py has the models)
 TEXT_ROBUST = {"clip": 4.5, "wash": 4.5}
 MARK_ROBUST = {"clip": 3, "wash": 3}
-CARD_STEP = {"clip": 1.15, "wash": 1.25, "hicon": 1.15, "apca": 15}
 CARD_STEP_DARK = {"clip": 1.15, "wash": 1.15}
 LINE_ROBUST = {"clip": 1.3, "wash": 1.4}
 
@@ -145,15 +150,13 @@ def _text_on(pid, fg, backgrounds, need, why, robust=TEXT_ROBUST):
 # fmt: off
 PAIRS = [
     # ---- Surfaces: a step in dark; in light the edges are strokes (see the docstring) ---
-    Pair("S1", "bg.surface", "bg.page", "step", 1.30,
-         "A card, group box, table or list on the page", CARD_STEP, 1.25, CARD_STEP_DARK,
-         themes=("dark",)),
-    Pair("S2", "bg.field", "bg.page", "step", 1.30,
-         "An input placed straight on the page", CARD_STEP, 1.25, CARD_STEP_DARK,
-         themes=("dark",)),
-    Pair("S3", "bg.inset", "bg.surface", "step", 1.30,
+    Pair("S1", "bg.surface", "bg.page", "step", 1.25,
+         "A card, group box, table or list on the page", CARD_STEP_DARK, themes=("dark",)),
+    Pair("S2", "bg.field", "bg.page", "step", 1.25,
+         "An input placed straight on the page", CARD_STEP_DARK, themes=("dark",)),
+    Pair("S3", "bg.inset", "bg.surface", "step", 1.25,
          "A relay number, the closed priming status or the wizard log inside a card",
-         CARD_STEP, 1.25, CARD_STEP_DARK, themes=("dark",)),
+         CARD_STEP_DARK, themes=("dark",)),
     Pair("S1i", "bg.surface", "bg.page", "info", 1.30,
          "Light: a white card on the near-white page, a tint hint only (1.00 clipped). Its "
          "edge is its outline (D1, D2)"),
@@ -298,10 +301,14 @@ PAIRS = [
          "The cage-name editor's edge on its relay terminal under the pointer", MARK_ROBUST),
     Pair("F6", "focus.ring", "accent.tint", "nontext", 3,
          "The cage-name editor's edge on a selected relay terminal", MARK_ROBUST),
+    # Dark washed out, F7 is 2.93 and has no floor: no edge can reach 3 there. Washed out,
+    # an edge 3:1 from the dark card (N1) is too light for the white ring to stand 3:1 from
+    # it: the most any edge gives is 2.97, and no other ring does better (one darker than
+    # the edge would be the card's own colour)
     Pair("F7", "focus.ring", "border.control", "nontext", 3,
          "Focus changes a control's edge: an input or default button swaps its 1px "
-         "border.control edge for the 2px ring, the hub's search field its 1px edge's colour "
-         "(dark washed out: 2.93)", MARK_ROBUST, robust_dark={"clip": 3}),
+         "border.control edge for the 2px ring, the hub's search field its 1px edge's colour",
+         MARK_ROBUST, robust_dark={"clip": 3}),
     Pair("F8", "focus.ring.primary", "accent.fill", "nontext", 3,
          "A focused primary button's 2px ring over its own accent edge and fill",
          MARK_ROBUST),
@@ -465,8 +472,6 @@ def failures(pair, theme, value=colour):
     if nominal < pair.threshold(theme):
         found.append(f"{nominal:.3f} < {pair.threshold(theme)}")
     for model, minimum in pair.models(theme).items():
-        if model == "apca" and theme == "dark":
-            continue  # APCA's soft black clamp reads every dark surface step as Lc 0
         got = measure(model, fg, bg)
         if got < minimum:
             found.append(f"{model} {got:.3f} < {minimum}")
@@ -697,8 +702,14 @@ def test_the_judges_fixes_hold():
 def test_rules_stay_a_step_under_the_outline():
     """H1, light: a rule inside a card (border.divider) reads as a quieter line than the
     card's outline (border.subtle), so a section never looks like a box edge: at least 0.15
-    lower in ratio on a card, unclipped and clipped, and 3 apart in CIEDE2000. (In dark the
-    two are 1.06:1 apart: palette B's dark divider, kept; dark nests no box in a box either.)"""
+    lower in ratio on a card, unclipped and clipped, and 3 apart in CIEDE2000.
+
+    Dark, the default theme since 2.1.0, has no H1. It keeps palette B's divider and
+    outline, 1.06:1 apart (0.10 apart on a card, CIEDE2000 1.4), so its section, header and
+    row rules read about as strongly as its box edges: a flat line hierarchy, to be judged
+    on the lab monitor. Its structure has no box in a box, as light's. A neutral divider
+    cannot keep D4's 1.5:1 and stand 0.15 under the 1.67:1 outline (#48515D is 1.497);
+    one that does would need a floor argued as D4L's was."""
     surface = tokens.value("bg.surface", "light")
     outline, rule = tokens.value("border.subtle", "light"), tokens.value("border.divider", "light")
     for model in ("nominal", "clip"):
