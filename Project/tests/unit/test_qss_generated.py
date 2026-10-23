@@ -40,21 +40,10 @@ RAW_COLOUR = re.compile(
     re.IGNORECASE,
 )
 
-# Declarations one theme has and the other lacks. Today the dark theme sets the text
-# colour on these surfaces and the light theme inherits it; every other declaration, and
-# every rule, is in both themes. A new entry here is a decision, not a side effect.
-DARK_ONLY = {
-    ("QTableView, QTableWidget", "color"),
-    ("QGroupBox", "color"),
-    ("QListWidget", "color"),
-    ("QGroupBox QLabel", "color"),
-    ("QTextEdit#WizardLog", "color"),
-    ("QMenuBar::item", "color"),
-    ("QMenu::item", "color"),
-    ("QPushButton#WizardBackButton:hover", "color"),
-    ("QTreeWidget#HelpTree", "color"),
-    ("QTextBrowser#HelpContent", "color"),
-}
+# Declarations one theme has and the other lacks: none. Both themes share every rule and
+# every declaration (until v2.1.0 ten `color` lines were the dark theme's alone). A new
+# entry here is a decision, not a side effect.
+DARK_ONLY: set[tuple[str, str]] = set()
 
 
 def _template():
@@ -163,18 +152,55 @@ def test_check_mode_reports_a_stale_stylesheet_and_a_build_fixes_it(tmp_path, mo
 
 
 def test_every_placeholder_names_a_token():
+    """A placeholder is a colour role of tokens.py, or an elevation level's reserved room
+    (${elevation.<level>.margin}, which build_qss.py works out from tokens.SHADOWS)."""
+    margins = {f"elevation.{level}.margin" for level in tokens.ELEVATION}
     for theme in build_qss.THEMES:
-        unknown = _placeholders(theme) - set(tokens.TOKENS)
+        unknown = _placeholders(theme) - set(tokens.TOKENS) - margins
         assert not unknown, f"app.qss.tmpl uses roles tokens.py lacks: {sorted(unknown)}"
+        assert set(build_qss.values_for(theme)) == set(tokens.TOKENS) | margins
         lines = build_qss.theme_lines(_template(), theme)
         unbraced = [number for number, line in lines if re.search(r"\$(?!\{)", line)]
         assert not unbraced, f"write each placeholder as ${{role}}: app.qss.tmpl lines {unbraced}"
 
 
+# A role UI code asks for by name, as a string: theme_colour("accent.tint"). tokens.py
+# itself names every role, so it is not read.
+ROLE_LITERAL = re.compile(r"[\"']([a-z]+(?:\.[a-z][a-z-]*)+)[\"']")
+
+
+def _roles_ui_code_names():
+    ui = STYLE_DIR.parent
+    named = set()
+    for path in ui.rglob("*.py"):
+        if path != STYLE_DIR / "tokens.py":
+            named |= set(ROLE_LITERAL.findall(path.read_text(encoding="utf-8")))
+    return named & set(tokens.TOKENS)
+
+
+def test_the_scan_finds_the_roles_ui_code_asks_for():
+    named = _roles_ui_code_names()
+    # the drag pixmap, the calibration wizard's warning line, a calendar's weekend dates
+    assert {"accent.tint", "danger.text", "text.weekend"} <= named, sorted(named)
+
+
 def test_every_token_is_used():
+    """Each role has a reader: the template, the QPalette, the Help tab's HTML, or UI code
+    that asks for it by name when it paints (theme_colour, theme.tone_weekend)."""
     used = set().union(*(_placeholders(theme) for theme in build_qss.THEMES))
+    used |= set(tokens.QPALETTE.values()) | set(tokens.QPALETTE_DISABLED.values())
+    used |= set(tokens.HELP_HTML.values())
+    used |= _roles_ui_code_names()
     unused = set(tokens.TOKENS) - used
-    assert not unused, f"tokens.py roles the template never uses: {sorted(unused)}"
+    readers = "the template, QPALETTE, HELP_HTML or UI code"
+    assert not unused, f"tokens.py roles nothing uses ({readers}): {sorted(unused)}"
+
+
+def test_the_palette_and_help_maps_name_tokens():
+    for table in ("QPALETTE", "QPALETTE_DISABLED", "HELP_HTML"):
+        unknown = set(getattr(tokens, table).values()) - set(tokens.TOKENS)
+        assert not unknown, f"tokens.{table} names roles tokens.py lacks: {sorted(unknown)}"
+    assert set(tokens.QPALETTE_DISABLED) <= set(tokens.QPALETTE)
 
 
 @pytest.mark.parametrize(
@@ -291,3 +317,15 @@ def test_the_drift_check_allows_theme_comments_and_the_listed_dark_only_lines():
     assert _drift(template, {("a", "color")}) == []
     (problem,) = _drift(template, {("a", "color"), ("a", "border")})
     assert "no longer theme-only {'light': [], 'dark': [('a', 'border')]}" in problem
+
+
+def test_the_elevated_cards_reserve_the_room_their_shadows_take():
+    """QFrame[elevation="<level>"] reserves, in both stylesheets, the union of every
+    recipe's reach (shadow.reserved): the room ui.style.elevation paints the shadow into,
+    the same in both themes, so a theme switch or a recipe swap moves no widget."""
+    shadow = _load("rrr_shadow_under_test", STYLE_DIR / "shadow.py")
+    room = shadow.reserved(tokens)
+    for level in tokens.ELEVATION:
+        rule = f'QFrame[elevation="{level}"] {{\n    margin: {room.qss()};\n}}'
+        for theme in build_qss.THEMES:
+            assert rule in build_qss.render(theme), (theme, level)

@@ -44,6 +44,7 @@ This quick reference guide covers the most common tasks and troubleshooting tips
 | Prime tubing | Settings → Priming → select cage → **Open Selected** → **Close Selected** once water flows (on a shared-manifold rig click **Open Master** first and **Close Master** after) |
 | Change valve topology | Settings → Delivery → Valve Topology (logged in; refused while a schedule, priming or calibration runs). Confirm with **Restart RRR**: RRR restarts on the new topology. Log in again, then recalibrate the cages marked Stale |
 | Set up notifications | Settings → General → Slack Integration → enter the Slack Bot Token and Channel ID (each is saved when you press Enter or leave the field, and is used from the next message) |
+| Switch between the dark and light theme | Log in → Settings → General → Appearance → **Switch to light mode** (in the light theme it reads **Switch to dark mode**). It switches at once, and RRR starts in the theme chosen last. RRR is dark by default from 2.1.0: each device switched to dark once, at its first start of 2.1.0 |
 
 ## Troubleshooting Guide
 

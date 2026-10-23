@@ -374,9 +374,13 @@ def test_the_table_marks_a_stale_row_and_its_button(settings_tab, database_handl
     tab = settings_tab(INDEPENDENT)
     table = tab.calibration_table
 
+    from ui.style.theme import theme_colour  # noqa: PLC0415
+
     stale = table.item(0, 1)
     assert stale.text() == "Stale"
-    assert (stale.foreground().color().red(), stale.foreground().color().green()) == (200, 150)
+    # Amber, in the theme's warning colour (v2.1.0; it was QColor(200, 150, 0))
+    assert stale.data(tab.CAL_TONE_ROLE) == "warning.text"
+    assert stale.foreground().color() == theme_colour("warning.text")
     assert "shared_manifold (legacy)" in stale.toolTip() and "runs independent" in stale.toolTip()
     assert table.cellWidget(0, tab.CAL_COL_ACTION).property("variant") == "primary"
 

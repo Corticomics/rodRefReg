@@ -29,9 +29,9 @@ class LoginGateWidget(QStackedWidget):
 
     def _create_login_prompt(self):
         """Create the login prompt widget with a clean, minimal design."""
-        # objectName drives the card-coloured background defined in the theme
-        # QSS (white in light, dark-card in dark) so the prompt reads as an
-        # intentional surface rather than the bare grey app background.
+        # objectName drives the theme QSS: the prompt is drawn as the tab pane
+        # it stands in for (the content layer's fill and stroke), so logging in
+        # swaps what the pane shows, not its look.
         container = QWidget()
         container.setObjectName("LoginGatePrompt")
         layout = QVBoxLayout()

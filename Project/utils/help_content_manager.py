@@ -1,48 +1,48 @@
 # help_content_manager.py
+import importlib.util
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote
+
 
 # ---------------------------------------------------------------------------
 # Palette — used by _format_content and get_landing_page / get_topic_not_found
 # ---------------------------------------------------------------------------
+def _load_tokens():
+    # The theme's colour roles, loaded by path: importing the ui package would import
+    # the whole GUI.
+    path = Path(__file__).resolve().parents[1] / "ui" / "style" / "tokens.py"
+    spec = importlib.util.spec_from_file_location("rrr_style_tokens", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_TOKENS = _load_tokens()
+
+# {theme: {CSS slot: colour}}, from the roles tokens.HELP_HTML names, so a Help page
+# matches the theme around it.
 _PALETTE = {
-    'light': {
-        'page_bg': '#FFFFFF',
-        'text': '#1A1D1F',
-        'h1': '#0D9488',
-        'h2': '#1A1D1F',
-        'muted': '#4E5D6C',
-        'link': '#0D9488',
-        'note_bg': '#E6FFFA',
-        'note_border': '#0D9488',
-        'warn_bg': '#FEE2E2',
-        'warn_border': '#EF4444',
-        'tip_bg': '#D1FAE5',
-        'tip_border': '#10B981',
-        'hl_bg': '#FDE68A',
-    },
-    'dark': {
-        'page_bg': '#1A2028',
-        'text': '#F0F4F8',
-        'h1': '#2DD4BF',
-        'h2': '#F0F4F8',
-        'muted': '#A0AEC0',
-        'link': '#5EEAD4',
-        'note_bg': '#134E4A',
-        'note_border': '#2DD4BF',
-        'warn_bg': '#7F1D1D',
-        'warn_border': '#EF4444',
-        'tip_bg': '#064E3B',
-        'tip_border': '#10B981',
-        'hl_bg': '#92400E',
-    },
+    theme: {slot: _TOKENS.value(role, theme) for slot, role in _TOKENS.HELP_HTML.items()}
+    for theme in _TOKENS.THEMES
 }
+# A page asked for without a theme, or for one RRR does not have, is in the default (dark)
+_DEFAULT_THEME = _TOKENS.DEFAULT_THEME
+
+
+def _palette(theme: str) -> dict:
+    return _PALETTE.get(theme, _PALETTE[_DEFAULT_THEME])
+
+
+def help_colour(slot: str, theme: str) -> str:
+    """The colour of a Help CSS slot (e.g. 'hl_bg', a search hit) in `theme`."""
+    return _palette(theme)[slot]
 
 
 def _css(theme: str) -> str:
-    p = _PALETTE.get(theme, _PALETTE['light'])
+    p = _palette(theme)
     return f"""
 body, .help-section {{
     font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
@@ -79,9 +79,6 @@ li {{
 }}
 a {{
     color: {p['link']};
-    text-decoration: none;
-}}
-a:hover {{
     text-decoration: underline;
 }}
 strong {{
@@ -90,7 +87,7 @@ strong {{
 code {{
     font-family: "IBM Plex Mono", "Courier New", monospace;
     font-size: 12px;
-    background: rgba(128,128,128,0.12);
+    background: {p['code_bg']};
     padding: 1px 4px;
     border-radius: 3px;
 }}
@@ -118,7 +115,7 @@ code {{
 .related-topics {{
     margin-top: 28px;
     padding-top: 14px;
-    border-top: 1px solid rgba(128,128,128,0.2);
+    border-top: 1px solid {p['rule']};
     font-size: 12px;
     color: {p['muted']};
 }}
@@ -217,6 +214,10 @@ def _build_content() -> Dict[str, HelpContent]:
       </ul>
     </li>
   </ul>
+  <p>RRR is dark by default. After you log in, <strong>Settings → General →
+  Appearance</strong> has a button that switches between the dark and the light theme: it
+  reads <em>Switch to light mode</em> in the dark theme and <em>Switch to dark mode</em> in
+  the light one. RRR starts in the theme chosen last.</p>
 
   <h2>Access Control</h2>
   <p>The app starts in <strong>guest mode</strong>.  The <strong>Settings</strong> tab is
@@ -261,6 +262,10 @@ def _build_content() -> Dict[str, HelpContent]:
                 "getting started",
                 "introduction",
                 "map",
+                "theme",
+                "dark mode",
+                "light mode",
+                "appearance",
             ],
             related_topics=["First Time Setup", "Basic Operations", "Execution Monitor"],
         ),
@@ -1641,7 +1646,7 @@ class HelpContentManager:
         """Returns the HelpContent for *key*, or None if not found."""
         return self._content.get(key)
 
-    def get_content(self, topic_key: str, theme: str = 'light') -> str:
+    def get_content(self, topic_key: str, theme: str = _DEFAULT_THEME) -> str:
         """Full standalone HTML document for QTextBrowser."""
         hc = self._content.get(topic_key)
         if hc is None:
@@ -1650,9 +1655,9 @@ class HelpContentManager:
         body = hc.content + related_html
         return self._format_content(body, theme)
 
-    def get_landing_page(self, theme: str = 'light') -> str:
+    def get_landing_page(self, theme: str = _DEFAULT_THEME) -> str:
         """Welcoming Help Center home page with category/topic links."""
-        p = _PALETTE.get(theme, _PALETTE['light'])
+        p = _palette(theme)
         rows = []
         for cat, topics in self._ia.items():
             topic_links = "".join(f"<li><a href='topic:{quote(k)}'>{k}</a></li>" for k in topics)
@@ -1679,7 +1684,7 @@ class HelpContentManager:
 """
         return self._format_content(body, theme, extra_css=extra_css)
 
-    def get_topic_not_found(self, theme: str = 'light') -> str:
+    def get_topic_not_found(self, theme: str = _DEFAULT_THEME) -> str:
         """Graceful fallback page."""
         body = """
 <div class='help-section'>
@@ -1750,7 +1755,7 @@ class HelpContentManager:
     def _format_content(self, html_body: str, theme: str, extra_css: str = "") -> str:
         """Wrap html_body in a full HTML document with appropriate <style>."""
         css = _css(theme) + extra_css
-        p = _PALETTE.get(theme, _PALETTE['light'])
+        p = _palette(theme)
         return (
             f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
             f"<style>{css}</style></head>"

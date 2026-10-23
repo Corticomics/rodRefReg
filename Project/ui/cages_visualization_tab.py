@@ -12,7 +12,7 @@ import os
 from typing import Any, Dict, Optional
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -24,6 +24,55 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from utils.topology import is_independent
+
+from .components.card import Card
+from .style.elevation import ROOM
+from .style.theme import theme_colour
+
+# The relay HAT board's picture, beside its terminals
+BOARD_PICTURE = os.path.join(
+    os.path.dirname(__file__), 'src', 'relay architecture with lab els.png'
+)
+
+
+class BoardDiagram(QWidget):
+    """The relay HAT board's picture, drawn in the theme's ink (the diagram.ink role).
+
+    The picture is a black-on-white line drawing. Its darkness becomes the ink's alpha, so
+    its white paper is transparent and the drawing lies on the card: in light the black ink
+    on the white card gives back the picture's own pixels, and in dark the drawing is light
+    grey lines on the dark card, not a white block. The ink is read when painting, and a
+    theme switch repaints every widget, so the drawing follows the theme with no signal.
+    """
+
+    # The largest it is drawn, keeping the picture's aspect ratio
+    MAX_WIDTH, MAX_HEIGHT = 500, 650
+
+    def __init__(self, path: str, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        picture = QImage(path).scaled(
+            self.MAX_WIDTH, self.MAX_HEIGHT, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        self._ink_alpha = picture.convertToFormat(QImage.Format_Grayscale8)
+        self._ink_alpha.invertPixels()  # the paper's white carries no ink
+        self._ink = None
+        self._drawing = None
+        self.setFixedSize(self._ink_alpha.size())
+
+    def drawing(self) -> QPixmap:
+        """The picture in the current theme's ink, made again when the ink changes."""
+        ink = theme_colour("diagram.ink")
+        if self._drawing is None or ink != self._ink:
+            image = QImage(self._ink_alpha.size(), QImage.Format_ARGB32_Premultiplied)
+            image.fill(ink)
+            image.setAlphaChannel(self._ink_alpha)
+            self._ink, self._drawing = ink, QPixmap.fromImage(image)
+        return self._drawing
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.drawPixmap(0, 0, self.drawing())
+        painter.end()
 
 
 class RelayTerminalWidget(QFrame):
@@ -254,8 +303,12 @@ class CagesVisualizationTab(QWidget):
 
     def _init_ui(self) -> None:
         """Build the visualization layout."""
+        # The board card carries the card shadow and reserves room for it round its box
+        # (elevation.ROOM): the side margins give that room back, so the box keeps its 20px
+        # margins, and the title and the legend take the same inset in their own rows.
+        room = ROOM
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 16, 20, 16)
+        main_layout.setContentsMargins(20 - room.left, 16, 20 - room.right, 16)
         main_layout.setSpacing(12)
 
         # ═══════════════════════════════════════════════════════════════
@@ -263,10 +316,10 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setContentsMargins(room.left, 0, room.right, 0)
 
         title = QLabel("Relay Board Layout")
-        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #1F2937;")
+        title.setObjectName("CagesTitle")
         header_layout.addWidget(title, alignment=Qt.AlignVCenter)
 
         # Info button (uses global QSS via InfoButton objectName)
@@ -285,26 +338,15 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         # BOARD VISUALIZATION — one tab per HAT
         # ═══════════════════════════════════════════════════════════════
-        board_frame = QFrame()
-        board_frame.setObjectName("Card")
-        board_frame.setProperty("card", True)
-        board_frame.setStyleSheet("""
-            QFrame#Card {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 12px;
-            }
-        """)
+        # A card of the theme (QFrame#Card), with the card shadow
+        board_frame = Card(elevated=True)
 
         board_layout = QVBoxLayout(board_frame)
         board_layout.setContentsMargins(16, 12, 16, 16)
         board_layout.setSpacing(8)
 
         subtitle = QLabel("Double-click a cage to rename it")
-        subtitle.setStyleSheet(
-            "color: #6B7280; font-size: 13px; font-style: italic;"
-            " padding: 4px 8px; background: transparent;"
-        )
+        subtitle.setObjectName("CagesSubtitle")
         subtitle.setAlignment(Qt.AlignCenter)
         board_layout.addWidget(subtitle)
 
@@ -325,6 +367,7 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         legend_layout = QHBoxLayout()
         legend_layout.setSpacing(24)
+        legend_layout.setContentsMargins(room.left, 0, room.right, 0)
 
         cage_legend = QHBoxLayout()
         cage_legend.setSpacing(6)
@@ -380,33 +423,21 @@ class CagesVisualizationTab(QWidget):
         left_column.addStretch()
         columns.addLayout(left_column, 1)
 
-        # CENTER: physical board image (reused per HAT — they're identical)
+        # CENTER: physical board image (reused per HAT — they're identical), in the theme's
+        # ink on the card
         center_column = QVBoxLayout()
         center_column.setAlignment(Qt.AlignCenter)
-        image_path = os.path.join(
-            os.path.dirname(__file__),
-            'src',
-            'relay architecture with lab els.png',
-        )
-        if os.path.exists(image_path):
-            board_image = QLabel()
-            pixmap = QPixmap(image_path)
-            scaled = pixmap.scaled(
-                500,
-                650,
-                Qt.KeepAspectRatio,
-                Qt.SmoothTransformation,
-            )
-            board_image.setPixmap(scaled)
-            board_image.setAlignment(Qt.AlignCenter)
+        if os.path.exists(BOARD_PICTURE):
+            board_image = BoardDiagram(BOARD_PICTURE)
+            board_image.setObjectName("CagesBoardDiagram")
             board_image.setToolTip(
                 f"Physical relay HAT board layout — HAT {hat_index}\n"
                 "Match cage wires to the corresponding terminal labels"
             )
-            center_column.addWidget(board_image)
+            center_column.addWidget(board_image, alignment=Qt.AlignCenter)
         else:
             placeholder = QLabel("[Board Diagram Not Found]")
-            placeholder.setStyleSheet("color: #9CA3AF; font-size: 14px;")
+            placeholder.setObjectName("CagesBoardPlaceholder")
             placeholder.setAlignment(Qt.AlignCenter)
             placeholder.setMinimumSize(400, 500)
             center_column.addWidget(placeholder)

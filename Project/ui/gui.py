@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
+    QStyle,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -25,6 +26,7 @@ from .projects_section import ProjectsSection
 from .run_stop_section import RunStopSection
 from .ScheduleProgressTracker import ScheduleProgressTracker
 from .SettingsTab import SettingsTab
+from .style.elevation import ROOM
 from .UserTab import UserTab
 
 
@@ -103,6 +105,9 @@ class RodentRefreshmentGUI(QWidget):
         terminal_layout = QVBoxLayout(terminal_container)
         terminal_layout.setContentsMargins(0, 0, 0, 0)
         self.terminal_output = QPlainTextEdit()
+        # A read-only log that fills its pane: QPlainTextEdit#TerminalLog draws no frame of
+        # its own, the pane is its frame
+        self.terminal_output.setObjectName("TerminalLog")
         self.terminal_output.setReadOnly(True)
         self.terminal_output.setPlainText("System Messages")
         terminal_layout.addWidget(self.terminal_output)
@@ -203,7 +208,28 @@ class RodentRefreshmentGUI(QWidget):
 
         # Make run/stop section expand when needed
         self.run_stop_section.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        right_layout.addWidget(self.main_tab_widget)
+        # Controls and Schedule Queue are elevated cards: each reserves room for its shadow
+        # round its box (elevation.ROOM). The column's side margins give that room back, so
+        # the cards' boxes line up with the tab pane above as the group boxes did, and the
+        # tab widget takes the same inset in a holder of its own. The column's margins were
+        # the style's default for a child widget's layout: start from those.
+        style = self.style()
+        default = [
+            style.pixelMetric(metric)
+            for metric in (
+                QStyle.PM_LayoutLeftMargin,
+                QStyle.PM_LayoutTopMargin,
+                QStyle.PM_LayoutRightMargin,
+                QStyle.PM_LayoutBottomMargin,
+            )
+        ]
+        left, right = max(0, default[0] - ROOM.left), max(0, default[2] - ROOM.right)
+        right_layout.setContentsMargins(left, default[1], right, default[3])
+        tabs_holder = QWidget()
+        tabs_layout = QVBoxLayout(tabs_holder)
+        tabs_layout.setContentsMargins(default[0] - left, 0, default[2] - right, 0)
+        tabs_layout.addWidget(self.main_tab_widget)
+        right_layout.addWidget(tabs_holder)
         right_layout.addWidget(self.run_stop_section)
         # Default stretch favors tab content; adjusted dynamically below
         right_layout.setStretch(0, 3)

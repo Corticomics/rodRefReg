@@ -10,6 +10,10 @@ Best Practices:
 - Per-animal progress tracking
 - Hardware health indicators
 - Auto-dismiss on completion
+
+Colours come from the theme: the card and its widgets have objectNames, and a status or
+a bar's state is a dynamic property, which the theme stylesheet styles
+(Project/ui/style/app.qss.tmpl, SCHEDULE PROGRESS TRACKER).
 """
 
 from datetime import datetime
@@ -25,6 +29,18 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from .style.theme import restyle
+
+# A status word's look: QLabel#DeliveryStatus[status="..."]. Any other word
+# ("Incomplete") is "other": bold and muted, like Waiting.
+_STATUS_STYLE = {
+    "Waiting": "waiting",
+    "Delivering": "delivering",
+    "Paused": "paused",
+    "Complete": "complete",
+    "Failed": "failed",
+}
 
 
 class MaterialCard(QFrame):
@@ -71,44 +87,26 @@ class MaterialCard(QFrame):
 
         # Animal info
         self.animal_label = QLabel(f"Animal {self.animal_id}")
-        self.animal_label.setStyleSheet("font-size: 13px; font-weight: 600; color: #1a1a1a;")
+        self.animal_label.setObjectName("TrackerAnimal")
         header_layout.addWidget(self.animal_label)
 
         header_layout.addStretch()
 
         # Cage badge
         self.cage_badge = QLabel(f"Cage {self.cage_id}")
-        self.cage_badge.setStyleSheet(
-            "background-color: #0D9488; color: white; "
-            "padding: 5px 10px; border-radius: 10px; font-weight: 600; font-size: 11px;"
-        )
+        self.cage_badge.setObjectName("CageBadge")
         header_layout.addWidget(self.cage_badge)
 
         layout.addLayout(header_layout)
 
         # Progress bar
         self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName("TrackerProgress")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p%")
         self.progress_bar.setFixedHeight(22)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #E2E8F0;
-                border-radius: 11px;
-                background-color: #F1F5F9;
-                text-align: center;
-                font-size: 11px;
-                font-weight: 500;
-                color: #475569;
-            }
-            QProgressBar::chunk {
-                border-radius: 10px;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                          stop:0 #0D9488, stop:1 #14B8A6);
-            }
-        """)
         layout.addWidget(self.progress_bar)
 
         # Volume info row
@@ -116,29 +114,23 @@ class MaterialCard(QFrame):
         volume_layout.setSpacing(6)
 
         self.volume_label = QLabel(f"0.000 / {self.target_volume_ml:.3f} mL")
-        self.volume_label.setStyleSheet("font-size: 12px; font-weight: 600; color: #334155;")
+        self.volume_label.setObjectName("VolumeLabel")
         volume_layout.addWidget(self.volume_label)
 
         volume_layout.addStretch()
 
         # Status indicator
         self.status_label = QLabel("|| Waiting")
-        self.status_label.setStyleSheet("font-size: 11px; color: #64748B;")
+        self.status_label.setObjectName("DeliveryStatus")
         volume_layout.addWidget(self.status_label)
 
         layout.addLayout(volume_layout)
 
     def _apply_material_style(self):
-        """Apply Material Design card style"""
+        """Apply Material Design card style: QFrame#MaterialCard in the theme stylesheet"""
+        self.setObjectName("MaterialCard")
         self.setFrameShape(QFrame.StyledPanel)
         self.setLineWidth(0)
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #FFFFFF;
-                border: 1px solid #E2E8F0;
-                border-radius: 12px;
-            }
-        """)
 
     def update_progress(self, delivered_ml, status="Delivering"):
         """Update card with new progress data"""
@@ -163,52 +155,18 @@ class MaterialCard(QFrame):
         icon = status_icons.get(status, "||")
         self.status_label.setText(f"{icon} {status}")
 
-        # Color code status
-        status_colors = {
-            "Waiting": "#64748B",
-            "Delivering": "#0D9488",
-            "Paused": "#D97706",
-            "Complete": "#059669",
-            "Failed": "#DC2626",
-        }
-        color = status_colors.get(status, "#64748B")
-        self.status_label.setStyleSheet(f"font-size: 11px; color: {color}; font-weight: 600;")
+        # Color code status: QLabel#DeliveryStatus[status="..."]. Restyled only when the
+        # status changes, not on every volume update.
+        status_style = _STATUS_STYLE.get(status, "other")
+        if self.status_label.property("status") != status_style:
+            self.status_label.setProperty("status", status_style)
+            restyle(self.status_label)
 
-        # Change progress bar color based on status
-        if status == "Complete":
-            self.progress_bar.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #D1FAE5;
-                    border-radius: 11px;
-                    background-color: #ECFDF5;
-                    text-align: center;
-                    font-size: 11px;
-                    font-weight: 500;
-                    color: #065F46;
-                }
-                QProgressBar::chunk {
-                    border-radius: 10px;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                              stop:0 #059669, stop:1 #10B981);
-                }
-            """)
-        elif status == "Failed":
-            self.progress_bar.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #FECACA;
-                    border-radius: 11px;
-                    background-color: #FEF2F2;
-                    text-align: center;
-                    font-size: 11px;
-                    font-weight: 500;
-                    color: #991B1B;
-                }
-                QProgressBar::chunk {
-                    border-radius: 10px;
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                              stop:0 #DC2626, stop:1 #EF4444);
-                }
-            """)
+        # Change progress bar color based on status: a complete or failed bar keeps it
+        bar_state = {"Complete": "complete", "Failed": "failed"}.get(status)
+        if bar_state is not None and self.progress_bar.property("state") != bar_state:
+            self.progress_bar.setProperty("state", bar_state)
+            restyle(self.progress_bar)
 
     def set_time_remaining(self, seconds):
         """Display estimated time remaining"""

@@ -3,64 +3,174 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict
 
-from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QEvent, QObject, Qt, pyqtSignal
+from PyQt5.QtGui import QBrush, QColor, QFont, QTextCharFormat
+from PyQt5.QtWidgets import QApplication, QCalendarWidget
+
+from .qt_palette import build_palette, tokens
+
+THEMES = tokens.THEMES
+# The theme without a saved one: dark (v2.1.0)
+DEFAULT_THEME = tokens.DEFAULT_THEME
+
+# The Qt style RRR draws with on every desktop (see pin_fusion)
+FUSION = "Fusion"
+
+# The days a calendar marks as the weekend, in Qt's own red, which no stylesheet reaches
+WEEKEND = (Qt.Saturday, Qt.Sunday)
 
 
-class StyleManager:
+def pin_fusion(app) -> None:
+    """Make Qt's Fusion style the application's style, whatever the desktop's.
+
+    Fusion draws every control from the application's palette and stylesheet; a desktop
+    style may not. On the Pi, qt5ct's gtk2 style replaced the palette's window and text
+    colours with GTK's own when the first window was polished, so the dark theme applied at
+    start-up came out with a light page and the Terminal's text dark on dark (seen on the
+    home Pi, 2026-10-23; a theme switched after start-up was not affected). Every test and
+    render runs under Fusion, so pinning it makes each device draw what they check.
     """
-    Centralized styling loader for the application (light/dark).
-    - Loads a single QSS at app startup (Qt-recommended for maintainability and performance).
+    if app.style() is not None and app.style().objectName().lower() == FUSION.lower():
+        return
+    if app.setStyle(FUSION) is None:
+        print(f"[THEME ERROR] Qt's {FUSION} style is missing; the desktop's style draws RRR")
+
+
+def theme_or_default(theme) -> str:
+    """`theme` when it is one of THEMES, else DEFAULT_THEME (a stored value RRR has no
+    theme for, or none)."""
+    return theme if theme in THEMES else DEFAULT_THEME
+
+
+def other_theme(theme) -> str:
+    """The theme Settings > General's theme button switches to from `theme`."""
+    return "light" if theme_or_default(theme) == "dark" else "dark"
+
+
+def style_manager():
+    """The application's StyleManager, or None before there is one.
+
+    main.py keeps it as the application's style_manager property. Content painted from
+    the theme connects to its theme_changed signal to repaint after every theme applied.
+    """
+    app = QApplication.instance()
+    return app.property("style_manager") if app is not None else None
+
+
+def current_theme() -> str:
+    """The theme the application's StyleManager applied last; DEFAULT_THEME without one."""
+    return theme_or_default(getattr(style_manager(), "theme", None))
+
+
+def theme_colour(role: str) -> QColor:
+    """The colour of a tokens.py role in the current theme, for code that paints itself.
+
+    Call it when painting, never at import: the theme can change while the app runs.
+    KeyError for an unknown role.
+    """
+    return QColor(tokens.value(role, current_theme()))
+
+
+def tone_weekend(calendar, theme: str) -> None:
+    """Write a calendar's weekend dates, and their weekday names, in `theme`'s text.weekend
+    instead of Qt's red (#FF0000: 4.0:1 on a light card, 3.0:1 on a dark one)."""
+    weekend = QTextCharFormat()
+    weekend.setForeground(QBrush(QColor(tokens.value("text.weekend", theme))))
+    for day in WEEKEND:
+        calendar.setWeekdayTextFormat(day, weekend)
+
+
+def restyle(widget) -> None:
+    """Apply the stylesheet to `widget` again after a dynamic property its rules select on
+    changed, e.g. setProperty("selected", True) for QFrame#ScheduleCard[selected="true"].
+
+    It also sends the StyleChange event setStyleSheet would send, so a QFrame re-reads its
+    frame width when the new rule changes the border's width.
+    """
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    QApplication.sendEvent(widget, QEvent(QEvent.StyleChange))
+
+
+class StyleManager(QObject):
+    """
+    Centralized styling for the application (light/dark).
+    - Pins Qt's Fusion style, so a desktop style cannot replace the theme's palette
+      (pin_fusion).
+    - Sets the theme's QPalette, then its stylesheet: one QSS for the whole app
+      (Qt-recommended for maintainability and performance). Both come from tokens.py.
     - Sets a readable, widely available font for Raspberry Pi.
+    - Emits theme_changed after every apply, so content the stylesheet cannot reach
+      (the Help tab's HTML) can redraw itself.
+    - Writes every calendar's weekend dates in the theme's colour (tone_weekend). A date
+      field makes its calendar popup on the first click, and the popup takes the focus as it
+      opens, before it paints: a calendar takes the colour then, and again after every
+      apply. Focus changes are rare: unlike an application event filter, this adds nothing
+      to the handling of every event.
     """
+
+    theme_changed = pyqtSignal(str)
 
     def __init__(self, app: QApplication) -> None:
+        super().__init__(app)
         self._app = app
-        self._theme = "light"
+        self._theme = DEFAULT_THEME
         self._base_dir = Path(__file__).resolve().parent
-        self._tokens: Dict[str, Dict[str, str]] = {
-            # Palette inspired by the provided reference; tuned for accessibility contrast.
-            "light": {
-                "bg": "#F9F9F8",
-                "surface": "#FFFFFF",
-                "surfaceBorder": "#DBDBD9",
-                "text": "#131313",
-                "mutedText": "#919A9F",
-                "primary": "#F9A51B",
-                "primarySoft": "#FAC95A",
-                "focus": "#131313",
-            },
-            "dark": {
-                "bg": "#131313",
-                "surface": "#1C1C1C",
-                "surfaceBorder": "#2A2A2A",
-                "text": "#F9F9F8",
-                "mutedText": "#919A9F",
-                "primary": "#F9A51B",
-                "primarySoft": "#FAC95A",
-                "focus": "#F9F9F8",
-            },
-        }
+        pin_fusion(app)  # before any palette: see pin_fusion
+        app.focusChanged.connect(self._on_focus_changed)
 
     @property
     def theme(self) -> str:
         return self._theme
 
     def tokens(self) -> Dict[str, str]:
-        return self._tokens[self._theme]
+        """Every colour role of the current theme: {role: "#RRGGBB"}."""
+        return {name: tokens.value(name, self._theme) for name in tokens.TOKENS}
 
-    def apply(self, theme: str = "light") -> None:
-        if theme not in self._tokens:
-            theme = "light"
+    def colour(self, role: str) -> str:
+        """The current theme's colour for a role of tokens.py (KeyError if unknown)."""
+        return tokens.value(role, self._theme)
+
+    def _on_focus_changed(self, _old, now) -> None:
+        """The focus moved into a calendar (a date field's popup opening): it takes the
+        theme's weekend colour before it paints."""
+        owner = style_manager()
+        if owner is not None and owner is not self:  # the application's StyleManager tones
+            return
+        widget = now
+        while widget is not None and not isinstance(widget, QCalendarWidget):
+            widget = widget.parentWidget()
+        if widget is not None:
+            tone_weekend(widget, self._theme)
+
+    def apply(self, theme: str = DEFAULT_THEME) -> None:
+        """Apply `theme`, or the default theme when it is not one of THEMES."""
+        theme = theme_or_default(theme)
         self._theme = theme
 
         # Font: fast and present in most Raspberry Pi images
         self._app.setFont(QFont("DejaVu Sans", 10))
 
-        qss_file = "app-light.qss" if theme == "light" else "app-dark.qss"
-        qss_path = self._base_dir / qss_file
+        # The palette first. Setting the stylesheet polishes every widget against the palette
+        # it has then: in the other order, what no rule colours (a plain label, typed text,
+        # a placeholder) keeps the previous theme's colours after a switch.
+        # A failure is printed (the log and System Messages show it): without the palette
+        # the stylesheet runs over Qt's own light one, unreadable under the dark theme.
+        try:
+            self._app.setPalette(build_palette(theme))
+        except Exception as exc:
+            print(f"[THEME ERROR] the {theme} palette was not applied: {exc}")
+
+        qss_path = self._base_dir / f"app-{theme}.qss"
         try:
             with qss_path.open("r", encoding="utf-8") as f:
                 self._app.setStyleSheet(f.read())
-        except Exception:
+        except Exception as exc:
+            print(f"[THEME ERROR] the {theme} stylesheet was not applied: {exc}")
             self._app.setStyleSheet("")
+
+        for widget in QApplication.allWidgets():
+            if isinstance(widget, QCalendarWidget):
+                tone_weekend(widget, theme)
+
+        self.theme_changed.emit(theme)

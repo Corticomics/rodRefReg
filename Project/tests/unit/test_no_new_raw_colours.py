@@ -9,9 +9,9 @@ colour code paints itself is a qproperty-*, as the Animals tab's red cell does),
 build_qss.py.
 
 The UI code is every file under Project/ui except ui/style, plus the files in
-ALSO_SCANNED: the Help tab's HTML takes its colours from a light and a dark palette of its
-own, _PALETTE in Project/utils/help_content_manager.py. Code that is not themed is not
-counted (a Slack message's colour, a bring-up tool).
+ALSO_SCANNED: the Help tab's HTML is themed too, from the roles tokens.HELP_HTML names
+(Project/utils/help_content_manager.py), so no raw colour may come back there. Code that is
+not themed is not counted (a Slack message's colour, a bring-up tool).
 
 Today's UI code still holds raw colours, so this is a ratchet: each file must hold exactly
 its count in BASELINE, and a file not listed none. A file that gains a colour fails. So
@@ -37,8 +37,8 @@ EXEMPT = ("ui/style/",)  # where the tokens and the stylesheets live
 ALSO_SCANNED = ("utils/help_content_manager.py",)
 # Where a file takes its colours from, when not from the stylesheet
 WHERE_COLOURS_GO = {
-    "utils/help_content_manager.py": "the Help tab's HTML takes its colours from _PALETTE in "
-    "that file: add the colour there",
+    "utils/help_content_manager.py": "the Help tab's HTML takes its colours from the roles "
+    "tokens.HELP_HTML names in Project/ui/style/tokens.py: add a role there",
 }
 
 
@@ -51,23 +51,14 @@ def _load(name, path):
 
 colour_names = _load("rrr_colour_names", Path(__file__).with_name("colour_names.py"))
 
-# Raw colours per file (path relative to Project) on 2026-10-19, v2.0.0.
+# Raw colours per file (path relative to Project). On 2026-10-19, v2.0.0, 15 files held
+# 183; v2.1.0 moved every colour of the UI in use to tokens. What is left is in four
+# modules nothing uses, which a follow-up deletes.
 BASELINE = {
-    "ui/CalibrationWizard.py": 1,
-    "ui/HelpTab.py": 2,
-    "ui/ScheduleProgressTracker.py": 28,
-    "ui/SettingsTab.py": 18,
     "ui/SuggestSettingsTab.py": 2,
-    "ui/animals_tab.py": 2,
     "ui/available_animals_list.py": 5,
-    "ui/cages_visualization_tab.py": 5,
-    "ui/components/wizard.py": 3,
     "ui/relay_unit_widget.py": 1,
-    "ui/schedule_wizard.py": 16,
-    "ui/schedules_hub.py": 60,
-    "ui/splash_screen.py": 8,
     "ui/staggered_delivery_slot.py": 4,
-    "utils/help_content_manager.py": 28,
 }
 
 HEX = re.compile(r"(?<![\w#&])#(?:[0-9A-Fa-f]{8}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?!\w)")
