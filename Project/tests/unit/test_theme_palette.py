@@ -84,6 +84,27 @@ def _pixel(image, x, y):
 # ---- The palette -----------------------------------------------------------------------
 
 
+def test_the_style_manager_pins_fusion_whatever_the_desktop_style(qapp):
+    """On the Pi, qt5ct's gtk2 style replaced the palette's window and text colours with
+    GTK's when the first window was polished: dark at start-up came out with a light page
+    and the Terminal's text dark on dark. StyleManager pins Fusion, which draws from the
+    palette and the stylesheet, before it applies any theme."""
+    from PyQt5.QtWidgets import QStyleFactory  # noqa: PLC0415
+    from ui.style.theme import FUSION, StyleManager  # noqa: PLC0415
+
+    other = next((key for key in QStyleFactory.keys() if key.lower() != FUSION.lower()), None)
+    if other is None:
+        pytest.skip("this Qt has no style but Fusion")
+    qapp.setStyle(other)
+    assert qapp.style().objectName().lower() == other.lower()
+    manager = StyleManager(qapp)
+    try:
+        assert qapp.style().objectName().lower() == FUSION.lower()
+    finally:
+        manager.deleteLater()
+        qapp.setStyle(FUSION)
+
+
 @pytest.mark.parametrize("theme", THEMES)
 def test_the_palette_takes_its_roles_from_the_tokens(qapp, tokens, theme):
     from PyQt5.QtGui import QPalette  # noqa: PLC0415

@@ -151,6 +151,12 @@ Every colour of the UI is a role in one table,
 | [`help_content_manager.py`](Project/utils/help_content_manager.py) (`tokens.HELP_HTML`) | the Help tab's HTML |
 | UI code that paints itself ([`theme.py`](Project/ui/style/theme.py) `theme_colour(role)`, `tone_weekend`) | a painter, a drag pixmap, a table cell's text, a colour in rich text, a calendar's weekend dates |
 
+**RRR draws with Qt's Fusion style on every desktop** (`pin_fusion` in
+`theme.py`). A desktop style may draw controls its own way: on the Pi,
+qt5ct's gtk2 style replaced the palette's window and text colours with
+GTK's at start-up. Every test and render runs under Fusion, so the devices
+draw what the tests check.
+
 **RRR starts in the saved theme, dark by default** (`DEFAULT_THEME` in
 `tokens.py`; the settings' default, `SystemController.DEFAULT_THEME`, is
 held equal to it by `test_dark_default.py`). `main.py` applies it before

@@ -13,8 +13,27 @@ THEMES = tokens.THEMES
 # The theme without a saved one: dark (v2.1.0)
 DEFAULT_THEME = tokens.DEFAULT_THEME
 
+# The Qt style RRR draws with on every desktop (see pin_fusion)
+FUSION = "Fusion"
+
 # The days a calendar marks as the weekend, in Qt's own red, which no stylesheet reaches
 WEEKEND = (Qt.Saturday, Qt.Sunday)
+
+
+def pin_fusion(app) -> None:
+    """Make Qt's Fusion style the application's style, whatever the desktop's.
+
+    Fusion draws every control from the application's palette and stylesheet; a desktop
+    style may not. On the Pi, qt5ct's gtk2 style replaced the palette's window and text
+    colours with GTK's own when the first window was polished, so the dark theme applied at
+    start-up came out with a light page and the Terminal's text dark on dark (seen on the
+    home Pi, 2026-10-23; a theme switched after start-up was not affected). Every test and
+    render runs under Fusion, so pinning it makes each device draw what they check.
+    """
+    if app.style() is not None and app.style().objectName().lower() == FUSION.lower():
+        return
+    if app.setStyle(FUSION) is None:
+        print(f"[THEME ERROR] Qt's {FUSION} style is missing; the desktop's style draws RRR")
 
 
 def theme_or_default(theme) -> str:
@@ -76,6 +95,8 @@ def restyle(widget) -> None:
 class StyleManager(QObject):
     """
     Centralized styling for the application (light/dark).
+    - Pins Qt's Fusion style, so a desktop style cannot replace the theme's palette
+      (pin_fusion).
     - Sets the theme's QPalette, then its stylesheet: one QSS for the whole app
       (Qt-recommended for maintainability and performance). Both come from tokens.py.
     - Sets a readable, widely available font for Raspberry Pi.
@@ -95,6 +116,7 @@ class StyleManager(QObject):
         self._app = app
         self._theme = DEFAULT_THEME
         self._base_dir = Path(__file__).resolve().parent
+        pin_fusion(app)  # before any palette: see pin_fusion
         app.focusChanged.connect(self._on_focus_changed)
 
     @property
