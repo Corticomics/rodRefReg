@@ -426,7 +426,9 @@ def startup(qapp, main, monkeypatch, isolated_data_dir, tokens, fake_relay_handl
             return False
 
     class MainWindow(QWidget):
-        """Stands in for RodentRefreshmentGUI: records the theme it was built in."""
+        """Stands in for RodentRefreshmentGUI: records the theme it was built in, and shows
+        itself as it is built, as RodentRefreshmentGUI's constructor does (showMaximized):
+        inside setup(), before main() reaches gui.show()."""
 
         system_message_signal = pyqtSignal(str)
 
@@ -434,6 +436,7 @@ def startup(qapp, main, monkeypatch, isolated_data_dir, tokens, fake_relay_handl
             super().__init__()
             record["built"].append(on_screen())
             record["windows"].append(self)
+            self.showMaximized()
 
     class KeptSplash(splash_module.SplashScreen):
         """The splash, kept alive by the test (main keeps no reference once it returns)."""
@@ -548,7 +551,7 @@ def test_every_window_shows_in_the_saved_theme_from_its_first_frame(
     record = startup(splash)
 
     shown = [name for name, _ in record["shown"]]
-    assert shown == (["KeptSplash", "MainWindow"] if splash else ["MainWindow"])
+    assert shown == (["KeptSplash", "MainWindow"] if splash else ["MainWindow"]), "shown once"
     screen = {"theme": expected, "sheet": expected, "window": tokens.value("bg.page", expected)}
     for name, seen in record["shown"]:
         assert seen == screen, name
