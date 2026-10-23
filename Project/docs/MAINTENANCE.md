@@ -559,12 +559,21 @@ After `git push origin v<x.y.z>`:
    To rehearse a rollback as well, press **Revert to previous version**
    after the update and restart: the previous release must start on the
    updated database and run a schedule. Then update again.
-   From 2.1.0 back to 2.0.0: 2.0.0 opens in its own dark theme where 2.1.0
-   switched the theme, and its tables show every other row white
-   (expected: 2.0.0's dark theme has no zebra fix); on a Pi that never
-   saved a theme it opens light. Choose *light* in 2.0.0's Settings →
-   General → Theme, then update again: 2.1.0 starts light and prints no
-   `Switched the theme` line.
+   For 2.1.0, rehearse the one-time switch to dark too. 2.0.0 saves the
+   theme only when its Settings tab auto-saves (its Terminal tab then
+   says `Settings auto-saved`): fresh data has no theme saved, and
+   choosing the *light* it already shows saves nothing. Before the
+   update, choose *dark* and then *light* in 2.0.0's Settings → General →
+   Theme, which saves light. The update restarts RRR dark: that is the
+   switch. Its `[SETTINGS] Switched the theme …` line is flushed, like
+   the `[TOPOLOGY]` line, so under the `rrr` service it is in
+   `journalctl --user -u rrr`; without the service, RRR's own restart
+   discards its output. After the revert, 2.0.0 opens in its own dark
+   theme, and its tables show every other row white (expected: 2.0.0's
+   dark theme has no zebra fix). Log in, choose *light* in its Settings →
+   General → Theme, then update again: 2.1.0 starts light, with no second
+   switch. A Pi that never saved a theme starts 2.1.0 dark with no line,
+   opens light after the revert, and is dark again after the next update.
 5. **Watch the test Pi for ~5 minutes** under a real schedule before
    declaring victory. The launcher's boot sentinel
    ([scripts/runtime/launch.sh](../../scripts/runtime/launch.sh)) auto-rolls
