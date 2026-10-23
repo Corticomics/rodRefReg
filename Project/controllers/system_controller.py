@@ -170,8 +170,14 @@ class SystemController(QObject):
         the theme was, and is left as it is, for a revert. When the database
         refuses the row, RRR starts dark all the same (a device without the
         row starts in the default), and the next start stores it.
+
+        Nothing either when the read failed. get_system_settings returns {}
+        then, and a read that works holds at least the legacy migration's
+        sentinel, stored just before (_migrate_legacy_json_if_needed). Taken
+        for a device without the row, {} would store the default over the
+        operator's choice, for good; the switch waits for the next start.
         """
-        if self.THEME_KEY in stored:
+        if not stored or self.THEME_KEY in stored:
             return []
         try:
             written, why = self._write_setting_to_db(self.THEME_KEY, self.DEFAULT_THEME), ""

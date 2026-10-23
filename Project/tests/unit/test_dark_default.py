@@ -21,7 +21,8 @@ SystemController and database, and main.py's own start-up, offscreen:
   same value fails. A revert therefore opens 2.0.0 in the theme it saved. A marker row a
   pre-release build of 2.1.0 stored changes nothing;
 - when the database refuses ui_theme, the device starts dark all the same, and the next
-  start stores it;
+  start stores it. A read that fails is not taken for a device without ui_theme: the
+  operator's choice stays, and a switch it puts off is made at the next start;
 - main.py reads the saved theme before any window shows (SystemController.theme_at_start
   over DatabaseHandler.peek_system_settings), so the splash and the main window show in
   it from their first frame: no light frame on a dark device, no dark one on a device
@@ -520,6 +521,109 @@ def test_a_fresh_install_that_cannot_store_its_theme_stores_it_later(database_ha
     assert _controller(database_handler).settings[THEME_KEY] == "dark"
     assert _stored(database_handler)[THEME_KEY] == "dark"
     assert "[SETTINGS]" not in capsys.readouterr().out
+
+
+# --- When a read fails ----------------------------------------------------------------------
+
+
+def _the_settling_read_fails(monkeypatch, database_handler):
+    """The read the load settles the stored settings from fails, as a read of a locked
+    database fails once its busy timeout runs out: the real get_system_settings gets a
+    connection whose execute raises sqlite3.OperationalError, prints the error and returns
+    {}. Every other read, and every write, is real. Returns a function that ends the
+    fault."""
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    class Locked:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def cursor(self):
+            return self
+
+        def execute(self, *args):
+            raise sqlite3.OperationalError("database is locked")
+
+    fault = {"on": True, "settling": False}
+    settle = SystemController._settle_stored_settings
+    read = database_handler.get_system_settings
+
+    def settling(self):
+        fault["settling"] = True
+        try:
+            return settle(self)
+        finally:
+            fault["settling"] = False
+
+    def reading():
+        if not (fault["on"] and fault["settling"]):
+            return read()
+        database_handler.connect = Locked
+        try:
+            return read()
+        finally:
+            del database_handler.connect
+
+    monkeypatch.setattr(SystemController, "_settle_stored_settings", settling)
+    monkeypatch.setattr(database_handler, "get_system_settings", reading)
+    return lambda: fault.update(on=False)
+
+
+LOCKED = "Error retrieving system settings: database is locked"
+
+
+def test_a_failed_read_is_not_taken_for_a_device_without_its_theme(
+    monkeypatch, database_handler, capsys
+):
+    """get_system_settings returns {} when its read fails. When the read the load settles
+    from fails so, the one-time switch stores nothing: the operator's light stays, its row
+    unchanged to the second, and this start shows it, from the load's own read a moment
+    later. Taken for a device without ui_theme, that {} would have stored dark over the
+    operator's choice for good, with no line to say why."""
+    _saved_earlier(database_handler, LEGACY, "light")  # 2.0.0's
+    choice = _saved_earlier(database_handler, THEME_KEY, "light")  # the button's
+    fault_ends = _the_settling_read_fails(monkeypatch, database_handler)
+
+    controller = _controller(database_handler)
+
+    journal = capsys.readouterr().out
+    assert LOCKED in journal, "the read failed"
+    assert "[SETTINGS]" not in journal
+    assert _row(database_handler, THEME_KEY) == choice
+    assert controller.settings[THEME_KEY] == "light"
+
+    fault_ends()
+    assert _theme_at_start(database_handler) == "light"
+    assert _controller(database_handler).settings[THEME_KEY] == "light"
+    assert _row(database_handler, THEME_KEY) == choice
+    assert "[SETTINGS]" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("saved", ["light", None], ids=["2.0.0-light", "fresh"])
+def test_a_switch_a_failed_read_puts_off_is_made_at_the_next_start(
+    monkeypatch, database_handler, capsys, saved
+):
+    """A device without ui_theme whose settling read fails starts dark all the same: the
+    load's own read finds no ui_theme. The next start makes the switch, with its line
+    where 2.0.0 saved light, and only once."""
+    if saved:
+        _saved_earlier(database_handler, LEGACY, saved)
+    fault_ends = _the_settling_read_fails(monkeypatch, database_handler)
+
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    journal = capsys.readouterr().out
+    assert LOCKED in journal, "the read failed"
+    assert "[SETTINGS]" not in journal
+
+    fault_ends()
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
+    assert (SWITCHED in capsys.readouterr().out) is (saved == "light")
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    assert "[SETTINGS]" not in capsys.readouterr().out, "and only once"
 
 
 # --- What main.py reads before the first window --------------------------------------------
