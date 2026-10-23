@@ -2,8 +2,9 @@
 /*
  * Rodent Refreshment Regulator - Dark Theme
  *
- * Grey page, white cards and fields, borders that show, teal accent: the robust-contrast
- * palette (v2.1.0). Every colour is a role in Project/ui/style/tokens.py, and
+ * Fluent 2 / WinUI layers (v2.1.0): a near-white page (the base layer) under white tab panes
+ * (the content layer), one hairline stroke round every pane, card, box and table, teal
+ * accent. Every colour is a role in Project/ui/style/tokens.py, and
  * Project/tests/unit/test_theme_contrast.py checks the pairs the UI draws, in both themes.
  *
  * Base colours come from the QPalette StyleManager builds from the same tokens (window,
@@ -54,6 +55,11 @@ QFrame[elevation="card"] {
 /* Logged-out login prompt: the card surface instead of the page */
 QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
     background-color: #30373F;
+}
+/* It stands where a tab pane stands when logged in: the content layer's stroke */
+QWidget#LoginGatePrompt {
+    border: 1px solid #4F5865;
+    border-radius: 12px;
 }
 
 /* Labels are transparent by default so they blend into whatever surface they
@@ -288,15 +294,19 @@ QPushButton[variant="danger"]:disabled {
 /* ============================================
    TABS
    ============================================ */
+/* The content layer: a tab pane is the lighter surface its tabs open onto (WinUI's base and
+   content layers; the page is the base). One stroke, as WinUI's content frame. */
 QTabWidget::pane {
     border: 1px solid #4F5865;
     border-radius: 12px;
     background: #1F242B;
     margin-top: -1px;
 }
+/* Unselected tabs lie flat on the base layer, as WinUI's TabView draws them: no outline. The
+   1px border stays, transparent, so selecting a tab moves nothing. */
 QTabBar::tab {
-    background: #30373F;
-    border: 1px solid #4F5865;
+    background: #1F242B;
+    border: 1px solid transparent;
     border-bottom: none;
     padding: 8px 16px;
     min-width: 70px;
@@ -307,6 +317,23 @@ QTabBar::tab {
     font-weight: 500;
     color: #CBD5E1;
 }
+/* An unselected tab stops 1px short of the pane, so the pane's top stroke runs under it
+   (the padding gives the pixel back). Between two unselected tabs a 1px separator, inset a
+   quarter of the tab's height top and bottom, keeps their boundary: WinUI TabView's
+   TabSeparator. The tab before the selected one, and the last, need none. Square corners:
+   a rounded one would draw a stub of the separator at the tab's top. */
+QTabBar::tab:!selected {
+    margin-bottom: 1px;
+    padding-bottom: 7px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-right-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 transparent, stop: 0.25 transparent, stop: 0.2501 #4F5865, stop: 0.75 #4F5865, stop: 0.7501 transparent, stop: 1 transparent);
+}
+/* As in TabView, a tab under the pointer or pressed shows no separator of its own */
+QTabBar::tab:!selected:next-selected, QTabBar::tab:!selected:last,
+QTabBar::tab:!selected:hover, QTabBar::tab:!selected:pressed {
+    border-right-color: transparent;
+}
 QTabBar::tab:hover {
     background: #3A424C;
     color: #E5E9EF;
@@ -316,6 +343,7 @@ QTabBar::tab:hover {
    colour step alone. The bar takes 2px of the top padding, so no tab moves. */
 QTabBar::tab:selected {
     background: #1F242B;
+    border-color: #4F5865;
     border-bottom-color: #1F242B;
     border-top: 3px solid #2DD4BF;
     padding-top: 6px;

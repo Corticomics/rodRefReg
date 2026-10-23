@@ -17,12 +17,27 @@ WCAG 2.x formula, unrounded (4.499 fails 4.5), in the light and the dark theme:
   fills around it (hover from both row colours);
 - info: reported by tools, not asserted (the reason is in each pair's note).
 
-Many pairs also have floors under the display-chain models of contrast.py (clip, wash,
-hicon, flare, APCA), which the palette's neutral and teal roles were chosen to meet. The
-status colours keep today's hue families, so they are held to WCAG alone.
+A pair is asserted in both themes unless its `themes` say otherwise. Many pairs also have
+floors under the display-chain models of contrast.py (clip, wash, hicon, flare, APCA),
+which the palette's neutral and teal roles were chosen to meet. The status colours keep
+today's hue families, so they are held to WCAG alone.
 
 A pair that fails is fixed by changing a colour in tokens.py, never by lowering its
 threshold. Pure Python: tokens.py, contrast.py and shadow.py are loaded by path.
+
+The light theme's structure changed in v2.1.0, so its surface steps changed contract.
+Palette B met S1-S4 with a grey page (#DADDE2, L* 88), which the owner rejected on the lab
+monitor as dated, and chose Fluent 2 / WinUI's layers instead: a near-white page (the base
+layer) under white tab panes (the content layer) and white cards. A white card on a
+near-white page is a tint step of 1.05:1, and no near-white step survives a monitor that
+clips the HDMI signal (it shows every channel of 235 or more as 255), so no light colour
+can meet S1-S3 without the grey page. In light a card's, a pane's and a box's edge is its
+stroke instead, held to the line floors on every display model (D1, D2, D1p: 1.5:1, 1.3
+clipped, 1.4 washed out). So S1-S3 stay asserted in dark, where tint steps still carry the
+structure, and are reported in light (S1i-S3i), each note naming what replaced it. S4 is
+reported in both themes: unselected tabs lie flat on the page in both (WinUI's TabView),
+and the separator between two of them (D3), the selected tab's stroke and its bar (D1p,
+M1p) mark them.
 
 The card shadows (tokens.SHADOWS) have a contract of their own, below the pairs: the first
 pixel row under a card must read as a shadow on every display model (E1), and the row
@@ -66,6 +81,7 @@ class Pair(NamedTuple):
     robust: Optional[dict] = None  # display-model floors, both themes unless robust_dark
     need_dark: Optional[float] = None
     robust_dark: Optional[dict] = None
+    themes: tuple = ("light", "dark")  # the themes it is asserted in (info: reported only)
 
     def threshold(self, theme):
         return self.need_dark if theme == "dark" and self.need_dark is not None else self.need
@@ -106,27 +122,42 @@ def _text_on(pid, fg, backgrounds, need, why, robust=TEXT_ROBUST):
 
 # fmt: off
 PAIRS = [
-    # ---- Surfaces: palette B's grey page, white cards ------------------------------
+    # ---- Surfaces: a step in dark; in light the edges are strokes (see the docstring) ---
     Pair("S1", "bg.surface", "bg.page", "step", 1.30,
-         "A card, group box, table or list on the page", CARD_STEP, 1.25, CARD_STEP_DARK),
+         "A card, group box, table or list on the page", CARD_STEP, 1.25, CARD_STEP_DARK,
+         themes=("dark",)),
     Pair("S2", "bg.field", "bg.page", "step", 1.30,
-         "An input placed straight on the page", CARD_STEP, 1.25, CARD_STEP_DARK),
+         "An input placed straight on the page", CARD_STEP, 1.25, CARD_STEP_DARK,
+         themes=("dark",)),
     Pair("S3", "bg.inset", "bg.surface", "step", 1.30,
          "A nested group box, the table header band, a relay number or the closed priming "
-         "status inside a card", CARD_STEP, 1.25, CARD_STEP_DARK),
-    Pair("S4", "bg.rail", "bg.page", "step", 1.20,
-         "Unselected tabs against the selected tab and its pane",
-         {"clip": 1.15, "wash": 1.15}, 1.25),
+         "status inside a card", CARD_STEP, 1.25, CARD_STEP_DARK, themes=("dark",)),
+    Pair("S1i", "bg.surface", "bg.page", "info", 1.30,
+         "Light: a white card on the near-white page, a tint hint only (1.00 clipped). Its "
+         "edge is its outline (D1, D2)"),
+    Pair("S2i", "bg.field", "bg.page", "info", 1.30,
+         "Light: an input on a dialog's page: its 3:1 boundary identifies it (N2)"),
+    Pair("S3i", "bg.inset", "bg.surface", "info", 1.30,
+         "Light: a well inside a card is a tint hint: it keeps its outline (D5) or its words"),
+    Pair("S4", "bg.rail", "bg.page", "info", 1.20,
+         "Unselected tabs are flat on the base layer in both themes (WinUI's TabView): the "
+         "separator between them is their boundary (D3), and the selected tab's stroke and "
+         "bar mark it (D1p, M1p)"),
     Pair("S5", "bg.track", "bg.surface", "step", 1.30,
          "A tracker bar's groove on its card (a slider's too)",
          {"clip": 1.15, "wash": 1.25}, 1.25, {"clip": 1.15, "wash": 1.15}),
     Pair("D1", "border.subtle", "bg.page", "line", 1.5,
          "A card, group box, table or tab-pane outline, outside edge; the outline of a "
-         "progress bar or the wizard log on the page (I12, I13)", LINE_ROBUST),
+         "progress bar or the wizard log on the page (I12, I13); the login prompt's edge",
+         LINE_ROBUST),
+    Pair("D1p", "border.subtle", "bg.pane", "line", 1.5,
+         "A card, group box or table outline on a tab pane; the selected tab's stroke "
+         "against its pane", LINE_ROBUST),
     Pair("D2", "border.subtle", "bg.surface", "line", 1.5,
          "The same outline, inside edge", LINE_ROBUST),
     Pair("D3", "border.subtle", "bg.rail", "line", 1.2,
-         "A tab's outline on the unselected-tab fill", {"clip": 1.15}, 1.5, {"clip": 1.3}),
+         "The separator between two unselected tabs, on their flat fill", {"clip": 1.15}, 1.5,
+         {"clip": 1.3}),
     Pair("D4", "border.divider", "bg.surface", "line", 1.5,
          "Table grid lines and row rules, separators", {"clip": 1.3}),
     Pair("D5", "border.subtle", "bg.inset", "line", 1.5,
@@ -162,6 +193,8 @@ PAIRS = [
          None, 3),
     Pair("N2", "border.control", "bg.page", "nontext", 3,
          "The same controls on the page; page-level scrollbars", MARK_ROBUST),
+    Pair("N2p", "border.control", "bg.pane", "nontext", 3,
+         "The same controls straight on a tab pane", MARK_ROBUST),
     Pair("N3", "border.control", "bg.inset", "nontext", 3,
          "The same controls inside a nested group box", MARK_ROBUST),
     Pair("N4", "border.control", "bg.field", "nontext", 3,
@@ -179,8 +212,10 @@ PAIRS = [
          MARK_ROBUST),
     # ---- State and value marks (WCAG 1.4.11) ---------------------------------------
     Pair("M1", "accent.indicator", "bg.page", "nontext", 3,
-         "The selected tab's 3px bar against its pane; a progress chunk on the page; the "
-         "cage valve's dot in the Cages tab's legend", MARK_ROBUST),
+         "The selected tab's 3px bar against the tab strip; a progress chunk on the page; "
+         "the cage valve's dot in the Cages tab's legend", MARK_ROBUST),
+    Pair("M1p", "accent.indicator", "bg.pane", "nontext", 3,
+         "The selected tab's 3px bar against its pane", MARK_ROBUST),
     Pair("M2", "accent.indicator", "bg.rail", "nontext", 3,
          "The selected tab's bar where it meets an unselected tab", {"clip": 3}),
     Pair("M3", "accent.indicator", "bg.surface", "nontext", 3,
@@ -220,6 +255,8 @@ PAIRS = [
          "The focus border against the card around the control", MARK_ROBUST),
     Pair("F3", "focus.ring", "bg.page", "nontext", 3,
          "The focus border against the page around the control", MARK_ROBUST),
+    Pair("F3p", "focus.ring", "bg.pane", "nontext", 3,
+         "The focus border against a tab pane around the control", MARK_ROBUST),
     Pair("F4", "focus.ring", "bg.inset", "nontext", 3,
          "The focus border inside a nested group box", MARK_ROBUST),
     Pair("F5", "focus.ring", "bg.hover", "nontext", 3,
@@ -233,6 +270,13 @@ PAIRS = [
               "Body text, values, titles, typed input; the selected tab's label; the value "
               "in a tracker bar, over its groove; a calendar popup's month and year, on its "
               "inset navigation bar, and its weekday row (7:1 target)"),
+    *_text_on("T1p", "text.primary", ["bg.pane"], 7,
+              "Body text, titles and labels straight on a tab pane; the selected tab's label "
+              "(7:1 target)"),
+    *_text_on("T2p", "text.secondary", ["bg.pane"], 7,
+              "Help text, form labels and subtitles on a tab pane (7:1 target)"),
+    *_text_on("T3p", "text.muted", ["bg.pane"], 4.5, "Captions and hints on a tab pane"),
+    *_text_on("T4p", "text.accent", ["bg.pane"], 4.5, "Teal text on a tab pane"),
     *_text_on("T1h", "text.primary", ["success.tint", "danger.tint", "bg.highlight",
                                       "warning.tint"], 4.5,
               "Text inside a Help tip or warning; a Help search hit; the ⚠ of the schedule "
@@ -333,7 +377,8 @@ PAIRS = [
          "no 3:1 boundary"),
     Pair("I12", "bg.track", "bg.page", "info", 1.25,
          "A progress bar's groove on the page (the calibration wizard's run, the Stopping "
-         "dialog): the same colour; the bar's outline (D1) shows its length"),
+         "dialog): a step darker than the page in light, the same colour in dark; the bar's "
+         "outline (D1) shows its length"),
     Pair("I13", "bg.inset", "bg.page", "info", 1.25,
          "The calibration wizard's log on its dialog's page: the same colour; its outline "
          "(D1) shows its edge"),
@@ -521,6 +566,7 @@ def test_every_pair_names_real_tokens_and_a_known_kind():
     ids = [p.id for p in PAIRS]
     assert len(ids) == len(set(ids)), "pair ids must be unique"
     for pair in PAIRS:
+        assert pair.themes and set(pair.themes) <= set(tokens.THEMES), pair.id
         for theme in tokens.THEMES:
             assert set(pair.models(theme)) <= {"clip", "wash", "hicon", "flare10", "apca"}
 
@@ -548,8 +594,12 @@ def test_every_text_role_has_its_pairs():
     assert not unmarked, f"roles the template writes in with no asserted pair: {sorted(unmarked)}"
 
 
-@pytest.mark.parametrize("theme", tokens.THEMES)
-@pytest.mark.parametrize("pair", ASSERTED, ids=lambda p: p.id)
+CHECKS = [(pair, theme) for pair in ASSERTED for theme in pair.themes]
+
+
+@pytest.mark.parametrize(
+    ("pair", "theme"), CHECKS, ids=[f"{pair.id}-{theme}" for pair, theme in CHECKS]
+)
 def test_pair_meets_its_threshold(pair, theme):
     missed = failures(pair, theme)
     fg, bg = colour(pair.fg, theme), colour(pair.bg, theme)
@@ -598,7 +648,7 @@ def test_the_judges_fixes_hold():
 # HDMI chain), E2 the side row to a visible halo on a correct display. Every recipe is held
 # to them, as the lab monitor's A/B may give a card any of them (RRR_SHADOW).
 
-SHADOW_GROUNDS = ("bg.page",)  # a card straight on the page (tab panes are the page too)
+SHADOW_GROUNDS = ("bg.pane", "bg.page")  # a card on a tab pane, or straight on the page
 E1_BOTTOM = {"nominal": 1.30, "clip": 1.15, "wash": 1.25}
 E2_SIDE = {"nominal": 1.20}
 
@@ -614,7 +664,7 @@ def _first_row(layers, edge, ground):
 @pytest.mark.parametrize("name", sorted(tokens.SHADOWS))
 @pytest.mark.parametrize("ground", SHADOW_GROUNDS)
 def test_a_card_shadow_shows_under_the_card(name, ground):
-    """E1 (bottom row) and E2 (side row) for every recipe, on the ground a card stands on."""
+    """E1 (bottom row) and E2 (side row) for every recipe, on a pane and on the page."""
     layers = tokens.SHADOWS[name]
     for edge, floors in (("bottom", E1_BOTTOM), ("left", E2_SIDE), ("right", E2_SIDE)):
         pixel, background = _first_row(layers, edge, ground)

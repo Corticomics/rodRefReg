@@ -6,9 +6,12 @@ what a colour is for (bg.surface: cards, tables, menus), not what it looks like,
 palette is a change of values here, not of the template. Two roles may hold the same
 colour (bg.page and bg.inset do): they still say different things.
 
-The palette is the robust-contrast one (palette B, v2.1.0): a grey page, white cards and
-fields, borders that show, and the same structure in the dark theme. Its steps stay visible
-on a monitor that clips or washes out the Pi's HDMI signal (contrast.py has the models).
+The light palette (v2.1.0) follows Fluent 2 and WinUI: a near-white page (the base
+layer) under white tab panes (the content layer), and white cards, all outlined by one
+hairline stroke. The edges are strokes, not tints, so they stay visible on a monitor that
+clips or washes out the Pi's HDMI signal (contrast.py has the models). The dark theme keeps
+the robust-contrast palette's values (palette B), but for its unselected tabs, flat as in
+light: it separates its surfaces by tint and stroke.
 
 Four things read the roles:
 - the stylesheet template, through its ${role} placeholders;
@@ -35,9 +38,12 @@ THEMES = ("light", "dark")
 # name: (light, dark)
 TOKENS: dict[str, tuple[str, str]] = {
     # ---- Backgrounds -------------------------------------------------------------------
-    # The page (QPalette.Window): windows and dialogs, tab panes and the selected tab that
-    # joins its pane, the help sidebar, #WizardStepContent
-    "bg.page": ("#DADDE2", "#1F242B"),
+    # The page, the base layer (QPalette.Window): windows and dialogs, the strip the tabs
+    # stand on (unselected tabs show it), the help sidebar, #WizardStepContent
+    "bg.page": ("#F8FAFB", "#1F242B"),
+    # The content layer: tab panes, and the selected tab that joins its pane (WinUI's two
+    # layers: a lighter content layer on the base; in dark the panes keep the page's colour)
+    "bg.pane": ("#FFFFFF", "#1F242B"),
     # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
     # menus, the combo popup, QPushButton, an idle drop area, #TrackerHeader,
     # #MaterialCard, #RelayTerminal, #InteractiveCard, #ScheduleCard, the wizard's step
@@ -48,20 +54,23 @@ TOKENS: dict[str, tuple[str, str]] = {
     "bg.field": ("#FFFFFF", "#30373F"),
     # Sunken areas inside a surface: a nested group box, the table header band and its
     # corner, #WizardLog, #RelayNumber, #StatusLabel[status="closed"], a calendar popup's
-    # navigation bar; inline code in Help
-    "bg.inset": ("#DADDE2", "#1F242B"),
-    # Unselected tabs
-    "bg.rail": ("#C3C7CD", "#30373F"),
+    # navigation bar; inline code in Help. In light the page's tint, a hint only: each of
+    # them keeps its outline, its rule or its words
+    "bg.inset": ("#F8FAFB", "#1F242B"),
+    # Unselected tabs: the page's colour in both themes, flat on the base layer as WinUI's
+    # TabView draws them; a separator between two of them keeps their boundary
+    "bg.rail": ("#F8FAFB", "#1F242B"),
     # An unselected tab under the pointer
-    "bg.rail.hover": ("#CFD2D7", "#3A424C"),
+    "bg.rail.hover": ("#E6E9ED", "#3A424C"),
     # Under the pointer: QPushButton, table, list and help-tree items, #RelayTerminal,
     # #InteractiveCard, #ScheduleCard, #WizardBackButton. Darker than both table row
     # colours in each theme, so a zebra row still changes under the pointer.
     "bg.hover": ("#E6E9ED", "#282E36"),
     # QPushButton pressed
     "bg.pressed": ("#C3C7CD", "#1F242B"),
-    # Progress bar and slider grooves (#TrackerProgress's too). The page's colour: a bar on
-    # the page shows its length by its border.subtle outline
+    # Progress bar and slider grooves (#TrackerProgress's too): in light a step darker than
+    # the page and the cards, in dark the page's colour; inside a border.subtle outline, which
+    # shows a bar's whole length on the page
     "bg.track": ("#DADDE2", "#1F242B"),
     # Alternate table rows (QPalette.AlternateBase)
     "bg.alt": ("#F1F3F5", "#373E48"),
@@ -122,12 +131,13 @@ TOKENS: dict[str, tuple[str, str]] = {
     # QToolTip (QPalette.ToolTipText)
     "text.tooltip": ("#FFFFFF", "#1A1D1F"),
     # ---- Borders -----------------------------------------------------------------------
-    # Decorative outlines: cards, tab panes and tabs, group boxes, tables, lists, menus,
-    # the combo popup, the table header rule, #TrackerHeader, #MaterialCard, progress bars
-    # (#TrackerProgress too), #RelayTerminal, #WizardLog, #InteractiveCard, #ScheduleCard,
-    # #WizardConnector, #AnimalConfigRow, the rule under #WizardSummarySection, the help
-    # panes; disabled inputs, buttons and indicators
-    "border.subtle": ("#AAB2BE", "#4F5865"),
+    # The one structural stroke (Fluent's colorNeutralStroke1): cards, tab panes and the
+    # selected tab, the separator between unselected tabs, group boxes, tables, lists,
+    # menus, the combo popup, the login prompt, the table header rule, #TrackerHeader,
+    # #MaterialCard, progress bars (#TrackerProgress too), #RelayTerminal, #WizardLog,
+    # #InteractiveCard, #ScheduleCard, #WizardConnector, #AnimalConfigRow, the rule under
+    # #WizardSummarySection, the help panes; disabled inputs, buttons and indicators
+    "border.subtle": ("#C8CED6", "#4F5865"),
     # Table grid lines and row rules, #WizardSeparator; the rule above Help's related
     # topics
     "border.divider": ("#CDD1D7", "#4B5461"),

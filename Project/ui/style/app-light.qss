@@ -2,8 +2,9 @@
 /*
  * Rodent Refreshment Regulator - Light Theme
  *
- * Grey page, white cards and fields, borders that show, teal accent: the robust-contrast
- * palette (v2.1.0). Every colour is a role in Project/ui/style/tokens.py, and
+ * Fluent 2 / WinUI layers (v2.1.0): a near-white page (the base layer) under white tab panes
+ * (the content layer), one hairline stroke round every pane, card, box and table, teal
+ * accent. Every colour is a role in Project/ui/style/tokens.py, and
  * Project/tests/unit/test_theme_contrast.py checks the pairs the UI draws, in both themes.
  *
  * Base colours come from the QPalette StyleManager builds from the same tokens (window,
@@ -38,7 +39,7 @@ QScrollArea, QScrollArea > QWidget > QWidget, QStackedWidget {
    ============================================ */
 QFrame#Card, QFrame[card="true"] {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
     padding: 0;
 }
@@ -54,6 +55,11 @@ QFrame[elevation="card"] {
 /* Logged-out login prompt: the card surface instead of the page */
 QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
     background-color: #FFFFFF;
+}
+/* It stands where a tab pane stands when logged in: the content layer's stroke */
+QWidget#LoginGatePrompt {
+    border: 1px solid #C8CED6;
+    border-radius: 12px;
 }
 
 /* Labels are transparent by default so they blend into whatever surface they
@@ -120,7 +126,7 @@ QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {
     background: #ECEEF1;
     color: #7B8490;
-    border-color: #AAB2BE;
+    border-color: #C8CED6;
 }
 
 /* Placeholder text is the palette's PlaceholderText (text.muted): no rule here. */
@@ -139,7 +145,7 @@ QComboBox::down-arrow {
 }
 QComboBox QAbstractItemView {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     padding: 4px;
     selection-background-color: #0F766E;
@@ -188,7 +194,7 @@ QPushButton:pressed {
 QPushButton:disabled {
     background: #ECEEF1;
     color: #7B8490;
-    border-color: #AAB2BE;
+    border-color: #C8CED6;
 }
 QPushButton:focus {
     border: 2px solid #0F766E;
@@ -252,7 +258,7 @@ QPushButton[variant="primary"]:pressed {
 /* Greyed out like every other disabled button */
 QPushButton[variant="primary"]:disabled {
     background: #ECEEF1;
-    border-color: #AAB2BE;
+    border-color: #C8CED6;
     color: #7B8490;
 }
 QPushButton[variant="primary"]:focus {
@@ -281,22 +287,26 @@ QPushButton[variant="danger"]:pressed {
    while a schedule runs, Close Master while the master is closed). */
 QPushButton[variant="danger"]:disabled {
     background: #ECEEF1;
-    border-color: #AAB2BE;
+    border-color: #C8CED6;
     color: #7B8490;
 }
 
 /* ============================================
    TABS
    ============================================ */
+/* The content layer: a tab pane is the lighter surface its tabs open onto (WinUI's base and
+   content layers; the page is the base). One stroke, as WinUI's content frame. */
 QTabWidget::pane {
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
-    background: #DADDE2;
+    background: #FFFFFF;
     margin-top: -1px;
 }
+/* Unselected tabs lie flat on the base layer, as WinUI's TabView draws them: no outline. The
+   1px border stays, transparent, so selecting a tab moves nothing. */
 QTabBar::tab {
-    background: #C3C7CD;
-    border: 1px solid #AAB2BE;
+    background: #F8FAFB;
+    border: 1px solid transparent;
     border-bottom: none;
     padding: 8px 16px;
     min-width: 70px;
@@ -307,16 +317,34 @@ QTabBar::tab {
     font-weight: 500;
     color: #2E3A4B;
 }
+/* An unselected tab stops 1px short of the pane, so the pane's top stroke runs under it
+   (the padding gives the pixel back). Between two unselected tabs a 1px separator, inset a
+   quarter of the tab's height top and bottom, keeps their boundary: WinUI TabView's
+   TabSeparator. The tab before the selected one, and the last, need none. Square corners:
+   a rounded one would draw a stub of the separator at the tab's top. */
+QTabBar::tab:!selected {
+    margin-bottom: 1px;
+    padding-bottom: 7px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-right-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 transparent, stop: 0.25 transparent, stop: 0.2501 #C8CED6, stop: 0.75 #C8CED6, stop: 0.7501 transparent, stop: 1 transparent);
+}
+/* As in TabView, a tab under the pointer or pressed shows no separator of its own */
+QTabBar::tab:!selected:next-selected, QTabBar::tab:!selected:last,
+QTabBar::tab:!selected:hover, QTabBar::tab:!selected:pressed {
+    border-right-color: transparent;
+}
 QTabBar::tab:hover {
-    background: #CFD2D7;
+    background: #E6E9ED;
     color: #1A1D1F;
 }
 /* The selected tab joins its pane, and a 3px accent bar on top marks it: the bar is
    3:1 or more against the pane and the rail, so the state is not carried by a
    colour step alone. The bar takes 2px of the top padding, so no tab moves. */
 QTabBar::tab:selected {
-    background: #DADDE2;
-    border-bottom-color: #DADDE2;
+    background: #FFFFFF;
+    border-color: #C8CED6;
+    border-bottom-color: #FFFFFF;
     border-top: 3px solid #0F766E;
     padding-top: 6px;
     color: #1A1D1F;
@@ -336,9 +364,9 @@ QHeaderView {
     background: transparent;
 }
 QHeaderView::section {
-    background: #DADDE2;
+    background: #F8FAFB;
     border: none;
-    border-bottom: 2px solid #AAB2BE;
+    border-bottom: 2px solid #C8CED6;
     padding: 12px 16px;
     font-weight: 600;
     color: #2E3A4B;
@@ -347,14 +375,14 @@ QHeaderView::section {
     letter-spacing: 0.5px;
 }
 QTableCornerButton::section {
-    background: #DADDE2;
+    background: #F8FAFB;
     border: none;
-    border-bottom: 2px solid #AAB2BE;
+    border-bottom: 2px solid #C8CED6;
 }
 QTableView, QTableWidget {
     background: #FFFFFF;
     alternate-background-color: #F1F3F5;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
     gridline-color: #CDD1D7;
     selection-background-color: #0F766E;
@@ -393,7 +421,7 @@ QWidget#AnimalsTab {
    a table (the rules above and the palette: Base, AlternateBase for the weekday row,
    Highlight for the chosen day); theme.py writes the weekend in text.weekend. */
 QCalendarWidget QWidget#qt_calendar_navigationbar {
-    background-color: #DADDE2;
+    background-color: #F8FAFB;
 }
 QCalendarWidget QToolButton {
     color: #1A1D1F;
@@ -406,7 +434,7 @@ QCalendarWidget QToolButton {
    length where it sits on the page (the calibration wizard's run, the Stopping dialog) as
    well as on a card. The outline takes 2px of the 8px height, so the bar keeps its size. */
 QProgressBar {
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     text-align: center;
     background: #DADDE2;
@@ -423,7 +451,7 @@ QProgressBar::chunk {
    ============================================ */
 QGroupBox {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
     margin-top: 24px;
     margin-bottom: 8px;
@@ -444,8 +472,8 @@ QGroupBox::title {
 
 /* Nested GroupBox */
 QGroupBox QGroupBox {
-    background: #DADDE2;
-    border: 1px solid #AAB2BE;
+    background: #F8FAFB;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     margin-top: 20px;
     padding: 20px 16px 16px 16px;
@@ -462,7 +490,7 @@ QGroupBox QGroupBox::title {
 QListWidget {
     background: #FFFFFF;
     alternate-background-color: #F1F3F5;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     padding: 8px;
     color: #1A1D1F;
@@ -630,7 +658,7 @@ QLabel#StatusLabel {
     font-size: 13px;
 }
 QLabel#StatusLabel[status="closed"] {
-    background: #DADDE2;
+    background: #F8FAFB;
     color: #2E3A4B;
 }
 QLabel#StatusLabel[status="open"] {
@@ -726,7 +754,7 @@ QLabel#SchedulesHubEmptyText {
    2px border; its rule comes after :hover, so it keeps that look under the pointer. */
 QFrame#ScheduleCard {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 10px;
 }
 QFrame#ScheduleCard:hover {
@@ -791,7 +819,7 @@ QMenu#ScheduleCardMenu::item {
 /* Header frame */
 QFrame#TrackerHeader {
     background-color: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
     padding: 12px;
 }
@@ -820,7 +848,7 @@ QScrollArea#TrackerScrollArea {
 /* Material Cards: one per animal */
 QFrame#MaterialCard {
     background-color: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
     padding: 0;
 }
@@ -858,7 +886,7 @@ QLabel#CageBadge {
    groove and the fill alike: each fill is a shade text.primary reads on (tokens.py,
    progress.*). A complete or failed bar keeps its state (state="complete"|"failed"). */
 QProgressBar#TrackerProgress {
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 11px;
     background: #DADDE2;
     text-align: center;
@@ -967,7 +995,7 @@ QLabel#ColumnHeader {
 /* Relay Terminal Widget - cage type */
 QFrame#RelayTerminal {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 6px;
     border-left: 3px solid #0F766E;
 }
@@ -1011,7 +1039,7 @@ QLabel#RelayNumber {
     font-size: 12px;
     font-weight: 700;
     color: #2E3A4B;
-    background: #DADDE2;
+    background: #F8FAFB;
     border-radius: 4px;
     padding: 2px 6px;
 }
@@ -1075,8 +1103,8 @@ QLabel#TimeRemaining {
    WIZARD LOG
    ============================================ */
 QTextEdit#WizardLog {
-    background: #DADDE2;
-    border: 1px solid #AAB2BE;
+    background: #F8FAFB;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     font-family: "IBM Plex Mono", "SF Mono", Monaco, monospace;
     font-size: 12px;
@@ -1117,7 +1145,7 @@ QCheckBox::indicator:checked {
 }
 QCheckBox::indicator:disabled {
     background: #ECEEF1;
-    border-color: #AAB2BE;
+    border-color: #C8CED6;
 }
 
 /* ============================================
@@ -1159,7 +1187,7 @@ QToolTip {
    ============================================ */
 QMenuBar {
     background: #FFFFFF;
-    border-bottom: 1px solid #AAB2BE;
+    border-bottom: 1px solid #C8CED6;
     padding: 4px 8px;
 }
 QMenuBar::item {
@@ -1173,7 +1201,7 @@ QMenuBar::item:selected {
 }
 QMenu {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     padding: 8px;
 }
@@ -1261,7 +1289,7 @@ QLabel#WizardStepTitle[state="current"] {
 
 /* Wizard Connector Line */
 QFrame#WizardConnector {
-    background: #AAB2BE;
+    background: #C8CED6;
     border: none;
 }
 QFrame#WizardConnector[state="completed"] {
@@ -1319,7 +1347,7 @@ QPushButton#WizardStartOverButton {
    ============================================ */
 QFrame#InteractiveCard {
     background: #FFFFFF;
-    border: 2px solid #AAB2BE;
+    border: 2px solid #C8CED6;
     border-radius: 12px;
     padding: 16px;
 }
@@ -1368,7 +1396,7 @@ QLabel#CardBadge {
    WIZARD STEP CONTENT AREA
    ============================================ */
 QWidget#WizardStepContent {
-    background: #DADDE2;
+    background: #F8FAFB;
     padding: 24px;
 }
 
@@ -1436,7 +1464,7 @@ QLabel#WizardEmptyState {
    box */
 QFrame#AnimalConfigRow {
     background: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     padding: 8px;
     margin: 4px 0;
@@ -1450,7 +1478,7 @@ QLabel#WizardSummarySection {
     color: #115E59;
     padding-top: 6px;
     padding-bottom: 4px;
-    border-bottom: 1px solid #AAB2BE;
+    border-bottom: 1px solid #C8CED6;
 }
 QLabel#WizardSummaryLabel {
     font-size: 11px;
@@ -1491,8 +1519,8 @@ QProgressBar#SplashProgress::chunk {
 
 /* Sidebar container */
 QWidget#HelpSidebar {
-    background-color: #DADDE2;
-    border-right: 1px solid #AAB2BE;
+    background-color: #F8FAFB;
+    border-right: 1px solid #C8CED6;
 }
 
 /* Content pane container */
@@ -1503,7 +1531,7 @@ QWidget#HelpContentPane {
 /* Topic tree */
 QTreeWidget#HelpTree {
     background-color: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     outline: none;
     color: #1A1D1F;
@@ -1556,12 +1584,12 @@ QLabel#HelpResultCount {
    the Help page's own HTML. */
 QTextBrowser#HelpContent {
     background-color: #FFFFFF;
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     border-radius: 8px;
     padding: 0;
     /* Suppress focus thickening inherited from QTextEdit:focus */
 }
 QTextBrowser#HelpContent:focus {
-    border: 1px solid #AAB2BE;
+    border: 1px solid #C8CED6;
     padding: 0;
 }

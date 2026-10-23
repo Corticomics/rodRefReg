@@ -114,8 +114,9 @@ def test_the_first_steps_warning_line_is_in_the_themes_danger_colour(qapp, token
 
 @pytest.mark.parametrize("theme", THEMES)
 def test_the_runs_progress_bar_shows_its_length_on_the_page(qapp, tokens, style, theme):
-    """The bar's groove is bg.track, the page's colour, so only its outline shows how long
-    it is: 2px of the bar's 8px, which it had before the outline."""
+    """The bar's outline shows how long it is on the page: 2px of the bar's 8px, which it
+    had before the outline. In dark the groove (bg.track) is the page's colour, so the
+    outline alone shows it; in light the groove is also a step darker than the page."""
     from PyQt5.QtCore import QPoint  # noqa: PLC0415
 
     manager, windows = style
@@ -141,7 +142,10 @@ def test_the_runs_progress_bar_shows_its_length_on_the_page(qapp, tokens, style,
     assert pixel(bar, bar.width() - 1, middle) == colour("border.subtle")  # its far end
     assert pixel(bar, bar.width() * 3 // 4, middle) == colour("bg.track")  # still to go
     assert pixel(bar, bar.width() // 5, middle) == colour("accent.indicator")  # done
-    assert colour("bg.track") == colour("bg.page"), "the outline is what shows the groove"
+    if theme == "light":
+        assert colour("bg.track") != colour("bg.page")
+    else:
+        assert colour("bg.track") == colour("bg.page"), "the outline is what shows the groove"
 
     log = wizard.log_output
     assert pixel(log, 0, log.height() // 2) == colour("border.subtle")

@@ -14,7 +14,9 @@ of the palette's way and covers the places the palette cannot reach:
 - a scroll area's content widget and stacked pages are transparent (Qt fills a scroll
   area's content with the page colour), and so are the header band and its corner;
 - item views alternate rows in bg.alt; a selected fill always carries its on-accent text,
-  and a hovered selected row keeps the selection colours.
+  and a hovered selected row keeps the selection colours;
+- a tab pane is the content layer (bg.pane) the selected tab joins, and unselected tabs lie
+  flat on the page with a separator between two of them.
 """
 
 from __future__ import annotations
@@ -258,3 +260,45 @@ def test_disabled_menu_items_stay_grey(theme):
     rules = _template_rules(theme)
     if any("color" in d for d in _find(rules, "QMenu::item")):
         assert _find(rules, "QMenu::item:disabled")[0].get("color") == "<text.disabled>"
+
+
+# ---- Layers and tabs (v2.1.0, Fluent 2 / WinUI) ---------------------------------------------
+
+
+def _decls(rules, selector):
+    """The declarations of every rule naming `selector`, merged in order."""
+    merged = {}
+    for selectors, decls in rules:
+        if selector in selectors:
+            merged.update(decls)
+    assert merged, f"no rule names {selector!r}"
+    return merged
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_tabs_open_onto_the_content_layer(theme):
+    """A tab pane is the content layer (bg.pane) in one stroke; the selected tab joins it in
+    the same colour, stroked and marked by its 3px bar; unselected tabs are flat on the
+    base layer with no outline, and the separator between two of them is the stroke's
+    colour, inset top and bottom (WinUI TabView's TabSeparator)."""
+    rules = _stylesheet_rules(theme)
+    stroke = tokens.value("border.subtle", theme)
+    pane = _decls(rules, "QTabWidget::pane")
+    assert pane["background"] == tokens.value("bg.pane", theme)
+    assert pane["border"] == f"1px solid {stroke}"
+    tab = _find(rules, "QTabBar::tab")[0]
+    assert tab["border"] == "1px solid transparent" and tab["background"] == tokens.value(
+        "bg.rail", theme
+    )
+    selected = _find(rules, "QTabBar::tab:selected")[0]
+    assert selected["background"] == tokens.value("bg.pane", theme)
+    assert selected["border-color"] == stroke
+    assert selected["border-top"] == f"3px solid {tokens.value('accent.indicator', theme)}"
+    unselected = _find(rules, "QTabBar::tab:!selected")[0]
+    separator = unselected["border-right-color"]
+    assert separator.startswith("qlineargradient(") and stroke in separator
+    assert "stop: 0.25 transparent" in separator and "stop: 0.7501 transparent" in separator
+    # Beside the selected tab, after the last one and under the pointer: no separator
+    for state in ("next-selected", "last", "hover"):
+        decls = _decls(rules, f"QTabBar::tab:!selected:{state}")
+        assert decls["border-right-color"] == "transparent", state
