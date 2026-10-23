@@ -159,39 +159,30 @@ class SystemController(QObject):
         once the marker is stored: the operator's choice stays. Returns the
         journal lines: one when a theme is switched or cannot be.
 
-        The marker is stored first. If the database fails between the two
-        writes, the switch is lost, and the device keeps its theme, rather
-        than made a second time over a choice the operator made since.
+        The marker and the theme are stored in one transaction: a database
+        error stores neither, the device keeps its theme for this start, and
+        the next start tries again. So the switch is made once, never half.
         """
         marker = self.DARK_DEFAULT_MARKER
         if stored.get(marker):
             return []
         theme = stored.get('theme')
         switch = theme is not None and theme != self.DEFAULT_THEME
-
-        def write(key, value):
-            try:
-                return self._write_setting_to_db(key, value), ""
-            except Exception as exc:
-                return False, f" ({exc})"
-
-        written, why = write(marker, True)
+        rows = {marker: True, 'theme': self.DEFAULT_THEME} if switch else {marker: True}
+        try:
+            written, why = self._write_settings_to_db(rows), ""
+        except Exception as exc:
+            written, why = False, f" ({exc})"
         if not written:
             if not switch:
                 return [f"Could not store {marker}{why}; the next start tries again"]
             return [
-                f"Could not store {marker}{why}, so the theme was not switched to "
-                f"{self.DEFAULT_THEME!r}, the default from 2.1.0: it stays {theme!r}, and "
+                f"Could not store {marker} and the theme{why}, so the theme was not switched "
+                f"to {self.DEFAULT_THEME!r}, the default from 2.1.0: it stays {theme!r}, and "
                 "the next start tries again"
             ]
         if not switch:
             return []
-        written, why = write('theme', self.DEFAULT_THEME)
-        if not written:
-            return [
-                f"Could not store the theme {self.DEFAULT_THEME!r}{why}: it stays {theme!r}, "
-                "and is not switched again (Settings > General > Appearance switches it)"
-            ]
         return [
             f"Switched the theme to {self.DEFAULT_THEME!r}, the default from 2.1.0, once "
             f"(it was {theme!r}); Settings > General > Appearance switches it back, and "
@@ -663,9 +654,10 @@ class SystemController(QObject):
             if key in managed:
                 self._write_setting_to_db(key, value)
 
-    def _write_setting_to_db(self, key, value):
-        """Type-tag and persist a single setting via DatabaseHandler. Returns
-        what it returns: False when the database refused the write."""
+    @staticmethod
+    def _setting_row(key, value):
+        """A setting as a system_settings row, type-tagged:
+        (key, value, setting_type)."""
         if isinstance(value, bool):
             type_name = 'bool'
         elif isinstance(value, int):
@@ -677,7 +669,19 @@ class SystemController(QObject):
             value = json.dumps(value, default=str)
         else:
             type_name = 'str'
-        return self.database_handler.update_system_setting(key, value, type_name)
+        return key, value, type_name
+
+    def _write_setting_to_db(self, key, value):
+        """Type-tag and persist a single setting via DatabaseHandler. Returns
+        what it returns: False when the database refused the write."""
+        return self.database_handler.update_system_setting(*self._setting_row(key, value))
+
+    def _write_settings_to_db(self, settings):
+        """Type-tag and persist several settings in one transaction: all of
+        them, or none (DatabaseHandler.update_system_settings). False when the
+        database refused it."""
+        rows = [self._setting_row(key, value) for key, value in settings.items()]
+        return self.database_handler.update_system_settings(rows)
 
     def _migrate_legacy_json_if_needed(self):
         """One-time copy of legacy settings.json into the system_settings table.

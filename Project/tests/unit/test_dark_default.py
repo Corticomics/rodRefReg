@@ -12,9 +12,9 @@ offscreen:
   journal line; a device whose stored theme is light, as 2.0.0 left it, is switched to
   dark at its first 2.1.0 start, once, with one [SETTINGS] line; from then on the
   operator's choice stays, across restarts and across a revert to 2.0.0 and back;
-- the marker is stored before the theme: when the database refuses the marker nothing is
-  switched and the next start tries again, and when it refuses the theme the switch is
-  lost rather than made twice;
+- the marker and the theme are stored in one transaction: when the database refuses
+  either, nothing is stored, the theme stays for that start, and the next start makes the
+  switch, so it is never half made;
 - main.py reads the saved theme before any window shows (SystemController.theme_at_start
   over DatabaseHandler.peek_system_settings), so the splash and the main window show in
   it from their first frame: no light frame on a dark device, no dark one on a device
@@ -245,24 +245,53 @@ def test_a_revert_to_2_0_0_and_the_next_update_do_not_switch_again(
     assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
 
 
-def _refuse(monkeypatch, database_handler, refused_key):
-    """The database refuses writes of `refused_key` (DatabaseHandler returns False);
-    returns a function that makes it work again."""
-    update = database_handler.update_system_setting
-    monkeypatch.setattr(
-        database_handler,
-        "update_system_setting",
-        lambda key, *a: False if key == refused_key else update(key, *a),
-    )
-    # Not monkeypatch.undo(): that would also unset the RRR_DATA the data fixture set
-    return lambda: monkeypatch.setattr(database_handler, "update_system_setting", update)
+def _refuse(database_handler, key):
+    """The database refuses every write of the row `key`, as a full or locked database
+    refuses a write: a trigger aborts the INSERT, so DatabaseHandler sees an sqlite3 error.
+    Returns a function that makes it accept the row again."""
+    from contextlib import closing  # noqa: PLC0415
+
+    name = f"refuse_{key}"
+    with closing(sqlite3.connect(database_handler.db_path)) as conn:
+        conn.execute(
+            f"CREATE TRIGGER {name} BEFORE INSERT ON system_settings "
+            f"WHEN NEW.setting_key = '{key}' BEGIN SELECT RAISE(ABORT, 'refused'); END"
+        )
+        conn.commit()
+
+    def works_again():
+        with closing(sqlite3.connect(database_handler.db_path)) as conn:
+            conn.execute(f"DROP TRIGGER {name}")
+            conn.commit()
+
+    return works_again
 
 
-def test_when_the_marker_cannot_be_stored_nothing_is_switched(
-    database_handler, monkeypatch, capsys
+def test_settings_stored_together_are_stored_whole_or_not_at_all(database_handler):
+    """DatabaseHandler.update_system_settings: one transaction. A refused row leaves none
+    of the others behind."""
+    rows = [(MARKER, True, "bool"), ("theme", "dark", "str")]
+    works_again = _refuse(database_handler, "theme")
+
+    assert database_handler.update_system_settings(rows) is False
+    assert MARKER not in _stored(database_handler) and "theme" not in _stored(database_handler)
+
+    works_again()
+    assert database_handler.update_system_settings(rows) is True
+    assert _stored(database_handler)[MARKER] is True
+    assert _stored(database_handler)["theme"] == "dark"
+
+
+@pytest.mark.parametrize("refused", [MARKER, "theme"])
+def test_a_refused_switch_stores_nothing_and_the_next_start_makes_it(
+    database_handler, capsys, refused
 ):
+    """The marker and the theme go in one transaction, so whichever row the database
+    refuses, neither is stored: the device keeps its theme for that start, and the next
+    start switches it, once. The switch is never half made (a stored marker over a theme
+    that was never switched would have kept the device light for good)."""
     _theme_saved(database_handler, "light")
-    works_again = _refuse(monkeypatch, database_handler, MARKER)
+    works_again = _refuse(database_handler, refused)
 
     controller = _controller(database_handler)
 
@@ -270,36 +299,35 @@ def test_when_the_marker_cannot_be_stored_nothing_is_switched(
     assert _stored(database_handler)["theme"] == "light"
     assert MARKER not in _stored(database_handler)
     journal = capsys.readouterr().out
+    assert journal.count("[SETTINGS]") == 1
     assert (
-        "[SETTINGS] Could not store ui_dark_default_applied, so the theme was not switched "
-        "to 'dark', the default from 2.1.0: it stays 'light', and the next start tries again"
+        "[SETTINGS] Could not store ui_dark_default_applied and the theme, so the theme was "
+        "not switched to 'dark', the default from 2.1.0: it stays 'light', and the next start "
+        "tries again"
     ) in journal
     assert "Switched the theme" not in journal
 
     works_again()
     assert _controller(database_handler).settings["theme"] == "dark"
-    assert SWITCHED in capsys.readouterr().out
-
-
-def test_when_the_theme_cannot_be_stored_the_switch_is_not_made_twice(
-    database_handler, monkeypatch, capsys
-):
-    """The marker is stored first, so a refused theme loses the switch: the device stays
-    light, and a later start never switches it over the operator's choice."""
-    _theme_saved(database_handler, "light")
-    works_again = _refuse(monkeypatch, database_handler, "theme")
-
-    controller = _controller(database_handler)
-
-    assert controller.settings["theme"] == "light"
+    assert _stored(database_handler)["theme"] == "dark"
     assert _stored(database_handler)[MARKER] is True
+    assert SWITCHED in capsys.readouterr().out
+    assert _controller(database_handler).settings["theme"] == "dark"
+    assert "[SETTINGS]" not in capsys.readouterr().out, "and only once"
+
+
+def test_a_fresh_install_that_cannot_store_the_marker_records_it_later(database_handler, capsys):
+    works_again = _refuse(database_handler, MARKER)
+
+    assert _controller(database_handler).settings["theme"] == "dark", "the default"
+    assert MARKER not in _stored(database_handler)
     assert (
-        "[SETTINGS] Could not store the theme 'dark': it stays 'light', and is not switched "
-        "again (Settings > General > Appearance switches it)"
+        "[SETTINGS] Could not store ui_dark_default_applied; the next start tries again"
     ) in capsys.readouterr().out
 
     works_again()
-    assert _controller(database_handler).settings["theme"] == "light"
+    assert _controller(database_handler).settings["theme"] == "dark"
+    assert _stored(database_handler)[MARKER] is True
     assert "[SETTINGS]" not in capsys.readouterr().out
 
 

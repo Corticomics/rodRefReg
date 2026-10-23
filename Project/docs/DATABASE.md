@@ -766,9 +766,10 @@ the theme to 'dark' …` line in the journal, and stores
 `ui_dark_default_applied` (`bool`, a persisted key), which stops it from
 ever switching again: from then on the operator's choice in Settings >
 General > Appearance stays. A fresh install stores the marker too, with
-nothing to switch. The marker is written first: if the database refuses
-it, nothing is switched and the next start tries again; if it then refuses
-the theme, the device keeps its theme and is not switched later. A revert is
+nothing to switch. The marker and the switched theme are written in one
+transaction (`DatabaseHandler.update_system_settings`): if the database
+refuses either, neither is stored, the device keeps its theme for that
+start, and the next start makes the switch. A revert is
 safe: 2.0.0 loads `dark` into its own dark theme and neither writes nor
 deletes the marker, so the next update does not switch a second time.
 `test_dark_default.py` covers it.
