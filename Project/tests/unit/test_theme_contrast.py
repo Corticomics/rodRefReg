@@ -189,6 +189,10 @@ PAIRS = [
          "Light: a rule inside a card (row rules, a section's rule, separators), visible on "
          "every display model (the lab monitor's band for a line inside a card) and a step "
          "under the outline (H1)", {"clip": 1.10, "wash": 1.25}, themes=("light",)),
+    # Each table row is ruled once, with no grid (the owner's decision of 2026-10-22), so on a
+    # zebra row the rule stands on the zebra fill: the floor F+'s design set for it
+    Pair("D4a", "border.divider", "bg.alt", "line", 1.20,
+         "A row rule on a zebra row (the Calibration table's 31 rows)", {"clip": 1.05}),
     Pair("D5", "border.subtle", "bg.inset", "line", 1.5,
          "The wizard log's outline on its own well", LINE_ROBUST),
     Pair("D6", "warning.indicator", "bg.page", "line", 1.5,
@@ -415,8 +419,6 @@ PAIRS = [
          "A warning banner's stripe: decorative, the text carries the warning"),
     Pair("I9", "text.secondary", "text.muted", "info", 1.45,
          "Secondary against muted text (the light step was 1.33:1 in the draft)"),
-    Pair("I10", "border.divider", "bg.alt", "info", 1.5,
-         "A row rule on a zebra row: each row is ruled once, with no grid"),
     Pair("I11", "danger.tint.strong", "bg.page", "info", 3,
          "The edge of the Schedules hub's Cancel against the page: a labelled button needs "
          "no 3:1 boundary"),
@@ -427,6 +429,9 @@ PAIRS = [
     Pair("I13", "bg.inset", "bg.page", "info", 1.25,
          "The calibration wizard's log on its dialog's page: the same colour; its outline "
          "(D1) shows its edge"),
+    Pair("I16", "warning.indicator.master-terminal", "bg.surface", "info", 1.5,
+         "The master terminal's 1px outline on the board card (1.44:1 light, 1.33 dark): "
+         "decorative, under a line's 1.5; its MASTER SOLENOID label (T11) names it"),
     # A known failure, left for a follow-up: QDateTimeEdit is not in the input rule (adding
     # it changes the field's drop-down and size), so Fusion draws its frame
     Pair("I14", "qt.fusion-frame", "bg.surface", "info", 3,
