@@ -193,6 +193,35 @@ def test_a_card_that_lifts_shows_its_shadow_under_the_pointer(qapp, style):
     assert under_the_card() == page_colour
 
 
+def test_the_tokens_alone_choose_the_shadow(qapp, monkeypatch):
+    """tokens.ELEVATION is the one source of a card's shadow. The prototype's environment
+    knobs are gone: RRR_SHADOW no longer swaps the recipe, and RRR_SCHEDULE_CARD_SHADOW no
+    longer gives a schedule card its shadow at rest. The module is loaded again with both
+    set, as at a start with them in the environment."""
+    import importlib  # noqa: PLC0415
+
+    from models.Schedule import Schedule  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleCard  # noqa: PLC0415
+    from ui.style import elevation  # noqa: PLC0415
+    from ui.style.qt_palette import tokens  # noqa: PLC0415
+
+    monkeypatch.setenv("RRR_SHADOW", "m3.level1")
+    monkeypatch.setenv("RRR_SCHEDULE_CARD_SHADOW", "rest")
+    try:
+        importlib.reload(elevation)
+        light, dark = tokens.ELEVATION["card"]
+        assert elevation.recipe("card", "light") == tokens.SHADOWS[light]
+        assert dark is None and elevation.recipe("card", "dark") is None
+        schedule = Schedule(1, "Morning", 1.0, "2030-01-15T09:00:00", "2030-01-15T11:00:00", 1, 0)
+        card = ScheduleCard(schedule, None)
+        assert card.elevation_shows() is False, "a schedule card lifts under the pointer only"
+        card.deleteLater()
+    finally:
+        monkeypatch.delenv("RRR_SHADOW")
+        monkeypatch.delenv("RRR_SCHEDULE_CARD_SHADOW")
+        importlib.reload(elevation)
+
+
 def _radius(qss, selector):
     """The border-radius of the rule whose selector list starts with `selector`."""
     for selectors, body in re.findall(

@@ -268,22 +268,24 @@ TOKENS: dict[str, tuple[str, str]] = {
 # shadow.ink; ui.style.elevation paints it from a cached tile into the room the card
 # reserves (QFrame[elevation="card"] in app.qss.tmpl, whose margin build_qss.py writes from
 # the union of every recipe's reach: any recipe can stand in for another without moving a
-# widget). Kept out of TOKENS, which holds opaque colours only.
+# widget). ELEVATION below names the one a card paints. Kept out of TOKENS, which holds
+# opaque colours only.
 SHADOWS: dict[str, tuple[tuple[float, float, float, float, float], ...]] = {
     # Fluent 2 shadow4, its resting card: 0 0 2px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.14)
     # (fluentui packages/tokens/src/utils/shadows.ts; alias/lightColor.ts)
     "fluent.shadow4": ((0, 0, 2, 0, 0.12), (0, 2, 4, 0, 0.14)),
     # The same with Fluent's Darker shadow alphas (colorNeutralShadowAmbientDarker .20,
-    # colorNeutralShadowKeyDarker .24): one step more lift, for the lab monitor's A/B
+    # colorNeutralShadowKeyDarker .24): one step more lift, should a card need it
     "fluent.shadow4.darker": ((0, 0, 2, 0, 0.20), (0, 2, 4, 0, 0.24)),
     # Material 3 level 1: 0 1px 2px 0 rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15)
-    # (material-web elevation/internal/_elevation.scss), the crisp end of the A/B
+    # (material-web elevation/internal/_elevation.scss), the crisp end
     "m3.level1": ((0, 1, 2, 0, 0.30), (0, 1, 3, 1, 0.15)),
 }
 
 # Elevation levels: level -> (light recipe, dark recipe), names in SHADOWS; None paints no
 # shadow. "card" is every elevated card's (ui.style.elevation.ElevatedMixin); the dark theme
-# separates its surfaces by tint and stroke instead.
+# separates its surfaces by tint and stroke instead. The one source of a card's shadow:
+# nothing else (no setting, no environment variable) picks another recipe.
 ELEVATION: dict[str, tuple[str | None, str | None]] = {
     "card": ("fluent.shadow4", None),
 }

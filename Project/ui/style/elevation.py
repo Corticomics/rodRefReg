@@ -22,18 +22,13 @@ near-black (QTBUG-102374, fixed in 5.15.10, which Debian bookworm does not ship)
 A card in a layout is bigger than its box by the room: a parent that aligns the box with
 other edges gives the room back in its own margins (see the cards' modules).
 
-Rig options, for the owner's A/B on the lab monitor (environment variables, read once):
-- RRR_SHADOW=<a recipe of tokens.SHADOWS> gives the light theme's cards that recipe instead,
-  e.g. fluent.shadow4.darker or m3.level1. Every recipe fits the reserved room, so nothing
-  moves;
-- RRR_SCHEDULE_CARD_SHADOW=rest gives the schedule cards their shadow at rest too; by
-  default they lift only under the pointer.
+tokens.ELEVATION is the one source of a card's shadow: to change it, name another recipe
+of tokens.SHADOWS there. Every recipe fits the reserved room, so nothing moves.
 """
 
 from __future__ import annotations
 
 import math
-import os
 from dataclasses import dataclass
 
 from PyQt5.QtCore import QRect
@@ -42,9 +37,6 @@ from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from . import shadow
 from .qt_palette import tokens
 from .theme import current_theme
-
-RIG_SHADOW = os.environ.get("RRR_SHADOW", "")
-SCHEDULE_CARDS_AT_REST = os.environ.get("RRR_SCHEDULE_CARD_SHADOW", "") == "rest"
 
 # The room every elevated card reserves (the stylesheet's margin, from the same recipes)
 ROOM = shadow.reserved(tokens)
@@ -56,8 +48,6 @@ def recipe(level: str, theme: str):
     name = light if theme == "light" else dark
     if name is None:
         return None
-    if theme == "light" and RIG_SHADOW in tokens.SHADOWS:
-        name = RIG_SHADOW
     return tokens.SHADOWS[name]
 
 

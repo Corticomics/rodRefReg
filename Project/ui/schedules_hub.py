@@ -408,9 +408,9 @@ class ScheduleCard(elevation.ElevatedMixin, QFrame):
     - Multi-select checkbox (iPhone-style)
 
     It lifts under the pointer: the card shadow (ui.style.elevation) shows while the pointer
-    is on it, as a draggable object's does (RRR_SCHEDULE_CARD_SHADOW=rest shows it at rest
-    too). The card reserves the shadow's room round its box (elevation.ROOM), so its widget
-    is that much bigger than its 115px-high box.
+    is on it, as a draggable object's does, and never at rest. The card reserves the
+    shadow's room round its box (elevation.ROOM), so its widget is that much bigger than its
+    115px-high box.
     """
 
     # QFrame#ScheduleCard's border-radius in app.qss.tmpl: the shadow tile is drawn for it
@@ -438,7 +438,7 @@ class ScheduleCard(elevation.ElevatedMixin, QFrame):
         self.setCursor(Qt.PointingHandCursor)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
-        self.init_elevation("card", self.RADIUS, at_rest=elevation.SCHEDULE_CARDS_AT_REST)
+        self.init_elevation("card", self.RADIUS, at_rest=False)
 
         room = elevation.ROOM
         self.setFixedHeight(self.BOX_HEIGHT + room.top + room.bottom)

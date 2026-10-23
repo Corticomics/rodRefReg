@@ -686,7 +686,7 @@ def test_rules_stay_a_step_under_the_outline():
 # one per theme. The first pixel row past a card's edge is what reads as its shadow: E1 holds
 # the bottom row to the shadow band of the display models (a step that survives a clipping
 # HDMI chain), E2 the side row to a visible halo on a correct display. Every recipe is held
-# to them, as the lab monitor's A/B may give a card any of them (RRR_SHADOW).
+# to them, as ELEVATION may name any of them.
 
 SHADOW_GROUNDS = ("bg.pane", "bg.page")  # a card on a tab pane, or straight on the page
 E1_BOTTOM = {"nominal": 1.30, "clip": 1.15, "wash": 1.25}
