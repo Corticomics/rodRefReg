@@ -5,8 +5,9 @@ colours, and the board card its own `QFrame#Card {...}` sheet, which outranked t
 theme's card rule: in the dark theme the card stayed white and the title was dark on the
 dark page (1.06:1). They now come from tokens.py through the theme stylesheet: the
 theme's QFrame#Card rule, and QLabel#CagesTitle, #CagesSubtitle and
-#CagesBoardPlaceholder. Rendered offscreen in both themes; pixels and palettes are
-compared with the tokens.
+#CagesBoardPlaceholder. The board's picture, a black-on-white drawing, was shown as it is:
+a white block on the dark card. It is drawn in the theme's ink (diagram.ink) now. Rendered
+offscreen in both themes; pixels and palettes are compared with the tokens.
 """
 
 from __future__ import annotations
@@ -145,6 +146,59 @@ def test_the_cages_tab_follows_the_theme(
     legend = tab._master_legend_dot
     assert legend.objectName() == "MasterStatusDot"
     assert _text(legend) == colour("warning.indicator.status-dot")
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_the_board_picture_is_drawn_in_the_themes_ink(
+    qapp, tokens, style, database_handler, system_controller, theme
+):
+    """The relay board's picture lies on the board card in the theme's ink: its white paper
+    shows the card, and its lines and labels are diagram.ink in proportion to how dark the
+    picture is there. In light that gives back the picture's own pixels on the white card.
+    In dark the picture as it was is a 500 x 266 white block on the card (12:1 against it,
+    the brightest object on the tab); it is light grey lines now. Built in the other theme
+    first: the drawing follows a theme applied after it exists."""
+    from PyQt5.QtCore import QPoint, Qt  # noqa: PLC0415
+    from PyQt5.QtGui import QColor, QImage  # noqa: PLC0415
+    from PyQt5.QtWidgets import QWidget  # noqa: PLC0415
+    from ui.cages_visualization_tab import BOARD_PICTURE  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply("dark" if theme == "light" else "light")
+    window, tab = _cages_tab(qapp, windows, database_handler, system_controller)
+    manager.apply(theme)
+    qapp.processEvents()
+
+    diagram = tab.findChild(QWidget, "CagesBoardDiagram")
+    assert diagram is not None and diagram.isVisible()
+    assert (diagram.width(), diagram.height()) == (500, 266)
+    assert "HAT 0" in diagram.toolTip()
+    image = window.grab().toImage()
+    origin = diagram.mapTo(window, QPoint(0, 0))
+    drawn = image.copy(origin.x(), origin.y(), diagram.width(), diagram.height())
+    card = QColor(tokens.value("bg.surface", theme))
+    ink = QColor(tokens.value("diagram.ink", theme))
+
+    picture = QImage(BOARD_PICTURE).scaled(500, 650, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    paper = 0
+    darkest = 255
+    for y in range(0, drawn.height(), 2):
+        for x in range(0, drawn.width(), 2):
+            got = QColor(drawn.pixel(x, y))
+            grey = QColor(picture.pixel(x, y)).red()  # the picture is grey: r == g == b
+            darkest = min(darkest, grey)
+            # The card where the picture is white, the ink where it is black, between them
+            # in proportion
+            for channel in ("red", "green", "blue"):
+                c, i = getattr(card, channel)(), getattr(ink, channel)()
+                want = c + (i - c) * (255 - grey) / 255
+                assert abs(getattr(got, channel)() - want) <= 2, (x, y, got.name(), grey)
+            paper += got == card
+    samples = ((drawn.width() + 1) // 2) * ((drawn.height() + 1) // 2)
+    assert paper / samples > 0.5, "the paper shows the card"
+    # The scaled picture's darkest lines are 37 to 40 of 255: the samples include them, so
+    # the ink is checked where it is strongest
+    assert darkest <= 64
 
 
 @pytest.mark.parametrize("theme", THEMES)

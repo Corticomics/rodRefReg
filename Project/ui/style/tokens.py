@@ -163,6 +163,12 @@ TOKENS: dict[str, tuple[str, str]] = {
     # The ink of every card shadow (SHADOWS below): black, as Fluent 2 and Material 3 draw
     # theirs; a layer's alpha says how much of it shows. The dark theme paints no shadow.
     "shadow.ink": ("#000000", "#000000"),
+    # ---- Drawings ----------------------------------------------------------------------
+    # The ink of the Cages tab's relay board diagram (#CagesBoardDiagram), a black-on-white
+    # line drawing whose darkness becomes the ink's alpha, so its white paper shows the card.
+    # Black in light, which gives back the picture's own pixels on the white card; body
+    # text's light grey in dark, where the picture as it is was a white block on the card
+    "diagram.ink": ("#000000", "#E5E9EF"),
     # ---- Focus -------------------------------------------------------------------------
     # The 2px focus border of inputs and QPushButton; the 1px one of #SchedulesHubSearch and
     # of #CageNameEdit, which shows only while it has the focus. Fluent 2's focus stroke

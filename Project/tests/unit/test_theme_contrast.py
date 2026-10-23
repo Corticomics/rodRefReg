@@ -391,6 +391,12 @@ PAIRS = [
     *_text_on("T16", "text.weekend", ["bg.surface", "bg.alt"], 4.5,
               "A calendar popup's weekend dates, and their names in the weekday row",
               robust=None),
+    # The Cages tab's relay board diagram, drawn in its ink in proportion to the picture's
+    # greys: its darkest lines (85 % of the ink) are 15.3:1 in light and 7.7:1 in dark, a
+    # #555555 line of the picture 7.5 and 5.4:1
+    Pair("T17", "diagram.ink", "bg.surface", "text", 4.5,
+         "The relay board diagram's labels and lines on the board card, at full ink",
+         TEXT_ROBUST),
     # ---- Reported, not asserted ----------------------------------------------------
     Pair("I1", "text.disabled", "bg.disabled", "info", 3,
          "Disabled labels: WCAG exempts a control that is really disabled"),
