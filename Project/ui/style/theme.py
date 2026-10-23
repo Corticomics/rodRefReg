@@ -23,6 +23,11 @@ def theme_or_default(theme) -> str:
     return theme if theme in THEMES else DEFAULT_THEME
 
 
+def other_theme(theme) -> str:
+    """The theme Settings > General's theme button switches to from `theme`."""
+    return "light" if theme_or_default(theme) == "dark" else "dark"
+
+
 def style_manager():
     """The application's StyleManager, or None before there is one.
 

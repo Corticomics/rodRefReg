@@ -47,7 +47,13 @@ from utils.topology import (
 )
 
 from ui.PrimingControlWidget import PrimingControlWidget
-from ui.style.theme import restyle, style_manager, theme_colour
+from ui.style.theme import (
+    other_theme,
+    restyle,
+    style_manager,
+    theme_colour,
+    theme_or_default,
+)
 from ui.UpdatesTab import UpdatesTab
 from ui.widgets.safe_spinbox import SafeDoubleSpinBox, SafeSpinBox
 
@@ -89,6 +95,9 @@ class SettingsTab(QWidget):
     # The colour of a cell's text, as a role of ui/style/tokens.py (success.text for
     # [OK], ...), kept on the item: a theme change paints it again (_on_theme_applied).
     CAL_TONE_ROLE = Qt.UserRole + 1
+    # Settings > General > Appearance's button, by the theme on screen: it names what it
+    # does and the theme it leads to, as the User Mode button does ("Switch to Super Mode").
+    THEME_BUTTON_TEXT = {"dark": "Switch to light mode", "light": "Switch to dark mode"}
 
     def __init__(
         self,
@@ -131,15 +140,18 @@ class SettingsTab(QWidget):
         # The Calibration table's status words and its header's description take their
         # colours from the theme in code, which the stylesheet does not reach: they are
         # painted in the theme applied when the tab is built (main.py applies the saved one
-        # first), and again whenever another is applied.
+        # first), and again whenever another is applied, as the theme button does. The
+        # button's label follows the theme on screen too.
         manager = style_manager()
         if manager is not None and hasattr(manager, 'theme_changed'):
             manager.theme_changed.connect(self._on_theme_applied)
 
-    def _on_theme_applied(self, _theme: str):
-        """Repaint what this tab colours in code in the theme just applied."""
+    def _on_theme_applied(self, theme: str):
+        """Repaint what this tab colours in code in the theme just applied, and name the
+        switch away from it on the theme button."""
         self._calibration_header.setText(self._calibration_header_html())
         self._recolour_calibration_table()
+        self._show_theme(theme)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -271,10 +283,10 @@ class SettingsTab(QWidget):
             updated_settings = {
                 # Hardware mode
                 'hardware_mode': self.hardware_mode_combo.currentData() or 'solenoid',
-                # Theme (if exists)
-                'theme': self.theme_combo.currentText()
-                if hasattr(self, 'theme_combo')
-                else self.settings.get('theme', 'light'),
+                # Theme: the one on screen, which the Appearance button switches
+                'theme': self._shown_theme
+                if hasattr(self, '_shown_theme')
+                else theme_or_default(self.settings.get('theme')),
                 # Solenoid settings
                 'uart_port': self.teensy_port_edit.text(),
                 'flow_sensor_optional': self.flow_sensor_optional.isChecked(),
@@ -1878,9 +1890,14 @@ class SettingsTab(QWidget):
         # Auto-save the log level change
         self._auto_save_settings()
 
+    def _switch_theme(self):
+        """The theme button: apply the other theme now, and keep it."""
+        self._theme_changed(other_theme(self._shown_theme))
+
     def _theme_changed(self, theme: str):
         """Apply theme immediately and persist in settings."""
         self.settings['theme'] = theme
+        self._show_theme(theme)
         try:
             style_mgr = QApplication.instance().property('style_manager')
             if style_mgr:
@@ -1890,6 +1907,18 @@ class SettingsTab(QWidget):
             pass
         # Auto-save the theme change
         self._auto_save_settings()
+
+    def _theme_on_screen(self) -> str:
+        """The theme StyleManager applied last, or the saved one without a StyleManager."""
+        manager = style_manager()
+        if manager is not None and hasattr(manager, 'theme'):
+            return theme_or_default(manager.theme)
+        return theme_or_default(self.settings.get('theme'))
+
+    def _show_theme(self, theme: str):
+        """Label the theme button for `theme`, the theme on screen: the switch away from it."""
+        self._shown_theme = theme_or_default(theme)
+        self.theme_button.setText(self.THEME_BUTTON_TEXT[self._shown_theme])
 
     def _create_notifications(self):
         slack_group = QGroupBox("Slack Integration")
@@ -1984,26 +2013,25 @@ class SettingsTab(QWidget):
 
     def _create_general_tab(self):
         """
-        Merge Notifications, Import/Export, and Theme selection into one tab.
+        Merge the theme button, Notifications, Import/Export and the system settings into
+        one tab.
         """
         widget = QWidget()
         v = QVBoxLayout()
         v.setContentsMargins(12, 12, 12, 12)
         v.setSpacing(12)
 
-        # Appearance group (Theme)
+        # Appearance group (Theme): one button, which switches to the other theme now and
+        # keeps it (a default button of the stylesheet)
         appearance = QGroupBox("Appearance")
         appearance_form = QFormLayout()
         appearance_form.setContentsMargins(12, 12, 12, 12)
         appearance_form.setSpacing(8)
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItems(["light", "dark"])
-        try:
-            self.theme_combo.setCurrentText(self.settings.get('theme', 'light'))
-        except Exception:
-            self.theme_combo.setCurrentText("light")
-        self.theme_combo.currentTextChanged.connect(self._theme_changed)
-        appearance_form.addRow("Theme:", self.theme_combo)
+        self.theme_button = QPushButton()
+        self.theme_button.setObjectName("ThemeButton")
+        self._show_theme(self._theme_on_screen())
+        self.theme_button.clicked.connect(self._switch_theme)
+        appearance_form.addRow("Theme:", self.theme_button)
         appearance.setLayout(appearance_form)
         v.addWidget(appearance)
 

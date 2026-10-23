@@ -214,6 +214,9 @@ def _build_content() -> Dict[str, HelpContent]:
       </ul>
     </li>
   </ul>
+  <p>RRR starts in the dark theme. After you log in, <strong>Settings → General →
+  Appearance</strong> has a button that switches to the light theme (<em>Switch to light
+  mode</em>) and back; RRR keeps the choice.</p>
 
   <h2>Access Control</h2>
   <p>The app starts in <strong>guest mode</strong>.  The <strong>Settings</strong> tab is
@@ -258,6 +261,10 @@ def _build_content() -> Dict[str, HelpContent]:
                 "getting started",
                 "introduction",
                 "map",
+                "theme",
+                "dark mode",
+                "light mode",
+                "appearance",
             ],
             related_topics=["First Time Setup", "Basic Operations", "Execution Monitor"],
         ),
