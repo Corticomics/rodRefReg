@@ -140,7 +140,7 @@ class HelpTab(QWidget):
     # ------------------------------------------------------------------
 
     def _current_theme(self) -> str:
-        """The theme StyleManager applied last ("light" without one): ui.style.theme's."""
+        """The theme StyleManager applied last (the default, dark, without one)."""
         return current_theme()
 
     def _on_theme_changed(self, _theme: str):

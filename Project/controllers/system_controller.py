@@ -28,6 +28,17 @@ class SystemController(QObject):
     # utils.calibration_gate read it.
     FIXED_SETTINGS = {'use_pulse_delivery': True}
 
+    # The theme. v2.1.0 makes dark the default (ui/style/tokens.py's DEFAULT_THEME, which
+    # test_dark_default.py keeps equal to this) and switches every device to it once: at
+    # its first start on 2.1.0, a stored theme that is not dark is stored as dark, and
+    # DARK_DEFAULT_MARKER records that the switch was made, so it is never made again and
+    # the operator's later choice (Settings > General > Appearance) stays. A fresh install
+    # has nothing to switch and records the marker too. Reverting to 2.0.0 is safe: it
+    # loads 'dark' into its own dark theme, and it neither writes nor deletes the marker,
+    # so the next update to 2.1.0 does not switch again.
+    DEFAULT_THEME = 'dark'
+    DARK_DEFAULT_MARKER = 'ui_dark_default_applied'
+
     def __init__(self, database_handler):
         super().__init__()
         self.database_handler = database_handler
@@ -42,7 +53,8 @@ class SystemController(QObject):
         mode-0600 ``secrets.json`` (and removed from the DB). Defaults fill
         any keys still missing. See docs/UPDATE_SYSTEM.md §13.8. Retired
         settings are deleted from the DB and fixed ones forced, in the DB
-        too (see RETIRED_KEYS and FIXED_SETTINGS).
+        too (see RETIRED_KEYS and FIXED_SETTINGS), and the theme is switched
+        to dark once (DEFAULT_THEME, DARK_DEFAULT_MARKER).
         """
         try:
             self._migrate_legacy_json_if_needed()
@@ -94,10 +106,11 @@ class SystemController(QObject):
 
     def _settle_stored_settings(self):
         """Bring what an older release saved under this release's rules:
-        delete the retired settings, and store a fixed one at its value where
-        it was saved with another, so the DB says what RRR does. (The force-
-        merge in ensure_solenoid_defaults compares with memory, which the
-        load has already put right, so it would not write it.)
+        delete the retired settings, store a fixed one at its value where
+        it was saved with another, so the DB says what RRR does, and make
+        the one-time switch to the dark theme (_switch_to_dark_once). (The
+        force-merge in ensure_solenoid_defaults compares with memory, which
+        the load has already put right, so it would not write it.)
 
         Printed as well as emitted: nothing is connected to system_status
         while settings load, and the journal is where it can be looked up.
@@ -135,9 +148,55 @@ class SystemController(QObject):
                     f"still holds {stored[key]!r}, RRR uses {value!r}, and the next start "
                     "tries again"
                 )
+        messages.extend(self._switch_to_dark_once(stored))
         for message in messages:
             print(f"[SETTINGS] {message}", flush=True)
             self.system_status.emit(message)
+
+    def _switch_to_dark_once(self, stored):
+        """Switch a stored theme to dark, the default from 2.1.0, once per
+        device, and record that it was done (DARK_DEFAULT_MARKER). Nothing
+        once the marker is stored: the operator's choice stays. Returns the
+        journal lines: one when a theme is switched or cannot be.
+
+        The marker is stored first. If the database fails between the two
+        writes, the switch is lost, and the device keeps its theme, rather
+        than made a second time over a choice the operator made since.
+        """
+        marker = self.DARK_DEFAULT_MARKER
+        if stored.get(marker):
+            return []
+        theme = stored.get('theme')
+        switch = theme is not None and theme != self.DEFAULT_THEME
+
+        def write(key, value):
+            try:
+                return self._write_setting_to_db(key, value), ""
+            except Exception as exc:
+                return False, f" ({exc})"
+
+        written, why = write(marker, True)
+        if not written:
+            if not switch:
+                return [f"Could not store {marker}{why}; the next start tries again"]
+            return [
+                f"Could not store {marker}{why}, so the theme was not switched to "
+                f"{self.DEFAULT_THEME!r}, the default from 2.1.0: it stays {theme!r}, and "
+                "the next start tries again"
+            ]
+        if not switch:
+            return []
+        written, why = write('theme', self.DEFAULT_THEME)
+        if not written:
+            return [
+                f"Could not store the theme {self.DEFAULT_THEME!r}{why}: it stays {theme!r}, "
+                "and is not switched again (Settings > General > Appearance switches it)"
+            ]
+        return [
+            f"Switched the theme to {self.DEFAULT_THEME!r}, the default from 2.1.0, once "
+            f"(it was {theme!r}); Settings > General > Appearance switches it back, and "
+            "that choice is kept"
+        ]
 
     def _create_default_settings(self):
         """Create default settings with proper types"""
@@ -169,6 +228,8 @@ class SystemController(QObject):
             # animal, no master). Read by utils.topology; like round_doses_up
             # it is kept out of the force-merged pulse block below.
             'valve_topology': 'shared_manifold',
+            # Dark from v2.1.0 (DEFAULT_THEME; it was light, main.py's fallback)
+            'theme': self.DEFAULT_THEME,
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
@@ -217,6 +278,8 @@ class SystemController(QObject):
             # UI (silently dropped pre-v1.5.0 because it was missing from the
             # JSON key list; managed properly from this release on)
             'theme',
+            # The one-time switch to the dark theme was made (v2.1.0)
+            self.DARK_DEFAULT_MARKER,
         }
 
     def _get_setting_type(self, key):
@@ -245,6 +308,7 @@ class SystemController(QObject):
             'max_pulse_delivery_time_s': float,
             'round_doses_up': bool,
             'valve_topology': str,
+            self.DARK_DEFAULT_MARKER: bool,
         }
         return type_map.get(key, str)
 

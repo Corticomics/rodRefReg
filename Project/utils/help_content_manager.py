@@ -28,15 +28,21 @@ _PALETTE = {
     theme: {slot: _TOKENS.value(role, theme) for slot, role in _TOKENS.HELP_HTML.items()}
     for theme in _TOKENS.THEMES
 }
+# A page asked for without a theme, or for one RRR does not have, is in the default (dark)
+_DEFAULT_THEME = _TOKENS.DEFAULT_THEME
+
+
+def _palette(theme: str) -> dict:
+    return _PALETTE.get(theme, _PALETTE[_DEFAULT_THEME])
 
 
 def help_colour(slot: str, theme: str) -> str:
     """The colour of a Help CSS slot (e.g. 'hl_bg', a search hit) in `theme`."""
-    return _PALETTE.get(theme, _PALETTE['light'])[slot]
+    return _palette(theme)[slot]
 
 
 def _css(theme: str) -> str:
-    p = _PALETTE.get(theme, _PALETTE['light'])
+    p = _palette(theme)
     return f"""
 body, .help-section {{
     font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
@@ -1632,7 +1638,7 @@ class HelpContentManager:
         """Returns the HelpContent for *key*, or None if not found."""
         return self._content.get(key)
 
-    def get_content(self, topic_key: str, theme: str = 'light') -> str:
+    def get_content(self, topic_key: str, theme: str = _DEFAULT_THEME) -> str:
         """Full standalone HTML document for QTextBrowser."""
         hc = self._content.get(topic_key)
         if hc is None:
@@ -1641,9 +1647,9 @@ class HelpContentManager:
         body = hc.content + related_html
         return self._format_content(body, theme)
 
-    def get_landing_page(self, theme: str = 'light') -> str:
+    def get_landing_page(self, theme: str = _DEFAULT_THEME) -> str:
         """Welcoming Help Center home page with category/topic links."""
-        p = _PALETTE.get(theme, _PALETTE['light'])
+        p = _palette(theme)
         rows = []
         for cat, topics in self._ia.items():
             topic_links = "".join(f"<li><a href='topic:{quote(k)}'>{k}</a></li>" for k in topics)
@@ -1670,7 +1676,7 @@ class HelpContentManager:
 """
         return self._format_content(body, theme, extra_css=extra_css)
 
-    def get_topic_not_found(self, theme: str = 'light') -> str:
+    def get_topic_not_found(self, theme: str = _DEFAULT_THEME) -> str:
         """Graceful fallback page."""
         body = """
 <div class='help-section'>
@@ -1741,7 +1747,7 @@ class HelpContentManager:
     def _format_content(self, html_body: str, theme: str, extra_css: str = "") -> str:
         """Wrap html_body in a full HTML document with appropriate <style>."""
         css = _css(theme) + extra_css
-        p = _PALETTE.get(theme, _PALETTE['light'])
+        p = _palette(theme)
         return (
             f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
             f"<style>{css}</style></head>"

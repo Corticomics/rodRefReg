@@ -10,9 +10,17 @@ from PyQt5.QtWidgets import QApplication, QCalendarWidget
 from .qt_palette import build_palette, tokens
 
 THEMES = tokens.THEMES
+# The theme without a saved one: dark (v2.1.0)
+DEFAULT_THEME = tokens.DEFAULT_THEME
 
 # The days a calendar marks as the weekend, in Qt's own red, which no stylesheet reaches
 WEEKEND = (Qt.Saturday, Qt.Sunday)
+
+
+def theme_or_default(theme) -> str:
+    """`theme` when it is one of THEMES, else DEFAULT_THEME (a stored value RRR has no
+    theme for, or none)."""
+    return theme if theme in THEMES else DEFAULT_THEME
 
 
 def style_manager():
@@ -26,9 +34,8 @@ def style_manager():
 
 
 def current_theme() -> str:
-    """The theme the application's StyleManager applied last; "light" without one."""
-    theme = getattr(style_manager(), "theme", None)
-    return theme if theme in THEMES else "light"
+    """The theme the application's StyleManager applied last; DEFAULT_THEME without one."""
+    return theme_or_default(getattr(style_manager(), "theme", None))
 
 
 def theme_colour(role: str) -> QColor:
@@ -81,7 +88,7 @@ class StyleManager(QObject):
     def __init__(self, app: QApplication) -> None:
         super().__init__(app)
         self._app = app
-        self._theme = "light"
+        self._theme = DEFAULT_THEME
         self._base_dir = Path(__file__).resolve().parent
         app.focusChanged.connect(self._on_focus_changed)
 
@@ -109,9 +116,9 @@ class StyleManager(QObject):
         if widget is not None:
             tone_weekend(widget, self._theme)
 
-    def apply(self, theme: str = "light") -> None:
-        if theme not in THEMES:
-            theme = "light"
+    def apply(self, theme: str = DEFAULT_THEME) -> None:
+        """Apply `theme`, or the default theme when it is not one of THEMES."""
+        theme = theme_or_default(theme)
         self._theme = theme
 
         # Font: fast and present in most Raspberry Pi images

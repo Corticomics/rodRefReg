@@ -271,7 +271,9 @@ def test_theme_colour_reads_the_theme_applied_last(qapp, tokens, style):
     manager.apply("light")
     assert theme_colour("accent.tint").name().upper() == tokens.value("accent.tint", "light")
 
-    qapp.setProperty("style_manager", None)  # no StyleManager: the light theme
-    assert current_theme() == "light"
+    # No StyleManager: the default theme, dark from v2.1.0 (it was light)
+    qapp.setProperty("style_manager", None)
+    assert current_theme() == tokens.DEFAULT_THEME == "dark"
+    assert theme_colour("accent.tint").name().upper() == tokens.value("accent.tint", "dark")
     with pytest.raises(KeyError):
         theme_colour("no.such.role")

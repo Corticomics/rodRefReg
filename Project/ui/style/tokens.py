@@ -37,6 +37,10 @@ from __future__ import annotations
 
 THEMES = ("light", "dark")
 
+# The theme RRR shows without a saved one (v2.1.0: dark; it was light). The settings'
+# default is SystemController.DEFAULT_THEME, which test_dark_default.py keeps equal to it.
+DEFAULT_THEME = "dark"
+
 # name: (light, dark)
 TOKENS: dict[str, tuple[str, str]] = {
     # ---- Backgrounds -------------------------------------------------------------------

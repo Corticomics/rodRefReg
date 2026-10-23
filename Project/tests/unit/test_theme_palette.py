@@ -118,10 +118,18 @@ def test_apply_sets_the_palette_and_the_stylesheet_and_says_so(qapp, tokens, sty
     assert manager.colour("bg.alt") == tokens.value("bg.alt", "dark")
     assert manager.tokens()["text.primary"] == tokens.value("text.primary", "dark")
 
-    manager.apply("sepia")  # unknown: light
+    manager.apply("light")
     assert manager.theme == "light"
     assert qapp.styleSheet() == (STYLE_DIR / "app-light.qss").read_text(encoding="utf-8")
-    assert seen == ["dark", "light"]
+
+    # An unknown theme, or none, gives the default: dark from v2.1.0 (it was light)
+    manager.apply("sepia")
+    assert manager.theme == tokens.DEFAULT_THEME == "dark"
+    assert qapp.styleSheet() == (STYLE_DIR / "app-dark.qss").read_text(encoding="utf-8")
+    manager.apply("light")
+    manager.apply()
+    assert manager.theme == "dark"
+    assert seen == ["dark", "light", "dark", "light", "dark"]
 
 
 def test_apply_says_when_the_palette_or_the_stylesheet_fails(
