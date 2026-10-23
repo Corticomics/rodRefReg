@@ -355,15 +355,22 @@ def _decls(rules, selector):
 
 @pytest.mark.parametrize("theme", THEMES)
 def test_tabs_open_onto_the_content_layer(theme):
-    """A tab pane is the content layer (bg.pane) in one stroke; the selected tab joins it in
-    the same colour, stroked and marked by its 3px bar; unselected tabs are flat on the
-    base layer with no outline, and the separator between two of them is the stroke's
-    colour, inset top and bottom (WinUI TabView's TabSeparator)."""
+    """A tab pane is the content layer (bg.pane) in one stroke, its corners at the container
+    radius but the top-left one, which is square: the first tab sits on it, and the
+    selected one meets the pane in one straight edge (WinUI's TabView; test_tab_pane_corner
+    .py checks the pixels). The selected tab joins it in the same colour, stroked and
+    marked by its 3px bar; unselected tabs are flat on the base layer with no outline, and
+    the separator between two of them is the stroke's colour, inset top and bottom (WinUI
+    TabView's TabSeparator)."""
     rules = _stylesheet_rules(theme)
     stroke = tokens.value("border.subtle", theme)
     pane = _decls(rules, "QTabWidget::pane")
     assert pane["background"] == tokens.value("bg.pane", theme)
     assert pane["border"] == f"1px solid {stroke}"
+    assert pane["border-radius"] == "8px"
+    assert pane["border-top-left-radius"] == "0"
+    corners = list(pane)  # Qt applies them in order: the corner after the shorthand
+    assert corners.index("border-top-left-radius") > corners.index("border-radius")
     tab = _find(rules, "QTabBar::tab")[0]
     assert tab["border"] == "1px solid transparent" and tab["background"] == tokens.value(
         "bg.rail", theme

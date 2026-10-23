@@ -324,10 +324,14 @@ QPushButton[variant="danger"]:disabled {
    TABS
    ============================================ */
 /* The content layer: a tab pane is the lighter surface its tabs open onto (WinUI's base and
-   content layers; the page is the base). One stroke, as WinUI's content frame. */
+   content layers; the page is the base). One stroke, as WinUI's content frame. Its top-left
+   corner is square, as in WinUI's TabView: the first tab sits on it, and when that tab is
+   selected its left edge and the pane's are one straight line (a rounded corner bent it
+   into a small arc). The other three corners keep the container radius. */
 QTabWidget::pane {
     border: 1px solid #C8CED6;
     border-radius: 8px;
+    border-top-left-radius: 0;
     background: #FFFFFF;
     margin-top: -1px;
 }
