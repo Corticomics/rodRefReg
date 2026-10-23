@@ -604,7 +604,7 @@ def test_the_help_pane_follows_the_theme(qapp, tokens, style):
     assert at(rect.left() + 12, rect.center().y()) == tokens.value("bg.selected", "light")
     assert at(4, rect.center().y()) == tokens.value("bg.page", "light")
 
-    # main.py applies the saved theme after the GUI exists: the pane redraws itself
+    # Another theme applied while the pane shows: the pane redraws itself
     manager.apply("dark")
     qapp.processEvents()
     assert help_tab._current_theme() == "dark"

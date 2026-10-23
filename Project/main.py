@@ -21,7 +21,7 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from ui.gui import RodentRefreshmentGUI
-from ui.style.theme import StyleManager
+from ui.style.theme import StyleManager, theme_or_default
 from utils import paths, stop_sequence, updater
 from version import __version__
 
@@ -164,6 +164,7 @@ def setup():
     system_controller = SystemController(database_handler)
     # Use a distinct global settings dictionary.
     app_settings = system_controller.settings
+    _apply_loaded_theme(app_settings)
 
     # Auto-configure solenoid settings with hardware detection (always run for best UX)
     try:
@@ -870,6 +871,7 @@ def _create_gui_from_components(components: dict):
     controller = components.get('controller')
 
     app_settings = system_controller.settings if system_controller else {}
+    _apply_loaded_theme(app_settings)
 
     # Create the main GUI (uses existing login UI in UserTab)
     gui = RodentRefreshmentGUI(
@@ -956,6 +958,44 @@ def _start_single_instance_server(instance_key, gui):
     return server
 
 
+def _startup_theme():
+    """The theme the saved settings give, read from the database before any
+    window shows (SystemController.theme_at_start): the operator's choice, or
+    dark, the default and the theme every device switches to once. Dark too
+    on a fresh install, or when the database cannot be read."""
+    return SystemController.theme_at_start(DatabaseHandler.peek_system_settings())
+
+
+def _apply_startup_theme(app):
+    """Make the application's StyleManager and apply the saved theme, before
+    the first window: the splash, a dialog setup() opens, the main window.
+
+    Until v2.1.0 main() applied the light theme here and the saved one after
+    the main window was built (still hidden), so the splash was always light
+    and the window was built in light, then restyled.
+    """
+    try:
+        manager = StyleManager(app)
+        app.setProperty('style_manager', manager)
+        manager.apply(_startup_theme())
+    except Exception as exc:
+        print(f"[THEME ERROR] the saved theme was not applied at start-up: {exc}")
+
+
+def _apply_loaded_theme(settings):
+    """Once the settings have loaded, before the main window is built: apply
+    their theme when it is not the one _apply_startup_theme applied. They
+    differ only when that read of the database, or the one-time switch to
+    dark, failed. The window is then built in its theme and shows in it."""
+    try:
+        manager = QApplication.instance().property('style_manager')
+        theme = theme_or_default(settings.get('theme'))
+        if manager is not None and manager.theme != theme:
+            manager.apply(theme)
+    except Exception as exc:
+        print(f"[THEME ERROR] the saved theme was not applied: {exc}")
+
+
 def main():
     """
     Application entry point with optional splash screen.
@@ -1001,13 +1041,8 @@ def main():
     # Gate in-app updates: never apply one while a delivery schedule runs.
     updater.set_busy_check(_schedule_is_running)
 
-    # Apply initial theme
-    try:
-        _style_manager = StyleManager(app)
-        app.setProperty('style_manager', _style_manager)
-        _style_manager.apply("light")
-    except Exception:
-        pass
+    # The saved theme (dark by default), before any window shows, the splash included
+    _apply_startup_theme(app)
 
     # Prevent implicit quit
     QGuiApplication.setQuitOnLastWindowClosed(False)
@@ -1061,14 +1096,8 @@ def _main_with_splash(app, instance_key):
                 traceback.print_exc()
                 setup()  # Fallback
 
-        # Apply persisted theme
-        try:
-            style_mgr = app.property('style_manager')
-            if style_mgr and system_controller:
-                desired_theme = system_controller.settings.get('theme', 'light')
-                style_mgr.apply(desired_theme)
-        except Exception:
-            pass
+        # The saved theme is on: main() applied it, and the GUI was built after the
+        # settings loaded (_apply_loaded_theme)
 
         # Setup stream redirection for System Messages panel
         _state['redirector'] = StreamRedirector()
@@ -1122,17 +1151,8 @@ def _main_without_splash(app, instance_key):
     except Exception:
         pass
 
-    # Synchronous setup
+    # Synchronous setup; the saved theme is on (main(), and setup's _apply_loaded_theme)
     setup()
-
-    # Apply persisted theme
-    try:
-        style_mgr = app.property('style_manager')
-        if style_mgr:
-            desired_theme = system_controller.settings.get('theme', 'light')
-            style_mgr.apply(desired_theme)
-    except Exception:
-        pass
 
     # Setup stream redirection
     redirector = StreamRedirector()

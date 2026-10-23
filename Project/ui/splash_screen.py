@@ -144,8 +144,8 @@ class SplashScreen(QWidget):
 
     Its colours are the theme's: the gradient is painted from accent.fill to
     accent.fill.hover, and the stylesheet gives the text and the bar their colours on
-    it (#SplashTitle, #SplashProgress, #SplashStatus). main.py shows the splash before
-    it applies the saved theme, so it shows in the light theme.
+    it (#SplashTitle, #SplashProgress, #SplashStatus). main.py applies the saved theme,
+    dark by default, before it shows the splash, so the splash has the main window's.
     """
 
     initialization_complete = pyqtSignal(object)  # Emits initialized components

@@ -129,9 +129,9 @@ class SettingsTab(QWidget):
         self.init_ui()
 
         # The Calibration table's status words and its header's description take their
-        # colours from the theme in code, which the stylesheet does not reach: paint them
-        # again whenever a theme is applied, including the saved theme main.py applies at
-        # start-up, after this tab exists.
+        # colours from the theme in code, which the stylesheet does not reach: they are
+        # painted in the theme applied when the tab is built (main.py applies the saved one
+        # first), and again whenever another is applied.
         manager = style_manager()
         if manager is not None and hasattr(manager, 'theme_changed'):
             manager.theme_changed.connect(self._on_theme_applied)

@@ -198,6 +198,17 @@ class SystemController(QObject):
             "that choice is kept"
         ]
 
+    @classmethod
+    def theme_at_start(cls, stored):
+        """The theme these stored settings (system_settings rows) give once
+        they load: the stored theme after the one-time switch to dark, the
+        default before it, which the load switches to. main.py reads the
+        rows and applies this before any window shows, the splash included.
+        """
+        if not stored.get(cls.DARK_DEFAULT_MARKER):
+            return cls.DEFAULT_THEME
+        return stored.get('theme', cls.DEFAULT_THEME)
+
     def _create_default_settings(self):
         """Create default settings with proper types"""
         return {

@@ -5,8 +5,8 @@ starts), a status line at 80% white (2.96:1) and an error in #FCA5A5 (1.97:1). N
 gradient is accent.fill to accent.fill.hover, read as it paints, and the stylesheet gives
 the title, the status and an error text.on-accent, and the bar a text.on-accent chunk on
 an accent.fill.pressed groove (QLabel#SplashTitle, #SplashStatus, QProgressBar#SplashProgress).
-main.py shows it before the saved theme, so in the light theme; both are checked.
-Rendered offscreen; pixels and palettes are compared with the tokens.
+main.py applies the saved theme (dark by default) before it shows the splash; both
+themes are checked. Rendered offscreen; pixels and palettes are compared with the tokens.
 """
 
 from __future__ import annotations

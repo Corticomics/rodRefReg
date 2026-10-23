@@ -35,9 +35,9 @@ class HelpTab(QWidget):
         self._init_ui()
         self._build_tree()
 
-        # The page's HTML carries its own colours, which the stylesheet cannot reach:
-        # draw it again whenever a theme is applied, including the saved theme main.py
-        # applies at start-up, after this tab exists.
+        # The page's HTML carries its own colours, which the stylesheet cannot reach: it is
+        # drawn in the theme applied when the tab is built (main.py applies the saved one
+        # first), and again whenever another is applied.
         manager = style_manager()
         if manager is not None and hasattr(manager, 'theme_changed'):
             manager.theme_changed.connect(self._on_theme_changed)
