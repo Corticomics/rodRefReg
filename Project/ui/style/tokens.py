@@ -160,10 +160,15 @@ TOKENS: dict[str, tuple[str, str]] = {
     "shadow.ink": ("#000000", "#000000"),
     # ---- Focus -------------------------------------------------------------------------
     # The 2px focus border of inputs and QPushButton; the 1px one of #SchedulesHubSearch and
-    # of #CageNameEdit, which shows only while it has the focus
-    "focus.ring": ("#0F766E", "#2DD4BF"),
-    # A focused primary button's border, around its accent.fill
-    "focus.ring.primary": ("#042F2E", "#FFFFFF"),
+    # of #CageNameEdit, which shows only while it has the focus. Fluent 2's focus stroke
+    # (colorStrokeFocus2): black in light, white in dark. A focused control swaps its
+    # border.control edge for it, a change of 4.05:1 in light and 3.32:1 in dark (F7);
+    # palette B's teal ring had nearly the edge's luminance (1.06 and 1.78:1)
+    "focus.ring": ("#000000", "#FFFFFF"),
+    # A focused primary button's border, around its accent.fill: the same focus stroke. In
+    # light it is 3.84:1 over the button's own accent edge (F8; palette B's #042F2E was
+    # 2.64); in dark no one colour is 3:1 from the light teal fill and from the page (I3)
+    "focus.ring.primary": ("#000000", "#FFFFFF"),
     # ---- Accent (teal) -----------------------------------------------------------------
     # The primary button, #InfoButton, #StatusLabel[status="open"], #CageBadge, the
     # Staggered badge, checked checkboxes and radios, a completed step circle,

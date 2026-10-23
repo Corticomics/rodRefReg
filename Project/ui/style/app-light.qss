@@ -130,7 +130,7 @@ QSpinBox:hover, QDoubleSpinBox:hover, QComboBox:hover {
 }
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, 
 QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
-    border: 2px solid #0F766E;
+    border: 2px solid #000000;
     padding: 9px 11px;
     background: #FFFFFF;
 }
@@ -217,7 +217,7 @@ QPushButton:disabled {
     border-color: #C8CED6;
 }
 QPushButton:focus {
-    border: 2px solid #0F766E;
+    border: 2px solid #000000;
     padding: 9px 19px;
 }
 
@@ -282,7 +282,7 @@ QPushButton[variant="primary"]:disabled {
     color: #7B8490;
 }
 QPushButton[variant="primary"]:focus {
-    border: 2px solid #042F2E;
+    border: 2px solid #000000;
 }
 
 /* ============================================
@@ -799,7 +799,7 @@ QLineEdit#SchedulesHubSearch {
     background: #FFFFFF;
 }
 QLineEdit#SchedulesHubSearch:focus {
-    border-color: #0F766E;
+    border-color: #000000;
 }
 
 QLabel#SchedulesHubEmptyTitle {
@@ -1090,10 +1090,10 @@ QFrame#MasterTerminal[selected="true"] {
 }
 
 /* Inline cage name editor. It shows only while a name is edited, with the focus, and its
-   own rule outranks QLineEdit:focus: its teal edge is its focus cue, as before v2.1.0. */
+   own rule outranks QLineEdit:focus: its 1px focus.ring edge is its focus cue. */
 QLineEdit#CageNameEdit {
     background: #FFFFFF;
-    border: 1px solid #0F766E;
+    border: 1px solid #000000;
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 13px;

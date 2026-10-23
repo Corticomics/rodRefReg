@@ -311,6 +311,72 @@ def test_a_colour_on_an_input_would_halve_its_placeholder(qapp, tokens, style):
     assert edit.palette().color(QPalette.PlaceholderText).alpha() == 128
 
 
+# ---- Focus ------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
+    """Fluent's focus stroke on screen. A focused input, spin box, combo box, default or
+    primary button draws its edge in its focus role, 2px of it, and the Schedules hub's
+    search field its 1px edge: each at least 3:1 from the edge it had unfocused (F7, F8),
+    but for a dark primary button's (I3). The focus rules are v2.0.0's; only their colours
+    changed."""
+    from PyQt5.QtCore import QPoint, Qt  # noqa: PLC0415
+    from PyQt5.QtWidgets import (  # noqa: PLC0415
+        QComboBox,
+        QLineEdit,
+        QPushButton,
+        QSpinBox,
+        QVBoxLayout,
+        QWidget,
+    )
+    from ui.style import contrast  # noqa: PLC0415
+
+    manager, widgets = style
+    manager.apply(theme)
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    sink = QLineEdit()  # holds the focus while a control is drawn unfocused
+    layout.addWidget(sink)
+    search = QLineEdit()
+    search.setObjectName("SchedulesHubSearch")
+    primary = QPushButton("Run")
+    primary.setProperty("variant", "primary")
+    combo = QComboBox()
+    combo.addItems(["One", "Two"])
+    controls = [
+        (QLineEdit("12.5"), "focus.ring", 2),
+        (QSpinBox(), "focus.ring", 2),
+        (combo, "focus.ring", 2),
+        (QPushButton("Save"), "focus.ring", 2),
+        (primary, "focus.ring.primary", 2),
+        (search, "focus.ring", 1),
+    ]
+    for control, _role, _width in controls:
+        layout.addWidget(control)
+    _show(qapp, widgets, window, 360, 480)
+
+    def edge(control, width):
+        image = window.grab().toImage()
+        start = control.mapTo(window, QPoint(0, control.height() // 2))
+        return [_pixel(image, start.x() + x, start.y()) for x in range(width)]
+
+    for control, role, width in controls:
+        sink.setFocus(Qt.OtherFocusReason)
+        qapp.processEvents()
+        before = edge(control, width)
+        control.setFocus(Qt.OtherFocusReason)
+        qapp.processEvents()
+        assert control.hasFocus()
+        after = edge(control, width)
+        name = control.objectName() or type(control).__name__
+        assert after == [tokens.value(role, theme)] * width, (name, before, after)
+        if control is primary and theme == "dark":
+            continue  # I3: white on the light teal fill
+        for old, new in zip(before, after):
+            assert contrast.contrast_ratio(old, new) >= 3, (name, old, new)
+
+
 # ---- Date fields ------------------------------------------------------------------------
 
 

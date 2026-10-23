@@ -57,6 +57,13 @@ meets 1.5, and is reported in light (D4i).
 The card shadows (tokens.SHADOWS) have a contract of their own, below the pairs: the first
 pixel row under a card must read as a shadow on every display model (E1), and the row
 beside it as a halo on a correct display (E2).
+
+Focus is a change of the control's own edge: a focused input or button swaps its 1px
+border.control edge for a 2px focus.ring one. Palette B's teal ring stood 5.47:1 from a
+card, but had nearly the edge's luminance, so focusing a control changed it by 1.06:1 in
+light and 1.78:1 in dark. The ring is now Fluent 2's focus stroke, black in light and white
+in dark, and the change itself is asserted at 3:1 (F7, as WCAG 2.4.13 measures a focus
+indicator), as is a focused primary button's in light (F8).
 """
 
 from __future__ import annotations
@@ -286,6 +293,13 @@ PAIRS = [
          "The cage-name editor's edge on its relay terminal under the pointer", MARK_ROBUST),
     Pair("F6", "focus.ring", "accent.tint", "nontext", 3,
          "The cage-name editor's edge on a selected relay terminal", MARK_ROBUST),
+    Pair("F7", "focus.ring", "border.control", "nontext", 3,
+         "Focus changes a control's edge: an input or default button swaps its 1px "
+         "border.control edge for the 2px ring, the hub's search field its 1px edge's colour "
+         "(dark washed out: 2.93)", MARK_ROBUST, robust_dark={"clip": 3}),
+    Pair("F8", "focus.ring.primary", "accent.fill", "nontext", 3,
+         "Light: a focused primary button's 2px ring over its own accent edge and fill",
+         MARK_ROBUST, themes=("light",)),
     # ---- Text (WCAG 1.4.3) ---------------------------------------------------------
     *_text_on("T1", "text.primary",
               ["bg.page", "bg.surface", "bg.field", "bg.inset", "bg.alt", "bg.hover",
@@ -382,9 +396,9 @@ PAIRS = [
     Pair("I2", "text.link", "text.primary", "info", 3,
          "Links against body text: under 3:1, so Help links are underlined"),
     Pair("I3", "focus.ring.primary", "accent.fill", "info", 3,
-         "A focused primary button's border against its fill: the focus-ring follow-up"),
-    Pair("I4", "focus.ring", "border.control", "info", 3,
-         "Focus change over a control's own border (WCAG 2.4.13, AAA): focus follow-up"),
+         "Dark: a focused primary button's white ring round its light teal fill, 1.86:1; it "
+         "stands 15.6:1 from the page. No one colour is 3:1 from both: Fluent draws a second, "
+         "inner stroke, which a stylesheet border cannot (the focus follow-up)"),
     Pair("I5", "danger.fill", "bg.surface", "info", 3,
          "A danger button against a card: a labelled button needs no 3:1 boundary"),
     Pair("I6", "danger.alert", "bg.alt", "info", 3,
