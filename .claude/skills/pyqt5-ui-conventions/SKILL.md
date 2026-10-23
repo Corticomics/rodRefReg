@@ -134,7 +134,9 @@ The app starts in the saved theme, dark by default (`tokens.DEFAULT_THEME`):
 main.py applies it before any window shows, and the main window is built in
 it. Settings > General's `#ThemeButton` switches it at run time; it is a
 default button whose label names the switch (*Switch to light mode* while
-dark is on screen), and it saves the choice through the tab's auto-save.
+dark is on screen), and it saves the choice through the tab's auto-save, as
+`ui_theme` (`SystemController.THEME_KEY`). Never read or write the `theme`
+setting: it is 2.0.0's, which a revert needs as 2.0.0 saved it.
 
 `StyleManager.apply` also sets a QPalette built from the same tokens
 ([qt_palette.py](Project/ui/style/qt_palette.py)), before the stylesheet, and
@@ -156,7 +158,8 @@ box inside a box: a group box in a group box or a card is drawn as a section
 (its title over a rule), a card's title is a `CardHeader` over a `Divider`, and
 a table or list in a box has no frame of its own. Radii are WinUI's: 8px for a
 container, 4px for a control, 7px just inside a container's 1px stroke, and
-half the height for a pill or a circle (CONTRIBUTING.md §7).
+half the height for a pill or a circle (CONTRIBUTING.md §7). A tab pane's
+top-left corner, under the first tab, is square, as in WinUI's TabView.
 
 Card shadows ([elevation.py](Project/ui/style/elevation.py), CONTRIBUTING.md §7):
 

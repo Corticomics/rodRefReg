@@ -161,7 +161,12 @@ draw what the tests check.
 `tokens.py`; the settings' default, `SystemController.DEFAULT_THEME`, is
 held equal to it by `test_dark_default.py`). `main.py` applies it before
 the first window shows, so every window is built and shown in it, and the
-operator switches it with Settings > General's theme button.
+operator switches it with Settings > General's theme button. The choice is
+saved as `ui_theme` (`SystemController.THEME_KEY`), a setting no release
+before 2.1.0 reads or writes. A device without it starts dark and stores
+it: that is the one-time switch to dark. The `theme` setting those
+releases keep is never written, deleted or read as the theme, so a revert
+opens them in the theme they saved ([DATABASE.md §6](Project/docs/DATABASE.md)).
 
 The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 `app-dark.qss`, are **generated**: never edit them by hand. Their source:
@@ -224,7 +229,9 @@ checkboxes, banners and status labels, relay terminals, tooltips). What lies
 just inside a container's 1px stroke takes 7px, so its corners follow the
 container's (Help's two panes, the Terminal log's focus stroke). Pills and
 circles keep half their height (badges, the info button, the wizard's step
-circles, radio and slider handles).
+circles, radio and slider handles). A tab pane's top-left corner is square,
+as in WinUI's TabView: the first tab sits on it, and the selected one meets
+the pane in one straight edge.
 
 The dark theme has the same structure, its surfaces separated by tint steps
 (`bg.page` to `bg.surface`, held to S1–S3) and the same strokes, and it
@@ -290,8 +297,9 @@ rules the palette depends on:
   on the Pi's 5.15.8 at full strength, like typed text;
 - no `[placeholderText]` or `QTextEdit:read-only` rule;
 - scroll areas and stacked pages transparent;
-- tab panes on the content layer, and unselected tabs flat on the page with a
-  separator between two of them;
+- tab panes on the content layer, square under the first tab, and unselected
+  tabs flat on the page with a separator between two of them
+  (`test_tab_pane_corner.py` checks the corner's pixels);
 - sections, strips and rows under a rule, never a box in a box; the table
   header on a rule, with no grid.
 
