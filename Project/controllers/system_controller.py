@@ -37,8 +37,8 @@ class SystemController(QObject):
     # theme row it finds: 'dark' where 2.1.0 switched one (2.0.0's own dark theme, whose
     # tables show every other row near-white), its own light default where there was none.
     # It neither writes nor deletes the marker, so the next update to 2.1.0 does not switch
-    # again: it keeps the theme 2.0.0 left, light too if 2.0.0's auto-save stored its
-    # default.
+    # again: it keeps the theme 2.0.0 stored, light too if 2.0.0's auto-save stored its
+    # default, and starts dark, the default, where 2.0.0 stored none.
     DEFAULT_THEME = 'dark'
     DARK_DEFAULT_MARKER = 'ui_dark_default_applied'
 

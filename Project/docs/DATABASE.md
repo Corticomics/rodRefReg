@@ -776,8 +776,11 @@ under light text; choose *light* in 2.0.0's Settings > General > Theme to
 read them), and its own light default on a device that never stored a
 theme (2.0.0 stores the row only when its Settings tab auto-saves). 2.0.0
 neither writes nor deletes the marker, so the next update does not switch
-a second time: it keeps the theme 2.0.0 left, light too if 2.0.0's
-auto-save stored its default. `test_dark_default.py` covers it.
+a second time: it keeps the theme 2.0.0 stored, light too if 2.0.0's
+auto-save stored its default, and starts dark, the default, where 2.0.0
+stored none (choosing *light* in 2.0.0's Theme drop-down while it reads
+light changes nothing, so it saves nothing). `test_dark_default.py`
+covers it.
 
 A first-launch migration on v1.5.0+ copies any existing legacy
 `settings.json` into the DB and writes a `_migrated_from_json_v1` sentinel

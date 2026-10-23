@@ -268,6 +268,25 @@ def test_a_revert_to_2_0_0_of_a_device_that_never_stored_a_theme(database_handle
     assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
 
 
+def test_a_revert_after_which_2_0_0_saves_nothing_is_dark_again_at_the_next_update(
+    database_handler, capsys
+):
+    """The same device when 2.0.0 saves no setting after the revert. Choosing *light* in
+    2.0.0's Theme drop-down, which already reads light, emits no currentTextChanged, so
+    its auto-save does not run. With still no theme row, the next 2.1.0 starts dark, its
+    default, and has nothing to switch. So a device that never saved a theme goes back to
+    light, and is dark again after the next update."""
+    _controller(database_handler)  # 2.1.0's first start: the marker only
+    old = _Release200(database_handler)  # reverted to 2.0.0, which saves nothing
+    assert old.settings.get("theme", "light") == "light", "2.0.0's own default"
+
+    new = _controller(database_handler)  # updated to 2.1.0 again
+    assert new.settings["theme"] == "dark"
+    assert "theme" not in _stored(database_handler), "nothing stored, nothing switched"
+    assert _stored(database_handler)[MARKER] is True
+    assert "[SETTINGS]" not in capsys.readouterr().out
+
+
 def _refuse(database_handler, key):
     """The database refuses every write of the row `key`, as a full or locked database
     refuses a write: a trigger aborts the INSERT, so DatabaseHandler sees an sqlite3 error.
