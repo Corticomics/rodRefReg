@@ -97,8 +97,11 @@ self.schedules_tab.create_requested.connect(self._switch_to_wizard)
 
 Card-style UI lives in [Project/ui/components/](Project/ui/components/):
 
-- `card.py` `Card(QFrame)` — non-interactive container with `Card` objectName for QSS.
+- `card.py` `Card(QFrame)` — non-interactive container with `Card` objectName for QSS;
+  `Card(elevated=True)` carries the card shadow (see Styling). `CardHeader` and `Divider`
+  put a card's title inside it, over a 1px rule (Controls and Schedule Queue).
 - `interactive_card.py` `InteractiveCard`, `SelectableCardGroup` — clickable selection.
+  An `InteractiveCard` carries the card shadow at rest.
 - `primary_button.py` `PrimaryButton` — branded button.
 - `wizard.py` `WizardContainer`, `WizardStep` — used by `schedule_wizard.py`.
 
@@ -139,6 +142,30 @@ selection, links. So:
   4.5:1), and on the Pi's 5.15.8 at full strength, like typed text.
 - Content the stylesheet cannot reach (HTML, a painter) listens to
   `theme_changed`, as `HelpTab` does.
+
+The light theme follows Fluent 2 / WinUI: a near-white page (`bg.page`), white
+tab panes (`bg.pane`) and cards (`bg.surface`), one stroke round each
+(`border.subtle`), and a lighter rule inside a card (`border.divider`). Never a
+box inside a box: a group box in a group box or a card is drawn as a section
+(its title over a rule), a card's title is a `CardHeader` over a `Divider`, and
+a table or list in a box has no frame of its own.
+
+Card shadows ([elevation.py](Project/ui/style/elevation.py), CONTRIBUTING.md §7):
+
+- **Never** `setGraphicsEffect` / `QGraphicsDropShadowEffect` outside the
+  splash (`test_elevation.py` fails): it re-renders the card and its children
+  on every change and turns near-black on the Pi's Qt 5.15.8 (QTBUG-102374).
+- An elevated card is `Card(elevated=True)`, or a `QFrame` subclass with
+  `ElevatedMixin` before `QFrame` that calls `init_elevation(level, radius,
+  at_rest=True|False)` in `__init__`. `radius` must equal its rule's
+  `border-radius`; `at_rest=False` shows the shadow only under the pointer
+  (schedule cards).
+- The card reserves room round its box for the shadow (a margin
+  `build_qss.py` writes from `tokens.SHADOWS`), so it is bigger than its box by
+  `elevation.ROOM`. The parent gives that room back: its side margins less
+  `ROOM.left` / `ROOM.right`, and the rows beside the card inset by as much.
+- `tokens.ELEVATION` alone picks the recipe for each theme; dark is `None`
+  and paints nothing, but keeps the room, so a theme switch moves nothing.
 
 `test_theme_contrast.py` checks every pair of roles drawn together, in both
 themes. Add the pair when you combine two roles in a new way (every role a

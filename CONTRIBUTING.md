@@ -156,8 +156,9 @@ The light and dark stylesheets, `Project/ui/style/app-light.qss` and
 
 | File | Holds |
 |---|---|
-| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every colour, by role |
+| [`Project/ui/style/tokens.py`](Project/ui/style/tokens.py) | every colour, by role; the card shadows: `SHADOWS` (CSS box-shadow recipes) and `ELEVATION` (the recipe each theme's cards paint) |
 | [`Project/ui/style/app.qss.tmpl`](Project/ui/style/app.qss.tmpl) | every rule, once, with `${bg.surface}`-style placeholders; `@light` / `@dark` … `@end`, each at the start of a line, mark lines one theme lacks (today only comments) |
+| [`Project/ui/style/shadow.py`](Project/ui/style/shadow.py) | the shadow maths, no Qt: how far a recipe reaches past a card, and the room an elevated card reserves, which `build_qss.py` writes as `${elevation.card.margin}` |
 
 To change a colour or a rule:
 
@@ -190,13 +191,70 @@ Help tab's HTML takes its colours from `tokens.HELP_HTML`: a colour it needs
 is a role there, never a literal in the HTML. The ratchet keeps counting
 `help_content_manager.py`, so none comes back.
 
+**Layers and lines.** The light theme follows Fluent 2 and WinUI. The window
+and dialogs are the base layer (`bg.page`, near-white), tab panes and the
+selected tab the content layer (`bg.pane`, white), and cards, group boxes,
+tables and lists `bg.surface`. Their edges are one stroke, `border.subtle`;
+a rule inside a card is `border.divider`, a step lighter. Never put a box
+inside a box:
+
+- a group box inside a group box or a card is a section, its title over a
+  rule (the template does this);
+- a card's title goes inside it, as a `CardHeader` over a `Divider`
+  ([`ui/components/card.py`](Project/ui/components/card.py));
+- a table or a list inside a box draws no frame of its own, and each table
+  row is ruled once, with no grid.
+
+The dark theme has the same structure on palette B's tints and strokes, and
+paints no shadow.
+
+**Card shadows.** Qt's stylesheets have no `box-shadow`, and
+`QGraphicsDropShadowEffect` is not allowed: it renders a card and its
+children again on every change inside it, and on the Pi's Qt 5.15.8 its
+shadow darkens to near-black (QTBUG-102374). `test_elevation.py` fails on one
+anywhere but the splash screen. A card with a shadow is an elevated card
+([`elevation.py`](Project/ui/style/elevation.py)):
+
+- Make it with `Card(elevated=True)`, or mix `ElevatedMixin` into a `QFrame`
+  subclass, before `QFrame`, and call `init_elevation(level, radius,
+  at_rest=...)` in its `__init__`, before it is first shown. `radius` is its
+  rule's `border-radius`, because the shadow is drawn for it
+  (`test_elevation.py` checks each card's). With `at_rest=False` the shadow
+  shows only under the pointer, as on a schedule card.
+- The `elevation` property makes the template's `QFrame[elevation="card"]`
+  rule reserve room round the card's box, with a margin `build_qss.py` writes
+  from the recipes: the union of every recipe's reach, 5, 6, 8 and 6 px (top,
+  right, bottom, left). The box is drawn by the card's ordinary rule inside
+  that room, and the mixin paints a cached shadow tile round it.
+- The card is bigger than its box by `elevation.ROOM`. A parent that lines
+  the box up with other edges gives the room back: take `ROOM.left` and
+  `ROOM.right` off its side margins, and inset the rows beside the card by
+  as much. The User tab, the Cages tab, the Schedules hub, wizard step 1 and
+  the main window's right column do this.
+- `tokens.ELEVATION` alone decides which shadow a card paints: a recipe of
+  `tokens.SHADOWS` per theme, `None` in dark. To change the shadow, name
+  another recipe there. Every recipe fits the reserved room, so no widget
+  moves. A new recipe goes into `SHADOWS` as CSS layers (x, y, blur, spread,
+  alpha, painted in `shadow.ink`), and the contrast test holds it to E1 and
+  E2.
+
 **Contrast is tested, in both themes.** `test_theme_contrast.py` checks every
 pair of roles the UI draws together with the unrounded WCAG 2.x ratio
 (Project/ui/style/contrast.py): 4.5:1 for text, 7:1 for body and secondary
-text on the main surfaces, 3:1 for control boundaries and state marks, the
-card-on-page step palette B was chosen for, and floors under the HDMI
-clip/wash models. When you change a colour, run it; a pair that fails is
-fixed by changing the colour, never its threshold. When you put two roles
+text on the main surfaces, 3:1 for control boundaries and state marks, and
+3:1 for the change focus makes to a control's edge (F7). There are floors
+under the HDMI clip/wash models too. Surfaces are checked differently in
+each theme:
+
+- **Light:** a white card on the near-white page is no tint step, and no
+  near-white step survives a monitor that clips the HDMI signal. So the
+  light theme is held to its strokes (D1, D2, D1p), to the first shadow row
+  under a card (E1, E2), and to a divider that stays visible a step under
+  the stroke (D4L, H1).
+- **Dark:** surfaces are held to their tint steps (S1–S3).
+
+When you change a colour, run it; a pair that fails is fixed by changing
+the colour, never its threshold. When you put two roles
 together in a new way, add the pair: every role a `color:` declaration of
 the template names needs one. The status-word colours (`success.text`,
 `warning.text`, `danger.text`) also stay at least 25 apart in CIEDE2000
@@ -208,6 +266,10 @@ rules the palette depends on:
   placeholder in that colour: at half alpha from Qt 5.15.12, under 4.5:1, and
   on the Pi's 5.15.8 at full strength, like typed text;
 - no `[placeholderText]` or `QTextEdit:read-only` rule;
-- scroll areas and stacked pages transparent.
+- scroll areas and stacked pages transparent;
+- tab panes on the content layer, and unselected tabs flat on the page with a
+  separator between two of them;
+- sections, strips and rows under a rule, never a box in a box; the table
+  header on a rule, with no grid.
 
 `test_theme_palette.py` checks the palette on screen, offscreen.
