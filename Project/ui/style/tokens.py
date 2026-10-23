@@ -138,6 +138,10 @@ TOKENS: dict[str, tuple[str, str]] = {
     # A control boundary under the pointer or pressed; #RelayTerminal, #InteractiveCard
     # and #ScheduleCard under the pointer
     "border.control.hover": ("#475569", "#A3ADB9"),
+    # ---- Shadows -----------------------------------------------------------------------
+    # The ink of every card shadow (SHADOWS below): black, as Fluent 2 and Material 3 draw
+    # theirs; a layer's alpha says how much of it shows. The dark theme paints no shadow.
+    "shadow.ink": ("#000000", "#000000"),
     # ---- Focus -------------------------------------------------------------------------
     # The 2px focus border of inputs and QPushButton; the 1px one of #SchedulesHubSearch and
     # of #CageNameEdit, which shows only while it has the focus
@@ -242,6 +246,30 @@ TOKENS: dict[str, tuple[str, str]] = {
     "info.tint": ("#E0F2FE", "#0C4A6E"),
     "info.on-tint": ("#0C4A6E", "#BAE6FD"),
     "info.indicator": ("#0284C7", "#0284C7"),
+}
+
+# Card shadows. A recipe is CSS box-shadow layers (x, y, blur, spread, alpha), in px, in
+# shadow.ink; ui.style.elevation paints it from a cached tile into the room the card
+# reserves (QFrame[elevation="card"] in app.qss.tmpl, whose margin build_qss.py writes from
+# the union of every recipe's reach: any recipe can stand in for another without moving a
+# widget). Kept out of TOKENS, which holds opaque colours only.
+SHADOWS: dict[str, tuple[tuple[float, float, float, float, float], ...]] = {
+    # Fluent 2 shadow4, its resting card: 0 0 2px rgba(0,0,0,.12), 0 2px 4px rgba(0,0,0,.14)
+    # (fluentui packages/tokens/src/utils/shadows.ts; alias/lightColor.ts)
+    "fluent.shadow4": ((0, 0, 2, 0, 0.12), (0, 2, 4, 0, 0.14)),
+    # The same with Fluent's Darker shadow alphas (colorNeutralShadowAmbientDarker .20,
+    # colorNeutralShadowKeyDarker .24): one step more lift, for the lab monitor's A/B
+    "fluent.shadow4.darker": ((0, 0, 2, 0, 0.20), (0, 2, 4, 0, 0.24)),
+    # Material 3 level 1: 0 1px 2px 0 rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15)
+    # (material-web elevation/internal/_elevation.scss), the crisp end of the A/B
+    "m3.level1": ((0, 1, 2, 0, 0.30), (0, 1, 3, 1, 0.15)),
+}
+
+# Elevation levels: level -> (light recipe, dark recipe), names in SHADOWS; None paints no
+# shadow. "card" is every elevated card's (ui.style.elevation.ElevatedMixin); the dark theme
+# separates its surfaces by tint and stroke instead.
+ELEVATION: dict[str, tuple[str | None, str | None]] = {
+    "card": ("fluent.shadow4", None),
 }
 
 # The QPalette StyleManager applies before the stylesheet (qt_palette.py): QPalette colour

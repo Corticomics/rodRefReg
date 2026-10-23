@@ -22,7 +22,11 @@ hicon, flare, APCA), which the palette's neutral and teal roles were chosen to m
 status colours keep today's hue families, so they are held to WCAG alone.
 
 A pair that fails is fixed by changing a colour in tokens.py, never by lowering its
-threshold. Pure Python: tokens.py and contrast.py are loaded by path.
+threshold. Pure Python: tokens.py, contrast.py and shadow.py are loaded by path.
+
+The card shadows (tokens.SHADOWS) have a contract of their own, below the pairs: the first
+pixel row under a card must read as a shadow on every display model (E1), and the row
+beside it as a halo on a correct display (E2).
 """
 
 from __future__ import annotations
@@ -47,6 +51,7 @@ def _load(name):
 
 tokens = _load("tokens")
 contrast = _load("contrast")
+shadow = _load("shadow")
 
 KINDS = ("text", "nontext", "step", "line", "cue", "info")
 
@@ -584,3 +589,63 @@ def test_the_judges_fixes_hold():
         tokens.value("text.secondary", "light"), tokens.value("text.muted", "light")
     )
     assert light >= 1.45, f"light secondary vs muted text {light:.3f}"
+
+
+# ---- The shadow contract (E1, E2) -----------------------------------------------------------
+# tokens.SHADOWS holds CSS box-shadow recipes (shadow.py has the geometry), ELEVATION names
+# one per theme. The first pixel row past a card's edge is what reads as its shadow: E1 holds
+# the bottom row to the shadow band of the display models (a step that survives a clipping
+# HDMI chain), E2 the side row to a visible halo on a correct display. Every recipe is held
+# to them, as the lab monitor's A/B may give a card any of them (RRR_SHADOW).
+
+SHADOW_GROUNDS = ("bg.page",)  # a card straight on the page (tab panes are the page too)
+E1_BOTTOM = {"nominal": 1.30, "clip": 1.15, "wash": 1.25}
+E2_SIDE = {"nominal": 1.20}
+
+
+def _first_row(layers, edge, ground):
+    background = tokens.value(ground, "light")
+    pixel = shadow.over(
+        background, tokens.value("shadow.ink", "light"), shadow.edge_alpha(layers, edge, 0)
+    )
+    return pixel, background
+
+
+@pytest.mark.parametrize("name", sorted(tokens.SHADOWS))
+@pytest.mark.parametrize("ground", SHADOW_GROUNDS)
+def test_a_card_shadow_shows_under_the_card(name, ground):
+    """E1 (bottom row) and E2 (side row) for every recipe, on the ground a card stands on."""
+    layers = tokens.SHADOWS[name]
+    for edge, floors in (("bottom", E1_BOTTOM), ("left", E2_SIDE), ("right", E2_SIDE)):
+        pixel, background = _first_row(layers, edge, ground)
+        for model, floor in floors.items():
+            got = contrast.contrast_ratio(pixel, background, model)
+            assert got >= floor, f"{name} {edge} row on {ground}: {model} {got:.3f} < {floor}"
+
+
+def test_the_elevation_table():
+    """Every level names a recipe in light and none in dark: the dark theme separates its
+    surfaces by tint and stroke, and a shadow barely registers on its page. Each recipe is
+    a tuple of (x, y, blur, spread, alpha) layers with an alpha a shadow can have."""
+    assert tokens.ELEVATION, "no elevation level"
+    for level, (light, dark) in tokens.ELEVATION.items():
+        assert light in tokens.SHADOWS, level
+        assert dark is None, f"{level}: the dark theme paints no shadow"
+    for name, layers in tokens.SHADOWS.items():
+        assert layers and all(len(layer) == 5 for layer in layers), name
+        assert all(0 < layer[4] <= 0.4 and layer[2] > 0 for layer in layers), name
+
+
+def test_the_shadow_maths_matches_css():
+    """Fluent 2's shadow4 as CSS draws it (sigma = blur / 2): 14.1 % in the first row under
+    the card, 9.1 % beside it; it reaches 6, 4, 6 and 8 px (left, top, right, bottom); the
+    room every card reserves is the union of the recipes' reach."""
+    layers = tokens.SHADOWS["fluent.shadow4"]
+    assert shadow.edge_alpha(layers, "bottom", 0) == pytest.approx(0.1413, abs=0.0005)
+    assert shadow.edge_alpha(layers, "left", 0) == pytest.approx(0.0911, abs=0.0005)
+    assert shadow.extent(layers) == shadow.Extent(6, 4, 6, 8)
+    room = shadow.reserved(tokens)
+    for layers in tokens.SHADOWS.values():
+        reach = shadow.extent(layers)
+        assert all(getattr(room, side) >= getattr(reach, side) for side in reach._fields)
+    assert shadow.over("#FFFFFF", "#000000", 0.1413) == "#DBDBDB"

@@ -43,6 +43,14 @@ QFrame#Card, QFrame[card="true"] {
     padding: 0;
 }
 
+/* An elevated card (ui.style.elevation.ElevatedMixin) reserves room round its box for its
+   shadow and paints the shadow there; the box above is drawn inside the room. build_qss.py
+   writes the room from tokens.SHADOWS: the union of every recipe's reach, so a recipe can be
+   swapped without moving a widget. */
+QFrame[elevation="card"] {
+    margin: 5px 6px 8px 6px;
+}
+
 /* Logged-out login prompt: the card surface instead of the page */
 QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
     background-color: #30373F;

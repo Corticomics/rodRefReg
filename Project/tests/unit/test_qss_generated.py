@@ -152,9 +152,13 @@ def test_check_mode_reports_a_stale_stylesheet_and_a_build_fixes_it(tmp_path, mo
 
 
 def test_every_placeholder_names_a_token():
+    """A placeholder is a colour role of tokens.py, or an elevation level's reserved room
+    (${elevation.<level>.margin}, which build_qss.py works out from tokens.SHADOWS)."""
+    margins = {f"elevation.{level}.margin" for level in tokens.ELEVATION}
     for theme in build_qss.THEMES:
-        unknown = _placeholders(theme) - set(tokens.TOKENS)
+        unknown = _placeholders(theme) - set(tokens.TOKENS) - margins
         assert not unknown, f"app.qss.tmpl uses roles tokens.py lacks: {sorted(unknown)}"
+        assert set(build_qss.values_for(theme)) == set(tokens.TOKENS) | margins
         lines = build_qss.theme_lines(_template(), theme)
         unbraced = [number for number, line in lines if re.search(r"\$(?!\{)", line)]
         assert not unbraced, f"write each placeholder as ${{role}}: app.qss.tmpl lines {unbraced}"
@@ -313,3 +317,15 @@ def test_the_drift_check_allows_theme_comments_and_the_listed_dark_only_lines():
     assert _drift(template, {("a", "color")}) == []
     (problem,) = _drift(template, {("a", "color"), ("a", "border")})
     assert "no longer theme-only {'light': [], 'dark': [('a', 'border')]}" in problem
+
+
+def test_the_elevated_cards_reserve_the_room_their_shadows_take():
+    """QFrame[elevation="<level>"] reserves, in both stylesheets, the union of every
+    recipe's reach (shadow.reserved): the room ui.style.elevation paints the shadow into,
+    the same in both themes, so a theme switch or a recipe swap moves no widget."""
+    shadow = _load("rrr_shadow_under_test", STYLE_DIR / "shadow.py")
+    room = shadow.reserved(tokens)
+    for level in tokens.ELEVATION:
+        rule = f'QFrame[elevation="{level}"] {{\n    margin: {room.qss()};\n}}'
+        for theme in build_qss.THEMES:
+            assert rule in build_qss.render(theme), (theme, level)
