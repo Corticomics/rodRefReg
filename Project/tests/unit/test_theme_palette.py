@@ -326,6 +326,38 @@ def test_a_placeholder_keeps_its_full_colour(qapp, tokens, style, theme):
     )
 
 
+def _rgb(hex_colour):
+    value = hex_colour.lstrip("#")
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _coverage(pixels, background, ink):
+    """How strongly `pixels` show `ink` drawn over `background`, as anti-aliasing draws it.
+
+    A glyph's pixel is background + a * (ink - background), with a its coverage in [0, 1].
+    Returns (the highest coverage, the largest distance from that segment, in RGB units,
+    among the pixels at least 15 % covered; a pixel past `ink` counts by how far past). A font whose strokes never cover a whole pixel (CI's
+    Ubuntu runner, which installs no fonts) never draws `ink` exactly, so an exact colour
+    match fails there although the words are drawn in `ink`; the line keeps any other
+    colour apart: its pixels lie off it.
+    """
+    b, i = _rgb(background), _rgb(ink)
+    d = [i[k] - b[k] for k in range(3)]
+    norm = sum(c * c for c in d)
+    best, worst = 0.0, 0.0
+    for pixel in pixels:
+        p = _rgb(pixel)
+        a = sum((p[k] - b[k]) * d[k] for k in range(3)) / norm
+        if a < 0.15:
+            continue
+        best = max(best, min(a, 1.0))
+        off = sum((p[k] - (b[k] + a * d[k])) ** 2 for k in range(3)) ** 0.5
+        if a > 1.0:  # past `ink`: a stronger colour than the one expected
+            off = max(off, (a - 1.0) * norm**0.5)
+        worst = max(worst, off)
+    return best, worst
+
+
 def test_a_colour_on_an_input_takes_its_placeholder_colour_away(qapp, tokens, style):
     """Why no rule colours an input. A stylesheet `color` on an input sets the palette's
     PlaceholderText to that colour too, so the hint is no longer drawn in text.muted. What
@@ -344,17 +376,26 @@ def test_a_colour_on_an_input_takes_its_placeholder_colour_away(qapp, tokens, st
     primary, muted = tokens.value("text.primary", "light"), tokens.value("text.muted", "light")
     field = tokens.value("bg.field", "light")
 
-    def darkest_ink(edit, text):
-        """The darkest pixel the words draw: their fully covered pixels' colour."""
+    def inks(edit, text):
+        """The colours the words draw (the field's own pixels left out)."""
         edit.setText(text)
         qapp.processEvents()
         image = edit.grab().toImage()
-        inks = {
+        return {
             image.pixelColor(x, y).name().upper()
             for x in range(4, image.width() - 4)
             for y in range(4, image.height() - 4)
         } - {field}
-        return min(inks, key=lambda ink: contrast.relative_luminance(ink))
+
+    def darkest_ink(edit, text):
+        """The darkest pixel the words draw."""
+        return min(inks(edit, text), key=lambda ink: contrast.relative_luminance(ink))
+
+    def drawn_in(edit, text, colour):
+        """The words are drawn in `colour` at full strength: strongly covered pixels reach
+        it, and every pixel lies on the line from the field to it (_coverage)."""
+        covered, off_line = _coverage(inks(edit, text), field, colour)
+        return covered >= 0.75 and off_line <= 16
 
     def field_with(sheet):
         edit = QLineEdit()
@@ -364,19 +405,20 @@ def test_a_colour_on_an_input_takes_its_placeholder_colour_away(qapp, tokens, st
         return _show(qapp, widgets, edit, 240, 40)
 
     plain = field_with("")
-    assert darkest_ink(plain, "") == muted, "the hint, drawn in text.muted"
+    assert drawn_in(plain, "", muted), "the hint, drawn in text.muted"
 
     edit = field_with(f"QLineEdit {{ color: {primary}; }}")
     placeholder = edit.palette().color(QPalette.PlaceholderText)
     assert placeholder.name().upper() == primary, "the rule's colour, not text.muted"
-    hint, typed = darkest_ink(edit, ""), darkest_ink(edit, "Search animals...")
-    assert typed == primary
+    hint = darkest_ink(edit, "")
+    assert drawn_in(edit, "Search animals...", primary), "typed text, in text.primary"
     if QT_VERSION >= 0x050F0C:  # 5.15.12
         assert placeholder.alpha() == 128
         assert contrast.contrast_ratio(hint, field) < 4.5, hint
+        assert not drawn_in(edit, "", primary), "the hint is weaker than typed text"
     else:
         assert placeholder.alpha() == 255
-        assert hint == typed, "the hint is drawn as typed text"
+        assert drawn_in(edit, "", primary), "the hint is drawn as typed text"
 
 
 # ---- Focus ------------------------------------------------------------------------------

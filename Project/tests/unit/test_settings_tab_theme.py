@@ -217,6 +217,38 @@ def test_the_calibration_table_follows_the_theme(
     check()
 
 
+def _rgb(hex_colour):
+    value = hex_colour.lstrip("#")
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _coverage(pixels, background, ink):
+    """How strongly `pixels` show `ink` drawn over `background`, as anti-aliasing draws it.
+
+    A glyph's pixel is background + a * (ink - background), with a its coverage in [0, 1].
+    Returns (the highest coverage, the largest distance from that segment, in RGB units,
+    among the pixels at least 15 % covered; a pixel past `ink` counts by how far past). A font whose strokes never cover a whole pixel (CI's
+    Ubuntu runner, which installs no fonts) never draws `ink` exactly, so an exact colour
+    match fails there although the words are drawn in `ink`; the line keeps any other
+    colour apart: its pixels lie off it.
+    """
+    b, i = _rgb(background), _rgb(ink)
+    d = [i[k] - b[k] for k in range(3)]
+    norm = sum(c * c for c in d)
+    best, worst = 0.0, 0.0
+    for pixel in pixels:
+        p = _rgb(pixel)
+        a = sum((p[k] - b[k]) * d[k] for k in range(3)) / norm
+        if a < 0.15:
+            continue
+        best = max(best, min(a, 1.0))
+        off = sum((p[k] - (b[k] + a * d[k])) ** 2 for k in range(3)) ** 0.5
+        if a > 1.0:  # past `ink`: a stronger colour than the one expected
+            off = max(off, (a - 1.0) * norm**0.5)
+        worst = max(worst, off)
+    return best, worst
+
+
 @pytest.mark.parametrize("theme", THEMES)
 def test_a_selected_row_writes_its_words_in_the_selection_colours(
     qapp, tokens, style, database_handler, system_controller, theme
@@ -237,11 +269,14 @@ def test_a_selected_row_writes_its_words_in_the_selection_colours(
     origin = table.viewport().mapTo(window, rect.topLeft())
     found = {
         image.pixelColor(origin.x() + x, origin.y() + y).name().upper()
-        for x in range(rect.width())
-        for y in range(rect.height())
+        for x in range(2, rect.width() - 2)  # inside the row's rule and the cell's edges
+        for y in range(2, rect.height() - 2)
     }
-    assert tokens.value("bg.selected", theme) in found
-    assert tokens.value("text.on-accent", theme) in found
+    selected, words = tokens.value("bg.selected", theme), tokens.value("text.on-accent", theme)
+    assert selected in found
+    covered, off_line = _coverage(found, selected, words)
+    assert covered >= 0.75, f"the words, in text.on-accent: coverage {covered:.2f}"
+    assert off_line <= 16, f"a pixel {off_line:.1f} off the selection's text colour"
     assert tokens.value("danger.text", theme) not in found
 
 
