@@ -144,7 +144,17 @@ def test_the_hub_follows_the_theme(qapp, tokens, style, theme):
         return tokens.value(role, theme)
 
     card = hub._schedule_cards[0]
-    assert _fill(tabs, card, card.width() - 4) == colour("bg.surface")
+    # Its box sits inside the room its shadow takes (it lifts under the pointer)
+    box = card.elevation_box()
+    assert _fill(tabs, card, box.right() - 3) == colour("bg.surface")
+    # At rest no shadow: under the box, the pane. The hub's side margins give the room
+    # back, so the box lines up with the search field, 12px from the hub's edge as before
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+
+    under = card.mapTo(tabs, QPoint(box.center().x(), box.bottom() + 1))
+    assert tabs.grab().toImage().pixelColor(under).name().upper() == colour("bg.pane")
+    assert card.mapTo(hub, box.topLeft()).x() == hub._search_input.mapTo(hub, QPoint()).x()
+    assert hub._search_input.mapTo(hub, QPoint()).x() == 12
     labels = {label.objectName(): label for label in card.findChildren(QLabel)}
     assert _text(labels["ScheduleCardName"]) == colour("text.primary")
     assert _text(labels["ScheduleCardMeta"]) == colour("text.secondary")
@@ -193,7 +203,8 @@ def test_select_mode_and_a_selected_card(qapp, tokens, style, theme):
     card = hub._schedule_cards[0]
     card._checkbox.setChecked(True)
     qapp.processEvents()
-    assert _fill(tabs, card, card.width() - 5) == colour("accent.tint")  # inside its 2px border
+    inside = card.elevation_box().right() - 4  # inside its 2px border
+    assert _fill(tabs, card, inside) == colour("accent.tint")
     assert _fill(tabs, hub._edit_selected_btn) == colour("accent.fill")
     assert _fill(tabs, hub._delete_selected_btn) == colour("danger.fill")
 
@@ -201,25 +212,28 @@ def test_select_mode_and_a_selected_card(qapp, tokens, style, theme):
     qapp.processEvents()
     assert hub._select_btn.text() == "Select"
     assert _fill(tabs, hub._select_btn) == colour("bg.surface")
-    assert _fill(tabs, hub._schedule_cards[0], card.width() - 4) == colour("bg.surface")
+    assert _fill(tabs, hub._schedule_cards[0], inside + 1) == colour("bg.surface")
 
 
 def test_a_selected_card_keeps_its_content_inside_its_2px_border(qapp, style):
-    """The selected border is 2px: the card's frame re-reads it, as a stylesheet change does."""
+    """The selected border is 2px: the card's frame re-reads it, as a stylesheet change does.
+    The content starts inside the room the card's shadow takes, then the border."""
+    from ui.style.elevation import ROOM  # noqa: PLC0415
+
     manager, windows = style
     manager.apply("light")
     _tabs, hub = _hub(qapp, windows)
     card = hub._schedule_cards[0]
-    assert card.contentsRect().left() == 1
+    assert card.contentsRect().left() == ROOM.left + 1
 
     hub._toggle_select_mode()
     card._checkbox.setChecked(True)
     qapp.processEvents()
-    assert card.contentsRect().left() == 2
+    assert card.contentsRect().left() == ROOM.left + 2
 
     card._checkbox.setChecked(False)
     qapp.processEvents()
-    assert card.contentsRect().left() == 1
+    assert card.contentsRect().left() == ROOM.left + 1
 
 
 @pytest.mark.parametrize("theme", THEMES)

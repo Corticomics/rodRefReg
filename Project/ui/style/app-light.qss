@@ -3,8 +3,9 @@
  * Rodent Refreshment Regulator - Light Theme
  *
  * Fluent 2 / WinUI layers (v2.1.0): a near-white page (the base layer) under white tab panes
- * (the content layer), one hairline stroke round every pane, card, box and table, rules
- * between sections, teal accent. Every colour is a role in Project/ui/style/tokens.py, and
+ * (the content layer), one hairline stroke round every pane, card, box and table, Fluent's
+ * resting shadow under the primary cards, rules between sections, teal accent. Every colour
+ * is a role in Project/ui/style/tokens.py, and
  * Project/tests/unit/test_theme_contrast.py checks the pairs the UI draws, in both themes.
  *
  * Base colours come from the QPalette StyleManager builds from the same tokens (window,
@@ -44,12 +45,22 @@ QFrame#Card, QFrame[card="true"] {
     padding: 0;
 }
 
-/* An elevated card (ui.style.elevation.ElevatedMixin) reserves room round its box for its
-   shadow and paints the shadow there; the box above is drawn inside the room. build_qss.py
-   writes the room from tokens.SHADOWS: the union of every recipe's reach, so a recipe can be
-   swapped without moving a widget. */
+/* An elevated card (ui.style.elevation.ElevatedMixin: the Profile and login cards, the Cages
+   board, Controls, Schedule Queue, the schedule cards, the wizard's type cards) reserves room
+   round its box for its shadow and paints the shadow there; the box above is drawn inside
+   the room. build_qss.py writes the room from tokens.SHADOWS: the union of every recipe's
+   reach, so a recipe can be swapped without moving a widget. */
 QFrame[elevation="card"] {
     margin: 5px 6px 8px 6px;
+}
+
+/* A card's title, inside the card above a full-width rule (CardHeader + Divider in
+   ui/components/card.py): the group-box title's type, now in the card it names */
+QLabel#CardHeader {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1A1D1F;
+    padding: 12px 16px 10px 16px;
 }
 
 /* Logged-out login prompt: the card surface instead of the page */
@@ -808,8 +819,10 @@ QFrame#ScheduleCard {
     border: 1px solid #C8CED6;
     border-radius: 10px;
 }
+/* Under the pointer a schedule card lifts (its shadow, ui.style.elevation) and its edge
+   darkens; its fill stays white, so the lift is not mixed with a grey hover */
 QFrame#ScheduleCard:hover {
-    background: #E6E9ED;
+    background: #FFFFFF;
     border-color: #475569;
 }
 QFrame#ScheduleCard[selected="true"] {
@@ -1357,6 +1370,12 @@ QFrame#WizardSeparator {
     min-height: 1px;
     max-height: 1px;
 }
+/* The rule widget for every other divider (ui.components.card.Divider: NoFrame, its 1px
+   size fixed in code) */
+QFrame#Divider {
+    background: #D9DEE5;
+    border: none;
+}
 
 /* Wizard Navigation Buttons */
 QPushButton#WizardBackButton {
@@ -1403,7 +1422,7 @@ QPushButton#WizardStartOverButton {
    ============================================ */
 QFrame#InteractiveCard {
     background: #FFFFFF;
-    border: 2px solid #C8CED6;
+    border: 1px solid #C8CED6;
     border-radius: 12px;
     padding: 16px;
 }
@@ -1411,8 +1430,10 @@ QFrame#InteractiveCard:hover {
     border-color: #475569;
     background: #E6E9ED;
 }
+/* Checked: a 2px accent border; the padding gives the extra pixel back, so nothing moves */
 QFrame#InteractiveCard[checked="true"] {
-    border-color: #0F766E;
+    border: 2px solid #0F766E;
+    padding: 15px;
     background: #CCFBF1;
 }
 

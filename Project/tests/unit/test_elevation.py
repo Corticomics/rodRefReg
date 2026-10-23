@@ -209,10 +209,14 @@ def test_each_elevated_card_draws_its_tile_for_its_own_radius(qapp):
     """The tile is drawn for the radius each elevated card's rule has, so the shadow's
     corners follow the box's."""
     from ui.components.card import CARD_RADIUS  # noqa: PLC0415
+    from ui.components.interactive_card import InteractiveCard  # noqa: PLC0415
+    from ui.schedules_hub import ScheduleCard  # noqa: PLC0415
 
     for theme in ("light", "dark"):
         qss = (STYLE_DIR / f"app-{theme}.qss").read_text(encoding="utf-8")
         assert _radius(qss, "QFrame#Card") == CARD_RADIUS
+        assert _radius(qss, "QFrame#ScheduleCard") == ScheduleCard.RADIUS
+        assert _radius(qss, "QFrame#InteractiveCard") == InteractiveCard.RADIUS
 
 
 def test_the_tile_is_made_once(qapp):

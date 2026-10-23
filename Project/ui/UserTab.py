@@ -45,22 +45,31 @@ class UserTab(QWidget):
         get_operation_lock().state_changed.connect(self._refresh_logout_button)
 
     def init_ui(self):
-        # Main layout
+        # Main layout. The login and profile cards carry the card shadow and reserve room
+        # for it round their boxes (elevation.ROOM): the side and bottom margins give that
+        # room back, so each card's box keeps its 20px margins, and the banner and the
+        # buttons take the same inset in their own rows.
+        from ui.style.elevation import ROOM
+
+        self._room = ROOM
         self.layout = QVBoxLayout()
         self.layout.setSpacing(16)
-        self.layout.setContentsMargins(20, 20, 20, 20)
+        self.layout.setContentsMargins(20 - ROOM.left, 20, 20 - ROOM.right, 20 - ROOM.bottom)
         self.setLayout(self.layout)
 
         # Info label
         self.info_label = QLabel("You are running the application in Guest mode.")
         self.info_label.setAlignment(Qt.AlignCenter)
         self.info_label.setObjectName("InfoBanner")
-        self.layout.addWidget(self.info_label)
+        banner_row = QHBoxLayout()
+        banner_row.setContentsMargins(ROOM.left, 0, ROOM.right, 0)
+        banner_row.addWidget(self.info_label)
+        self.layout.addLayout(banner_row)
 
         # Login form container - use Card component
         from ui.components.card import Card
 
-        self.login_container = Card()
+        self.login_container = Card(elevated=True)
 
         # Form layout for login inputs
         form_layout = QFormLayout()
@@ -88,9 +97,10 @@ class UserTab(QWidget):
         self.layout.addStretch()
 
     def _setup_buttons(self):
-        # Create buttons container
+        # Create buttons container (inset as the cards' boxes, see init_ui)
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(8)
+        buttons_layout.setContentsMargins(self._room.left, 0, self._room.right, 0)
 
         # Create buttons - use property-based styling
         self.login_button = QPushButton("Log In")
@@ -163,7 +173,7 @@ class UserTab(QWidget):
             # Create profile container using Card
             from ui.components.card import Card
 
-            self.profile_container = Card()
+            self.profile_container = Card(elevated=True)
             profile_layout = QVBoxLayout(self.profile_container)
             profile_layout.setSpacing(16)
             profile_layout.setContentsMargins(20, 20, 20, 20)

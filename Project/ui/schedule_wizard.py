@@ -57,6 +57,7 @@ from utils.topology import reserved_relay_reason
 
 from .components.interactive_card import InteractiveCard, SelectableCardGroup
 from .components.wizard import WizardContainer, WizardStep
+from .style.elevation import ROOM
 from .style.theme import restyle
 
 
@@ -403,8 +404,13 @@ class Step1SelectType(QWidget):
         self._init_ui()
 
     def _init_ui(self) -> None:
+        # The type cards reserve room round their boxes for the card shadow (elevation.ROOM):
+        # the side margins give that room back, so the boxes keep their 32px margins and line
+        # up with the header, which takes the same inset; the spacing gives it back between
+        # the two cards.
+        room = ROOM
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setContentsMargins(32 - room.left, 24, 32 - room.right, 24)
         layout.setSpacing(20)
 
         # Step header
@@ -413,13 +419,14 @@ class Step1SelectType(QWidget):
             title="Select Schedule Type",
             description="Choose how you want to deliver water to your animals",
         )
+        header.setContentsMargins(room.left, 0, room.right, 0)
         layout.addWidget(header)
 
         # Schedule type cards
         self._card_group = SelectableCardGroup()
 
         cards_layout = QGridLayout()
-        cards_layout.setSpacing(16)
+        cards_layout.setSpacing(max(0, 16 - room.left - room.right))
 
         for i, (key, type_info) in enumerate(SCHEDULE_TYPES.items()):
             card = InteractiveCard(

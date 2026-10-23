@@ -122,6 +122,60 @@ def _text(widget):
 
 
 @pytest.mark.parametrize("theme", THEMES)
+def test_step_one_lifts_its_type_cards(
+    qapp, tokens, style, database_handler, system_controller, theme
+):
+    """Step 1's two type cards (InteractiveCard) are elevated cards: one stroke round each
+    box, the card shadow under it in light and none in dark. A checked card's border is 2px
+    of the accent and its padding 1px less, so its content does not move. The step's side
+    margins give the shadow's room back, so the first box keeps its 32px margin, in line
+    with the step's header."""
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from PyQt5.QtWidgets import QLabel  # noqa: PLC0415
+    from ui.components.interactive_card import InteractiveCard  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply("light")
+    window, wizard, settle = _wizard(qapp, windows, database_handler, system_controller)
+    wizard._wizard.set_current_step(0)
+    step = wizard._step1
+    plain, checked = step.findChildren(InteractiveCard)
+    plain.set_checked(False)
+    checked.set_checked(True)
+    # A theme applied after the wizard exists reaches it, and every card re-reads its
+    # frame from the rule it then matches: the checked one from its checked rule
+    manager.apply(theme)
+    settle()
+
+    def colour(role):
+        return tokens.value(role, theme)
+
+    for card, edge, width, fill in (
+        (plain, "border.subtle", 1, "bg.surface"),
+        (checked, "accent.indicator", 2, "accent.tint"),
+    ):
+        box = card.elevation_box()
+        middle = box.center().y()
+        for x in range(width):
+            assert _pixel(window, card, box.left() + x, middle) == colour(edge), (edge, x)
+        assert _pixel(window, card, box.left() + width, middle) == colour(fill), edge
+        under = _pixel(window, card, box.center().x(), box.bottom() + 1)
+        if theme == "light":
+            assert under != colour("bg.pane"), "the card's shadow, under its box"
+        else:
+            assert under == colour("bg.pane"), "no shadow in dark"
+
+    def left_of(widget):
+        return widget.mapTo(step, QPoint(0, 0)).x()
+
+    titles = [card.findChild(QLabel, "CardTitle") for card in (plain, checked)]
+    assert titles[0].mapTo(plain, QPoint(0, 0)) == titles[1].mapTo(checked, QPoint(0, 0))
+    first = min((plain, checked), key=left_of)
+    assert first.mapTo(step, first.elevation_box().topLeft()).x() == 32
+    assert left_of(step.findChild(QLabel, "StepIcon")) == 32
+
+
+@pytest.mark.parametrize("theme", THEMES)
 def test_step_two_follows_the_theme(
     qapp, tokens, style, database_handler, system_controller, theme
 ):

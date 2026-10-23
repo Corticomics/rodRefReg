@@ -25,6 +25,9 @@ from PyQt5.QtWidgets import (
 )
 from utils.topology import is_independent
 
+from .components.card import Card
+from .style.elevation import ROOM
+
 
 class RelayTerminalWidget(QFrame):
     """
@@ -254,8 +257,12 @@ class CagesVisualizationTab(QWidget):
 
     def _init_ui(self) -> None:
         """Build the visualization layout."""
+        # The board card carries the card shadow and reserves room for it round its box
+        # (elevation.ROOM): the side margins give that room back, so the box keeps its 20px
+        # margins, and the title and the legend take the same inset in their own rows.
+        room = ROOM
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 16, 20, 16)
+        main_layout.setContentsMargins(20 - room.left, 16, 20 - room.right, 16)
         main_layout.setSpacing(12)
 
         # ═══════════════════════════════════════════════════════════════
@@ -263,7 +270,7 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
-        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setContentsMargins(room.left, 0, room.right, 0)
 
         title = QLabel("Relay Board Layout")
         title.setObjectName("CagesTitle")
@@ -285,10 +292,8 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         # BOARD VISUALIZATION — one tab per HAT
         # ═══════════════════════════════════════════════════════════════
-        # A card of the theme (QFrame#Card)
-        board_frame = QFrame()
-        board_frame.setObjectName("Card")
-        board_frame.setProperty("card", True)
+        # A card of the theme (QFrame#Card), with the card shadow
+        board_frame = Card(elevated=True)
 
         board_layout = QVBoxLayout(board_frame)
         board_layout.setContentsMargins(16, 12, 16, 16)
@@ -316,6 +321,7 @@ class CagesVisualizationTab(QWidget):
         # ═══════════════════════════════════════════════════════════════
         legend_layout = QHBoxLayout()
         legend_layout.setSpacing(24)
+        legend_layout.setContentsMargins(room.left, 0, room.right, 0)
 
         cage_legend = QHBoxLayout()
         cage_legend.setSpacing(6)

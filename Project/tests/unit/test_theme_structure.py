@@ -342,10 +342,15 @@ def test_boxes_inside_boxes_are_sections_and_strips(theme):
 
 
 @pytest.mark.parametrize("theme", THEMES)
-def test_the_wizards_separator_is_one_pixel_of_the_divider(theme):
-    """#WizardSeparator is an HLine, which Qt drew 3px tall in near-black WindowText: with no
-    border, Qt draws no line of its own, and the rule paints 1px of border.divider."""
-    decls = _decls(_stylesheet_rules(theme), "QFrame#WizardSeparator")
-    assert decls["background"] == tokens.value("border.divider", theme)
-    assert decls["border"] == "none"
-    assert decls["min-height"] == decls["max-height"] == "1px"
+def test_dividers_are_one_pixel_of_the_divider(theme):
+    """QFrame#Divider (ui.components.card.Divider, the rule under a card's header) and
+    #WizardSeparator (an HLine, which Qt drew 3px tall in near-black WindowText) paint
+    border.divider with no frame: with no border, Qt draws no line of its own. The
+    separator's rule holds it to 1px; a Divider fixes its 1px in code."""
+    rules = _stylesheet_rules(theme)
+    for selector in ("QFrame#Divider", "QFrame#WizardSeparator"):
+        decls = _decls(rules, selector)
+        assert decls["background"] == tokens.value("border.divider", theme), selector
+        assert decls["border"] == "none", selector
+    separator = _decls(rules, "QFrame#WizardSeparator")
+    assert separator["min-height"] == separator["max-height"] == "1px"

@@ -8,11 +8,12 @@ colour (bg.page and bg.inset do): they still say different things.
 
 The light palette (v2.1.0) follows Fluent 2 and WinUI: a near-white page (the base
 layer) under white tab panes (the content layer), and white cards, all outlined by one
-hairline stroke, with rules between the sections inside them, never a box in a box. The
-edges are strokes, not tints, so they stay visible on a monitor that
-clips or washes out the Pi's HDMI signal (contrast.py has the models). The dark theme keeps
-the robust-contrast palette's values (palette B), but for its unselected tabs, flat as in
-light: it separates its surfaces by tint and stroke.
+hairline stroke; Fluent's resting shadow under the primary cards (SHADOWS and ELEVATION
+below); rules between the sections inside a card, never a box in a box. The edges are
+strokes, not tints, so they stay visible on a monitor that clips or washes out the Pi's HDMI
+signal (contrast.py has the models). The dark theme keeps the robust-contrast palette's
+values (palette B), but for its unselected tabs, flat as in light: it separates its surfaces
+by tint and stroke, and paints no shadow.
 
 Four things read the roles:
 - the stylesheet template, through its ${role} placeholders;
@@ -47,8 +48,8 @@ TOKENS: dict[str, tuple[str, str]] = {
     "bg.pane": ("#FFFFFF", "#1F242B"),
     # Cards and other raised surfaces: Card, the login prompt, group boxes, tables, lists,
     # menus, the combo popup, QPushButton, an idle drop area, #MaterialCard,
-    # #RelayTerminal, #InteractiveCard, #ScheduleCard, the wizard's step circles and Back
-    # button, the help content pane (QPalette.Button)
+    # #RelayTerminal, #InteractiveCard, #ScheduleCard (under the pointer too), the wizard's
+    # step circles and Back button, the help content pane (QPalette.Button)
     "bg.surface": ("#FFFFFF", "#30373F"),
     # Editable fields, focused or not; checkbox and radio indicators; #CageNameEdit,
     # #SchedulesHubSearch (QPalette.Base)
@@ -63,7 +64,7 @@ TOKENS: dict[str, tuple[str, str]] = {
     # An unselected tab under the pointer
     "bg.rail.hover": ("#E6E9ED", "#3A424C"),
     # Under the pointer: QPushButton, table, list and help-tree items, #RelayTerminal,
-    # #InteractiveCard, #ScheduleCard, #WizardBackButton. Darker than both table row
+    # #InteractiveCard, #WizardBackButton. Darker than both table row
     # colours in each theme, so a zebra row still changes under the pointer.
     "bg.hover": ("#E6E9ED", "#282E36"),
     # QPushButton pressed
@@ -139,19 +140,19 @@ TOKENS: dict[str, tuple[str, str]] = {
     # indicators
     "border.subtle": ("#C8CED6", "#4F5865"),
     # Rules inside a card, a step lighter than the outline (Fluent's colorNeutralStroke2):
-    # table row rules, a section's rule (a group box inside a group box or a card),
-    # #WizardSeparator, the rule under #TrackerHeader, an #AnimalConfigRow, a nested tab
-    # strip and #WizardSummarySection; the rule above Help's related topics. A decorative
-    # rule, not a control's boundary, so WCAG 1.4.11 asks nothing of it: the light one has
-    # a floor of its own, 1.30:1 and 1.10 clipped, and stays a step under border.subtle
-    # (D4L and H1 in test_theme_contrast.py)
+    # table row rules, a section's rule (a group box inside a group box or a card), the rule
+    # under a card's header (QFrame#Divider), #WizardSeparator, the rule under #TrackerHeader,
+    # an #AnimalConfigRow, a nested tab strip and #WizardSummarySection; the rule above
+    # Help's related topics. A decorative rule, not a control's boundary, so WCAG 1.4.11
+    # asks nothing of it: the light one has a floor of its own, 1.30:1 and 1.10 clipped, and
+    # stays a step under border.subtle (D4L and H1 in test_theme_contrast.py)
     "border.divider": ("#D9DEE5", "#4B5461"),
     # A boundary that identifies a control: inputs, QPushButton, checkbox and radio
     # rings, scrollbar handles, an idle drop area, #SchedulesHubSearch,
     # #SchedulesHubSelect, the wizard's step circles, Back and Start Over buttons
     "border.control": ("#626E7E", "#848E9B"),
     # A control boundary under the pointer or pressed; #RelayTerminal, #InteractiveCard
-    # and #ScheduleCard under the pointer
+    # and #ScheduleCard under the pointer (a schedule card also lifts)
     "border.control.hover": ("#475569", "#A3ADB9"),
     # ---- Shadows -----------------------------------------------------------------------
     # The ink of every card shadow (SHADOWS below): black, as Fluent 2 and Material 3 draw

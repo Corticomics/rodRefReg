@@ -48,6 +48,7 @@ from .schedule_wizard import (
     build_schedule_from_config,
     estimate_min_window_seconds,
 )
+from .style import elevation
 from .style.theme import restyle, theme_colour
 
 # ============================================================================
@@ -397,7 +398,7 @@ class ScheduleEditDialog(QDialog):
 # ============================================================================
 
 
-class ScheduleCard(QFrame):
+class ScheduleCard(elevation.ElevatedMixin, QFrame):
     """
     Material Design card with mode badge and multi-select support.
     Features:
@@ -405,7 +406,18 @@ class ScheduleCard(QFrame):
     - Animal count in body
     - Created at timestamp in bottom right
     - Multi-select checkbox (iPhone-style)
+
+    It lifts under the pointer: the card shadow (ui.style.elevation) shows while the pointer
+    is on it, as a draggable object's does (RRR_SCHEDULE_CARD_SHADOW=rest shows it at rest
+    too). The card reserves the shadow's room round its box (elevation.ROOM), so its widget
+    is that much bigger than its 115px-high box.
     """
+
+    # QFrame#ScheduleCard's border-radius in app.qss.tmpl: the shadow tile is drawn for it
+    RADIUS = 10
+    # The box's height and least width, as before the shadow's room was added
+    BOX_HEIGHT = 115
+    BOX_MIN_WIDTH = 220
 
     clicked = pyqtSignal(object)
     edit_requested = pyqtSignal(object)
@@ -426,9 +438,11 @@ class ScheduleCard(QFrame):
         self.setCursor(Qt.PointingHandCursor)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+        self.init_elevation("card", self.RADIUS, at_rest=elevation.SCHEDULE_CARDS_AT_REST)
 
-        self.setFixedHeight(115)
-        self.setMinimumWidth(220)
+        room = elevation.ROOM
+        self.setFixedHeight(self.BOX_HEIGHT + room.top + room.bottom)
+        self.setMinimumWidth(self.BOX_MIN_WIDTH + room.left + room.right)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout(self)
@@ -726,14 +740,18 @@ class SchedulesHub(QWidget):
         self.login_system.login_status_changed.connect(self.refresh)
 
     def _init_ui(self) -> None:
+        # Each schedule card reserves room round its box for its shadow (elevation.ROOM): the
+        # side margins give that room back, so the cards' boxes line up with the search field
+        # as before, and the header and the search field take the same inset in their rows.
+        room = elevation.ROOM
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(12 - room.left, 12, 12 - room.right, 12)
         layout.setSpacing(10)
 
         # Header row
         header = QHBoxLayout()
         header.setSpacing(10)
-        header.setContentsMargins(0, 0, 0, 0)
+        header.setContentsMargins(room.left, 0, room.right, 0)
 
         title = QLabel("My Schedules")
         title.setObjectName("SchedulesHubTitle")
@@ -795,7 +813,10 @@ class SchedulesHub(QWidget):
         self._search_input.setPlaceholderText("Search schedules...")
         self._search_input.setMinimumHeight(32)
         self._search_input.textChanged.connect(self._on_search_text_changed)
-        layout.addWidget(self._search_input)
+        search_row = QHBoxLayout()
+        search_row.setContentsMargins(room.left, 0, room.right, 0)
+        search_row.addWidget(self._search_input)
+        layout.addLayout(search_row)
 
         # Schedules grid
         scroll = QScrollArea()
@@ -809,7 +830,9 @@ class SchedulesHub(QWidget):
         self._grid_container = QWidget()
         self._grid_layout = QGridLayout(self._grid_container)
         self._grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        self._grid_layout.setSpacing(10)
+        # The cards' rooms already part their boxes (12px across, 13px down), where 10px of
+        # spacing did before
+        self._grid_layout.setSpacing(max(0, 10 - room.left - room.right))
         self._grid_layout.setContentsMargins(0, 0, 0, 0)
 
         scroll.setWidget(self._grid_container)

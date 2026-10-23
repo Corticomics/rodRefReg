@@ -117,10 +117,24 @@ def test_the_cages_tab_follows_the_theme(
     assert _text(title) == colour("text.primary")
     assert title.font().pixelSize() == 18 and title.font().weight() >= QFont.Bold
 
+    # The board is an elevated card: its box sits inside the room its shadow takes
     card = tab.findChild(QFrame, "Card")
-    middle = card.height() // 2
-    assert _pixel(window, card, 0, middle) == colour("border.subtle")
-    assert _pixel(window, card, 8, middle) == colour("bg.surface")  # its 16px side margin
+    box = card.elevation_box()
+    middle = box.center().y()
+    assert _pixel(window, card, box.left(), middle) == colour("border.subtle")
+    assert _pixel(window, card, box.left() + 8, middle) == colour("bg.surface")  # 16px margin
+    under = _pixel(window, card, box.center().x(), box.bottom() + 1)
+    if theme == "light":
+        assert under != colour("bg.pane"), "the board's shadow, under its box"
+    else:
+        assert under == colour("bg.pane"), "no shadow in dark"
+    # The tab's side margins give that room back: the box keeps its 20px margins, and the
+    # title above it stays in line with it
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+
+    assert card.mapTo(tab, box.topLeft()).x() == 20
+    assert tab.width() - 1 - card.mapTo(tab, box.topRight()).x() == 20
+    assert title.mapTo(tab, QPoint(0, 0)).x() == 20
 
     hint = tab.findChild(QLabel, "CagesSubtitle")
     assert hint.text() == "Double-click a cage to rename it"
