@@ -193,6 +193,67 @@ def test_no_read_only_rule_on_text_edits(theme):
                 )
 
 
+# ---- Focus ----------------------------------------------------------------------------
+
+# Inputs the keyboard reaches: a rule that names one by its id outranks QLineEdit:focus and
+# its kin, so when it takes the input's border away, focus changes nothing on screen unless
+# the input's own :focus rule draws an edge again
+FOCUSABLE_INPUTS = {
+    "QLineEdit",
+    "QTextEdit",
+    "QPlainTextEdit",
+    "QTextBrowser",
+    "QSpinBox",
+    "QDoubleSpinBox",
+    "QDateTimeEdit",
+    "QDateEdit",
+    "QTimeEdit",
+    "QComboBox",
+}
+# Those that show no focus edge, and why
+NO_FOCUS_EDGE = {
+    # The Help page has no frame of its own (the content pane is its box). v2.0.0's showed
+    # no change on focus either: its :focus rule kept the resting 1px stroke. Tab moves
+    # through the page's links, and the browser selects each one it reaches.
+    "QTextBrowser#HelpContent",
+}
+
+
+def _takes_the_border_away(decls):
+    return decls.get("border", "").split()[:1] in (["none"], ["0"], ["0px"])
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_an_input_without_a_border_still_shows_the_focus(theme):
+    """An input whose own rule removes its border (the Terminal log, which its tab pane
+    frames) draws the focus stroke in its own :focus rule (WCAG 2.4.7). F+'s first rule for
+    the log covered its :focus state too: Tab reached the log, and nothing on screen
+    changed."""
+    merged = {}
+    for selectors, decls in _template_rules(theme):
+        for selector in selectors:
+            merged.setdefault(selector, {}).update(decls)
+    checked, missing = [], []
+    for selector, decls in merged.items():
+        subject = _subject(selector)
+        if _type(subject) not in FOCUSABLE_INPUTS or "#" not in subject or "::" in subject:
+            continue
+        if ":" in subject or not _takes_the_border_away(decls):
+            continue
+        checked.append(selector)
+        focus = merged.get(f"{selector}:focus", {})
+        edge = f"{focus.get('border', '')} {focus.get('border-color', '')}"
+        if "<focus.ring" not in edge and subject not in NO_FOCUS_EDGE:
+            missing.append(selector)
+    assert "QPlainTextEdit#TerminalLog" in checked
+    assert not missing, (
+        f"{missing} take the border away and draw no focus stroke when focused: give each a "
+        ":focus rule with a ${focus.ring} border, or say in NO_FOCUS_EDGE why it shows none"
+    )
+    for subject in NO_FOCUS_EDGE:
+        assert subject in checked, f"{subject} no longer takes its border away"
+
+
 # ---- What the palette cannot reach -----------------------------------------------------
 
 

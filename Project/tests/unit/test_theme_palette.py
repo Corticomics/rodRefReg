@@ -367,17 +367,24 @@ def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
     primary button draws its edge in its focus role, 2px of it, and the Schedules hub's
     search field its 1px edge: each at least 3:1 from the edge it had unfocused (F7, F8),
     but for a dark primary button's (I3). The focus rules are v2.0.0's; only their colours
-    changed."""
+    changed.
+
+    The Terminal log, which its tab pane frames, has no edge of its own: focus draws the
+    2px stroke where the pane showed through (F3p), and the padding gives the 2px back, so
+    its text does not move."""
     from PyQt5.QtCore import QPoint, Qt  # noqa: PLC0415
     from PyQt5.QtWidgets import (  # noqa: PLC0415
         QComboBox,
         QLineEdit,
+        QPlainTextEdit,
         QPushButton,
         QSpinBox,
+        QTabWidget,
         QVBoxLayout,
         QWidget,
     )
     from ui.style import contrast  # noqa: PLC0415
+    from ui.style.theme import restyle  # noqa: PLC0415
 
     manager, widgets = style
     manager.apply(theme)
@@ -391,6 +398,16 @@ def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
     primary.setProperty("variant", "primary")
     combo = QComboBox()
     combo.addItems(["One", "Two"])
+    # The Terminal, as gui.py builds it: a read-only log filling its tab's page
+    log = QPlainTextEdit("System Messages")
+    log.setObjectName("TerminalLog")
+    log.setReadOnly(True)
+    terminal = QTabWidget()
+    page = QWidget()
+    page_layout = QVBoxLayout(page)
+    page_layout.setContentsMargins(0, 0, 0, 0)
+    page_layout.addWidget(log)
+    terminal.addTab(page, "Terminal")
     controls = [
         (QLineEdit("12.5"), "focus.ring", 2),
         (QSpinBox(), "focus.ring", 2),
@@ -398,10 +415,13 @@ def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
         (QPushButton("Save"), "focus.ring", 2),
         (primary, "focus.ring.primary", 2),
         (search, "focus.ring", 1),
+        (log, "focus.ring", 2),
     ]
     for control, _role, _width in controls:
-        layout.addWidget(control)
-    _show(qapp, widgets, window, 360, 480)
+        layout.addWidget(terminal if control is log else control)
+    _show(qapp, widgets, window, 360, 600)
+    assert log.focusPolicy() & Qt.TabFocus, "Tab reaches the log"
+    text_area = log.viewport().geometry()
 
     def edge(control, width):
         image = window.grab().toImage()
@@ -418,6 +438,13 @@ def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
         after = edge(control, width)
         name = control.objectName() or type(control).__name__
         assert after == [tokens.value(role, theme)] * width, (name, before, after)
+        if control is log:
+            assert before == [tokens.value("bg.pane", theme)] * width, "the pane shows through"
+            # A focus change alone does not lay the log out again; a stylesheet applied while
+            # it has the focus does, with the focused rule's border and padding
+            restyle(log)
+            qapp.processEvents()
+            assert log.viewport().geometry() == text_area, "the text stays where it was"
         if control is primary and theme == "dark":
             continue  # I3: white on the light teal fill
         for old, new in zip(before, after):

@@ -286,7 +286,8 @@ PAIRS = [
     Pair("F3", "focus.ring", "bg.page", "nontext", 3,
          "The focus border against the page around the control", MARK_ROBUST),
     Pair("F3p", "focus.ring", "bg.pane", "nontext", 3,
-         "The focus border against a tab pane around the control", MARK_ROBUST),
+         "The focus border against a tab pane around the control; the Terminal log's focus "
+         "stroke, where its pane showed through", MARK_ROBUST),
     Pair("F4", "focus.ring", "bg.inset", "nontext", 3,
          "The focus border on an inset well", MARK_ROBUST),
     Pair("F5", "focus.ring", "bg.hover", "nontext", 3,

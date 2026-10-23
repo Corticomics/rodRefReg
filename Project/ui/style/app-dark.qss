@@ -146,10 +146,18 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
 /* The Terminal: a read-only log that fills its tab pane, so the pane is its frame. No control
    boundary of its own (with it, the pane's stroke and the log's made a double edge), and no
    fill: it shows the pane. */
-QPlainTextEdit#TerminalLog, QPlainTextEdit#TerminalLog:focus {
+QPlainTextEdit#TerminalLog {
     background: transparent;
     border: none;
     padding: 10px 12px;
+}
+/* Tab reaches the log (it scrolls with the keys), so focus draws the focus stroke inside the
+   pane's edge, round the pane's inner corners; the padding gives the 2px back, so the text
+   does not move */
+QPlainTextEdit#TerminalLog:focus {
+    border: 2px solid #FFFFFF;
+    border-radius: 7px;
+    padding: 8px 10px;
 }
 
 /* ComboBox dropdown */
