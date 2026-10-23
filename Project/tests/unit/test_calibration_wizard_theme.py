@@ -116,8 +116,10 @@ def test_the_first_steps_warning_line_is_in_the_themes_danger_colour(qapp, token
 def test_the_runs_progress_bar_shows_its_length_on_the_page(qapp, tokens, style, theme):
     """The bar's outline shows how long it is on the page: 2px of the bar's 8px, which it
     had before the outline. In dark the groove (bg.track) is the page's colour, so the
-    outline alone shows it; in light the groove is also a step darker than the page."""
+    outline alone shows it; in light the groove is also a step darker than the page, 1.25:1
+    or more (I12 reports it: 1.30, 1.16 clipped, 1.27 washed out)."""
     from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from ui.style import contrast  # noqa: PLC0415
 
     manager, windows = style
     manager.apply(theme)
@@ -143,7 +145,9 @@ def test_the_runs_progress_bar_shows_its_length_on_the_page(qapp, tokens, style,
     assert pixel(bar, bar.width() * 3 // 4, middle) == colour("bg.track")  # still to go
     assert pixel(bar, bar.width() // 5, middle) == colour("accent.indicator")  # done
     if theme == "light":
-        assert colour("bg.track") != colour("bg.page")
+        groove, page = colour("bg.track"), colour("bg.page")
+        assert contrast.relative_luminance(groove) < contrast.relative_luminance(page)
+        assert contrast.contrast_ratio(groove, page) >= 1.25
     else:
         assert colour("bg.track") == colour("bg.page"), "the outline is what shows the groove"
 
