@@ -245,6 +245,29 @@ def test_a_revert_to_2_0_0_and_the_next_update_do_not_switch_again(
     assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
 
 
+def test_a_revert_to_2_0_0_of_a_device_that_never_stored_a_theme(database_handler, capsys):
+    """2.0.0 stores the theme row only when its Settings tab auto-saves, so a device whose
+    operator never changed a setting there (a freshly installed Pi) has none. 2.1.0's first
+    start then has nothing to switch: it shows dark, its default, and stores only the
+    marker. Reverted, 2.0.0 shows its own default, light (main.py's fallback), not dark,
+    and its first auto-save stores that 'light' from its drop-down. The next 2.1.0 keeps it,
+    though nobody chose it: the switch is never made again."""
+    first = _controller(database_handler)  # 2.1.0's first start
+    assert first.settings["theme"] == "dark"
+    assert "theme" not in _stored(database_handler)
+    assert _stored(database_handler)[MARKER] is True
+
+    old = _Release200(database_handler)  # reverted to 2.0.0
+    assert old.settings.get("theme", "light") == "light", "2.0.0's own default"
+    old.settings["theme"] = old.settings.get("theme", "light")  # its drop-down's text
+    old.save_settings(old.settings)  # its Settings auto-save, after any other change
+    assert _stored(database_handler)["theme"] == "light"
+
+    new = _controller(database_handler)  # updated to 2.1.0 again
+    assert new.settings["theme"] == "light"
+    assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
+
+
 def _refuse(database_handler, key):
     """The database refuses every write of the row `key`, as a full or locked database
     refuses a write: a trigger aborts the INSERT, so DatabaseHandler sees an sqlite3 error.

@@ -33,9 +33,12 @@ class SystemController(QObject):
     # its first start on 2.1.0, a stored theme that is not dark is stored as dark, and
     # DARK_DEFAULT_MARKER records that the switch was made, so it is never made again and
     # the operator's later choice (Settings > General > Appearance) stays. A fresh install
-    # has nothing to switch and records the marker too. Reverting to 2.0.0 is safe: it
-    # loads 'dark' into its own dark theme, and it neither writes nor deletes the marker,
-    # so the next update to 2.1.0 does not switch again.
+    # has nothing to switch and records the marker too. After a revert, 2.0.0 shows the
+    # theme row it finds: 'dark' where 2.1.0 switched one (2.0.0's own dark theme, whose
+    # tables show every other row near-white), its own light default where there was none.
+    # It neither writes nor deletes the marker, so the next update to 2.1.0 does not switch
+    # again: it keeps the theme 2.0.0 left, light too if 2.0.0's auto-save stored its
+    # default.
     DEFAULT_THEME = 'dark'
     DARK_DEFAULT_MARKER = 'ui_dark_default_applied'
 

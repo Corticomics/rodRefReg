@@ -769,10 +769,15 @@ General > Appearance stays. A fresh install stores the marker too, with
 nothing to switch. The marker and the switched theme are written in one
 transaction (`DatabaseHandler.update_system_settings`): if the database
 refuses either, neither is stored, the device keeps its theme for that
-start, and the next start makes the switch. A revert is
-safe: 2.0.0 loads `dark` into its own dark theme and neither writes nor
-deletes the marker, so the next update does not switch a second time.
-`test_dark_default.py` covers it.
+start, and the next start makes the switch. After a revert, 2.0.0 shows
+the theme row it finds: `dark` where 2.1.0 switched one, in 2.0.0's own dark
+theme, whose tables show every other row near-white (Fusion's `#F7F7F7`
+under light text; choose *light* in 2.0.0's Settings > General > Theme to
+read them), and its own light default on a device that never stored a
+theme (2.0.0 stores the row only when its Settings tab auto-saves). 2.0.0
+neither writes nor deletes the marker, so the next update does not switch
+a second time: it keeps the theme 2.0.0 left, light too if 2.0.0's
+auto-save stored its default. `test_dark_default.py` covers it.
 
 A first-launch migration on v1.5.0+ copies any existing legacy
 `settings.json` into the DB and writes a `_migrated_from_json_v1` sentinel
