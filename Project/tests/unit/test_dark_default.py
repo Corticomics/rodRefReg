@@ -1,20 +1,27 @@
-"""Dark is the default theme, and every device switches to it once (v2.1.0).
+"""Dark is the default theme, every device switches to it once, and a revert stays
+readable (v2.1.0).
 
 The owner's decisions of 2026-10-22: "make the darkmode the default for the app", and for
 the devices already in the lab, "switch everyone once": at its first start of 2.1.0 a
-device switches to dark one time, and after that the operator's choice sticks. Pinned
-here against the real SystemController and database, and main.py's own start-up,
-offscreen:
+device switches to dark one time, and after that the operator's choice sticks. And of
+2026-10-23, "keep reverts readable": 2.1.0 keeps its theme under a key of its own,
+ui_theme (SystemController.THEME_KEY), and leaves the 'theme' row that 2.0.0 reads exactly
+as 2.0.0 saved it, so a device reverted to 2.0.0 opens in 2.0.0's light theme, not in its
+dark one, whose tables show every other row near-white. Pinned here against the real
+SystemController and database, and main.py's own start-up, offscreen:
 
 - dark is the default wherever a default lives: the settings (SystemController), the
   style layer (tokens.DEFAULT_THEME, StyleManager, theme_or_default) and Help's HTML;
-- a fresh install starts dark and records the switch (ui_dark_default_applied) without a
-  journal line; a device whose stored theme is light, as 2.0.0 left it, is switched to
-  dark at its first 2.1.0 start, once, with one [SETTINGS] line; from then on the
-  operator's choice stays, across restarts and across a revert to 2.0.0 and back;
-- the marker and the theme are stored in one transaction: when the database refuses
-  either, nothing is stored, the theme stays for that start, and the next start makes the
-  switch, so it is never half made;
+- a device without ui_theme (a fresh install, or 2.0.0's lab device at its first start of
+  2.1.0) starts dark and stores it there: that is the one-time switch, with one
+  [SETTINGS] line when 2.0.0's theme was light. Once ui_theme is stored, the operator's
+  choice stays, across restarts, a revert to 2.0.0 and the update back;
+- 2.1.0 never writes, changes or deletes the 'theme' row, and never reads it as the
+  theme: the row is compared whole, its updated_at included, so even a rewrite of the
+  same value fails. A revert therefore opens 2.0.0 in the theme it saved. A marker row a
+  pre-release build of 2.1.0 stored changes nothing;
+- when the database refuses ui_theme, the device starts dark all the same, and the next
+  start stores it;
 - main.py reads the saved theme before any window shows (SystemController.theme_at_start
   over DatabaseHandler.peek_system_settings), so the splash and the main window show in
   it from their first frame: no light frame on a dark device, no dark one on a device
@@ -28,6 +35,7 @@ import sqlite3
 import sys
 import time
 import uuid
+from contextlib import closing
 
 import pytest
 
@@ -37,11 +45,47 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from pathlib import Path  # noqa: E402
 
-MARKER = "ui_dark_default_applied"
+THEME_KEY = "ui_theme"  # 2.1.0's theme (test_the_theme_is_a_key_of_2_1_0s_own pins it)
+LEGACY = "theme"  # the row v1.5.0 to 2.0.0 keep their theme in
+MARKER = "ui_dark_default_applied"  # the row pre-release builds of 2.1.0 stored
 STYLE_DIR = Path(__file__).resolve().parents[2] / "ui" / "style"
 SWITCHED = (
-    "[SETTINGS] Switched the theme to 'dark', the default from 2.1.0, once (it was 'light'); "
-    "Settings > General > Appearance switches it back, and that choice is kept"
+    "[SETTINGS] Switched the theme to 'dark', the default from 2.1.0, once (it was 'light', "
+    "which is kept for a revert to 2.0.0); Settings > General > Appearance switches it "
+    "back, and that choice is kept"
+)
+# When an older build saved a row: a fixed time in the past, so that a rewrite of the
+# row, even with the value it had, changes it.
+SAVED_EARLIER = "2026-10-19 09:00:00"
+
+# The keys 2.0.0's save writes: its SystemController._get_persisted_keys (3b2a4202).
+RELEASE_200_PERSISTED_KEYS = frozenset(
+    {
+        "cage_relays",
+        "cycle_interval",
+        "debug_mode",
+        "flow_sampling_hz",
+        "flow_sensor_type",
+        "global_master_relay_id",
+        "hardware_mode",
+        "log_level",
+        "max_consecutive_sensor_errors",
+        "max_pulse_delivery_time_s",
+        "max_pulses_per_delivery",
+        "min_trigger_interval_ms",
+        "num_hats",
+        "predictive_close_ms",
+        "pulse_settling_ms",
+        "pulse_width_ms",
+        "residual_check_ms",
+        "residual_flow_threshold_ml_min",
+        "round_doses_up",
+        "stagger_interval",
+        "theme",
+        "uart_port",
+        "use_pulse_delivery",
+        "valve_topology",
+    }
 )
 
 # The QApplication this module uses, kept for the rest of the session. When a
@@ -69,18 +113,109 @@ def _stored(database_handler):
     return database_handler.get_system_settings()
 
 
-def _theme_saved(database_handler, theme, marker=None):
-    """The rows a release wrote: its theme ('str', as _write_setting_to_db writes it) and,
-    from 2.1.0 on, the marker."""
-    database_handler.update_system_setting("theme", theme, "str")
-    if marker is not None:
-        database_handler.update_system_setting(MARKER, marker, "bool")
+def _row(database_handler, key):
+    """The whole system_settings row of `key`, updated_at included, or None."""
+    with closing(sqlite3.connect(database_handler.db_path)) as conn:
+        return conn.execute(
+            "SELECT setting_key, setting_value, setting_type, updated_at "
+            "FROM system_settings WHERE setting_key = ?",
+            (key,),
+        ).fetchone()
+
+
+def _saved_earlier(database_handler, key, value, type_name="str"):
+    """A row an older build saved (at SAVED_EARLIER), as its _write_setting_to_db wrote it:
+    2.0.0's theme is the drop-down's text, a 'str'. Returns the row."""
+    with closing(sqlite3.connect(database_handler.db_path)) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO system_settings "
+            "(setting_key, setting_value, setting_type, updated_at) VALUES (?, ?, ?, ?)",
+            (key, str(value), type_name, SAVED_EARLIER),
+        )
+        conn.commit()
+    return _row(database_handler, key)
 
 
 def _controller(database_handler):
     from controllers.system_controller import SystemController  # noqa: PLC0415
 
     return SystemController(database_handler)
+
+
+def _press(controller, theme):
+    """The theme button: SettingsTab._theme_changed puts the theme in the settings, and its
+    auto-save saves the whole dict (test_settings_theme_button.py drives the button)."""
+    controller.settings[THEME_KEY] = theme
+    controller.save_settings(controller.settings)
+
+
+def _theme_at_start(database_handler):
+    """What main.py applies before any window shows."""
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+    from models.database_handler import DatabaseHandler  # noqa: PLC0415
+
+    return SystemController.theme_at_start(
+        DatabaseHandler.peek_system_settings(database_handler.db_path)
+    )
+
+
+class _Release200:
+    """2.0.0's settings rules, as its SystemController has them (3b2a4202), for a revert.
+
+    Its load migrates a legacy settings.json and the Slack secrets, then reads every row
+    over its defaults, which have no theme. It has no settle step, so it switches,
+    removes and forces nothing. Its save writes the keys it persists
+    (RELEASE_200_PERSISTED_KEYS, with 'theme' and pulse_width_ms, without ui_theme) and
+    deletes nothing. Its main.py applies settings.get('theme', 'light'), and its Settings
+    tab's auto-save saves the whole dict with the Theme drop-down's text, which shows that
+    theme. Built lazily, as a subclass of this release's controller with load_settings and
+    save_settings as 2.0.0 has them, and its persisted keys and defaults.
+    """
+
+    def __new__(cls, database_handler):
+        from controllers.system_controller import SystemController  # noqa: PLC0415
+
+        class Release200(SystemController):
+            def load_settings(self):
+                try:
+                    self._migrate_legacy_json_if_needed()
+                    self._ensure_secrets_migrated()
+                    settings = self._create_default_settings()
+                    settings.update(self._load_database_settings())
+                    settings.update(self._load_secrets())
+                    return settings
+                except Exception as e:
+                    self.system_status.emit(f"Error loading settings: {str(e)}")
+                    return self._create_default_settings()
+
+            def save_settings(self, settings_dict):
+                try:
+                    self._save_secrets_if_present(settings_dict)
+                    self._save_database_settings(settings_dict)
+                    self.settings.update(settings_dict)
+                    self.settings_updated.emit(self.settings)
+                except Exception as e:
+                    self.system_status.emit(f"Error saving settings: {str(e)}")
+
+            def _get_persisted_keys(self):
+                return set(RELEASE_200_PERSISTED_KEYS)
+
+            def _create_default_settings(self):
+                defaults = super()._create_default_settings()
+                del defaults[SystemController.THEME_KEY]
+                return defaults
+
+            def theme_shown(self):
+                """The theme 2.0.0's main.py applies at its start."""
+                return self.settings.get("theme", "light")
+
+            def auto_save(self, theme=None):
+                """2.0.0's Settings tab saves the whole dict, with the drop-down's text: the
+                theme it shows, or `theme` when the operator picks one."""
+                self.settings["theme"] = theme or self.theme_shown()
+                self.save_settings(self.settings)
+
+        return Release200(database_handler)
 
 
 # --- Dark is the default ------------------------------------------------------------------
@@ -93,7 +228,9 @@ def test_dark_is_the_default_in_every_layer(qapp, tokens, database_handler):
 
     assert tokens.DEFAULT_THEME == theme.DEFAULT_THEME == "dark"
     assert SystemController.DEFAULT_THEME == tokens.DEFAULT_THEME, "one default, two layers"
-    assert SystemController(database_handler).settings["theme"] == "dark"
+    settings = SystemController(database_handler).settings
+    assert settings[THEME_KEY] == "dark"
+    assert LEGACY not in settings, "no default for 2.0.0's key"
 
     manager = theme.StyleManager(qapp)
     try:
@@ -113,186 +250,217 @@ def test_dark_is_the_default_in_every_layer(qapp, tokens, database_handler):
     assert tokens.value("text.primary", "dark").lower() in dark.lower()
 
 
+def test_the_theme_is_a_key_of_2_1_0s_own(system_controller):
+    from controllers.system_controller import SystemController  # noqa: PLC0415
+
+    assert SystemController.THEME_KEY == THEME_KEY
+    assert SystemController.LEGACY_THEME_KEY == LEGACY
+    assert THEME_KEY not in RELEASE_200_PERSISTED_KEYS, "2.0.0 never writes it"
+    persisted = system_controller._get_persisted_keys()
+    assert THEME_KEY in persisted
+    assert system_controller._get_setting_type(THEME_KEY) is str
+    assert LEGACY not in persisted, "2.1.0 never writes 2.0.0's row"
+    assert MARKER not in persisted, "nor a pre-release build's"
+
+
 # --- The one-time switch ----------------------------------------------------------------
 
 
-def test_a_fresh_install_starts_dark_and_records_the_switch(database_handler, capsys):
+def test_a_fresh_install_starts_dark_and_stores_its_theme(database_handler, capsys):
     controller = _controller(database_handler)
 
-    assert controller.settings["theme"] == "dark"
-    assert _stored(database_handler)[MARKER] is True
-    assert "theme" not in _stored(database_handler), "nothing to switch: the default is dark"
+    assert controller.settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
+    assert _row(database_handler, LEGACY) is None, "and no row for 2.0.0"
     assert "[SETTINGS]" not in capsys.readouterr().out
 
-    _controller(database_handler)
+    row = _row(database_handler, THEME_KEY)
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    assert _row(database_handler, THEME_KEY) == row, "stored once"
     assert "[SETTINGS]" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("source", ["database", "settings.json"])
-def test_a_light_theme_an_older_release_saved_is_switched_to_dark_once(
-    database_handler, write_legacy_settings, capsys, source
+def test_2_0_0s_light_theme_is_switched_to_dark_once_and_left_as_2_0_0_saved_it(
+    database_handler, capsys
 ):
-    """2.0.0 stored the theme an operator picked ('light' in the lab). A device still on a
-    pre-v1.5.0 settings.json migrates it at the same first start, and is switched too."""
-    if source == "database":
-        _theme_saved(database_handler, "light")
-    else:
-        write_legacy_settings({"num_hats": 1, "theme": "light"})
+    """2.0.0 stored the theme an operator picked ('light' in the lab). 2.1.0's first start
+    shows dark and stores it under ui_theme, with one journal line; 2.0.0's row stays as it
+    was, for a revert."""
+    saved = _saved_earlier(database_handler, LEGACY, "light")
 
     controller = _controller(database_handler)
 
-    assert controller.settings["theme"] == "dark"
-    assert _stored(database_handler)["theme"] == "dark"
-    assert _stored(database_handler)[MARKER] is True
+    assert controller.settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
+    assert _row(database_handler, LEGACY) == saved
     journal = capsys.readouterr().out
     assert journal.count("[SETTINGS]") == 1
     assert SWITCHED in journal
 
     again = _controller(database_handler)  # every later start
-    assert again.settings["theme"] == "dark"
+    assert again.settings[THEME_KEY] == "dark"
+    assert _row(database_handler, LEGACY) == saved
     assert "[SETTINGS]" not in capsys.readouterr().out
 
 
-def test_a_stored_dark_theme_only_records_the_switch(database_handler, capsys):
-    _theme_saved(database_handler, "dark")
+def test_a_dark_theme_2_0_0_saved_is_switched_without_a_line(database_handler, capsys):
+    saved = _saved_earlier(database_handler, LEGACY, "dark")
 
-    assert _controller(database_handler).settings["theme"] == "dark"
-    assert _stored(database_handler)[MARKER] is True
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
+    assert _row(database_handler, LEGACY) == saved
     assert "[SETTINGS]" not in capsys.readouterr().out
 
 
-def test_light_chosen_after_the_switch_is_kept(database_handler, capsys):
-    """The theme button's auto-save writes the theme; every later start keeps it, and so
-    does ensure_solenoid_defaults, which main.setup() runs at every start and which saves
-    the whole settings dict."""
-    _theme_saved(database_handler, "light")
+def test_a_legacy_settings_json_theme_is_not_copied(
+    database_handler, write_legacy_settings, capsys
+):
+    """A device still on a pre-v1.5.0 settings.json has its settings copied into the
+    database at its first start. 'theme' is not 2.1.0's key: it is not copied, and the
+    device starts dark, the default, with nothing to say."""
+    write_legacy_settings({"num_hats": 2, "theme": "light"})
+
+    controller = _controller(database_handler)
+
+    assert controller.settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)["num_hats"] == 2, "the migration ran"
+    assert _row(database_handler, LEGACY) is None
+    assert "[SETTINGS]" not in capsys.readouterr().out
+
+
+def test_light_chosen_with_the_button_is_kept_under_ui_theme(database_handler, capsys):
+    """The button's choice is saved under ui_theme. Every later start keeps it, and so does
+    ensure_solenoid_defaults, which main.setup() runs at every start and which saves the
+    whole settings dict. 2.0.0's row stays as it was throughout."""
+    saved = _saved_earlier(database_handler, LEGACY, "light")
     controller = _controller(database_handler)  # the first start of 2.1.0
     assert SWITCHED in capsys.readouterr().out
 
-    controller.settings["theme"] = "light"  # as SettingsTab._theme_changed does
-    controller.save_settings(controller.settings)
+    _press(controller, "light")
 
     for _ in range(2):
+        assert _theme_at_start(database_handler) == "light"
         later = _controller(database_handler)
         later.ensure_solenoid_defaults()
-        assert later.settings["theme"] == "light"
-        assert _stored(database_handler)["theme"] == "light"
+        assert later.settings[THEME_KEY] == "light"
+        assert _stored(database_handler)[THEME_KEY] == "light"
+        assert _row(database_handler, LEGACY) == saved
     assert "[SETTINGS]" not in capsys.readouterr().out
 
 
-def test_a_marker_stored_as_false_is_no_marker(database_handler, capsys):
-    _theme_saved(database_handler, "light", marker=False)
+@pytest.mark.parametrize("saved", ["light", "dark", None], ids=["light", "dark", "no-row"])
+def test_no_save_writes_the_theme_row(database_handler, saved):
+    """Not the load, not a save of the whole dict (the auto-save, Change Relay Hats,
+    ensure_solenoid_defaults), not a save that names 'theme' itself: 2.0.0's row stays as
+    it was, and where there was none, none is made."""
+    row = _saved_earlier(database_handler, LEGACY, saved) if saved else None
+    controller = _controller(database_handler)
+    if saved:
+        assert controller.settings[LEGACY] == saved, "loaded like any row, and read by nothing"
 
-    assert _controller(database_handler).settings["theme"] == "dark"
-    assert _stored(database_handler)[MARKER] is True
-    assert SWITCHED in capsys.readouterr().out
+    controller.save_settings(controller.settings)
+    controller.save_settings({LEGACY: "dark", THEME_KEY: "light"})
+    controller.settings[LEGACY] = "light"
+    controller.save_settings(controller.settings)
+    controller.ensure_solenoid_defaults()
 
-
-class _Release200:
-    """2.0.0's settings rules, as its SystemController has them (3b2a4202), for a revert.
-
-    Its load reads every row, the marker included, with no settle step: it switches,
-    removes and forces nothing. Its save writes only its own keys (pulse_width_ms is one,
-    the marker is not) and deletes nothing. Its default settings have no theme: main.py
-    falls back to 'light'. Built lazily, as a subclass of this release's controller with
-    those three rules put back.
-    """
-
-    def __new__(cls, database_handler):
-        from controllers.system_controller import SystemController  # noqa: PLC0415
-
-        class Release200(SystemController):
-            def _settle_stored_settings(self):
-                pass
-
-            def _normalised(self, settings_dict, only_present=False):
-                return dict(settings_dict)
-
-            def _get_persisted_keys(self):
-                keys = set(super()._get_persisted_keys())
-                keys.discard(self.DARK_DEFAULT_MARKER)
-                return keys | {"pulse_width_ms"}
-
-            def _create_default_settings(self):
-                defaults = super()._create_default_settings()
-                defaults.pop("theme")
-                return defaults
-
-        return Release200(database_handler)
+    assert _row(database_handler, LEGACY) == row
+    assert _stored(database_handler)[THEME_KEY] == "light"
 
 
-@pytest.mark.parametrize("operator_picks_light_on_2_0_0", [False, True])
-def test_a_revert_to_2_0_0_and_the_next_update_do_not_switch_again(
-    database_handler, capsys, operator_picks_light_on_2_0_0
-):
-    _theme_saved(database_handler, "light")  # 2.0.0's lab device
-    _controller(database_handler)  # 2.1.0's first start: switched
-    assert SWITCHED in capsys.readouterr().out
-
-    old = _Release200(database_handler)  # reverted to 2.0.0
-    assert old.settings.get("theme", "light") == "dark", "2.0.0 shows its own dark theme"
-    assert old.settings[MARKER] is True, "loaded like any row, and unused"
-    old.save_settings(old.settings)  # its Settings auto-save: every key it manages
-    assert _stored(database_handler)[MARKER] is True, "2.0.0 neither writes nor deletes it"
-    if operator_picks_light_on_2_0_0:
-        old.settings["theme"] = "light"  # its Theme drop-down
-        old.save_settings(old.settings)
-
-    new = _controller(database_handler)  # updated to 2.1.0 again
-    expected = "light" if operator_picks_light_on_2_0_0 else "dark"
-    assert new.settings["theme"] == expected
-    assert _stored(database_handler)["theme"] == expected
-    assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
+# --- A revert to 2.0.0, and the update back ------------------------------------------------
 
 
-def test_a_revert_to_2_0_0_of_a_device_that_never_stored_a_theme(database_handler, capsys):
-    """2.0.0 stores the theme row only when its Settings tab auto-saves, so a device whose
-    operator never changed a setting there (a freshly installed Pi) has none. 2.1.0's first
-    start then has nothing to switch: it shows dark, its default, and stores only the
-    marker. Reverted, 2.0.0 shows its own default, light (main.py's fallback), not dark,
-    and its first auto-save stores that 'light' from its drop-down. The next 2.1.0 keeps it,
-    though nobody chose it: the switch is never made again."""
+@pytest.mark.parametrize("chosen", [None, "light", "dark"], ids=["none", "light", "dark"])
+@pytest.mark.parametrize(
+    ("saved", "shown"),
+    [("light", "light"), (None, "light"), ("dark", "dark")],
+    ids=["light-saved", "none-saved", "dark-saved"],
+)
+def test_a_revert_opens_2_0_0_in_the_theme_it_saved(database_handler, saved, shown, chosen):
+    """The owner's "keep reverts readable". A lab device saved light in 2.0.0. 2.1.0 starts
+    it dark, and the operator may choose either theme with the button, but the revert opens
+    2.0.0 in light, its readable theme, not in its dark one. A device that never saved a
+    theme opens in 2.0.0's own default, light, and one that saved dark in 2.0.0's dark
+    theme, as before the update."""
+    row = _saved_earlier(database_handler, LEGACY, saved) if saved else None
     first = _controller(database_handler)  # 2.1.0's first start
-    assert first.settings["theme"] == "dark"
-    assert "theme" not in _stored(database_handler)
-    assert _stored(database_handler)[MARKER] is True
+    assert first.settings[THEME_KEY] == "dark"
+    if chosen:
+        _press(first, chosen)
+    first.ensure_solenoid_defaults()  # main.setup() runs it at every start
+    assert _row(database_handler, LEGACY) == row, "as 2.0.0 saved it"
 
     old = _Release200(database_handler)  # reverted to 2.0.0
-    assert old.settings.get("theme", "light") == "light", "2.0.0's own default"
-    old.settings["theme"] = old.settings.get("theme", "light")  # its drop-down's text
-    old.save_settings(old.settings)  # its Settings auto-save, after any other change
-    assert _stored(database_handler)["theme"] == "light"
 
-    new = _controller(database_handler)  # updated to 2.1.0 again
-    assert new.settings["theme"] == "light"
-    assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
+    assert old.theme_shown() == shown
+    assert old.settings[THEME_KEY] == (chosen or "dark"), "loaded like any row, and unused"
 
 
-def test_a_revert_after_which_2_0_0_saves_nothing_is_dark_again_at_the_next_update(
-    database_handler, capsys
+@pytest.mark.parametrize("on_2_0_0", ["saves-nothing", "auto-saves", "picks-dark"])
+@pytest.mark.parametrize("chosen", ["dark", "light"])
+def test_the_update_after_a_revert_keeps_the_theme_chosen_in_2_1_0(
+    database_handler, capsys, chosen, on_2_0_0
 ):
-    """The same device when 2.0.0 saves no setting after the revert. Choosing *light* in
-    2.0.0's Theme drop-down, which already reads light, emits no currentTextChanged, so
-    its auto-save does not run. With still no theme row, the next 2.1.0 starts dark, its
-    default, and has nothing to switch. So a device that never saved a theme goes back to
-    light, and is dark again after the next update."""
-    _controller(database_handler)  # 2.1.0's first start: the marker only
-    old = _Release200(database_handler)  # reverted to 2.0.0, which saves nothing
-    assert old.settings.get("theme", "light") == "light", "2.0.0's own default"
+    """2.0.0 does not know ui_theme: its load reads the row into memory with every other,
+    and its save writes only its own keys. Whatever 2.0.0 does with its own theme after
+    the revert, the next 2.1.0 starts in the theme chosen in 2.1.0 (dark when the button
+    was never pressed), with no second switch, and 2.0.0's choice waits in its own row
+    for the next revert."""
+    _saved_earlier(database_handler, LEGACY, "light")  # the lab device
+    first = _controller(database_handler)  # 2.1.0's first start: switched
+    if chosen == "light":
+        _press(first, "light")
+    choice = _row(database_handler, THEME_KEY)
 
-    new = _controller(database_handler)  # updated to 2.1.0 again
-    assert new.settings["theme"] == "dark"
-    assert "theme" not in _stored(database_handler), "nothing stored, nothing switched"
-    assert _stored(database_handler)[MARKER] is True
-    assert "[SETTINGS]" not in capsys.readouterr().out
+    old = _Release200(database_handler)  # reverted to 2.0.0
+    assert old.theme_shown() == "light"
+    if on_2_0_0 == "auto-saves":
+        old.auto_save()  # another setting changed: the drop-down's text is saved with it
+    elif on_2_0_0 == "picks-dark":
+        old.auto_save("dark")
+    capsys.readouterr()
+
+    assert _theme_at_start(database_handler) == chosen  # updated to 2.1.0 again
+    new = _controller(database_handler)
+    assert new.settings[THEME_KEY] == chosen
+    assert _row(database_handler, THEME_KEY) == choice, "2.0.0 left it as it was"
+    assert "[SETTINGS]" not in capsys.readouterr().out, "no second switch"
+    kept = "dark" if on_2_0_0 == "picks-dark" else "light"
+    assert _Release200(database_handler).theme_shown() == kept, "the next revert"
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("marker", [True, False])
+def test_a_marker_row_from_a_pre_release_build_changes_nothing(
+    database_handler, capsys, marker, theme
+):
+    """Builds of 2.1.0 before 2026-10-23 recorded the one-time switch in a row of their own,
+    ui_dark_default_applied, and kept their theme in 'theme' (the owner's test Pis ran
+    them). 2.1.0 reads no such row and writes none: the device starts as one without
+    ui_theme does, and both rows stay as they were."""
+    theme_row = _saved_earlier(database_handler, LEGACY, theme)
+    marker_row = _saved_earlier(database_handler, MARKER, marker, "bool")
+
+    assert _theme_at_start(database_handler) == "dark"
+    controller = _controller(database_handler)
+
+    assert controller.settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
+    assert _row(database_handler, MARKER) == marker_row
+    assert _row(database_handler, LEGACY) == theme_row
+    journal = capsys.readouterr().out
+    assert (SWITCHED in journal) is (theme == "light")
+    assert MARKER not in journal
+
+
+# --- When the database refuses the row ----------------------------------------------------
 
 
 def _refuse(database_handler, key):
     """The database refuses every write of the row `key`, as a full or locked database
     refuses a write: a trigger aborts the INSERT, so DatabaseHandler sees an sqlite3 error.
     Returns a function that makes it accept the row again."""
-    from contextlib import closing  # noqa: PLC0415
-
     name = f"refuse_{key}"
     with closing(sqlite3.connect(database_handler.db_path)) as conn:
         conn.execute(
@@ -309,74 +477,49 @@ def _refuse(database_handler, key):
     return works_again
 
 
-def test_settings_stored_together_are_stored_whole_or_not_at_all(database_handler):
-    """DatabaseHandler.update_system_settings: one transaction. A refused row leaves none
-    of the others behind."""
-    rows = [(MARKER, True, "bool"), ("theme", "dark", "str")]
-    works_again = _refuse(database_handler, "theme")
-
-    assert database_handler.update_system_settings(rows) is False
-    assert MARKER not in _stored(database_handler) and "theme" not in _stored(database_handler)
-
-    works_again()
-    assert database_handler.update_system_settings(rows) is True
-    assert _stored(database_handler)[MARKER] is True
-    assert _stored(database_handler)["theme"] == "dark"
+REFUSED = (
+    "[SETTINGS] Could not store ui_theme='dark'; RRR starts in it all the same, and the "
+    "next start tries again"
+)
 
 
-@pytest.mark.parametrize("refused", [MARKER, "theme"])
-def test_a_refused_switch_stores_nothing_and_the_next_start_makes_it(
-    database_handler, capsys, refused
-):
-    """The marker and the theme go in one transaction, so whichever row the database
-    refuses, neither is stored: the device keeps its theme for that start, and the next
-    start switches it, once. The switch is never half made (a stored marker over a theme
-    that was never switched would have kept the device light for good)."""
-    _theme_saved(database_handler, "light")
-    works_again = _refuse(database_handler, refused)
+def test_a_refused_theme_still_starts_dark_and_the_next_start_stores_it(database_handler, capsys):
+    """A device without ui_theme starts in the default, so a refused row changes nothing on
+    screen: the device is dark at that start too. The next start stores the row and says
+    the switch, once."""
+    saved = _saved_earlier(database_handler, LEGACY, "light")
+    works_again = _refuse(database_handler, THEME_KEY)
 
     controller = _controller(database_handler)
 
-    assert controller.settings["theme"] == "light", "as the database still says"
-    assert _stored(database_handler)["theme"] == "light"
-    assert MARKER not in _stored(database_handler)
+    assert controller.settings[THEME_KEY] == "dark"
+    assert _theme_at_start(database_handler) == "dark"
+    assert THEME_KEY not in _stored(database_handler)
+    assert _row(database_handler, LEGACY) == saved
     journal = capsys.readouterr().out
     assert journal.count("[SETTINGS]") == 1
-    assert (
-        "[SETTINGS] Could not store ui_dark_default_applied and the theme, so the theme was "
-        "not switched to 'dark', the default from 2.1.0: it stays 'light', and the next start "
-        "tries again"
-    ) in journal
-    assert "Switched the theme" not in journal
+    assert REFUSED in journal
 
     works_again()
-    assert _controller(database_handler).settings["theme"] == "dark"
-    assert _stored(database_handler)["theme"] == "dark"
-    assert _stored(database_handler)[MARKER] is True
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
+    assert _row(database_handler, LEGACY) == saved
     assert SWITCHED in capsys.readouterr().out
-    assert _controller(database_handler).settings["theme"] == "dark"
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
     assert "[SETTINGS]" not in capsys.readouterr().out, "and only once"
 
 
-def test_a_fresh_install_that_cannot_store_the_marker_records_it_later(database_handler, capsys):
-    works_again = _refuse(database_handler, MARKER)
+def test_a_fresh_install_that_cannot_store_its_theme_stores_it_later(database_handler, capsys):
+    works_again = _refuse(database_handler, THEME_KEY)
 
-    assert _controller(database_handler).settings["theme"] == "dark", "the default"
-    assert MARKER not in _stored(database_handler)
-    assert (
-        "[SETTINGS] Could not store ui_dark_default_applied; the next start tries again"
-    ) in capsys.readouterr().out
+    assert _controller(database_handler).settings[THEME_KEY] == "dark", "the default"
+    assert THEME_KEY not in _stored(database_handler)
+    assert REFUSED in capsys.readouterr().out
 
     works_again()
-    assert _controller(database_handler).settings["theme"] == "dark"
-    assert _stored(database_handler)[MARKER] is True
+    assert _controller(database_handler).settings[THEME_KEY] == "dark"
+    assert _stored(database_handler)[THEME_KEY] == "dark"
     assert "[SETTINGS]" not in capsys.readouterr().out
-
-
-def test_the_marker_is_a_persisted_bool(system_controller):
-    assert MARKER in system_controller._get_persisted_keys()
-    assert system_controller._get_setting_type(MARKER) is bool
-    assert "theme" in system_controller._get_persisted_keys()
 
 
 # --- What main.py reads before the first window --------------------------------------------
@@ -392,30 +535,30 @@ def main(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("theme", "marker", "expected"),
+    ("legacy", "theme", "expected"),
     [
         (None, None, "dark"),  # a fresh install
         ("light", None, "dark"),  # 2.0.0's lab device: switched by the load
         ("dark", None, "dark"),
-        ("light", False, "dark"),
-        ("light", True, "light"),  # the operator's choice after the switch
-        ("dark", True, "dark"),
-        (None, True, "dark"),
-        ("sepia", True, "dark"),  # no such theme: StyleManager applies the default
+        ("light", "light", "light"),  # the operator chose light in 2.1.0
+        ("dark", "light", "light"),  # 2.0.0's row is never the theme
+        ("light", "dark", "dark"),
+        (None, "light", "light"),
+        ("light", "sepia", "dark"),  # no such theme: StyleManager applies the default
     ],
 )
 def test_main_reads_the_theme_the_settings_load_with(
-    main, database_handler, theme, marker, expected
+    main, database_handler, legacy, theme, expected
 ):
     from ui.style.theme import theme_or_default  # noqa: PLC0415
 
+    if legacy is not None:
+        database_handler.update_system_setting(LEGACY, legacy, "str")
     if theme is not None:
-        database_handler.update_system_setting("theme", theme, "str")
-    if marker is not None:
-        database_handler.update_system_setting(MARKER, marker, "bool")
+        database_handler.update_system_setting(THEME_KEY, theme, "str")
 
     before = theme_or_default(main._startup_theme())  # read before the settings load
-    loaded = theme_or_default(_controller(database_handler).settings["theme"])
+    loaded = theme_or_default(_controller(database_handler).settings[THEME_KEY])
 
     assert before == loaded == expected
 
@@ -437,19 +580,19 @@ def test_the_read_creates_nothing_and_never_raises(isolated_data_dir, tmp_path):
     assert DatabaseHandler.peek_system_settings(no_table) == {}
 
     handler = DatabaseHandler()
-    handler.update_system_setting("theme", "light", "str")
-    handler.update_system_setting(MARKER, True, "bool")
+    handler.update_system_setting(THEME_KEY, "light", "str")
+    handler.update_system_setting("debug_mode", True, "bool")
     handler.update_system_setting("num_hats", 2, "int")
     before = path.read_bytes()
     peeked = DatabaseHandler.peek_system_settings()
     assert peeked == handler.get_system_settings()
-    assert (peeked["theme"], peeked[MARKER], peeked["num_hats"]) == ("light", True, 2)
+    assert (peeked[THEME_KEY], peeked["debug_mode"], peeked["num_hats"]) == ("light", True, 2)
     assert path.read_bytes() == before, "read-only"
 
     spaced = tmp_path / "a folder #1" / "rrr database.db"
     spaced.parent.mkdir()
     spaced.write_bytes(before)
-    assert DatabaseHandler.peek_system_settings(spaced)["theme"] == "light"
+    assert DatabaseHandler.peek_system_settings(spaced)[THEME_KEY] == "light"
 
 
 # --- Start-up: the first frame of every window ------------------------------------------
@@ -602,21 +745,20 @@ def startup(qapp, main, monkeypatch, isolated_data_dir, tokens, fake_relay_handl
     ("saved", "expected"),
     [
         ({}, "dark"),  # a fresh install
-        ({"theme": "light"}, "dark"),  # 2.0.0's lab device, at its first 2.1.0 start
-        ({"theme": "light", MARKER: True}, "light"),  # the operator chose light since
+        ({LEGACY: "light"}, "dark"),  # 2.0.0's lab device, at its first 2.1.0 start
+        ({LEGACY: "light", THEME_KEY: "light"}, "light"),  # the operator chose light since
     ],
     ids=["fresh", "light-before-2.1.0", "light-chosen"],
 )
 def test_every_window_shows_in_the_saved_theme_from_its_first_frame(
     startup, tokens, isolated_data_dir, saved, expected, splash
 ):
-    """main.USE_SPLASH_SCREEN is False on the devices (no splash); both paths are run."""
+    """main.USE_SPLASH_SCREEN is False on the devices (no splash); both paths are run. The
+    start leaves 2.0.0's row as it was."""
     from models.database_handler import DatabaseHandler  # noqa: PLC0415
 
-    if saved:
-        database = DatabaseHandler()  # the database a previous start left
-        for key, value in saved.items():
-            database.update_system_setting(key, value, "bool" if key == MARKER else "str")
+    database = DatabaseHandler()  # the database a previous start left
+    rows = {key: _saved_earlier(database, key, value) for key, value in saved.items()}
 
     record = startup(splash)
 
@@ -627,6 +769,7 @@ def test_every_window_shows_in_the_saved_theme_from_its_first_frame(
         assert seen == screen, name
     assert record["built"] == [screen], "the main window is built in its theme"
     assert record["applied"] == [expected], "one theme, applied once, before any window"
+    assert _row(database, LEGACY) == rows.get(LEGACY)
 
 
 @pytest.mark.parametrize("splash", [False, True], ids=["no-splash", "splash"])
@@ -636,12 +779,12 @@ def test_when_the_first_read_fails_the_window_is_built_in_the_loaded_theme(
     """main.py's early read finds nothing (here: it is made to fail), so the start-up
     theme is the default, dark; the settings then load light, the operator's choice. The
     main window is still built and shown in light: _apply_loaded_theme applies it once
-    the settings have loaded, before the window is built."""
+    the settings have loaded, before the window is built. 2.0.0's dark row is not read."""
     from models.database_handler import DatabaseHandler  # noqa: PLC0415
 
     database = DatabaseHandler()
-    database.update_system_setting("theme", "light", "str")
-    database.update_system_setting(MARKER, True, "bool")
+    database.update_system_setting(THEME_KEY, "light", "str")
+    database.update_system_setting(LEGACY, "dark", "str")
     monkeypatch.setattr(DatabaseHandler, "peek_system_settings", staticmethod(lambda *a: {}))
 
     record = startup(splash)

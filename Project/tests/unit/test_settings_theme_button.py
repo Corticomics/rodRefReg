@@ -7,13 +7,17 @@ light mode" while the dark theme is on screen, "Switch to dark mode" while the l
 is. A click, or the space bar, applies the other theme at once, saves it through the
 auto-save the drop-down used, and relabels the button; the next start shows that theme.
 It is a default button of the stylesheet: no rule of its own, no colour of its own.
-Offscreen, against the real SystemController and database.
+The choice is saved under 2.1.0's own key, ui_theme: the 'theme' row 2.0.0 reads stays
+as 2.0.0 saved it (test_dark_default.py). Offscreen, against the real SystemController
+and database.
 """
 
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +29,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 STYLE_DIR = Path(__file__).resolve().parents[2] / "ui" / "style"
 LABEL = {"dark": "Switch to light mode", "light": "Switch to dark mode"}
+THEME_KEY = "ui_theme"  # SystemController.THEME_KEY
+LEGACY = "theme"  # the row v1.5.0 to 2.0.0 keep their theme in
 
 # The QApplication this module uses, kept for the rest of the session. When a
 # QApplication is destroyed, PyQt5 deletes every QObject without a parent.
@@ -114,6 +120,29 @@ def _sheet(theme):
     return (STYLE_DIR / f"app-{theme}.qss").read_text(encoding="utf-8")
 
 
+def _row(database_handler, key):
+    """The whole system_settings row of `key`, updated_at included, or None."""
+    with closing(sqlite3.connect(database_handler.db_path)) as conn:
+        return conn.execute(
+            "SELECT setting_key, setting_value, setting_type, updated_at "
+            "FROM system_settings WHERE setting_key = ?",
+            (key,),
+        ).fetchone()
+
+
+def _saved_by_2_0_0(database_handler, theme):
+    """2.0.0's theme row ('str', the drop-down's text), saved at a fixed time in the past,
+    so a rewrite of it, even with the same value, changes it. Returns the row."""
+    with closing(sqlite3.connect(database_handler.db_path)) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO system_settings "
+            "(setting_key, setting_value, setting_type, updated_at) VALUES (?, ?, 'str', ?)",
+            (LEGACY, theme, "2026-10-19 09:00:00"),
+        )
+        conn.commit()
+    return _row(database_handler, LEGACY)
+
+
 def test_appearance_has_a_button_and_no_drop_down(
     qapp, style, system_controller, database_handler
 ):
@@ -192,7 +221,7 @@ def test_the_label_names_the_switch_away_from_the_theme_on_screen(
     assert other_theme("sepia") == "light", "an unknown theme is the default, dark"
     manager, windows = style
     manager.apply(theme)
-    system_controller.settings["theme"] = theme  # as main.py loads it
+    system_controller.settings[THEME_KEY] = theme  # as main.py loads it
     tab = _general_tab(qapp, windows, system_controller, database_handler)
     assert tab.theme_button.text() == LABEL[theme]
 
@@ -209,8 +238,9 @@ def test_without_a_style_manager_the_label_follows_the_saved_theme(
     from ui.SettingsTab import SettingsTab  # noqa: PLC0415
 
     assert qapp.property("style_manager") is None
+    saved = _saved_by_2_0_0(database_handler, "light")
     for theme in ("light", "dark"):
-        system_controller.settings["theme"] = theme
+        system_controller.settings[THEME_KEY] = theme
         tab = SettingsTab(
             system_controller,
             login_system=SimpleNamespace(is_logged_in=lambda: True, get_current_trainer=dict),
@@ -222,7 +252,8 @@ def test_without_a_style_manager_the_label_follows_the_saved_theme(
         tab.theme_button.click()
         other = "dark" if theme == "light" else "light"
         assert tab.theme_button.text() == LABEL[other]
-        assert database_handler.get_system_settings()["theme"] == other
+        assert database_handler.get_system_settings()[THEME_KEY] == other
+        assert _row(database_handler, LEGACY) == saved, "2.0.0's row, as 2.0.0 saved it"
         tab.deleteLater()
 
 
@@ -233,6 +264,7 @@ def test_a_click_applies_the_other_theme_at_once_and_keeps_it(
 
     manager, windows = style
     manager.apply("dark")
+    saved = _saved_by_2_0_0(database_handler, "light")
     tab = _general_tab(qapp, windows, system_controller, database_handler)
     applied = []
     manager.theme_changed.connect(applied.append)
@@ -244,8 +276,9 @@ def test_a_click_applies_the_other_theme_at_once_and_keeps_it(
         window = qapp.palette().color(QPalette.Window).name().upper()
         assert window == tokens.value("bg.page", theme)
         assert tab.theme_button.text() == LABEL[theme]
-        assert system_controller.settings["theme"] == theme
-        assert database_handler.get_system_settings()["theme"] == theme
+        assert system_controller.settings[THEME_KEY] == theme
+        assert database_handler.get_system_settings()[THEME_KEY] == theme
+        assert _row(database_handler, LEGACY) == saved, "2.0.0's row, as 2.0.0 saved it"
     assert applied == ["light", "dark", "light"]
 
 
@@ -254,13 +287,14 @@ def test_the_choice_is_what_the_next_start_shows(
 ):
     """A device's first start of 2.1.0 is dark (the one-time switch); the operator presses
     the button; at the next start main.py reads light before any window shows, the
-    settings load light, and the button offers dark."""
+    settings load light, and the button offers dark. 2.0.0's row is left as it was, for a
+    revert."""
     from controllers.system_controller import SystemController  # noqa: PLC0415
 
     monkeypatch.setattr(sys, "excepthook", sys.excepthook)  # main installs its own
     import main  # noqa: PLC0415
 
-    database_handler.update_system_setting("theme", "light", "str")  # 2.0.0's lab device
+    saved = _saved_by_2_0_0(database_handler, "light")  # 2.0.0's lab device
     manager, windows = style
     first = SystemController(database_handler)
     assert "Switched the theme to 'dark'" in capsys.readouterr().out
@@ -271,14 +305,18 @@ def test_the_choice_is_what_the_next_start_shows(
 
     tab.theme_button.click()
 
+    assert database_handler.get_system_settings()[THEME_KEY] == "light"
+    assert _row(database_handler, LEGACY) == saved
+
     # The next start
     assert main._startup_theme() == "light"
     manager.apply(main._startup_theme())
     second = SystemController(database_handler)
-    assert second.settings["theme"] == "light"
+    assert second.settings[THEME_KEY] == "light"
     assert "[SETTINGS]" not in capsys.readouterr().out, "not switched again"
     again = _general_tab(qapp, windows, second, database_handler)
     assert again.theme_button.text() == "Switch to dark mode"
+    assert _row(database_handler, LEGACY) == saved
 
 
 def test_the_space_bar_presses_it(qapp, style, system_controller, database_handler):
@@ -296,16 +334,19 @@ def test_the_space_bar_presses_it(qapp, style, system_controller, database_handl
 
     assert manager.theme == "light"
     assert button.text() == "Switch to dark mode"
-    assert database_handler.get_system_settings()["theme"] == "light"
+    assert database_handler.get_system_settings()[THEME_KEY] == "light"
 
 
 def test_an_auto_save_from_another_control_keeps_the_theme_on_screen(
     qapp, style, system_controller, database_handler
 ):
     """The auto-saved dict takes the theme from the button, as it took it from the
-    drop-down: a later save of another setting must not put the old theme back."""
+    drop-down: a later save of another setting must not put the old theme back. Nor does it
+    write the 'theme' row 2.0.0 reads, though the dict holds it as loaded."""
     manager, windows = style
     manager.apply("dark")
+    saved = _saved_by_2_0_0(database_handler, "dark")
+    system_controller.settings[LEGACY] = "dark"  # loaded with every other row
     tab = _general_tab(qapp, windows, system_controller, database_handler)
     tab.theme_button.click()
 
@@ -313,7 +354,75 @@ def test_an_auto_save_from_another_control_keeps_the_theme_on_screen(
 
     stored = database_handler.get_system_settings()
     assert stored["round_doses_up"] is tab.round_doses_up.isChecked(), "the save ran"
-    assert stored["theme"] == "light"
+    assert stored[THEME_KEY] == "light"
+    assert _row(database_handler, LEGACY) == saved
+
+
+def test_a_restored_backups_theme_never_reaches_2_0_0s_row(
+    qapp, style, system_controller, database_handler, monkeypatch, tmp_path
+):
+    """Restore from Backup merges a backup into the settings dict without applying its
+    theme: here 2.0.0's 'theme' and a ui_theme saved in light. Saves of the whole dict
+    follow: the auto-save, since this backup changes a widget, and later Change Relay
+    Hats. Neither writes the 'theme' row 2.0.0 reads, and the auto-save puts the theme on
+    screen back in ui_theme, so Change Relay Hats stores that one too."""
+    import json  # noqa: PLC0415
+
+    from PyQt5.QtWidgets import QFileDialog  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply("dark")
+    saved = _saved_by_2_0_0(database_handler, "light")
+    tab = _general_tab(qapp, windows, system_controller, database_handler)
+    backup = tmp_path / "rrr_backup.json"
+    backup.write_text(
+        json.dumps(
+            {
+                "pump_volume_ul": tab.pump_volume.value() + 10,  # the auto-save runs
+                "calibration_factor": tab.calibration_factor.value(),
+                LEGACY: "dark",
+                THEME_KEY: "light",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (str(backup), ""))
+    )
+    saves = []
+    save_settings = system_controller.save_settings
+    monkeypatch.setattr(
+        system_controller,
+        "save_settings",
+        lambda settings_dict: saves.append(dict(settings_dict)) or save_settings(settings_dict),
+    )
+
+    tab.restore_from_backup()
+    system_controller.save_settings(system_controller.settings)  # Change Relay Hats
+
+    assert len(saves) == 2 and all(save[LEGACY] == "dark" for save in saves), "both saves ran"
+    assert _row(database_handler, LEGACY) == saved
+    assert database_handler.get_system_settings()[THEME_KEY] == "dark", "the theme on screen"
+    assert manager.theme == "dark"
+
+
+def test_the_choice_is_in_the_settings_when_the_auto_save_cannot_save_it(
+    qapp, style, system_controller, database_handler
+):
+    """The auto-save saves nothing while no one is logged in. The choice is in the settings
+    dict all the same, as the drop-down's was, so the next save of the whole dict (Change
+    Relay Hats, after a log-in) stores the theme on screen."""
+    manager, windows = style
+    manager.apply("dark")
+    tab = _general_tab(qapp, windows, system_controller, database_handler)
+    tab.login_system = SimpleNamespace(is_logged_in=lambda: False, get_current_trainer=dict)
+
+    tab.theme_button.click()
+
+    assert manager.theme == "light"
+    assert database_handler.get_system_settings()[THEME_KEY] == "dark", "nothing saved"
+    assert system_controller.settings[THEME_KEY] == "light"
+    system_controller.save_settings(system_controller.settings)  # Change Relay Hats
+    assert database_handler.get_system_settings()[THEME_KEY] == "light"
 
 
 @pytest.mark.parametrize("theme", ["dark", "light"])

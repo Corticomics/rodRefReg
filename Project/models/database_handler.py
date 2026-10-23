@@ -1955,30 +1955,6 @@ class DatabaseHandler:
             print(f"Error updating system setting: {e}")
             return False
 
-    def update_system_settings(self, rows):
-        """Update or insert several system settings in one transaction: all of
-        them, or none when the database refuses one. `rows` holds
-        (key, value, setting_type) tuples. Returns True when all are stored.
-
-        SystemController's one-time switch to the dark theme stores its marker
-        and the theme together with it, so the switch cannot be half made.
-        """
-        try:
-            with self.connect() as conn:
-                conn.executemany(
-                    '''
-                    INSERT OR REPLACE INTO system_settings
-                    (setting_key, setting_value, setting_type, updated_at)
-                    VALUES (?, ?, ?, datetime('now'))
-                ''',
-                    [(key, str(value), setting_type) for key, value, setting_type in rows],
-                )
-                conn.commit()
-                return True
-        except sqlite3.Error as e:
-            print(f"Error updating system settings: {e}")
-            return False
-
     def delete_system_setting(self, key):
         """Delete a single row from system_settings. Returns True on success."""
         try:

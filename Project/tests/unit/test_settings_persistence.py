@@ -7,8 +7,10 @@ Covers:
 - the one-time legacy-JSON migration plus its sentinel row,
 - ``save_settings`` semantics — only managed keys persist; the call merges
   into the in-memory settings dict rather than replacing it,
-- regression: ``theme`` is no longer silently dropped on save
-  (was missing from the pre-v1.5.0 JSON-keys list),
+- regression: the theme is no longer silently dropped on save
+  (``theme`` was missing from the pre-v1.5.0 JSON-keys list); from v2.1.0
+  it is saved as ``ui_theme``, and the ``theme`` row is left to the
+  releases that read it (test_dark_default.py),
 - the legacy ``settings.json`` is left intact (copy-not-move).
 
 See docs/UPDATE_SYSTEM.md §13.8.
@@ -108,9 +110,13 @@ def test_round_doses_up_is_a_persisted_bool_that_defaults_off(database_handler):
 # ---------------------------------------------------------------------------
 
 def test_migration_copies_managed_legacy_keys_into_db(database_handler, write_legacy_settings):
-    """Managed keys from a legacy ``settings.json`` are written to ``system_settings``."""
+    """Managed keys from a legacy ``settings.json`` are written to ``system_settings``.
+
+    ``theme`` is not one from v2.1.0, which keeps its theme as ``ui_theme`` and never
+    writes the ``theme`` row: the device starts in the default theme."""
     write_legacy_settings({
         "num_hats": 3,
+        "uart_port": "/dev/ttyACM7",
         "theme": "dark",
         "cage_relays": {"1": 7, "2": 8},
         "unmanaged_key": "should_not_be_copied",
@@ -120,11 +126,13 @@ def test_migration_copies_managed_legacy_keys_into_db(database_handler, write_le
     sc = SystemController(database_handler)
     out = database_handler.get_system_settings()
     assert out["num_hats"] == 3
-    assert out["theme"] == "dark"
+    assert out["uart_port"] == "/dev/ttyACM7"
     assert out["cage_relays"] == {"1": 7, "2": 8}
     assert "unmanaged_key" not in out, "unmanaged keys must not migrate to the DB"
+    assert "theme" not in out, "2.1.0 never writes the theme row older releases read"
     assert sc.settings["num_hats"] == 3
-    assert sc.settings["theme"] == "dark"
+    assert sc.settings["uart_port"] == "/dev/ttyACM7"
+    assert sc.settings["ui_theme"] == "dark"
 
 
 def test_migration_writes_sentinel_even_with_no_legacy_file(system_controller, database_handler):
@@ -140,12 +148,12 @@ def test_migration_is_idempotent_after_sentinel(database_handler, write_legacy_s
     from controllers.system_controller import SystemController
     SystemController(database_handler)                  # first run migrates
 
-    write_legacy_settings({"num_hats": 999, "theme": "wat"})
+    write_legacy_settings({"num_hats": 999, "uart_port": "/dev/ttyWAT"})
     SystemController(database_handler)                  # second run must be a no-op
 
     out = database_handler.get_system_settings()
     assert out["num_hats"] == 5, "migration must not overwrite the DB on a re-run"
-    assert "theme" not in out, "migration must not add new keys after sentinel"
+    assert "uart_port" not in out, "migration must not add new keys after sentinel"
 
 
 def test_migration_does_not_modify_legacy_file(database_handler, write_legacy_settings):
@@ -184,11 +192,14 @@ def test_save_settings_merges_into_in_memory_settings(system_controller):
 
 
 # ---------------------------------------------------------------------------
-# Regression: the silent ``theme`` drop, fixed in v1.5.0
+# Regression: the silent ``theme`` drop, fixed in v1.5.0; ``ui_theme``, v2.1.0
 # ---------------------------------------------------------------------------
 
-def test_theme_now_persists_through_save_settings(system_controller, database_handler):
-    """Pre-v1.5.0, ``theme`` was missing from the JSON-keys list and was dropped."""
-    system_controller.save_settings({"theme": "dark"})
+def test_the_theme_persists_through_save_settings(system_controller, database_handler):
+    """Pre-v1.5.0, ``theme`` was missing from the JSON-keys list and was dropped. From
+    v2.1.0 the theme is saved as ``ui_theme``; the ``theme`` row belongs to the releases
+    before it, which a revert goes back to, and 2.1.0 never writes it."""
+    system_controller.save_settings({"ui_theme": "light", "theme": "light"})
     out = database_handler.get_system_settings()
-    assert out["theme"] == "dark"
+    assert out["ui_theme"] == "light"
+    assert "theme" not in out

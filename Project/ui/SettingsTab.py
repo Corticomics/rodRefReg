@@ -283,10 +283,11 @@ class SettingsTab(QWidget):
             updated_settings = {
                 # Hardware mode
                 'hardware_mode': self.hardware_mode_combo.currentData() or 'solenoid',
-                # Theme: the one on screen, which the Appearance button switches
-                'theme': self._shown_theme
+                # Theme: the one on screen, which the Appearance button switches, under
+                # 2.1.0's own key. An older release's 'theme' row is left as it is.
+                SystemController.THEME_KEY: self._shown_theme
                 if hasattr(self, '_shown_theme')
-                else theme_or_default(self.settings.get('theme')),
+                else theme_or_default(self.settings.get(SystemController.THEME_KEY)),
                 # Solenoid settings
                 'uart_port': self.teensy_port_edit.text(),
                 'flow_sensor_optional': self.flow_sensor_optional.isChecked(),
@@ -1896,7 +1897,7 @@ class SettingsTab(QWidget):
 
     def _theme_changed(self, theme: str):
         """Apply theme immediately and persist in settings."""
-        self.settings['theme'] = theme
+        self.settings[SystemController.THEME_KEY] = theme
         self._show_theme(theme)
         try:
             style_mgr = QApplication.instance().property('style_manager')
@@ -1913,7 +1914,7 @@ class SettingsTab(QWidget):
         manager = style_manager()
         if manager is not None and hasattr(manager, 'theme'):
             return theme_or_default(manager.theme)
-        return theme_or_default(self.settings.get('theme'))
+        return theme_or_default(self.settings.get(SystemController.THEME_KEY))
 
     def _show_theme(self, theme: str):
         """Label the theme button for `theme`, the theme on screen: the switch away from it."""

@@ -29,18 +29,20 @@ class SystemController(QObject):
     FIXED_SETTINGS = {'use_pulse_delivery': True}
 
     # The theme. v2.1.0 makes dark the default (ui/style/tokens.py's DEFAULT_THEME, which
-    # test_dark_default.py keeps equal to this) and switches every device to it once: at
-    # its first start on 2.1.0, a stored theme that is not dark is stored as dark, and
-    # DARK_DEFAULT_MARKER records that the switch was made, so it is never made again and
-    # the operator's later choice (Settings > General > Appearance) stays. A fresh install
-    # has nothing to switch and records the marker too. After a revert, 2.0.0 shows the
-    # theme row it finds: 'dark' where 2.1.0 switched one (2.0.0's own dark theme, whose
-    # tables show every other row near-white), its own light default where there was none.
-    # It neither writes nor deletes the marker, so the next update to 2.1.0 does not switch
-    # again: it keeps the theme 2.0.0 stored, light too if 2.0.0's auto-save stored its
-    # default, and starts dark, the default, where 2.0.0 stored none.
+    # test_dark_default.py keeps equal to this) and keeps the theme under a key of its own,
+    # THEME_KEY. A device without that row is fresh, or has not run 2.1.0 yet: the load
+    # stores the default there, which is the one-time switch to dark, and from then on the
+    # operator's choice (Settings > General > Appearance) is kept there.
+    # LEGACY_THEME_KEY is the row v1.5.0 to 2.0.0 keep their theme in. 2.1.0 never writes,
+    # changes or deletes it, and never reads it as the theme, so a revert opens 2.0.0 in
+    # the theme 2.0.0 saved: light on the lab's devices, its readable theme (2.0.0's dark
+    # one shows every other table row near-white). 2.0.0's saves write only its own keys,
+    # so the next update finds THEME_KEY as 2.1.0 left it. (Pre-release builds of 2.1.0
+    # recorded the switch in a row of their own, ui_dark_default_applied. Nothing reads
+    # such a row, and it is left as it is.)
     DEFAULT_THEME = 'dark'
-    DARK_DEFAULT_MARKER = 'ui_dark_default_applied'
+    THEME_KEY = 'ui_theme'
+    LEGACY_THEME_KEY = 'theme'
 
     def __init__(self, database_handler):
         super().__init__()
@@ -57,7 +59,7 @@ class SystemController(QObject):
         any keys still missing. See docs/UPDATE_SYSTEM.md §13.8. Retired
         settings are deleted from the DB and fixed ones forced, in the DB
         too (see RETIRED_KEYS and FIXED_SETTINGS), and the theme is switched
-        to dark once (DEFAULT_THEME, DARK_DEFAULT_MARKER).
+        to dark once (DEFAULT_THEME, THEME_KEY).
         """
         try:
             self._migrate_legacy_json_if_needed()
@@ -157,51 +159,47 @@ class SystemController(QObject):
             self.system_status.emit(message)
 
     def _switch_to_dark_once(self, stored):
-        """Switch a stored theme to dark, the default from 2.1.0, once per
-        device, and record that it was done (DARK_DEFAULT_MARKER). Nothing
-        once the marker is stored: the operator's choice stays. Returns the
-        journal lines: one when a theme is switched or cannot be.
+        """The one-time switch to dark, the default from 2.1.0: store it as the
+        theme (THEME_KEY) on a device that has no theme there yet, a fresh
+        install or one on its first start of 2.1.0. Nothing once that row
+        exists: the operator's choice stays. Returns the journal lines: one
+        when the theme the older release saved was not dark, or when the row
+        cannot be stored.
 
-        The marker and the theme are stored in one transaction: a database
-        error stores neither, the device keeps its theme for this start, and
-        the next start tries again. So the switch is made once, never half.
+        The older release's row (LEGACY_THEME_KEY) is read only to say what
+        the theme was, and is left as it is, for a revert. When the database
+        refuses the row, RRR starts dark all the same (a device without the
+        row starts in the default), and the next start stores it.
         """
-        marker = self.DARK_DEFAULT_MARKER
-        if stored.get(marker):
+        if self.THEME_KEY in stored:
             return []
-        theme = stored.get('theme')
-        switch = theme is not None and theme != self.DEFAULT_THEME
-        rows = {marker: True, 'theme': self.DEFAULT_THEME} if switch else {marker: True}
         try:
-            written, why = self._write_settings_to_db(rows), ""
+            written, why = self._write_setting_to_db(self.THEME_KEY, self.DEFAULT_THEME), ""
         except Exception as exc:
             written, why = False, f" ({exc})"
         if not written:
-            if not switch:
-                return [f"Could not store {marker}{why}; the next start tries again"]
             return [
-                f"Could not store {marker} and the theme{why}, so the theme was not switched "
-                f"to {self.DEFAULT_THEME!r}, the default from 2.1.0: it stays {theme!r}, and "
-                "the next start tries again"
+                f"Could not store {self.THEME_KEY}={self.DEFAULT_THEME!r}{why}; RRR starts "
+                "in it all the same, and the next start tries again"
             ]
-        if not switch:
+        before = stored.get(self.LEGACY_THEME_KEY)
+        if before is None or before == self.DEFAULT_THEME:
             return []
         return [
             f"Switched the theme to {self.DEFAULT_THEME!r}, the default from 2.1.0, once "
-            f"(it was {theme!r}); Settings > General > Appearance switches it back, and "
-            "that choice is kept"
+            f"(it was {before!r}, which is kept for a revert to 2.0.0); Settings > General > "
+            "Appearance switches it back, and that choice is kept"
         ]
 
     @classmethod
     def theme_at_start(cls, stored):
         """The theme these stored settings (system_settings rows) give once
-        they load: the stored theme after the one-time switch to dark, the
-        default before it, which the load switches to. main.py reads the
-        rows and applies this before any window shows, the splash included.
+        they load: the operator's choice under THEME_KEY, or the default where
+        there is none yet, which the load stores (the one-time switch). Never
+        the older release's row. main.py reads the rows and applies this
+        before any window shows, the splash included.
         """
-        if not stored.get(cls.DARK_DEFAULT_MARKER):
-            return cls.DEFAULT_THEME
-        return stored.get('theme', cls.DEFAULT_THEME)
+        return stored.get(cls.THEME_KEY, cls.DEFAULT_THEME)
 
     def _create_default_settings(self):
         """Create default settings with proper types"""
@@ -233,8 +231,9 @@ class SystemController(QObject):
             # animal, no master). Read by utils.topology; like round_doses_up
             # it is kept out of the force-merged pulse block below.
             'valve_topology': 'shared_manifold',
-            # Dark from v2.1.0 (DEFAULT_THEME; it was light, main.py's fallback)
-            'theme': self.DEFAULT_THEME,
+            # The theme: dark from v2.1.0, under a key of its own (THEME_KEY). 2.0.0
+            # had no theme default here; its main.py fell back to light.
+            self.THEME_KEY: self.DEFAULT_THEME,
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
@@ -280,11 +279,11 @@ class SystemController(QObject):
             'min_trigger_interval_ms',
             'cycle_interval',
             'stagger_interval',
-            # UI (silently dropped pre-v1.5.0 because it was missing from the
-            # JSON key list; managed properly from this release on)
-            'theme',
-            # The one-time switch to the dark theme was made (v2.1.0)
-            self.DARK_DEFAULT_MARKER,
+            # The theme, under a key of its own from v2.1.0. Not 'theme', which
+            # v1.5.0 to 2.0.0 persist (pre-v1.5.0 silently dropped it): 2.1.0
+            # leaves that row as an older release saved it, for a revert
+            # (LEGACY_THEME_KEY).
+            self.THEME_KEY,
         }
 
     def _get_setting_type(self, key):
@@ -313,7 +312,7 @@ class SystemController(QObject):
             'max_pulse_delivery_time_s': float,
             'round_doses_up': bool,
             'valve_topology': str,
-            self.DARK_DEFAULT_MARKER: bool,
+            self.THEME_KEY: str,
         }
         return type_map.get(key, str)
 
@@ -657,10 +656,9 @@ class SystemController(QObject):
             if key in managed:
                 self._write_setting_to_db(key, value)
 
-    @staticmethod
-    def _setting_row(key, value):
-        """A setting as a system_settings row, type-tagged:
-        (key, value, setting_type)."""
+    def _write_setting_to_db(self, key, value):
+        """Type-tag and persist a single setting via DatabaseHandler. Returns
+        what it returns: False when the database refused the write."""
         if isinstance(value, bool):
             type_name = 'bool'
         elif isinstance(value, int):
@@ -672,19 +670,7 @@ class SystemController(QObject):
             value = json.dumps(value, default=str)
         else:
             type_name = 'str'
-        return key, value, type_name
-
-    def _write_setting_to_db(self, key, value):
-        """Type-tag and persist a single setting via DatabaseHandler. Returns
-        what it returns: False when the database refused the write."""
-        return self.database_handler.update_system_setting(*self._setting_row(key, value))
-
-    def _write_settings_to_db(self, settings):
-        """Type-tag and persist several settings in one transaction: all of
-        them, or none (DatabaseHandler.update_system_settings). False when the
-        database refused it."""
-        rows = [self._setting_row(key, value) for key, value in settings.items()]
-        return self.database_handler.update_system_settings(rows)
+        return self.database_handler.update_system_setting(key, value, type_name)
 
     def _migrate_legacy_json_if_needed(self):
         """One-time copy of legacy settings.json into the system_settings table.

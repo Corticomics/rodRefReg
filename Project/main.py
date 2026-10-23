@@ -962,7 +962,9 @@ def _startup_theme():
     """The theme the saved settings give, read from the database before any
     window shows (SystemController.theme_at_start): the operator's choice, or
     dark, the default and the theme every device switches to once. Dark too
-    on a fresh install, or when the database cannot be read."""
+    on a fresh install, or when the database cannot be read. 2.1.0 keeps its
+    theme under a key of its own (SystemController.THEME_KEY); the theme an
+    older release saved is not read."""
     return SystemController.theme_at_start(DatabaseHandler.peek_system_settings())
 
 
@@ -986,11 +988,11 @@ def _apply_startup_theme(app):
 def _apply_loaded_theme(settings):
     """Once the settings have loaded, before the main window is built: apply
     their theme when it is not the one _apply_startup_theme applied. They
-    differ only when that read of the database, or the one-time switch to
-    dark, failed. The window is then built in its theme and shows in it."""
+    differ only when that read of the database failed. The window is then
+    built in its theme and shows in it."""
     try:
         manager = QApplication.instance().property('style_manager')
-        theme = theme_or_default(settings.get('theme'))
+        theme = theme_or_default(settings.get(SystemController.THEME_KEY))
         if manager is not None and manager.theme != theme:
             manager.apply(theme)
     except Exception as exc:
