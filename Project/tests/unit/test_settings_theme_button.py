@@ -137,6 +137,52 @@ def test_appearance_has_a_button_and_no_drop_down(
 
 
 @pytest.mark.parametrize("theme", ["dark", "light"])
+def test_the_theme_label_reads_level_with_the_button(
+    qapp, style, system_controller, database_handler, theme
+):
+    """QFormLayout puts a label at the top of its row, and the button is 20px taller than a
+    line of text: 'Theme:' sat 17px above the button's text. As tall as the button and
+    centred, it reads level with it. The drawn text's middle rows are compared."""
+    from PyQt5.QtCore import QPoint  # noqa: PLC0415
+    from PyQt5.QtWidgets import QFormLayout, QGroupBox  # noqa: PLC0415
+
+    manager, windows = style
+    manager.apply(theme)
+    tab = _general_tab(qapp, windows, system_controller, database_handler)
+    [appearance] = [box for box in tab.findChildren(QGroupBox) if box.title() == "Appearance"]
+    button = tab.theme_button
+    form = appearance.layout()
+    row, _role = form.getWidgetPosition(button)
+    label = form.itemAt(row, QFormLayout.LabelRole).widget()
+
+    image = appearance.grab().toImage()
+
+    def ink_rows(widget, x0, x1):
+        """The rows of `widget` (in the group box) where its text is drawn: the pixels
+        that are not its ground, the colour most of its columns x0 to x1 show."""
+        from collections import Counter  # noqa: PLC0415
+
+        top = widget.mapTo(appearance, QPoint(0, 0))
+        pixels = {
+            (x, y): image.pixelColor(top.x() + x, top.y() + y).name()
+            for y in range(widget.height())
+            for x in range(x0, x1)
+        }
+        ground = Counter(pixels.values()).most_common(1)[0][0]
+        return sorted({y for (x, y), name in pixels.items() if name != ground})
+
+    text_rows = ink_rows(label, 0, label.width())
+    middle = button.width() // 2
+    button_rows = ink_rows(button, middle - 40, middle + 40)
+    button_rows = [y for y in button_rows if 3 <= y < button.height() - 3]  # not its edge
+    label_top = label.mapTo(appearance, QPoint(0, 0)).y()
+    button_top = button.mapTo(appearance, QPoint(0, 0)).y()
+    label_middle = label_top + (text_rows[0] + text_rows[-1]) / 2
+    button_middle = button_top + (button_rows[0] + button_rows[-1]) / 2
+    assert abs(label_middle - button_middle) <= 2, (label_middle, button_middle)
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
 def test_the_label_names_the_switch_away_from_the_theme_on_screen(
     qapp, style, system_controller, database_handler, theme
 ):

@@ -2031,7 +2031,12 @@ class SettingsTab(QWidget):
         self.theme_button.setObjectName("ThemeButton")
         self._show_theme(self._theme_on_screen())
         self.theme_button.clicked.connect(self._switch_theme)
-        appearance_form.addRow("Theme:", self.theme_button)
+        # The form puts a label at the top of its row: as tall as the button and centred,
+        # it reads level with the button's text
+        theme_label = QLabel("Theme:")
+        theme_label.setMinimumHeight(self.theme_button.sizeHint().height())
+        theme_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        appearance_form.addRow(theme_label, self.theme_button)
         appearance.setLayout(appearance_form)
         v.addWidget(appearance)
 
