@@ -11,9 +11,10 @@ layer) under white tab panes (the content layer), and white cards, all outlined 
 hairline stroke; Fluent's resting shadow under the primary cards (SHADOWS and ELEVATION
 below); rules between the sections inside a card, never a box in a box. The edges are
 strokes, not tints, so they stay visible on a monitor that clips or washes out the Pi's HDMI
-signal (contrast.py has the models). The dark theme keeps the robust-contrast palette's
-values (palette B), but for its unselected tabs, flat as in light: it separates its surfaces
-by tint and stroke, and paints no shadow.
+signal (contrast.py has the models). The dark theme keeps the values of v2.1.0's first
+design, the robust-contrast palette ("palette B" in the notes here and in the tests), but
+for its unselected tabs, flat as in light: it separates its surfaces by tint and stroke, and
+paints no shadow.
 
 Four things read the roles:
 - the stylesheet template, through its ${role} placeholders;

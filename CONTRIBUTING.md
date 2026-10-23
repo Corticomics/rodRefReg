@@ -211,7 +211,17 @@ inside a box:
 - a table or a list inside a box draws no frame of its own, and each table
   row is ruled once, with no grid.
 
-The dark theme has the same structure on palette B's tints and strokes, and
+Radii are WinUI's two: 8px for containers (cards, group boxes, tab panes and
+their tabs, tables, lists, menus and popups, progress bars, the drop area)
+and 4px for controls (inputs, buttons, list and menu items, scroll handles,
+checkboxes, banners and status labels, relay terminals, tooltips). What lies
+just inside a container's 1px stroke takes 7px, so its corners follow the
+container's (Help's two panes, the Terminal log's focus stroke). Pills and
+circles keep half their height (badges, the info button, the wizard's step
+circles, radio and slider handles).
+
+The dark theme has the same structure, its surfaces separated by tint steps
+(`bg.page` to `bg.surface`, held to S1–S3) and the same strokes, and it
 paints no shadow.
 
 **Card shadows.** Qt's stylesheets have no `box-shadow`, and
@@ -257,7 +267,8 @@ each theme:
   light theme is held to its strokes (D1, D2, D1p), to the first shadow row
   under a card (E1, E2), and to a divider that stays visible a step under
   the stroke (D4L, H1).
-- **Dark:** surfaces are held to their tint steps (S1–S3).
+- **Dark:** surfaces are held to their tint steps (S1–S3). Its rules stand
+  about as strongly as its outlines (1.06:1 apart), so it has no H1.
 
 When you change a colour, run it; a pair that fails is fixed by changing
 the colour, never its threshold. When you put two roles
