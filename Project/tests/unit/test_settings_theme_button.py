@@ -344,7 +344,9 @@ def test_it_is_a_default_button_of_the_stylesheet(
 
 def test_help_says_where_the_button_is():
     """An operator surprised by the dark screens after the update finds the way back in
-    Help: a search for the theme lands on System Overview, which names the button."""
+    Help: a search for the theme lands on System Overview, which names the button by both
+    of its labels and holds in either theme (a device whose operator chose light starts
+    light)."""
     import re  # noqa: PLC0415
 
     from utils.help_content_manager import HelpContentManager  # noqa: PLC0415
@@ -354,7 +356,8 @@ def test_help_says_where_the_button_is():
         assert help_.search(query)[0][0] == "System Overview", query
     text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", help_.get_content("System Overview")))
     assert (
-        "RRR starts in the dark theme. After you log in, Settings → General → Appearance has "
-        "a button that switches to the light theme (Switch to light mode) and back; RRR keeps "
-        "the choice."
+        "RRR is dark by default. After you log in, Settings → General → Appearance has a "
+        "button that switches between the dark and the light theme: it reads Switch to light "
+        "mode in the dark theme and Switch to dark mode in the light one. RRR starts in the "
+        "theme chosen last."
     ) in text
