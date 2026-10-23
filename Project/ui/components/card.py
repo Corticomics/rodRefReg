@@ -6,7 +6,7 @@ from ..style.elevation import ElevatedMixin
 
 # QFrame#Card's border-radius in app.qss.tmpl: an elevated card's shadow tile is drawn for
 # it (tests/unit/test_elevation.py compares the two)
-CARD_RADIUS = 12
+CARD_RADIUS = 8
 
 
 class Card(ElevatedMixin, QFrame):

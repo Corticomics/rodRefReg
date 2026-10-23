@@ -41,7 +41,7 @@ QScrollArea, QScrollArea > QWidget > QWidget, QStackedWidget {
 QFrame#Card, QFrame[card="true"] {
     background: #FFFFFF;
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0;
 }
 
@@ -70,7 +70,7 @@ QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
 /* It stands where a tab pane stands when logged in: the content layer's stroke */
 QWidget#LoginGatePrompt {
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
 }
 
 /* Labels are transparent by default so they blend into whatever surface they
@@ -110,7 +110,7 @@ QLabel#Caption {
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     background: #FFFFFF;
     border: 1px solid #626E7E;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 12px;
     selection-background-color: #0F766E;
     selection-color: #FFFFFF;
@@ -174,7 +174,7 @@ QComboBox QAbstractItemView {
 QComboBox QAbstractItemView::item {
     min-height: 28px;
     padding: 6px 10px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #1A1D1F;
 }
 QComboBox QAbstractItemView::item:selected,
@@ -197,7 +197,7 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 QPushButton {
     background: #FFFFFF;
     border: 1px solid #626E7E;
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 20px;
     min-height: 40px;
     font-weight: 500;
@@ -227,7 +227,7 @@ QTableWidget QPushButton {
     min-height: 28px;
     max-height: 32px;
     font-size: 12px;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 
 /* Info Button - Circular help icon */
@@ -318,7 +318,7 @@ QPushButton[variant="danger"]:disabled {
    content layers; the page is the base). One stroke, as WinUI's content frame. */
 QTabWidget::pane {
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
     background: #FFFFFF;
     margin-top: -1px;
 }
@@ -429,7 +429,7 @@ QTableView, QTableWidget {
     background: #FFFFFF;
     alternate-background-color: #F1F3F5;
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
     gridline-color: #D9DEE5;
     selection-background-color: #0F766E;
     selection-color: #FFFFFF;
@@ -509,7 +509,7 @@ QProgressBar::chunk {
 QGroupBox {
     background: #FFFFFF;
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
     margin-top: 24px;
     margin-bottom: 8px;
     padding: 24px 20px 20px 20px;
@@ -559,7 +559,7 @@ QListWidget {
 }
 QListWidget::item { 
     padding: 10px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     margin: 2px 0;
 }
 QListWidget::item:hover {
@@ -613,12 +613,12 @@ QScrollBar::add-page, QScrollBar::sub-page {
 QWidget#DropArea[state="idle"] {
     background: #FFFFFF;
     border: 2px dashed #626E7E;
-    border-radius: 12px;
+    border-radius: 8px;
 }
 QWidget#DropArea[state="drag"] {
     background: #CCFBF1;
     border: 2px solid #0F766E;
-    border-radius: 12px;
+    border-radius: 8px;
 }
 
 /* ============================================
@@ -628,28 +628,28 @@ QLabel[variant="warning"] {
     background: #FEF3C7;
     color: #92400E;
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid #F59E0B;
 }
 QLabel[variant="success"] {
     background: #D1FAE5;
     color: #065F46;
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid #10B981;
 }
 QLabel[variant="error"] {
     background: #FEE2E2;
     color: #991B1B;
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid #EF4444;
 }
 QLabel[variant="info"] {
     background: #E0F2FE;
     color: #0C4A6E;
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid #0284C7;
 }
 
@@ -660,7 +660,7 @@ QLabel#InfoBanner {
     background: #CCFBF1;
     color: #115E59;
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid #0F766E;
 }
 QLabel#ProfileWelcome {
@@ -714,7 +714,7 @@ QLabel#SlackStatus[status="warn"] {
    PRIMING STATUS
    ============================================ */
 QLabel#StatusLabel {
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 16px;
     font-weight: 600;
     font-size: 13px;
@@ -756,7 +756,7 @@ QLabel#SchedulesHubTitle {
 /* Select is a default button. It reads Cancel in select mode, in the danger tint. */
 QPushButton#SchedulesHubSelect {
     border: 1px solid #626E7E;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 5px 12px;
     font-weight: 500;
     font-size: 11px;
@@ -773,7 +773,7 @@ QPushButton#SchedulesHubSelect[selecting="true"]:hover {
    take their colours from QPushButton[variant="primary"] and [variant="danger"] */
 QPushButton#SchedulesHubEdit, QPushButton#SchedulesHubDelete, QPushButton#SchedulesHubNew {
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 5px 12px;
     font-size: 11px;
 }
@@ -785,7 +785,7 @@ QPushButton#SchedulesHubNew {
 }
 QPushButton#SchedulesHubCreate {
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 8px 20px;
     font-weight: 600;
 }
@@ -793,7 +793,7 @@ QPushButton#SchedulesHubCreate {
 /* The search field keeps its 1px frame when focused, with the focus colour */
 QLineEdit#SchedulesHubSearch {
     border: 1px solid #626E7E;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 6px 10px;
     font-size: 12px;
     background: #FFFFFF;
@@ -817,7 +817,7 @@ QLabel#SchedulesHubEmptyText {
 QFrame#ScheduleCard {
     background: #FFFFFF;
     border: 1px solid #C8CED6;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 /* Under the pointer a schedule card lifts (its shadow, ui.style.elevation) and its edge
    darkens; its fill stays white, so the lift is not mixed with a grey hover */
@@ -868,7 +868,7 @@ QLabel#ScheduleModeBadge[mode="instant"] {
 }
 /* A card's context menu: tighter than the app's menus, in their colours */
 QMenu#ScheduleCardMenu {
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 4px;
 }
 QMenu#ScheduleCardMenu::item {
@@ -915,7 +915,7 @@ QScrollArea#TrackerScrollArea {
 QFrame#MaterialCard {
     background-color: #FFFFFF;
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0;
 }
 /* A QLabel is a QFrame. Before v2.1.0 the card's own `QFrame {...}` sheet also gave every
@@ -1062,7 +1062,7 @@ QLabel#ColumnHeader {
 QFrame#RelayTerminal {
     background: #FFFFFF;
     border: 1px solid #C8CED6;
-    border-radius: 6px;
+    border-radius: 4px;
     border-left: 3px solid #0F766E;
 }
 QFrame#RelayTerminal:hover {
@@ -1078,7 +1078,7 @@ QFrame#RelayTerminal[selected="true"] {
 QFrame#MasterTerminal {
     background: #FFFBEB;
     border: 1px solid #FCD34D;
-    border-radius: 6px;
+    border-radius: 4px;
     border-left: 3px solid #F59E0B;
 }
 QFrame#MasterTerminal:hover {
@@ -1243,7 +1243,7 @@ QToolTip {
     background: #1A1D1F;
     color: #FFFFFF;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 8px 12px;
     font-size: 12px;
 }
@@ -1258,7 +1258,7 @@ QMenuBar {
 }
 QMenuBar::item {
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #1A1D1F;
 }
 QMenuBar::item:selected {
@@ -1273,7 +1273,7 @@ QMenu {
 }
 QMenu::item {
     padding: 10px 24px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: #1A1D1F;
 }
 /* An item rule with a colour also colours disabled items: grey them out again. */
@@ -1381,7 +1381,7 @@ QFrame#Divider {
 QPushButton#WizardBackButton {
     background: #FFFFFF;
     border: 1px solid #626E7E;
-    border-radius: 10px;
+    border-radius: 4px;
     color: #2E3A4B;
     padding: 12px 20px;
     font-size: 14px;
@@ -1395,7 +1395,7 @@ QPushButton#WizardBackButton:hover {
 QPushButton#WizardNextButton {
     background: #0F766E;
     border: none;
-    border-radius: 10px;
+    border-radius: 4px;
     color: #FFFFFF;
     padding: 12px 24px;
     font-size: 14px;
@@ -1412,7 +1412,7 @@ QPushButton#WizardNextButton:disabled {
    QPushButton:focus, so focus does not thicken it, as before v2.1.0. */
 QPushButton#WizardStartOverButton {
     border: 1px solid #626E7E;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 6px 12px;
     font-weight: 500;
 }
@@ -1423,7 +1423,7 @@ QPushButton#WizardStartOverButton {
 QFrame#InteractiveCard {
     background: #FFFFFF;
     border: 1px solid #C8CED6;
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 16px;
 }
 QFrame#InteractiveCard:hover {
@@ -1442,7 +1442,7 @@ QLabel#CardIcon {
     font-size: 20px;
     color: #115E59;
     background: #CCFBF1;
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 /* Card Title */
@@ -1465,7 +1465,7 @@ QLabel#CardBadge {
     font-weight: 500;
     color: #115E59;
     background: #CCFBF1;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 4px 8px;
 }
 
@@ -1495,7 +1495,7 @@ QLabel#StepDescription {
 QFrame#WizardLimitBanner {
     background: #FEF3C7;
     border: 1px solid #F59E0B;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 /* A QLabel is a QFrame: before v2.1.0 the banner's own `QFrame {...}` sheet also framed its
    icon and its text. That 1px border stays, transparent, so neither moves; removing it is
@@ -1596,15 +1596,15 @@ QProgressBar#SplashProgress::chunk {
 QWidget#HelpSidebar {
     background-color: #F8FAFB;
     border-right: 1px solid #C8CED6;
-    border-top-left-radius: 11px;
-    border-bottom-left-radius: 11px;
+    border-top-left-radius: 7px;
+    border-bottom-left-radius: 7px;
 }
 
 /* Content pane container */
 QWidget#HelpContentPane {
     background-color: #FFFFFF;
-    border-top-right-radius: 11px;
-    border-bottom-right-radius: 11px;
+    border-top-right-radius: 7px;
+    border-bottom-right-radius: 7px;
 }
 
 /* Topic tree: straight on the sidebar, no box of its own */
@@ -1618,7 +1618,7 @@ QTreeWidget#HelpTree {
 }
 QTreeWidget#HelpTree::item {
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: 4px;
     margin: 1px 2px;
     color: #1A1D1F;
 }

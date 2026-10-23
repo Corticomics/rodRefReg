@@ -63,7 +63,7 @@ QScrollArea, QScrollArea > QWidget > QWidget, QStackedWidget {
 QFrame#Card, QFrame[card="true"] {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0;
 }
 
@@ -92,7 +92,7 @@ QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
 /* It stands where a tab pane stands when logged in: the content layer's stroke */
 QWidget#LoginGatePrompt {
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
 }
 
 /* Labels are transparent by default so they blend into whatever surface they
@@ -132,7 +132,7 @@ QLabel#Caption {
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     background: ${bg.field};
     border: 1px solid ${border.control};
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 12px;
     selection-background-color: ${bg.selected};
     selection-color: ${text.on-accent};
@@ -196,7 +196,7 @@ QComboBox QAbstractItemView {
 QComboBox QAbstractItemView::item {
     min-height: 28px;
     padding: 6px 10px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: ${text.primary};
 }
 QComboBox QAbstractItemView::item:selected,
@@ -219,7 +219,7 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 QPushButton {
     background: ${bg.surface};
     border: 1px solid ${border.control};
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 20px;
     min-height: 40px;
     font-weight: 500;
@@ -249,7 +249,7 @@ QTableWidget QPushButton {
     min-height: 28px;
     max-height: 32px;
     font-size: 12px;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 
 /* Info Button - Circular help icon */
@@ -340,7 +340,7 @@ QPushButton[variant="danger"]:disabled {
    content layers; the page is the base). One stroke, as WinUI's content frame. */
 QTabWidget::pane {
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     background: ${bg.pane};
     margin-top: -1px;
 }
@@ -451,7 +451,7 @@ QTableView, QTableWidget {
     background: ${bg.surface};
     alternate-background-color: ${bg.alt};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     gridline-color: ${border.divider};
     selection-background-color: ${bg.selected};
     selection-color: ${text.on-accent};
@@ -531,7 +531,7 @@ QProgressBar::chunk {
 QGroupBox {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     margin-top: 24px;
     margin-bottom: 8px;
     padding: 24px 20px 20px 20px;
@@ -581,7 +581,7 @@ QListWidget {
 }
 QListWidget::item { 
     padding: 10px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     margin: 2px 0;
 }
 QListWidget::item:hover {
@@ -635,12 +635,12 @@ QScrollBar::add-page, QScrollBar::sub-page {
 QWidget#DropArea[state="idle"] {
     background: ${bg.surface};
     border: 2px dashed ${border.control};
-    border-radius: 12px;
+    border-radius: 8px;
 }
 QWidget#DropArea[state="drag"] {
     background: ${accent.tint};
     border: 2px solid ${accent.indicator};
-    border-radius: 12px;
+    border-radius: 8px;
 }
 
 /* ============================================
@@ -650,28 +650,28 @@ QLabel[variant="warning"] {
     background: ${warning.tint};
     color: ${warning.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${warning.indicator};
 }
 QLabel[variant="success"] {
     background: ${success.tint};
     color: ${success.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${success.indicator};
 }
 QLabel[variant="error"] {
     background: ${danger.tint};
     color: ${danger.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${danger.indicator};
 }
 QLabel[variant="info"] {
     background: ${info.tint};
     color: ${info.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${info.indicator};
 }
 
@@ -682,7 +682,7 @@ QLabel#InfoBanner {
     background: ${accent.tint};
     color: ${text.accent};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${accent.indicator};
 }
 QLabel#ProfileWelcome {
@@ -736,7 +736,7 @@ QLabel#SlackStatus[status="warn"] {
    PRIMING STATUS
    ============================================ */
 QLabel#StatusLabel {
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 16px;
     font-weight: 600;
     font-size: 13px;
@@ -778,7 +778,7 @@ QLabel#SchedulesHubTitle {
 /* Select is a default button. It reads Cancel in select mode, in the danger tint. */
 QPushButton#SchedulesHubSelect {
     border: 1px solid ${border.control};
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 5px 12px;
     font-weight: 500;
     font-size: 11px;
@@ -795,7 +795,7 @@ QPushButton#SchedulesHubSelect[selecting="true"]:hover {
    take their colours from QPushButton[variant="primary"] and [variant="danger"] */
 QPushButton#SchedulesHubEdit, QPushButton#SchedulesHubDelete, QPushButton#SchedulesHubNew {
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 5px 12px;
     font-size: 11px;
 }
@@ -807,7 +807,7 @@ QPushButton#SchedulesHubNew {
 }
 QPushButton#SchedulesHubCreate {
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 8px 20px;
     font-weight: 600;
 }
@@ -815,7 +815,7 @@ QPushButton#SchedulesHubCreate {
 /* The search field keeps its 1px frame when focused, with the focus colour */
 QLineEdit#SchedulesHubSearch {
     border: 1px solid ${border.control};
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 6px 10px;
     font-size: 12px;
     background: ${bg.field};
@@ -839,7 +839,7 @@ QLabel#SchedulesHubEmptyText {
 QFrame#ScheduleCard {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 10px;
+    border-radius: 8px;
 }
 /* Under the pointer a schedule card lifts (its shadow, ui.style.elevation) and its edge
    darkens; its fill stays white, so the lift is not mixed with a grey hover */
@@ -890,7 +890,7 @@ QLabel#ScheduleModeBadge[mode="instant"] {
 }
 /* A card's context menu: tighter than the app's menus, in their colours */
 QMenu#ScheduleCardMenu {
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 4px;
 }
 QMenu#ScheduleCardMenu::item {
@@ -937,7 +937,7 @@ QScrollArea#TrackerScrollArea {
 QFrame#MaterialCard {
     background-color: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0;
 }
 /* A QLabel is a QFrame. Before v2.1.0 the card's own `QFrame {...}` sheet also gave every
@@ -1084,7 +1084,7 @@ QLabel#ColumnHeader {
 QFrame#RelayTerminal {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 6px;
+    border-radius: 4px;
     border-left: 3px solid ${accent.indicator};
 }
 QFrame#RelayTerminal:hover {
@@ -1100,7 +1100,7 @@ QFrame#RelayTerminal[selected="true"] {
 QFrame#MasterTerminal {
     background: ${warning.tint.master-terminal};
     border: 1px solid ${warning.indicator.master-terminal};
-    border-radius: 6px;
+    border-radius: 4px;
     border-left: 3px solid ${warning.indicator};
 }
 QFrame#MasterTerminal:hover {
@@ -1265,7 +1265,7 @@ QToolTip {
     background: ${bg.tooltip};
     color: ${text.tooltip};
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 8px 12px;
     font-size: 12px;
 }
@@ -1280,7 +1280,7 @@ QMenuBar {
 }
 QMenuBar::item {
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: ${text.primary};
 }
 QMenuBar::item:selected {
@@ -1295,7 +1295,7 @@ QMenu {
 }
 QMenu::item {
     padding: 10px 24px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: ${text.primary};
 }
 /* An item rule with a colour also colours disabled items: grey them out again. */
@@ -1403,7 +1403,7 @@ QFrame#Divider {
 QPushButton#WizardBackButton {
     background: ${bg.surface};
     border: 1px solid ${border.control};
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${text.secondary};
     padding: 12px 20px;
     font-size: 14px;
@@ -1417,7 +1417,7 @@ QPushButton#WizardBackButton:hover {
 QPushButton#WizardNextButton {
     background: ${accent.fill};
     border: none;
-    border-radius: 10px;
+    border-radius: 4px;
     color: ${text.on-accent};
     padding: 12px 24px;
     font-size: 14px;
@@ -1434,7 +1434,7 @@ QPushButton#WizardNextButton:disabled {
    QPushButton:focus, so focus does not thicken it, as before v2.1.0. */
 QPushButton#WizardStartOverButton {
     border: 1px solid ${border.control};
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 6px 12px;
     font-weight: 500;
 }
@@ -1445,7 +1445,7 @@ QPushButton#WizardStartOverButton {
 QFrame#InteractiveCard {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 16px;
 }
 QFrame#InteractiveCard:hover {
@@ -1464,7 +1464,7 @@ QLabel#CardIcon {
     font-size: 20px;
     color: ${text.accent};
     background: ${accent.tint};
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 /* Card Title */
@@ -1487,7 +1487,7 @@ QLabel#CardBadge {
     font-weight: 500;
     color: ${text.accent};
     background: ${accent.tint};
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 4px 8px;
 }
 
@@ -1517,7 +1517,7 @@ QLabel#StepDescription {
 QFrame#WizardLimitBanner {
     background: ${warning.tint};
     border: 1px solid ${warning.indicator};
-    border-radius: 6px;
+    border-radius: 4px;
 }
 /* A QLabel is a QFrame: before v2.1.0 the banner's own `QFrame {...}` sheet also framed its
    icon and its text. That 1px border stays, transparent, so neither moves; removing it is
@@ -1618,15 +1618,15 @@ QProgressBar#SplashProgress::chunk {
 QWidget#HelpSidebar {
     background-color: ${bg.page};
     border-right: 1px solid ${border.subtle};
-    border-top-left-radius: 11px;
-    border-bottom-left-radius: 11px;
+    border-top-left-radius: 7px;
+    border-bottom-left-radius: 7px;
 }
 
 /* Content pane container */
 QWidget#HelpContentPane {
     background-color: ${bg.surface};
-    border-top-right-radius: 11px;
-    border-bottom-right-radius: 11px;
+    border-top-right-radius: 7px;
+    border-bottom-right-radius: 7px;
 }
 
 /* Topic tree: straight on the sidebar, no box of its own */
@@ -1640,7 +1640,7 @@ QTreeWidget#HelpTree {
 }
 QTreeWidget#HelpTree::item {
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: 4px;
     margin: 1px 2px;
     color: ${text.primary};
 }

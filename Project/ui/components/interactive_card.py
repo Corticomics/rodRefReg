@@ -46,7 +46,7 @@ class InteractiveCard(ElevatedMixin, QFrame):
     checked_changed = pyqtSignal(bool)
 
     # QFrame#InteractiveCard's border-radius in app.qss.tmpl: the shadow tile is drawn for it
-    RADIUS = 12
+    RADIUS = 8
 
     def __init__(
         self,

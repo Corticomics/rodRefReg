@@ -414,7 +414,7 @@ class ScheduleCard(elevation.ElevatedMixin, QFrame):
     """
 
     # QFrame#ScheduleCard's border-radius in app.qss.tmpl: the shadow tile is drawn for it
-    RADIUS = 10
+    RADIUS = 8
     # The box's height and least width, as before the shadow's room was added
     BOX_HEIGHT = 115
     BOX_MIN_WIDTH = 220
