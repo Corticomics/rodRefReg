@@ -365,9 +365,9 @@ def test_a_colour_on_an_input_takes_its_placeholder_colour_away(qapp, tokens, st
 def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
     """Fluent's focus stroke on screen. A focused input, spin box, combo box, default or
     primary button draws its edge in its focus role, 2px of it, and the Schedules hub's
-    search field its 1px edge: each at least 3:1 from the edge it had unfocused (F7, F8),
-    but for a dark primary button's (I3). The focus rules are v2.0.0's; only their colours
-    changed.
+    search field its 1px edge: each at least 3:1 from the edge it had unfocused (F7, F8). A
+    primary button's ring is black in both themes: in dark the white stroke changed its
+    light teal edge by 1.86:1. The focus rules are v2.0.0's; only their colours changed.
 
     The Terminal log, which its tab pane frames, has no edge of its own: focus draws the
     2px stroke where the pane showed through (F3p), and the padding gives the 2px back, so
@@ -445,8 +445,6 @@ def test_focus_changes_a_controls_edge_by_3_to_1(qapp, tokens, style, theme):
             restyle(log)
             qapp.processEvents()
             assert log.viewport().geometry() == text_area, "the text stays where it was"
-        if control is primary and theme == "dark":
-            continue  # I3: white on the light teal fill
         for old, new in zip(before, after):
             assert contrast.contrast_ratio(old, new) >= 3, (name, old, new)
 

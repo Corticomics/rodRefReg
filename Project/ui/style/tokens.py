@@ -176,10 +176,13 @@ TOKENS: dict[str, tuple[str, str]] = {
     # border.control edge for it, a change of 4.05:1 in light and 3.32:1 in dark (F7);
     # palette B's teal ring had nearly the edge's luminance (1.06 and 1.78:1)
     "focus.ring": ("#000000", "#FFFFFF"),
-    # A focused primary button's border, around its accent.fill: the same focus stroke. In
-    # light it is 3.84:1 over the button's own accent edge (F8; palette B's #042F2E was
-    # 2.64); in dark no one colour is 3:1 from the light teal fill and from the page (I3)
-    "focus.ring.primary": ("#000000", "#FFFFFF"),
+    # A focused primary button's border, around its accent.fill: the focus stroke that
+    # changes the button's own edge by 3:1 or more (F8). Black in both themes: in light
+    # Fluent's stroke, 3.84:1 over the teal (palette B's #042F2E was 2.64); in dark Fluent's
+    # inner stroke (colorStrokeFocus1), the one it lays against a control, 11.3:1 over the
+    # light teal fill, where the white stroke changed it by 1.86:1. Against the dark page
+    # the black edge is 1.35:1 (I3): the focused button is framed in black
+    "focus.ring.primary": ("#000000", "#000000"),
     # ---- Accent (teal) -----------------------------------------------------------------
     # The primary button, #InfoButton, #StatusLabel[status="open"], #CageBadge, the
     # Staggered badge, checked checkboxes and radios, a completed step circle,

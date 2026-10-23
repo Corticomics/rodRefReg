@@ -63,7 +63,7 @@ border.control edge for a 2px focus.ring one. Palette B's teal ring stood 5.47:1
 card, but had nearly the edge's luminance, so focusing a control changed it by 1.06:1 in
 light and 1.78:1 in dark. The ring is now Fluent 2's focus stroke, black in light and white
 in dark, and the change itself is asserted at 3:1 (F7, as WCAG 2.4.13 measures a focus
-indicator), as is a focused primary button's in light (F8).
+indicator), as is a focused primary button's (F8), whose ring is black in both themes.
 """
 
 from __future__ import annotations
@@ -299,8 +299,8 @@ PAIRS = [
          "border.control edge for the 2px ring, the hub's search field its 1px edge's colour "
          "(dark washed out: 2.93)", MARK_ROBUST, robust_dark={"clip": 3}),
     Pair("F8", "focus.ring.primary", "accent.fill", "nontext", 3,
-         "Light: a focused primary button's 2px ring over its own accent edge and fill",
-         MARK_ROBUST, themes=("light",)),
+         "A focused primary button's 2px ring over its own accent edge and fill",
+         MARK_ROBUST),
     # ---- Text (WCAG 1.4.3) ---------------------------------------------------------
     *_text_on("T1", "text.primary",
               ["bg.page", "bg.surface", "bg.field", "bg.inset", "bg.alt", "bg.hover",
@@ -402,10 +402,11 @@ PAIRS = [
          "Disabled labels: WCAG exempts a control that is really disabled"),
     Pair("I2", "text.link", "text.primary", "info", 3,
          "Links against body text: under 3:1, so Help links are underlined"),
-    Pair("I3", "focus.ring.primary", "accent.fill", "info", 3,
-         "Dark: a focused primary button's white ring round its light teal fill, 1.86:1; it "
-         "stands 15.6:1 from the page. No one colour is 3:1 from both: Fluent draws a second, "
-         "inner stroke, which a stylesheet border cannot (the focus follow-up)"),
+    Pair("I3", "focus.ring.primary", "bg.page", "info", 3,
+         "Dark: a focused primary button's black edge against the page, 1.35:1 (1.74 on a "
+         "card). Its focus is the change over its own edge (F8, 11.3:1), round a fill 8.4:1 "
+         "from the page. Fluent draws focus as two strokes, in dark white outside black; a "
+         "stylesheet border is one, and the black one is the one that meets F8"),
     Pair("I5", "danger.fill", "bg.surface", "info", 3,
          "A danger button against a card: a labelled button needs no 3:1 boundary"),
     Pair("I6", "danger.alert", "bg.alt", "info", 3,

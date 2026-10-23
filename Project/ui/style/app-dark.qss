@@ -291,7 +291,7 @@ QPushButton[variant="primary"]:disabled {
     color: #6B7480;
 }
 QPushButton[variant="primary"]:focus {
-    border: 2px solid #FFFFFF;
+    border: 2px solid #000000;
 }
 
 /* ============================================
