@@ -970,9 +970,10 @@ def _apply_startup_theme(app):
     """Make the application's StyleManager and apply the saved theme, before
     the first window: the splash, a dialog setup() opens, the main window.
 
-    Until v2.1.0 main() applied the light theme here and the saved one after
-    the main window was built (still hidden), so the splash was always light
-    and the window was built in light, then restyled.
+    Until v2.1.0 main() applied the light theme here and the saved one only
+    after setup() had built and shown the main window (its constructor calls
+    showMaximized()), so the splash was always light, and the window was
+    built and shown in light, then restyled.
     """
     try:
         manager = StyleManager(app)
