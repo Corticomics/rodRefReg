@@ -5,7 +5,9 @@ import json
 import os
 import sqlite3
 import traceback
+from contextlib import closing
 from datetime import datetime
+from pathlib import Path
 
 from models.animal import Animal
 from models.relay_unit import RelayUnit
@@ -17,6 +19,22 @@ from models.schedule_runs_repo import (
     last_run_from_row,
 )
 from utils import paths
+
+
+def _setting_value(value, type_name):
+    """A system_settings value, decoded by its setting_type."""
+    if type_name == 'int':
+        return int(float(value))  # Handle potential float strings
+    if type_name == 'float':
+        return float(value)
+    if type_name == 'bool':
+        return value.lower() == 'true'
+    if type_name == 'json':
+        try:
+            return json.loads(value)
+        except Exception:
+            return value
+    return value
 
 
 class DatabaseHandler:
@@ -1889,23 +1907,33 @@ class DatabaseHandler:
                 settings = {}
                 for row in cursor.fetchall():
                     key, value, type_name = row
-                    # Convert value based on type
-                    if type_name == 'int':
-                        settings[key] = int(float(value))  # Handle potential float strings
-                    elif type_name == 'float':
-                        settings[key] = float(value)
-                    elif type_name == 'bool':
-                        settings[key] = value.lower() == 'true'
-                    elif type_name == 'json':
-                        try:
-                            settings[key] = json.loads(value)
-                        except Exception:
-                            settings[key] = value
-                    else:
-                        settings[key] = value
+                    settings[key] = _setting_value(value, type_name)
                 return settings
         except sqlite3.Error as e:
             print(f"Error retrieving system settings: {e}")
+            return {}
+
+    @staticmethod
+    def peek_system_settings(db_path=None):
+        """The system_settings rows of an existing database, decoded as
+        get_system_settings decodes them, read without a handler: no table
+        is created, nothing is migrated, and no database file is created
+        where there is none. {} when there is no database yet or it cannot
+        be read; never raises.
+
+        main.py reads the saved theme with it, before the first window
+        shows; the settings themselves load later (SystemController).
+        """
+        try:
+            path = Path(db_path or paths.database_path()).resolve()
+            if not path.is_file():
+                return {}
+            with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
+                rows = conn.execute(
+                    'SELECT setting_key, setting_value, setting_type FROM system_settings'
+                ).fetchall()
+            return {key: _setting_value(value, type_name) for key, value, type_name in rows}
+        except Exception:
             return {}
 
     def update_system_setting(self, key, value, setting_type):

@@ -14,42 +14,25 @@
 @#
 @# A directive starts its line: an indented one stops the build.
 @#
-@# Both themes share every rule: today they differ only in token values, in some
-@# comments and in the dark theme's extra `color` lines.
+@# Both themes share every rule and every declaration: they differ only in token values
+@# and in some comments.
 @#
-/* 
+/*
 @light
  * Rodent Refreshment Regulator - Light Theme
 @dark
  * Rodent Refreshment Regulator - Dark Theme
 @end
- * RSO-Inspired Design System with Teal Accent
- * 
- * Design Principles:
- * - IBM Plex Sans typography for scientific aesthetic
-@light
- * - Teal accent color (colorblind-safe, professional)
-@dark
- * - Teal accent color (brightened for dark mode)
-@end
- * - Material Design 3 elevation system
- * - WCAG 2.1 AA contrast compliance
- * 
-@light
- * Color Palette (Teal-based):
- * - Primary Accent: #0D9488 (Teal 600)
- * - Primary Hover: #0F766E (Teal 700)
- * - Background: #FFFFFF / #F8FAFB
- * - Text Primary: #1A1D1F (16:1 contrast)
- * - Text Secondary: #4E5D6C (7:1 contrast)
-@dark
- * Color Palette (Dark Mode):
- * - Primary Accent: #14B8A6 (Teal 500)
- * - Primary Hover: #2DD4BF (Teal 400)
- * - Background: #0F1419 / #1A2028
- * - Text Primary: #F0F4F8 (high contrast)
- * - Text Secondary: #A0AEC0
-@end
+ *
+ * Fluent 2 / WinUI layers (v2.1.0): a near-white page (the base layer) under white tab panes
+ * (the content layer), one hairline stroke round every pane, card, box and table, Fluent's
+ * resting shadow under the primary cards, rules between sections, teal accent. Every colour
+ * is a role in Project/ui/style/tokens.py, and
+ * Project/tests/unit/test_theme_contrast.py checks the pairs the UI draws, in both themes.
+ *
+ * Base colours come from the QPalette StyleManager builds from the same tokens (window,
+ * text, fields, placeholders, alternate rows, selection, links). The rules below set
+ * surfaces, borders and the colours that differ from those.
  */
 
 /* ============================================
@@ -61,14 +44,18 @@
     outline: none;
 }
 
-QWidget {
-    background-color: ${bg.page};
-    color: ${text.primary};
-}
+/* No universal QWidget background or colour: the window and dialogs paint the
+   palette's Window (bg.page), and plain containers stay transparent, so a container
+   inside a card shows the card. A `color` on any rule that matches an input would
+   become its placeholder's colour too: at half alpha from Qt 5.15.12 (below 4.5:1), as
+   typed text on the Pi's 5.15.8. Inputs take their text and placeholder colours from the
+   palette. */
 
-/* Main window background */
-QMainWindow {
-    background-color: ${bg.page.main-window};
+/* A scroll area's viewport and content widget fill themselves with the palette's
+   Window, which would paint the page colour inside a card: they show what the scroll
+   area sits on (the QScrollArea rule reaches its viewport). Stacked pages do too. */
+QScrollArea, QScrollArea > QWidget > QWidget, QStackedWidget {
+    background: transparent;
 }
 
 /* ============================================
@@ -77,30 +64,41 @@ QMainWindow {
 QFrame#Card, QFrame[card="true"] {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0;
 }
-QFrame#Card:hover, QFrame[card="true"]:hover {
-    border-color: ${border.subtle.card-hover};
+
+/* An elevated card (ui.style.elevation.ElevatedMixin: the Profile and login cards, the Cages
+   board, Controls, Schedule Queue, the schedule cards, the wizard's type cards) reserves room
+   round its box for its shadow and paints the shadow there; the box above is drawn inside
+   the room. build_qss.py writes the room from tokens.SHADOWS: the union of every recipe's
+   reach, so a recipe can be swapped without moving a widget. */
+QFrame[elevation="card"] {
+    margin: ${elevation.card.margin};
 }
 
-@light
-/* Logged-out login prompt: white surface instead of the grey app background */
-@dark
-/* Logged-out login prompt: card surface instead of the bare app background */
-@end
+/* A card's title, inside the card above a full-width rule (CardHeader + Divider in
+   ui/components/card.py): the group-box title's type, now in the card it names */
+QLabel#CardHeader {
+    font-size: 14px;
+    font-weight: 600;
+    color: ${text.primary};
+    padding: 12px 16px 10px 16px;
+}
+
+/* Logged-out login prompt. It stands where the Projects tab pane stands once logged in, so it
+   is drawn as that pane: the content layer's fill and stroke, in both themes */
 QWidget#LoginGatePrompt, QWidget#LoginGatePrompt QLabel {
-    background-color: ${bg.surface};
+    background-color: ${bg.pane};
+}
+QWidget#LoginGatePrompt {
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
 }
 
 /* Labels are transparent by default so they blend into whatever surface they
-@light
-   sit on (e.g. white Cards) rather than painting the grey app background as a
-   box. objectName-styled labels (banners, etc.) override this. */
-@dark
-   sit on (e.g. Cards) rather than painting the app background as a box.
+   sit on (e.g. Cards) rather than painting the page as a box.
    objectName-styled labels (banners, etc.) override this. */
-@end
 QLabel {
     background: transparent;
 }
@@ -135,11 +133,10 @@ QLabel#Caption {
 QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
     background: ${bg.field};
     border: 1px solid ${border.control};
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 12px;
-    color: ${text.primary};
-    selection-background-color: ${bg.selected.input};
-    selection-color: ${text.on-accent.input};
+    selection-background-color: ${bg.selected};
+    selection-color: ${text.on-accent};
 }
 QComboBox { 
     min-height: 36px;
@@ -158,7 +155,7 @@ QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus,
 QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
     border: 2px solid ${focus.ring};
     padding: 9px 11px;
-    background: ${bg.field.focus};
+    background: ${bg.field};
 }
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {
     background: ${bg.disabled};
@@ -166,9 +163,25 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
     border-color: ${border.subtle};
 }
 
-/* Placeholder text */
-QLineEdit[placeholderText] {
-    color: ${text.muted};
+/* Placeholder text is the palette's PlaceholderText (text.muted): no rule here. */
+
+/* The Terminal: a read-only log that fills its tab pane, so the pane is its frame. No control
+   boundary of its own (with it, the pane's stroke and the log's made a double edge), and no
+   fill: it shows the pane. */
+QPlainTextEdit#TerminalLog {
+    background: transparent;
+    border: none;
+    padding: 10px 12px;
+}
+/* Tab reaches the log (it scrolls with the keys), so focus draws the focus stroke inside the
+   pane's edge, following its corners: 7px inside the pane's rounded ones, square inside its
+   square top-left (after the shorthand, which Qt applies in order). The padding gives the
+   2px back, so the text does not move */
+QPlainTextEdit#TerminalLog:focus {
+    border: 2px solid ${focus.ring};
+    border-radius: 7px;
+    border-top-left-radius: 0;
+    padding: 8px 10px;
 }
 
 /* ComboBox dropdown */
@@ -189,18 +202,18 @@ QComboBox QAbstractItemView {
     border-radius: 8px;
     padding: 4px;
     selection-background-color: ${bg.selected};
-    selection-color: ${text.on-accent.selected};
+    selection-color: ${text.on-accent};
 }
 QComboBox QAbstractItemView::item {
     min-height: 28px;
     padding: 6px 10px;
-    border-radius: 6px;
-    color: ${text.primary.combo-item};
+    border-radius: 4px;
+    color: ${text.primary};
 }
 QComboBox QAbstractItemView::item:selected,
 QComboBox QAbstractItemView::item:hover {
     background: ${bg.selected};
-    color: ${text.on-accent.selected};
+    color: ${text.on-accent};
 }
 
 /* SpinBox buttons */
@@ -217,7 +230,7 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 QPushButton {
     background: ${bg.surface};
     border: 1px solid ${border.control};
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 20px;
     min-height: 40px;
     font-weight: 500;
@@ -227,12 +240,12 @@ QPushButton:hover {
     background: ${bg.hover};
     border-color: ${border.control.hover};
 }
-QPushButton:pressed { 
+QPushButton:pressed {
     background: ${bg.pressed};
-    border-color: ${border.control.pressed};
+    border-color: ${border.control.hover};
 }
-QPushButton:disabled { 
-    background: ${bg.disabled.button};
+QPushButton:disabled {
+    background: ${bg.disabled};
     color: ${text.disabled};
     border-color: ${border.subtle};
 }
@@ -247,13 +260,13 @@ QTableWidget QPushButton {
     min-height: 28px;
     max-height: 32px;
     font-size: 12px;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 
 /* Info Button - Circular help icon */
 QPushButton#InfoButton {
     background-color: ${accent.fill};
-    color: ${text.on-accent.info-button};
+    color: ${text.on-accent};
     border: none;
     border-radius: 12px;
     min-width: 24px;
@@ -265,10 +278,10 @@ QPushButton#InfoButton {
     font-weight: 700;
 }
 QPushButton#InfoButton:hover {
-    background-color: ${accent.fill.hover.info-button};
+    background-color: ${accent.fill.hover};
 }
 QPushButton#InfoButton:pressed {
-    background-color: ${accent.fill.pressed.info-button};
+    background-color: ${accent.fill.pressed};
 }
 
 QPushButton#CompactButton {
@@ -279,11 +292,7 @@ QPushButton#CompactButton {
 }
 
 /* ============================================
-@light
    BUTTONS - Primary (Teal)
-@dark
-   BUTTONS - Primary (Teal - Brightened)
-@end
    ============================================ */
 QPushButton[variant="primary"] {
     background: ${accent.fill};
@@ -299,10 +308,11 @@ QPushButton[variant="primary"]:pressed {
     background: ${accent.fill.pressed};
     border-color: ${accent.fill.pressed};
 }
+/* Greyed out like every other disabled button */
 QPushButton[variant="primary"]:disabled {
-    background: ${bg.disabled.primary};
-    border-color: ${bg.disabled.primary};
-    color: ${text.disabled.primary};
+    background: ${bg.disabled};
+    border-color: ${border.subtle};
+    color: ${text.disabled};
 }
 QPushButton[variant="primary"]:focus {
     border: 2px solid ${focus.ring.primary};
@@ -329,7 +339,7 @@ QPushButton[variant="danger"]:pressed {
    "press me" when the control is unavailable (CLOSE ALL RELAYS and Log Out
    while a schedule runs, Close Master while the master is closed). */
 QPushButton[variant="danger"]:disabled {
-    background: ${bg.disabled.button};
+    background: ${bg.disabled};
     border-color: ${border.subtle};
     color: ${text.disabled};
 }
@@ -337,15 +347,23 @@ QPushButton[variant="danger"]:disabled {
 /* ============================================
    TABS
    ============================================ */
+/* The content layer: a tab pane is the lighter surface its tabs open onto (WinUI's base and
+   content layers; the page is the base). One stroke, as WinUI's content frame. Its top-left
+   corner is square, as in WinUI's TabView: the first tab sits on it, and when that tab is
+   selected its left edge and the pane's are one straight line (a rounded corner bent it
+   into a small arc). The other three corners keep the container radius. */
 QTabWidget::pane {
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
-    background: ${bg.page.tab-pane};
+    border-radius: 8px;
+    border-top-left-radius: 0;
+    background: ${bg.pane};
     margin-top: -1px;
 }
+/* Unselected tabs lie flat on the base layer, as WinUI's TabView draws them: no outline. The
+   1px border stays, transparent, so selecting a tab moves nothing. */
 QTabBar::tab {
     background: ${bg.rail};
-    border: 1px solid ${border.subtle};
+    border: 1px solid transparent;
     border-bottom: none;
     padding: 8px 16px;
     min-width: 70px;
@@ -356,28 +374,82 @@ QTabBar::tab {
     font-weight: 500;
     color: ${text.secondary};
 }
+/* An unselected tab stops 1px short of the pane, so the pane's top stroke runs under it
+   (the padding gives the pixel back). Between two unselected tabs a 1px separator, inset a
+   quarter of the tab's height top and bottom, keeps their boundary: WinUI TabView's
+   TabSeparator. The tab before the selected one, and the last, need none. Square corners:
+   a rounded one would draw a stub of the separator at the tab's top. */
+QTabBar::tab:!selected {
+    margin-bottom: 1px;
+    padding-bottom: 7px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-right-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 transparent, stop: 0.25 transparent, stop: 0.2501 ${border.subtle}, stop: 0.75 ${border.subtle}, stop: 0.7501 transparent, stop: 1 transparent);
+}
+/* As in TabView, a tab under the pointer or pressed shows no separator of its own */
+QTabBar::tab:!selected:next-selected, QTabBar::tab:!selected:last,
+QTabBar::tab:!selected:hover, QTabBar::tab:!selected:pressed {
+    border-right-color: transparent;
+}
 QTabBar::tab:hover {
     background: ${bg.rail.hover};
     color: ${text.primary};
 }
+/* The selected tab joins its pane, and a 3px accent bar on top marks it: the bar is
+   3:1 or more against the pane and the rail, so the state is not carried by a
+   colour step alone. The bar takes 2px of the top padding, so no tab moves. */
 QTabBar::tab:selected {
-    background: ${bg.page.tab-pane};
-    border-bottom-color: ${bg.page.tab-pane};
-    color: ${text.primary.selected-tab};
+    background: ${bg.pane};
+    border-color: ${border.subtle};
+    border-bottom-color: ${bg.pane};
+    border-top: 3px solid ${accent.indicator};
+    padding-top: 6px;
+    color: ${text.primary};
     font-weight: 600;
 }
 /* Ensure tab bar doesn't scroll prematurely */
 QTabBar {
     qproperty-expanding: false;
 }
+/* A tab widget inside a pane or a card (Settings' sub-tabs, the Cages HAT tabs) is a Fluent
+   TabList: a strip over a rule, not a second box. Its tabs are transparent, so they show
+   the pane or card they sit on, with no separators; the selected one carries the 3px bar at
+   its foot, on the rule, and the bar takes 3px of the padding, so no tab moves. */
+QTabWidget QTabWidget::pane {
+    background: transparent;
+    border: none;
+    border-top: 1px solid ${border.divider};
+    border-radius: 0;
+}
+QTabWidget QTabWidget > QTabBar::tab {
+    background: transparent;
+}
+QTabWidget QTabWidget > QTabBar::tab:!selected {
+    border-right-color: transparent;
+}
+QTabWidget QTabWidget > QTabBar::tab:selected {
+    background: transparent;
+    border-color: transparent;
+    border-top: 1px solid transparent;
+    border-bottom: 3px solid ${accent.indicator};
+    padding-top: 8px;
+    padding-bottom: 5px;
+}
 
 /* ============================================
    TABLES
    ============================================ */
+/* The header widget and its corner paint the palette's Window, not the section rule:
+   transparent, they show the table's own surface. */
+QHeaderView {
+    background: transparent;
+}
+/* No band under the column titles: a rule (Fluent's TableHeader), one step stronger than
+   the row rules below it */
 QHeaderView::section {
-    background: ${bg.inset.table-header};
+    background: transparent;
     border: none;
-    border-bottom: 2px solid ${border.subtle};
+    border-bottom: 1px solid ${border.subtle};
     padding: 12px 16px;
     font-weight: 600;
     color: ${text.secondary};
@@ -385,70 +457,87 @@ QHeaderView::section {
     font-size: 11px;
     letter-spacing: 0.5px;
 }
+QTableCornerButton::section {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid ${border.subtle};
+}
 QTableView, QTableWidget {
     background: ${bg.surface};
+    alternate-background-color: ${bg.alt};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     gridline-color: ${border.divider};
     selection-background-color: ${bg.selected};
-    selection-color: ${text.on-accent.selected};
-@dark
+    selection-color: ${text.on-accent};
     color: ${text.primary};
-@end
+    /* Each row is ruled once, by its item's bottom rule below: no grid as well (it drew a
+       second rule under every row and 1px slits between zebra cells) */
+    qproperty-showGrid: false;
 }
 QTableView::item, QTableWidget::item {
     padding: 12px 16px;
     border-bottom: 1px solid ${border.divider};
 }
-QTableView::item:selected, QTableWidget::item:selected {
-    background: ${bg.selected};
-    color: ${text.on-accent.selected};
-}
+/* Hover first: a selected row under the pointer keeps the selection colours. */
 QTableView::item:hover, QTableWidget::item:hover {
     background: ${bg.hover};
 }
+QTableView::item:selected, QTableWidget::item:selected {
+    background: ${bg.selected};
+    color: ${text.on-accent};
+}
+
+/* A table or a list inside a group box or a card is content: the box frames it, so it
+   draws no outline of its own */
+QGroupBox QTableView, QGroupBox QTableWidget, QGroupBox QListWidget,
+QFrame#Card QTableView, QFrame#Card QTableWidget, QFrame#Card QListWidget {
+    border: none;
+    border-radius: 0;
+}
 
 /* Animals tab: the "Last schedule delivered amount" cell of a run that ended short
-   (Stopped, Incomplete, Interrupted) is filled with alertFill and written in alertText
-@light
-   by AnimalsTab's delegate. White on #DC2626 is 4.83:1 (WCAG AA); the fill is 4.83:1
-   on the light table. */
-@dark
-   by AnimalsTab's delegate. White on #DC2626 is 4.83:1 (WCAG AA); the fill is 3.19:1
-   on the dark table (#1E2530). */
-@end
+   (Stopped, Incomplete, Interrupted) is filled with alertFill and written in alertText,
+   bold, by AnimalsTab's delegate: the same bright red in both themes, with white text
+   at 4.83:1. The cell's text starts with its status word, so the red is not the only
+   cue. */
 QWidget#AnimalsTab {
     qproperty-alertFill: ${danger.alert};
     qproperty-alertText: ${danger.on-alert};
 }
 
 /* ============================================
+   CALENDAR POPUP
+   ============================================ */
+/* A date field's calendar fills its navigation bar with the palette's Highlight and
+   writes the month and year in HighlightedText: a solid teal band. The bar is the inset
+   surface instead, the page colour it had before v2.1.0, under body text. Its days are
+   a table (the rules above and the palette: Base, AlternateBase for the weekday row,
+   Highlight for the chosen day); theme.py writes the weekend in text.weekend. */
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: ${bg.inset};
+}
+QCalendarWidget QToolButton {
+    color: ${text.primary};
+}
+
+/* ============================================
    PROGRESS BARS
    ============================================ */
+/* The groove is bg.track, which is the page's colour: a 1px outline shows the bar's whole
+   length where it sits on the page (the calibration wizard's run, the Stopping dialog) as
+   well as on a card. The outline takes 2px of the 8px height, so the bar keeps its size. */
 QProgressBar {
-    border: none;
+    border: 1px solid ${border.subtle};
     border-radius: 8px;
     text-align: center;
     background: ${bg.track};
-    min-height: 8px;
-    max-height: 8px;
+    min-height: 6px;
+    max-height: 6px;
 }
 QProgressBar::chunk {
     background: ${accent.indicator};
     border-radius: 8px;
-}
-
-/* Larger progress bar variant */
-QProgressBar#DeliveryProgress {
-    min-height: 24px;
-    max-height: 24px;
-    font-size: 12px;
-    font-weight: 600;
-    color: ${text.on-accent};
-}
-QProgressBar#DeliveryProgress::chunk {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                              stop:0 ${accent.indicator.gradient-start}, stop:1 ${accent.indicator.gradient-end});
 }
 
 /* ============================================
@@ -457,13 +546,11 @@ QProgressBar#DeliveryProgress::chunk {
 QGroupBox {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     margin-top: 24px;
     margin-bottom: 8px;
     padding: 24px 20px 20px 20px;
-@dark
     color: ${text.primary};
-@end
 }
 QGroupBox::title {
     subcontrol-origin: margin;
@@ -477,17 +564,22 @@ QGroupBox::title {
     background: transparent;
 }
 
-/* Nested GroupBox */
-QGroupBox QGroupBox {
-    background: ${bg.inset};
-    border: 1px solid ${border.subtle};
-    border-radius: 8px;
-    margin-top: 20px;
-    padding: 20px 16px 16px 16px;
+/* A group box inside a group box or a card is a section, not a second box: its title over
+   a 1px rule (Fluent's Divider), on the box it sits in */
+QGroupBox QGroupBox, QFrame#Card QGroupBox, QFrame[card="true"] QGroupBox {
+    background: transparent;
+    border: none;
+    border-top: 1px solid ${border.divider};
+    border-radius: 0;
+    margin-top: 24px;
+    padding: 16px 0 0 0;
 }
-QGroupBox QGroupBox::title {
+QGroupBox QGroupBox::title, QFrame#Card QGroupBox::title, QFrame[card="true"] QGroupBox::title {
+    left: 0;
+    top: 4px;
+    padding: 0;
     color: ${text.secondary};
-    font-weight: 500;
+    font-weight: 600;
     font-size: 12px;
 }
 
@@ -496,16 +588,15 @@ QGroupBox QGroupBox::title {
    ============================================ */
 QListWidget {
     background: ${bg.surface};
+    alternate-background-color: ${bg.alt};
     border: 1px solid ${border.subtle};
     border-radius: 8px;
     padding: 8px;
-@dark
     color: ${text.primary};
-@end
 }
 QListWidget::item { 
     padding: 10px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     margin: 2px 0;
 }
 QListWidget::item:hover {
@@ -513,7 +604,7 @@ QListWidget::item:hover {
 }
 QListWidget::item:selected {
     background: ${bg.selected};
-    color: ${text.on-accent.selected};
+    color: ${text.on-accent};
     font-weight: 500;
 }
 
@@ -526,12 +617,12 @@ QScrollBar:vertical {
     margin: 4px 2px;
 }
 QScrollBar::handle:vertical {
-    background: ${border.control.strong};
+    background: ${border.control};
     border-radius: 4px;
     min-height: 32px;
 }
 QScrollBar::handle:vertical:hover {
-    background: ${border.control.hover.strong};
+    background: ${border.control.hover};
 }
 QScrollBar:horizontal {
     background: transparent;
@@ -539,12 +630,12 @@ QScrollBar:horizontal {
     margin: 2px 4px;
 }
 QScrollBar::handle:horizontal {
-    background: ${border.control.strong};
+    background: ${border.control};
     border-radius: 4px;
     min-width: 32px;
 }
 QScrollBar::handle:horizontal:hover {
-    background: ${border.control.hover.strong};
+    background: ${border.control.hover};
 }
 QScrollBar::add-line, QScrollBar::sub-line,
 QScrollBar::add-page, QScrollBar::sub-page { 
@@ -558,13 +649,13 @@ QScrollBar::add-page, QScrollBar::sub-page {
    ============================================ */
 QWidget#DropArea[state="idle"] {
     background: ${bg.surface};
-    border: 2px dashed ${border.control.strong};
-    border-radius: 12px;
+    border: 2px dashed ${border.control};
+    border-radius: 8px;
 }
 QWidget#DropArea[state="drag"] {
     background: ${accent.tint};
     border: 2px solid ${accent.indicator};
-    border-radius: 12px;
+    border-radius: 8px;
 }
 
 /* ============================================
@@ -574,28 +665,28 @@ QLabel[variant="warning"] {
     background: ${warning.tint};
     color: ${warning.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${warning.indicator};
 }
 QLabel[variant="success"] {
     background: ${success.tint};
     color: ${success.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${success.indicator};
 }
 QLabel[variant="error"] {
     background: ${danger.tint};
     color: ${danger.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${danger.indicator};
 }
 QLabel[variant="info"] {
     background: ${info.tint};
     color: ${info.on-tint};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${info.indicator};
 }
 
@@ -606,7 +697,7 @@ QLabel#InfoBanner {
     background: ${accent.tint};
     color: ${text.accent};
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 4px;
     border-left: 4px solid ${accent.indicator};
 }
 QLabel#ProfileWelcome {
@@ -621,7 +712,6 @@ QLabel#LinkLabel {
 }
 QLabel#LinkLabel:hover {
     text-decoration: underline;
-    color: ${text.link.hover};
 }
 
 /* ============================================
@@ -635,16 +725,39 @@ QLabel#HelpText {
 }
 
 /* ============================================
+   SETTINGS
+   ============================================ */
+/* A group box's one-line description (General > User Mode) */
+QLabel#GroupDescription {
+    color: ${text.secondary};
+    font-size: 11px;
+}
+
+/* General > Slack Integration > Status: the colour of the last message's fate, which its
+   words also give (Delivered at, Failed at, Status unknown) */
+QLabel#SlackStatus {
+    color: ${text.muted};
+    padding: 6px;
+    border-radius: 4px;
+}
+QLabel#SlackStatus[status="ok"] {
+    color: ${success.text};
+}
+QLabel#SlackStatus[status="warn"] {
+    color: ${warning.text};
+}
+
+/* ============================================
    PRIMING STATUS
    ============================================ */
 QLabel#StatusLabel {
-    border-radius: 8px;
+    border-radius: 4px;
     padding: 10px 16px;
     font-weight: 600;
     font-size: 13px;
 }
 QLabel#StatusLabel[status="closed"] {
-    background: ${bg.inset.badge};
+    background: ${bg.inset};
     color: ${text.secondary};
 }
 QLabel#StatusLabel[status="open"] {
@@ -657,9 +770,7 @@ QLabel#StatusLabel[status="open"] {
    ============================================ */
 QGroupBox QLabel {
     background: transparent;
-@dark
     color: ${text.primary};
-@end
 }
 QFormLayout > QLabel {
     min-width: 160px;
@@ -669,14 +780,150 @@ QFormLayout > QLabel {
 }
 
 /* ============================================
+   SCHEDULES HUB
+   ============================================ */
+QLabel#SchedulesHubTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: ${text.primary};
+}
+
+/* The header's buttons are smaller than the app's. Their own border (1px, or none)
+   outranks QPushButton:focus, so focus does not thicken it, as before v2.1.0. */
+/* Select is a default button. It reads Cancel in select mode, in the danger tint. */
+QPushButton#SchedulesHubSelect {
+    border: 1px solid ${border.control};
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-weight: 500;
+    font-size: 11px;
+}
+QPushButton#SchedulesHubSelect[selecting="true"] {
+    background: ${danger.tint};
+    border-color: ${danger.tint.strong};
+    color: ${danger.on-tint};
+}
+QPushButton#SchedulesHubSelect[selecting="true"]:hover {
+    background: ${danger.tint.strong};
+}
+/* Edit Schedule, Delete Selected, + New Schedule and the empty state's Create Schedule
+   take their colours from QPushButton[variant="primary"] and [variant="danger"] */
+QPushButton#SchedulesHubEdit, QPushButton#SchedulesHubDelete, QPushButton#SchedulesHubNew {
+    border: none;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 11px;
+}
+QPushButton#SchedulesHubEdit, QPushButton#SchedulesHubDelete {
+    font-weight: 500;
+}
+QPushButton#SchedulesHubNew {
+    font-weight: 600;
+}
+QPushButton#SchedulesHubCreate {
+    border: none;
+    border-radius: 4px;
+    padding: 8px 20px;
+    font-weight: 600;
+}
+
+/* The search field keeps its 1px frame when focused, with the focus colour */
+QLineEdit#SchedulesHubSearch {
+    border: 1px solid ${border.control};
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    background: ${bg.field};
+}
+QLineEdit#SchedulesHubSearch:focus {
+    border-color: ${focus.ring};
+}
+
+QLabel#SchedulesHubEmptyTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: ${text.secondary};
+}
+QLabel#SchedulesHubEmptyText {
+    font-size: 12px;
+    color: ${text.muted};
+}
+
+/* A schedule card. In select mode a selected card (selected="true") is tinted, with a
+   2px border; its rule comes after :hover, so it keeps that look under the pointer. */
+QFrame#ScheduleCard {
+    background: ${bg.surface};
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
+}
+/* Under the pointer a schedule card lifts (its shadow, ui.style.elevation) and its edge
+   darkens; its fill stays white, so the lift is not mixed with a grey hover */
+QFrame#ScheduleCard:hover {
+    background: ${bg.surface};
+    border-color: ${border.control.hover};
+}
+QFrame#ScheduleCard[selected="true"] {
+    background: ${accent.tint};
+    border: 2px solid ${accent.indicator};
+}
+QLabel#ScheduleCardName {
+    font-size: 13px;
+    font-weight: 600;
+    color: ${text.primary};
+    background: transparent;
+}
+QLabel#ScheduleCardMeta {
+    font-size: 11px;
+    color: ${text.secondary};
+    background: transparent;
+}
+QLabel#ScheduleCardHint {
+    font-size: 9px;
+    color: ${text.muted};
+    background: transparent;
+}
+QLabel#ScheduleCardCreated {
+    font-size: 9px;
+    font-weight: 500;
+    color: ${text.accent};
+    background: transparent;
+}
+/* The delivery mode: Staggered in the accent, Instant in indigo; the word names it */
+QLabel#ScheduleModeBadge {
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 9px;
+    padding: 3px 8px;
+}
+QLabel#ScheduleModeBadge[mode="staggered"] {
+    background: ${accent.fill};
+    color: ${text.on-accent};
+}
+QLabel#ScheduleModeBadge[mode="instant"] {
+    background: ${instant.fill};
+    color: ${text.on-instant};
+}
+/* A card's context menu: tighter than the app's menus, in their colours */
+QMenu#ScheduleCardMenu {
+    border-radius: 8px;
+    padding: 4px;
+}
+QMenu#ScheduleCardMenu::item {
+    padding: 8px 16px;
+    border-radius: 4px;
+}
+
+/* ============================================
    SCHEDULE PROGRESS TRACKER
    ============================================ */
 
-/* Header frame */
+/* Header strip: flush with its pane on three sides, so a rule under it, not a box (a box
+   drew a second hairline beside the pane's) */
 QFrame#TrackerHeader {
-    background-color: ${bg.surface.secondary};
-    border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid ${border.divider};
+    border-radius: 0;
     padding: 12px;
 }
 
@@ -701,16 +948,19 @@ QScrollArea#TrackerScrollArea {
     border: none;
 }
 
-/* Material Cards */
+/* Material Cards: one per animal */
 QFrame#MaterialCard {
     background-color: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 0;
 }
-QFrame#MaterialCard:hover {
-    border-color: ${border.subtle.card-hover};
-    background-color: ${bg.hover.material-card};
+/* A QLabel is a QFrame. Before v2.1.0 the card's own `QFrame {...}` sheet also gave every
+   label in it a 1px border: it drew a box around each, and QLabel indents the text of a
+   framed label by half an "x". The border stays, transparent, so no label moves; removing
+   it is a layout change for later. */
+QFrame#MaterialCard QLabel {
+    border: 1px solid transparent;
 }
 
 QLabel#CardTitle {
@@ -720,18 +970,110 @@ QLabel#CardTitle {
     background: transparent;
 }
 
+QLabel#TrackerAnimal {
+    font-size: 13px;
+    font-weight: 600;
+    color: ${text.primary};
+}
+
 QLabel#CageBadge {
     background-color: ${accent.fill};
-    color: ${text.on-accent.cage-badge};
-    padding: 6px 12px;
-    border-radius: 12px;
+    color: ${text.on-accent};
+    padding: 5px 10px;
+    border-radius: 10px;
     font-weight: 600;
     font-size: 11px;
+}
+
+/* The animal's progress. The bar writes its value inside it in one colour, over the
+   groove and the fill alike: each fill is a shade text.primary reads on (tokens.py,
+   progress.*). A complete or failed bar keeps its state (state="complete"|"failed"). */
+QProgressBar#TrackerProgress {
+    border: 1px solid ${border.subtle};
+    border-radius: 11px;
+    background: ${bg.track};
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    color: ${text.primary};
+    /* 8px inside its outline: 10px tall, as before v2.1.0 */
+    min-height: 8px;
+    max-height: 8px;
+}
+QProgressBar#TrackerProgress::chunk {
+    border-radius: 10px;
+    background: ${progress.fill};
+}
+QProgressBar#TrackerProgress[state="complete"] {
+    background: ${success.tint};
+}
+QProgressBar#TrackerProgress[state="complete"]::chunk {
+    background: ${progress.fill.complete};
+}
+QProgressBar#TrackerProgress[state="failed"] {
+    background: ${danger.tint};
+}
+QProgressBar#TrackerProgress[state="failed"]::chunk {
+    background: ${progress.fill.failed};
+}
+
+QLabel#VolumeLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: ${text.primary};
+    background: transparent;
+}
+
+/* The status word: muted and regular until the card's first update, then bold in its
+   status's colour. Waiting, and a word with no colour of its own (Incomplete: "other"),
+   stay muted. */
+QLabel#DeliveryStatus {
+    font-size: 11px;
+    color: ${text.muted};
+}
+QLabel#DeliveryStatus[status="waiting"],
+QLabel#DeliveryStatus[status="other"] {
+    font-weight: 600;
+}
+QLabel#DeliveryStatus[status="delivering"] {
+    font-weight: 600;
+    color: ${text.accent};
+}
+QLabel#DeliveryStatus[status="paused"] {
+    font-weight: 600;
+    color: ${warning.text};
+}
+QLabel#DeliveryStatus[status="complete"] {
+    font-weight: 600;
+    color: ${success.text};
+}
+QLabel#DeliveryStatus[status="failed"] {
+    font-weight: 600;
+    color: ${danger.text};
 }
 
 /* ============================================
    CAGES VISUALIZATION TAB
    ============================================ */
+
+/* The tab's title, and the hint at the top of its board card */
+QLabel#CagesTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: ${text.primary};
+}
+QLabel#CagesSubtitle {
+    font-size: 13px;
+    font-style: italic;
+    color: ${text.secondary};
+    padding: 4px 8px;
+    background: transparent;
+}
+/* In place of the board's picture when its file is missing */
+QLabel#CagesBoardPlaceholder {
+    font-size: 14px;
+    color: ${text.muted};
+}
 
 /* Board title - centered, subtle */
 QLabel#BoardTitle {
@@ -757,11 +1099,11 @@ QLabel#ColumnHeader {
 QFrame#RelayTerminal {
     background: ${bg.surface};
     border: 1px solid ${border.subtle};
-    border-radius: 6px;
+    border-radius: 4px;
     border-left: 3px solid ${accent.indicator};
 }
 QFrame#RelayTerminal:hover {
-    background: ${bg.hover.accent};
+    background: ${bg.hover};
     border-color: ${border.control.hover};
 }
 QFrame#RelayTerminal[selected="true"] {
@@ -773,7 +1115,7 @@ QFrame#RelayTerminal[selected="true"] {
 QFrame#MasterTerminal {
     background: ${warning.tint.master-terminal};
     border: 1px solid ${warning.indicator.master-terminal};
-    border-radius: 6px;
+    border-radius: 4px;
     border-left: 3px solid ${warning.indicator};
 }
 QFrame#MasterTerminal:hover {
@@ -781,26 +1123,26 @@ QFrame#MasterTerminal:hover {
 }
 QFrame#MasterTerminal[selected="true"] {
     background: ${warning.tint};
-    border-color: ${warning.text.master-terminal};
+    border-color: ${warning.indicator.selected};
 }
 
-/* Inline cage name editor */
+/* Inline cage name editor. It shows only while a name is edited, with the focus, and its
+   own rule outranks QLineEdit:focus: its 1px focus.ring edge is its focus cue. */
 QLineEdit#CageNameEdit {
-    background: ${bg.field.focus};
-    border: 1px solid ${border.control.cage-name-edit};
+    background: ${bg.field};
+    border: 1px solid ${focus.ring};
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 13px;
     font-weight: 500;
-    color: ${text.primary};
 }
 
 /* Relay number badge */
 QLabel#RelayNumber {
     font-size: 12px;
     font-weight: 700;
-    color: ${text.secondary.relay-number};
-    background: ${bg.inset.badge};
+    color: ${text.secondary};
+    background: ${bg.inset};
     border-radius: 4px;
     padding: 2px 6px;
 }
@@ -817,34 +1159,27 @@ QLabel#CageNameLabel {
 QLabel#MasterLabel {
     font-size: 12px;
     font-weight: 700;
-    color: ${warning.text};
+    color: ${warning.on-tint.master-terminal};
     background: transparent;
 }
 
 /* Unassigned relay */
 QLabel#UnassignedLabel {
     font-size: 12px;
-    color: ${text.muted.unassigned};
+    color: ${text.muted};
     background: transparent;
 }
 
 /* Status indicator dots */
 QLabel#StatusDot {
     font-size: 10px;
-    color: ${accent.indicator.status-dot};
+    color: ${accent.indicator};
     background: transparent;
 }
 
 QLabel#MasterStatusDot {
     font-size: 10px;
     color: ${warning.indicator.status-dot};
-    background: transparent;
-}
-
-QLabel#VolumeLabel {
-    font-size: 14px;
-    font-weight: 600;
-    color: ${text.primary};
     background: transparent;
 }
 
@@ -877,9 +1212,6 @@ QTextEdit#WizardLog {
     font-family: "IBM Plex Mono", "SF Mono", Monaco, monospace;
     font-size: 12px;
     padding: 12px;
-@dark
-    color: ${text.primary};
-@end
 }
 
 QLabel#ChecklistItem {
@@ -903,12 +1235,12 @@ QCheckBox {
 QCheckBox::indicator {
     width: 18px;
     height: 18px;
-    border: 2px solid ${border.control.strong};
+    border: 2px solid ${border.control};
     border-radius: 4px;
     background: ${bg.field};
 }
 QCheckBox::indicator:hover {
-    border-color: ${border.control.hover.accent};
+    border-color: ${border.control.hover};
 }
 QCheckBox::indicator:checked {
     background: ${accent.fill};
@@ -929,12 +1261,12 @@ QRadioButton {
 QRadioButton::indicator {
     width: 18px;
     height: 18px;
-    border: 2px solid ${border.control.strong};
+    border: 2px solid ${border.control};
     border-radius: 9px;
     background: ${bg.field};
 }
 QRadioButton::indicator:hover {
-    border-color: ${border.control.hover.accent};
+    border-color: ${border.control.hover};
 }
 QRadioButton::indicator:checked {
     background: ${accent.fill};
@@ -948,7 +1280,7 @@ QToolTip {
     background: ${bg.tooltip};
     color: ${text.tooltip};
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 8px 12px;
     font-size: 12px;
 }
@@ -963,13 +1295,12 @@ QMenuBar {
 }
 QMenuBar::item {
     padding: 8px 12px;
-    border-radius: 6px;
-@dark
+    border-radius: 4px;
     color: ${text.primary};
-@end
 }
 QMenuBar::item:selected {
-    background: ${bg.selected.menubar};
+    background: ${bg.selected};
+    color: ${text.on-accent};
 }
 QMenu {
     background: ${bg.surface};
@@ -979,14 +1310,16 @@ QMenu {
 }
 QMenu::item {
     padding: 10px 24px;
-    border-radius: 6px;
-@dark
+    border-radius: 4px;
     color: ${text.primary};
-@end
+}
+/* An item rule with a colour also colours disabled items: grey them out again. */
+QMenu::item:disabled {
+    color: ${text.disabled};
 }
 QMenu::item:selected {
     background: ${bg.selected};
-    color: ${text.on-accent.selected};
+    color: ${text.on-accent};
 }
 
 /* ============================================
@@ -1015,11 +1348,7 @@ QSlider::sub-page:horizontal {
 }
 
 /* ============================================
-@light
    WIZARD COMPONENTS
-@dark
-   WIZARD COMPONENTS (Dark Theme)
-@end
    ============================================ */
 
 /* Wizard Step Circle */
@@ -1027,14 +1356,14 @@ QLabel#WizardStepCircle {
     font-size: 14px;
     font-weight: 600;
     border-radius: 18px;
-    border: 2px solid ${border.control.strong};
-    background: ${bg.surface.secondary};
-    color: ${text.secondary.step-circle};
+    border: 2px solid ${border.control};
+    background: ${bg.surface};
+    color: ${text.secondary};
 }
 QLabel#WizardStepCircle[state="completed"] {
     border-color: ${accent.fill};
     background: ${accent.fill};
-    color: ${text.on-accent.wizard};
+    color: ${text.on-accent};
 }
 QLabel#WizardStepCircle[state="current"] {
     border-color: ${accent.indicator};
@@ -1042,8 +1371,8 @@ QLabel#WizardStepCircle[state="current"] {
     color: ${text.accent};
 }
 QLabel#WizardStepCircle[state="pending"] {
-    border-color: ${border.control.strong};
-    background: ${bg.surface.secondary};
+    border-color: ${border.control};
+    background: ${bg.surface};
     color: ${text.muted};
 }
 
@@ -1054,7 +1383,7 @@ QLabel#WizardStepTitle {
     padding: 0 8px;
 }
 QLabel#WizardStepTitle[state="completed"] {
-    color: ${text.accent.step-title};
+    color: ${text.accent};
 }
 QLabel#WizardStepTitle[state="current"] {
     color: ${text.primary};
@@ -1063,41 +1392,48 @@ QLabel#WizardStepTitle[state="current"] {
 
 /* Wizard Connector Line */
 QFrame#WizardConnector {
-    background: ${border.subtle.wizard-connector};
+    background: ${border.subtle};
     border: none;
 }
 QFrame#WizardConnector[state="completed"] {
     background: ${accent.indicator};
 }
 
-/* Wizard Separator */
+/* Wizard Separator: an HLine. Without a border Qt draws no line of its own (a Plain HLine
+   drew one in WindowText, near-black, 3px tall): 1px of the divider */
 QFrame#WizardSeparator {
-    background: ${border.divider.wizard-separator};
+    background: ${border.divider};
+    border: none;
+    min-height: 1px;
     max-height: 1px;
+}
+/* The rule widget for every other divider (ui.components.card.Divider: NoFrame, its 1px
+   size fixed in code) */
+QFrame#Divider {
+    background: ${border.divider};
+    border: none;
 }
 
 /* Wizard Navigation Buttons */
 QPushButton#WizardBackButton {
-    background: ${bg.surface.wizard-back};
-    border: 1px solid ${border.control.wizard-back};
-    border-radius: 10px;
+    background: ${bg.surface};
+    border: 1px solid ${border.control};
+    border-radius: 4px;
     color: ${text.secondary};
     padding: 12px 20px;
     font-size: 14px;
     font-weight: 500;
 }
 QPushButton#WizardBackButton:hover {
-    background: ${bg.hover.wizard-back};
-    border-color: ${border.control.hover.wizard-back};
-@dark
+    background: ${bg.hover};
+    border-color: ${border.control.hover};
     color: ${text.primary};
-@end
 }
 QPushButton#WizardNextButton {
     background: ${accent.fill};
     border: none;
-    border-radius: 10px;
-    color: ${text.on-accent.wizard};
+    border-radius: 4px;
+    color: ${text.on-accent};
     padding: 12px 24px;
     font-size: 14px;
     font-weight: 600;
@@ -1106,29 +1442,35 @@ QPushButton#WizardNextButton:hover {
     background: ${accent.fill.hover};
 }
 QPushButton#WizardNextButton:disabled {
-    background: ${bg.disabled.wizard-next};
-    color: ${text.disabled.wizard-next};
+    background: ${bg.disabled};
+    color: ${text.disabled};
+}
+/* Start Over, beside the steps: a default button, smaller. Its own 1px border outranks
+   QPushButton:focus, so focus does not thicken it, as before v2.1.0. */
+QPushButton#WizardStartOverButton {
+    border: 1px solid ${border.control};
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: 500;
 }
 
 /* ============================================
-@light
    INTERACTIVE CARD COMPONENT
-@dark
-   INTERACTIVE CARD COMPONENT (Dark Theme)
-@end
    ============================================ */
 QFrame#InteractiveCard {
     background: ${bg.surface};
-    border: 2px solid ${border.subtle};
-    border-radius: 12px;
+    border: 1px solid ${border.subtle};
+    border-radius: 8px;
     padding: 16px;
 }
 QFrame#InteractiveCard:hover {
-    border-color: ${border.control.hover.accent};
-    background: ${bg.hover.accent};
+    border-color: ${border.control.hover};
+    background: ${bg.hover};
 }
+/* Checked: a 2px accent border; the padding gives the extra pixel back, so nothing moves */
 QFrame#InteractiveCard[checked="true"] {
-    border-color: ${accent.indicator};
+    border: 2px solid ${accent.indicator};
+    padding: 15px;
     background: ${accent.tint};
 }
 
@@ -1137,7 +1479,7 @@ QLabel#CardIcon {
     font-size: 20px;
     color: ${text.accent};
     background: ${accent.tint};
-    border-radius: 8px;
+    border-radius: 4px;
 }
 
 /* Card Title */
@@ -1160,22 +1502,13 @@ QLabel#CardBadge {
     font-weight: 500;
     color: ${text.accent};
     background: ${accent.tint};
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 4px 8px;
 }
 
 /* ============================================
-@light
    WIZARD STEP CONTENT AREA
-@dark
-   WIZARD STEP CONTENT AREA (Dark Theme)
-@end
    ============================================ */
-QWidget#WizardStepContent {
-    background: ${bg.page};
-    padding: 24px;
-}
-
 /* Step Header */
 QLabel#StepIcon {
     font-size: 24px;
@@ -1192,46 +1525,147 @@ QLabel#StepDescription {
 }
 
 /* ============================================
-@light
-   HELP TAB  (light theme)
-@dark
-   HELP TAB  (dark theme)
-@end
+   SCHEDULE WIZARD STEPS
+   ============================================ */
+/* Step 2's banner: how many animals the relays allow. The warning tint, with a 1px edge
+   all round. */
+QFrame#WizardLimitBanner {
+    background: ${warning.tint};
+    border: 1px solid ${warning.indicator};
+    border-radius: 4px;
+}
+/* A QLabel is a QFrame: before v2.1.0 the banner's own `QFrame {...}` sheet also framed its
+   icon and its text. That 1px border stays, transparent, so neither moves; removing it is
+   a layout change for later. */
+QFrame#WizardLimitBanner QLabel {
+    border: 1px solid transparent;
+}
+QLabel#WizardLimitText {
+    color: ${warning.on-tint};
+    font-size: 11px;
+}
+
+/* Step 2's count of selected animals: muted at 11px until the selection first changes,
+   then 12px in the colour of the count (count="none"|"some"|"over") */
+QLabel#WizardSelectionCounter {
+    color: ${text.muted};
+    font-size: 11px;
+}
+QLabel#WizardSelectionCounter[count="none"],
+QLabel#WizardSelectionCounter[count="some"],
+QLabel#WizardSelectionCounter[count="over"] {
+    font-size: 12px;
+}
+QLabel#WizardSelectionCounter[count="some"] {
+    color: ${success.text};
+}
+QLabel#WizardSelectionCounter[count="over"] {
+    color: ${danger.text};
+}
+
+/* Step 3 with no animals selected */
+QLabel#WizardEmptyState {
+    color: ${text.muted};
+    font-size: 14px;
+}
+
+/* Step 3's row for each animal (the schedule edit dialog's too): a list row under a rule
+   in its group box, not a box inside the box */
+QFrame#AnimalConfigRow {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid ${border.divider};
+    border-radius: 0;
+    padding: 8px 0;
+    margin: 0;
+}
+
+/* Step 4's summary, on the page: section titles with a rule under them, then label and
+   value rows */
+QLabel#WizardSummarySection {
+    font-size: 12px;
+    font-weight: 600;
+    color: ${text.accent};
+    padding-top: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid ${border.divider};
+}
+QLabel#WizardSummaryLabel {
+    font-size: 11px;
+    font-weight: 500;
+    color: ${text.secondary};
+}
+QLabel#WizardSummaryValue {
+    font-size: 11px;
+    font-weight: 600;
+    color: ${text.primary};
+}
+
+/* ============================================
+   SPLASH SCREEN
+   ============================================ */
+/* On the splash's teal gradient, which SplashScreen paints from accent.fill to
+   accent.fill.hover: the title and the status (an error too, which its words name) in
+   text.on-accent, and the bar in it over a deeper teal groove */
+QLabel#SplashTitle, QLabel#SplashStatus {
+    color: ${text.on-accent};
+}
+QProgressBar#SplashProgress {
+    background: ${accent.fill.pressed};
+    border: none;
+    border-radius: 4px;
+    /* No outline: 8px tall, as before v2.1.0 */
+    min-height: 8px;
+    max-height: 8px;
+}
+QProgressBar#SplashProgress::chunk {
+    background: ${text.on-accent};
+    border-radius: 4px;
+}
+
+/* ============================================
+   HELP TAB
    ============================================ */
 
-/* Sidebar container */
+/* Sidebar: the navigation column on the base layer, as WinUI's NavigationView pane; one
+   stroke divides it from the content. Its outer corners follow the pane's: 7px inside the
+   pane's rounded bottom-left (its radius less its 1px border), so the sidebar does not cover
+   it, and square inside the pane's square top-left, so no wedge of the pane shows there. */
 QWidget#HelpSidebar {
     background-color: ${bg.page};
     border-right: 1px solid ${border.subtle};
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 7px;
 }
 
 /* Content pane container */
 QWidget#HelpContentPane {
-    background-color: ${bg.surface.help};
+    background-color: ${bg.surface};
+    border-top-right-radius: 7px;
+    border-bottom-right-radius: 7px;
 }
 
-/* Topic tree */
+/* Topic tree: straight on the sidebar, no box of its own */
 QTreeWidget#HelpTree {
-    background-color: ${bg.surface};
-    border: 1px solid ${border.subtle};
-    border-radius: 8px;
+    background-color: transparent;
+    border: none;
     outline: none;
-@dark
     color: ${text.primary};
-@end
+    /* The selection is the rounded item alone, not a second block in the indent */
+    show-decoration-selected: 0;
 }
 QTreeWidget#HelpTree::item {
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: 4px;
     margin: 1px 2px;
     color: ${text.primary};
 }
 QTreeWidget#HelpTree::item:hover {
-    background-color: ${bg.hover.accent};
+    background-color: ${bg.hover};
 }
 QTreeWidget#HelpTree::item:selected {
     background-color: ${bg.selected};
-    color: ${text.on-accent.selected};
+    color: ${text.on-accent};
     font-weight: 500;
 }
 QTreeWidget#HelpTree::branch {
@@ -1262,19 +1696,18 @@ QLabel#HelpResultCount {
     background: transparent;
 }
 
-/* Content browser — override QTextEdit form-input rules */
+/* Content browser — override QTextEdit form-input rules. Its text colours come from
+   the Help page's own HTML. */
+/* No box: the content pane is the box. Its viewport is square and a stylesheet radius
+   cannot round it, so a margin keeps it off the pane's rounded bottom-right corner. */
 QTextBrowser#HelpContent {
-    background-color: ${bg.surface.help};
-    border: 1px solid ${border.subtle};
-    border-radius: 8px;
+    background-color: ${bg.surface};
+    border: none;
+    border-radius: 0;
     padding: 0;
-@light
-    /* Suppress focus thickening inherited from QTextEdit:focus */
-@dark
-    color: ${text.primary};
-@end
+    margin: 0px 4px 4px 0px;
 }
 QTextBrowser#HelpContent:focus {
-    border: 1px solid ${border.subtle};
+    border: none;
     padding: 0;
 }

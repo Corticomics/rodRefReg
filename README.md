@@ -233,6 +233,10 @@ Go to **Settings → Calibration**. The table lists every cage, with the custom 
 
 Calibrate before starting a new experiment and periodically to maintain accuracy. The **Priming** sub-tab in Settings can be used on its own any time you swap tubing, refill the reservoir or, on an independent rig, refill or replace a syringe. It is refused while a schedule or a calibration is running. Changing the valve topology restarts RRR, and Priming then shows the controls for the new topology; if RRR cannot restart itself, Priming cannot open a valve until RRR is closed and reopened.
 
+### Why are the screens dark, and how do I get the light theme back?
+
+From 2.1.0 RRR is dark by default, and each device switched to the dark theme once, the first time 2.1.0 started. To switch, log in and press **Switch to light mode** in **Settings → General → Appearance**; in the light theme the same button reads **Switch to dark mode**. RRR keeps the choice: it starts in the theme chosen last.
+
 ### How do I resolve "i2c-1 not found" or other I²C errors?
 
 The installer enables I²C automatically via `raspi-config nonint do_i2c 0`, which makes `/dev/i2c-1` (the GPIO HAT bus) appear without a reboot on every Pi 4 and Pi 5. If the relay HAT does not respond:

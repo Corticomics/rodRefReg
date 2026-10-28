@@ -28,6 +28,22 @@ class SystemController(QObject):
     # utils.calibration_gate read it.
     FIXED_SETTINGS = {'use_pulse_delivery': True}
 
+    # The theme. v2.1.0 makes dark the default (ui/style/tokens.py's DEFAULT_THEME, which
+    # test_dark_default.py keeps equal to this) and keeps the theme under a key of its own,
+    # THEME_KEY. A device without that row is fresh, or has not run 2.1.0 yet: the load
+    # stores the default there, which is the one-time switch to dark, and from then on the
+    # operator's choice (Settings > General > Appearance) is kept there.
+    # LEGACY_THEME_KEY is the row v1.5.0 to 2.0.0 keep their theme in. 2.1.0 never writes,
+    # changes or deletes it, and never reads it as the theme, so a revert opens 2.0.0 in
+    # the theme 2.0.0 saved: light on the lab's devices, its readable theme (2.0.0's dark
+    # one shows every other table row near-white). 2.0.0's saves write only its own keys,
+    # so the next update finds THEME_KEY as 2.1.0 left it. (Pre-release builds of 2.1.0
+    # recorded the switch in a row of their own, ui_dark_default_applied. Nothing reads
+    # such a row, and it is left as it is.)
+    DEFAULT_THEME = 'dark'
+    THEME_KEY = 'ui_theme'
+    LEGACY_THEME_KEY = 'theme'
+
     def __init__(self, database_handler):
         super().__init__()
         self.database_handler = database_handler
@@ -42,7 +58,8 @@ class SystemController(QObject):
         mode-0600 ``secrets.json`` (and removed from the DB). Defaults fill
         any keys still missing. See docs/UPDATE_SYSTEM.md §13.8. Retired
         settings are deleted from the DB and fixed ones forced, in the DB
-        too (see RETIRED_KEYS and FIXED_SETTINGS).
+        too (see RETIRED_KEYS and FIXED_SETTINGS), and the theme is switched
+        to dark once (DEFAULT_THEME, THEME_KEY).
         """
         try:
             self._migrate_legacy_json_if_needed()
@@ -94,10 +111,11 @@ class SystemController(QObject):
 
     def _settle_stored_settings(self):
         """Bring what an older release saved under this release's rules:
-        delete the retired settings, and store a fixed one at its value where
-        it was saved with another, so the DB says what RRR does. (The force-
-        merge in ensure_solenoid_defaults compares with memory, which the
-        load has already put right, so it would not write it.)
+        delete the retired settings, store a fixed one at its value where
+        it was saved with another, so the DB says what RRR does, and make
+        the one-time switch to the dark theme (_switch_to_dark_once). (The
+        force-merge in ensure_solenoid_defaults compares with memory, which
+        the load has already put right, so it would not write it.)
 
         Printed as well as emitted: nothing is connected to system_status
         while settings load, and the journal is where it can be looked up.
@@ -135,9 +153,59 @@ class SystemController(QObject):
                     f"still holds {stored[key]!r}, RRR uses {value!r}, and the next start "
                     "tries again"
                 )
+        messages.extend(self._switch_to_dark_once(stored))
         for message in messages:
             print(f"[SETTINGS] {message}", flush=True)
             self.system_status.emit(message)
+
+    def _switch_to_dark_once(self, stored):
+        """The one-time switch to dark, the default from 2.1.0: store it as the
+        theme (THEME_KEY) on a device that has no theme there yet, a fresh
+        install or one on its first start of 2.1.0. Nothing once that row
+        exists: the operator's choice stays. Returns the journal lines: one
+        when the theme the older release saved was not dark, or when the row
+        cannot be stored.
+
+        The older release's row (LEGACY_THEME_KEY) is read only to say what
+        the theme was, and is left as it is, for a revert. When the database
+        refuses the row, RRR starts dark all the same (a device without the
+        row starts in the default), and the next start stores it.
+
+        Nothing either when the read failed. get_system_settings returns {}
+        then, and a read that works holds at least the legacy migration's
+        sentinel, stored just before (_migrate_legacy_json_if_needed). Taken
+        for a device without the row, {} would store the default over the
+        operator's choice, for good; the switch waits for the next start.
+        """
+        if not stored or self.THEME_KEY in stored:
+            return []
+        try:
+            written, why = self._write_setting_to_db(self.THEME_KEY, self.DEFAULT_THEME), ""
+        except Exception as exc:
+            written, why = False, f" ({exc})"
+        if not written:
+            return [
+                f"Could not store {self.THEME_KEY}={self.DEFAULT_THEME!r}{why}; RRR starts "
+                "in it all the same, and the next start tries again"
+            ]
+        before = stored.get(self.LEGACY_THEME_KEY)
+        if before is None or before == self.DEFAULT_THEME:
+            return []
+        return [
+            f"Switched the theme to {self.DEFAULT_THEME!r}, the default from 2.1.0, once "
+            f"(it was {before!r}, which is kept for a revert to 2.0.0); Settings > General > "
+            "Appearance switches it back, and that choice is kept"
+        ]
+
+    @classmethod
+    def theme_at_start(cls, stored):
+        """The theme these stored settings (system_settings rows) give once
+        they load: the operator's choice under THEME_KEY, or the default where
+        there is none yet, which the load stores (the one-time switch). Never
+        the older release's row. main.py reads the rows and applies this
+        before any window shows, the splash included.
+        """
+        return stored.get(cls.THEME_KEY, cls.DEFAULT_THEME)
 
     def _create_default_settings(self):
         """Create default settings with proper types"""
@@ -169,6 +237,9 @@ class SystemController(QObject):
             # animal, no master). Read by utils.topology; like round_doses_up
             # it is kept out of the force-merged pulse block below.
             'valve_topology': 'shared_manifold',
+            # The theme: dark from v2.1.0, under a key of its own (THEME_KEY). 2.0.0
+            # had no theme default here; its main.py fell back to light.
+            self.THEME_KEY: self.DEFAULT_THEME,
             'debug_mode': False,
             'log_level': 2,
             'log_level_map': {0: 'DEBUG', 1: 'INFO', 2: 'WARNING', 3: 'ERROR', 4: 'CRITICAL'},
@@ -214,9 +285,11 @@ class SystemController(QObject):
             'min_trigger_interval_ms',
             'cycle_interval',
             'stagger_interval',
-            # UI (silently dropped pre-v1.5.0 because it was missing from the
-            # JSON key list; managed properly from this release on)
-            'theme',
+            # The theme, under a key of its own from v2.1.0. Not 'theme', which
+            # v1.5.0 to 2.0.0 persist (pre-v1.5.0 silently dropped it): 2.1.0
+            # leaves that row as an older release saved it, for a revert
+            # (LEGACY_THEME_KEY).
+            self.THEME_KEY,
         }
 
     def _get_setting_type(self, key):
@@ -245,6 +318,7 @@ class SystemController(QObject):
             'max_pulse_delivery_time_s': float,
             'round_doses_up': bool,
             'valve_topology': str,
+            self.THEME_KEY: str,
         }
         return type_map.get(key, str)
 

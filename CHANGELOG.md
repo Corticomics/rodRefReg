@@ -16,10 +16,16 @@ not listed here.
 
 ---
 
-## 2.1.0 — each cage's own pulse profile
+## 2.1.0 — Dark theme by default, clearer cards, each cage's own pulse profile
 
 **What changes on the device**
 
+- **Change:** the screens are dark by default. Each device switches to the
+  dark theme once, the first time 2.1.0 starts. To go back to the light
+  theme, log in and press **Switch to light mode** in Settings > General >
+  Appearance (it replaces the Theme drop-down; in the light theme it reads
+  **Switch to dark mode**). RRR keeps that choice: no later start switches
+  it again.
 - **Change (safety):** Settings > Delivery no longer has *Enable Pulse
   Mode* or *Pulse Width*. Deliveries are always pulsed, and each cage
   pulses at the pulse width and interval it was calibrated at, as it
@@ -39,6 +45,21 @@ not listed here.
   configuration page says where the values came from. Calibrate All
   Uncalibrated works the same way, so each cage it opens starts from the
   one calibrated just before it.
+- **Change:** the screens are easier to read on the lab monitor, in both
+  themes. In the light theme the page stays near-white, and the tab panes
+  and cards are white with a darker outline. Profile, Controls, Schedule
+  Queue, the Cages board and the wizard's two type cards cast a soft
+  shadow, and a schedule card lifts under the pointer. Inside a card,
+  sections are divided by a line instead of a box within the box, and a
+  table has one line under each row and none between its columns. In the
+  dark theme the tables' alternate rows, the Help pane, the Schedules tab,
+  the Execution Monitor's cards, the wizard's steps, the date fields'
+  calendars and the Cages tab's board picture are now dark and readable;
+  before, some stayed white or light. In both themes a selected row is
+  solid teal, the selected tab has a teal bar, and most fields and buttons
+  with the keyboard focus have a black (light) or white (dark) outline; a
+  teal button's is black in both. The Animals tab's red *Last schedule
+  delivered amount* cell is unchanged.
 - **Add:** Settings > Calibration has a **Profile** column: the pulse width
   and interval each cage was calibrated at, for example *30 / 1000 ms*.
   Every delivery to the cage uses them.
@@ -59,6 +80,11 @@ not listed here.
   field cannot take (typed, 0.369 became 0.36). A remainder that rounds
   below 0.10 mL, the smallest schedule, is said to be so, and no
   schedule is offered.
+- **Revert to previous version** (Settings > Updates) goes back to 2.0.0
+  in the theme it had before the update, light unless dark was chosen in
+  2.0.0, whichever theme 2.1.0 shows: 2.1.0 keeps its own theme setting
+  and leaves 2.0.0's as it was. Updating to 2.1.0 again starts in the
+  theme last chosen in 2.1.0, dark if none was chosen.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 

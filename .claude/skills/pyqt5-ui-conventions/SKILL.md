@@ -97,8 +97,11 @@ self.schedules_tab.create_requested.connect(self._switch_to_wizard)
 
 Card-style UI lives in [Project/ui/components/](Project/ui/components/):
 
-- `card.py` `Card(QFrame)` — non-interactive container with `Card` objectName for QSS.
+- `card.py` `Card(QFrame)` — non-interactive container with `Card` objectName for QSS;
+  `Card(elevated=True)` carries the card shadow (see Styling). `CardHeader` and `Divider`
+  put a card's title inside it, over a 1px rule (Controls and Schedule Queue).
 - `interactive_card.py` `InteractiveCard`, `SelectableCardGroup` — clickable selection.
+  An `InteractiveCard` carries the card shadow at rest.
 - `primary_button.py` `PrimaryButton` — branded button.
 - `wizard.py` `WizardContainer`, `WizardStep` — used by `schedule_wizard.py`.
 
@@ -124,8 +127,69 @@ edited and both stylesheets ([CONTRIBUTING.md §7](CONTRIBUTING.md#7-colours-and
 `test_no_new_raw_colours.py` fails when a file under `Project/ui` gains a
 raw colour (hex, `rgb()` or `hsv()`, `QColor(200, 0, 0)` or
 `QColor.fromRgb(…)`, `Qt.white`, `color: white`), or loses one without
-lowering its count in `BASELINE`. The Help tab's HTML palette (`_PALETTE`
-in `Project/utils/help_content_manager.py`) is counted the same way.
+lowering its count in `BASELINE`. The Help tab's HTML takes its colours from
+`tokens.HELP_HTML` and is counted the same way.
+
+The app starts in the saved theme, dark by default (`tokens.DEFAULT_THEME`):
+main.py applies it before any window shows, and the main window is built in
+it. Settings > General's `#ThemeButton` switches it at run time; it is a
+default button whose label names the switch (*Switch to light mode* while
+dark is on screen), and it saves the choice through the tab's auto-save, as
+`ui_theme` (`SystemController.THEME_KEY`). Never read or write the `theme`
+setting: it is 2.0.0's, which a revert needs as 2.0.0 saved it.
+
+`StyleManager.apply` also sets a QPalette built from the same tokens
+([qt_palette.py](Project/ui/style/qt_palette.py)), before the stylesheet, and
+emits `theme_changed`. The palette colours what no rule names: the window, plain
+containers (transparent over it), input text and placeholders, alternate rows,
+selection, links. So:
+
+- **Never** add a universal `QWidget { background; color }` rule.
+- **Never** put a `color` on a rule that matches an input. Qt would draw the
+  input's placeholder in that colour: at half alpha from Qt 5.15.12 (under
+  4.5:1), and on the Pi's 5.15.8 at full strength, like typed text.
+- Content the stylesheet cannot reach (HTML, a painter) listens to
+  `theme_changed`, as `HelpTab` does.
+
+The light theme follows Fluent 2 / WinUI: a near-white page (`bg.page`), white
+tab panes (`bg.pane`) and cards (`bg.surface`), one stroke round each
+(`border.subtle`), and a lighter rule inside a card (`border.divider`). Never a
+box inside a box: a group box in a group box or a card is drawn as a section
+(its title over a rule), a card's title is a `CardHeader` over a `Divider`, and
+a table or list in a box has no frame of its own. Radii are WinUI's: 8px for a
+container, 4px for a control, 7px just inside a container's 1px stroke, and
+half the height for a pill or a circle (CONTRIBUTING.md §7). A tab pane's
+top-left corner, under the first tab, is square, as in WinUI's TabView, and so
+is what lies just inside it (Help's sidebar, the Terminal log's focus stroke).
+
+Card shadows ([elevation.py](Project/ui/style/elevation.py), CONTRIBUTING.md §7):
+
+- **Never** `setGraphicsEffect` / `QGraphicsDropShadowEffect` outside the
+  splash (`test_elevation.py` fails): it re-renders the card and its children
+  on every change and turns near-black on the Pi's Qt 5.15.8 (QTBUG-102374).
+- An elevated card is `Card(elevated=True)`, or a `QFrame` subclass with
+  `ElevatedMixin` before `QFrame` that calls `init_elevation(level, radius,
+  at_rest=True|False)` in `__init__`. `radius` must equal its rule's
+  `border-radius`; `at_rest=False` shows the shadow only under the pointer
+  (schedule cards).
+- The card reserves room round its box for the shadow (a margin
+  `build_qss.py` writes from `tokens.SHADOWS`), so it is bigger than its box by
+  `elevation.ROOM`. The parent gives that room back: its side margins less
+  `ROOM.left` / `ROOM.right`, and the rows beside the card inset by as much.
+- `tokens.ELEVATION` alone picks the recipe for each theme; dark is `None`
+  and paints nothing, but keeps the room, so a theme switch moves nothing.
+
+`test_theme_contrast.py` checks every pair of roles drawn together, in both
+themes. Add the pair when you combine two roles in a new way (every role a
+`color:` declaration names needs one), and keep the status-word colours
+apart (it checks them with CIEDE2000).
+
+A state that changes a widget's look is a dynamic property the template
+selects on (`QFrame#ScheduleCard[selected="true"]`), never a second
+`setStyleSheet`. After `setProperty`, call `restyle(widget)` from
+`ui.style.theme`: it unpolishes and polishes the widget and sends the
+`QEvent.StyleChange` that `setStyleSheet` would, so a `QFrame` re-reads its
+frame width when the rule changes a border's width.
 
 A colour that code paints itself comes from the QSS too. Declare it as a
 `pyqtProperty(QColor)` on a named widget and set it with `qproperty-*` in
@@ -133,10 +197,19 @@ the template, from a token; a theme switch sets it again. The Animals tab's
 red cell is the pattern: `_LastRunDelegate` (a `QStyledItemDelegate`) fills
 the cell with `AnimalsTab.alertFill` and writes `alertText`, which
 `QWidget#AnimalsTab { qproperty-alertFill: ${danger.alert}; qproperty-alertText: ${danger.on-alert}; }`
-sets for each theme. Colouring a table cell:
+sets for each theme. A one-off painting, such as the Schedules hub's drag
+pixmap, can instead ask for the role when it paints: `theme_colour("accent.tint")`
+from `ui.style.theme` is the current theme's `QColor`. Never read a colour at
+import, and redraw what stays on screen on `theme_changed`. Colouring a table
+cell:
 
 - `QTableWidgetItem.setBackground()` is not painted under the app QSS, and
-  `setForeground()` turns teal on a selected row (`::item:selected`).
+  `setForeground()` gives way on a selected row to `::item:selected`'s
+  on-accent text.
+- A word in a status colour (the Calibration table's *[OK]*, *Stale*, CV%):
+  `setForeground(theme_colour(role))` as the table fills, with the role kept
+  on the item (`SettingsTab.CAL_TONE_ROLE`) so that a slot on
+  `style_manager().theme_changed` can set it again.
 - A widget put in a cell (`setCellWidget`) sits inside the `::item`
   padding, so it fills only a band of the cell. A delegate fills it all,
   and then paints the selected state itself (the red cell keeps its fill

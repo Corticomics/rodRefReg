@@ -18,10 +18,15 @@ from typing import Optional
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
+from ..style.elevation import ElevatedMixin
 
-class InteractiveCard(QFrame):
+
+class InteractiveCard(ElevatedMixin, QFrame):
     """
     A card that can be selected/checked with visual feedback.
+
+    It carries the card shadow at rest (ui.style.elevation; Fluent's filled interactive
+    card), in room it reserves round its box (elevation.ROOM).
 
     Signals:
         clicked(): Emitted when card is clicked
@@ -39,6 +44,9 @@ class InteractiveCard(QFrame):
 
     clicked = pyqtSignal()
     checked_changed = pyqtSignal(bool)
+
+    # QFrame#InteractiveCard's border-radius in app.qss.tmpl: the shadow tile is drawn for it
+    RADIUS = 8
 
     def __init__(
         self,
@@ -58,6 +66,7 @@ class InteractiveCard(QFrame):
         self._checked = False
 
         self.setObjectName("InteractiveCard")
+        self.init_elevation("card", self.RADIUS)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._init_ui()

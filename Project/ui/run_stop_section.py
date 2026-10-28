@@ -2,7 +2,6 @@ from datetime import datetime
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtWidgets import (
-    QGroupBox,
     QHBoxLayout,
     QMessageBox,
     QPushButton,
@@ -30,6 +29,7 @@ from utils.run_warnings import (
     window_note,
 )
 
+from .components.card import Card, CardHeader, Divider
 from .schedule_drop_area import ScheduleDropArea
 
 
@@ -129,25 +129,39 @@ class RunStopSection(QWidget):
         self.stop_button.clicked.connect(self.stop_program)
         self.relay_hats_button.clicked.connect(self.change_relay_hats)
 
-        # Controls group (Edit button removed - edit via Schedules tab)
-        controls_group = QGroupBox("Controls")
+        # Controls and Schedule Queue are the main screen's permanent cards: each a Card with
+        # the card shadow, its title inside it over a full-width rule (CardHeader + Divider),
+        # then its body. (Edit button removed - edit via Schedules tab)
+        controls_group = Card(elevated=True)
+        controls_group.setContentsMargins(0, 0, 0, 0)  # the rule runs edge to edge
+        controls_layout = QVBoxLayout(controls_group)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(0)
+        controls_layout.addWidget(CardHeader("Controls"))
+        controls_layout.addWidget(Divider())
         self.button_layout = QHBoxLayout()
         self.button_layout.setSpacing(8)
-        self.button_layout.setContentsMargins(12, 8, 12, 8)
+        self.button_layout.setContentsMargins(16, 16, 16, 16)
         self.button_layout.addWidget(self.run_button)
         self.button_layout.addWidget(self.stop_button)
         self.button_layout.addWidget(self.relay_hats_button)
-        controls_group.setLayout(self.button_layout)
+        controls_layout.addLayout(self.button_layout)
 
         # Schedule drop area (always visible)
-        schedule_group = QGroupBox("Schedule Queue")
+        schedule_group = Card(elevated=True)
+        schedule_group.setContentsMargins(0, 0, 0, 0)  # the rule runs edge to edge
+        queue_layout = QVBoxLayout(schedule_group)
+        queue_layout.setContentsMargins(0, 0, 0, 0)
+        queue_layout.setSpacing(0)
+        queue_layout.addWidget(CardHeader("Schedule Queue"))
+        queue_layout.addWidget(Divider())
         schedule_layout = QVBoxLayout()
-        schedule_layout.setContentsMargins(12, 12, 12, 12)
+        schedule_layout.setContentsMargins(16, 16, 16, 16)
         self.schedule_drop_area = ScheduleDropArea(self.database_handler)
         self.schedule_drop_area.schedule_dropped.connect(self.on_schedule_dropped)
         print("Connected schedule_dropped signal to on_schedule_dropped slot")
         schedule_layout.addWidget(self.schedule_drop_area)
-        schedule_group.setLayout(schedule_layout)
+        queue_layout.addLayout(schedule_layout)
 
         left_layout.addWidget(controls_group)
         left_layout.addWidget(schedule_group)

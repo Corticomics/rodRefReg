@@ -13,7 +13,7 @@ References:
 """
 
 from PyQt5.QtCore import Qt, QThread, QTimer, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QLinearGradient, QPainter
+from PyQt5.QtGui import QFont, QLinearGradient, QPainter, QPalette
 from PyQt5.QtWidgets import (
     QApplication,
     QGraphicsDropShadowEffect,
@@ -22,6 +22,8 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from .style.theme import theme_colour
 
 
 class InitializationWorker(QThread):
@@ -139,6 +141,11 @@ class SplashScreen(QWidget):
     - Teal gradient matching app theme
     - Progress bar and status text
     - Automatically closes when initialization completes
+
+    Its colours are the theme's: the gradient is painted from accent.fill to
+    accent.fill.hover, and the stylesheet gives the text and the bar their colours on
+    it (#SplashTitle, #SplashProgress, #SplashStatus). main.py applies the saved theme,
+    dark by default, before it shows the splash, so the splash has the main window's.
     """
 
     initialization_complete = pyqtSignal(object)  # Emits initialized components
@@ -181,31 +188,21 @@ class SplashScreen(QWidget):
         self.title_label.setAlignment(Qt.AlignCenter)
         title_font = QFont("IBM Plex Sans", 18, QFont.Bold)
         self.title_label.setFont(title_font)
-        self.title_label.setStyleSheet("color: white;")
+        self.title_label.setObjectName("SplashTitle")
 
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedWidth(350)
         self.progress_bar.setFixedHeight(8)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                background: rgba(255, 255, 255, 0.3);
-                border: none;
-                border-radius: 4px;
-            }
-            QProgressBar::chunk {
-                background: white;
-                border-radius: 4px;
-            }
-        """)
+        self.progress_bar.setObjectName("SplashProgress")
 
         # Status label
         self.status_label = QLabel("Starting...")
         self.status_label.setAlignment(Qt.AlignCenter)
         status_font = QFont("IBM Plex Sans", 11)
         self.status_label.setFont(status_font)
-        self.status_label.setStyleSheet("color: rgba(255, 255, 255, 0.8);")
+        self.status_label.setObjectName("SplashStatus")
 
         # Add widgets
         layout.addStretch()
@@ -216,12 +213,14 @@ class SplashScreen(QWidget):
         layout.addWidget(self.status_label)
         layout.addStretch()
 
-        # Add shadow effect
+        # Add shadow effect, in the palette's shadow colour (black)
         shadow = QGraphicsDropShadowEffect()
         shadow.setBlurRadius(30)
         shadow.setXOffset(0)
         shadow.setYOffset(10)
-        shadow.setColor(QColor(0, 0, 0, 100))
+        shadow_colour = self.palette().color(QPalette.Shadow)
+        shadow_colour.setAlpha(100)
+        shadow.setColor(shadow_colour)
         self.setGraphicsEffect(shadow)
 
     def paintEvent(self, event):
@@ -235,10 +234,10 @@ class SplashScreen(QWidget):
         path = QPainterPath()
         path.addRoundedRect(0, 0, self.width(), self.height(), 16, 16)
 
-        # Teal gradient matching app theme
+        # The theme's teal, read as it paints: its text reads on both ends (T6)
         gradient = QLinearGradient(0, 0, self.width(), self.height())
-        gradient.setColorAt(0.0, QColor("#0D9488"))  # Teal 600
-        gradient.setColorAt(1.0, QColor("#0F766E"))  # Teal 700
+        gradient.setColorAt(0.0, theme_colour("accent.fill"))
+        gradient.setColorAt(1.0, theme_colour("accent.fill.hover"))
 
         painter.fillPath(path, gradient)
 
@@ -262,8 +261,9 @@ class SplashScreen(QWidget):
 
     def _on_error(self, error_message: str):
         """Handle initialization error."""
+        # In the status's own colour: no red reads on the teal (#FCA5A5 gave 1.97:1), and
+        # the words say it
         self.status_label.setText("Error during startup")
-        self.status_label.setStyleSheet("color: #FCA5A5;")
         print(f"[SPLASH ERROR] {error_message}")
         # Still emit with empty dict to allow fallback
         QTimer.singleShot(2000, lambda: self.initialization_complete.emit({}))

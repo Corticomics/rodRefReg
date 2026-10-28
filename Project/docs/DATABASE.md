@@ -684,6 +684,7 @@ join `trainers`.
 | Method | Purpose |
 |---|---|
 | `get_system_settings()` | Read all `system_settings` rows; decode by `setting_type` (`int`/`float`/`bool`/`json`/`str`). |
+| `peek_system_settings(db_path=None)` (static) | The same rows, decoded the same way, read-only and without a handler: no `create_tables()`, no file created where there is none, `{}` on any error. `main.py` reads the saved theme with it before the first window shows (v2.1.0). |
 | `update_system_setting(key, value, setting_type)` | Upsert one row with `datetime('now')`. |
 
 ### Calibration
@@ -757,6 +758,39 @@ and check what a revert to the previous release does without the row
 (2.0.0 writes its `pulse_width_ms` of 20 back at its first start).
 `test_retired_pulse_settings.py` covers both.
 
+**The theme's own row, and the one-time switch to dark (v2.1.0).** Dark is
+the default theme (`SystemController.DEFAULT_THEME`, and `DEFAULT_THEME` in
+`ui/style/tokens.py`). 2.1.0 keeps the theme in a row of its own,
+`ui_theme` (`SystemController.THEME_KEY`, a persisted `str`). A device
+without that row is fresh, or on its first start of 2.1.0, and
+`load_settings()` stores `dark` there: that is the one-time switch. Where
+the older release saved a theme other than dark, the journal gets one
+`[SETTINGS] Switched the theme to 'dark' …` line, which says that the old
+theme is kept for a revert to 2.0.0 (a device that never saved one gets
+no line). From then on the row holds the operator's choice in Settings >
+General > Appearance. If the database refuses the row, the device starts
+dark all the same, and the next start stores it. A read that fails is
+not taken for a device without the row: `get_system_settings()` returns
+`{}` then, and the switch waits for the next start instead of storing
+dark over the operator's choice.
+
+`theme`, the row v1.5.0 to 2.0.0 keep their theme in
+(`SystemController.LEGACY_THEME_KEY`), is left to those releases. 2.1.0
+never writes, changes or deletes it: it is not a persisted key, so no save
+writes it, and the legacy `settings.json` migration does not copy it. Nor
+does 2.1.0 read it as the theme. A revert therefore opens 2.0.0 in the
+theme it had before the update: light on a device whose operator used
+light, and 2.0.0's own light default on one that never saved a theme.
+(2.0.0's dark theme shows every other table row near-white, so a revert
+that carried 2.1.0's dark default back to 2.0.0 would be hard to read.)
+2.0.0 loads `ui_theme` with every other row and never writes it, so the
+next update starts in the theme last chosen in 2.1.0, with no second
+switch, and 2.0.0's own choice waits in `theme` for the next revert.
+Pre-release builds of 2.1.0 recorded the switch in a row of their own,
+`ui_dark_default_applied`; nothing reads such a row, and it is left as it
+is. `test_dark_default.py` covers it, with 2.0.0's own load and save rules
+for the revert.
+
 A first-launch migration on v1.5.0+ copies any existing legacy
 `settings.json` into the DB and writes a `_migrated_from_json_v1` sentinel
 row that prevents re-running. The legacy file is left intact (copy-not-move).
@@ -764,7 +798,7 @@ See [`docs/UPDATE_SYSTEM.md` §13.8 / §14](UPDATE_SYSTEM.md) for the full plan.
 
 Test coverage:
 [`test_settings_persistence.py`](../tests/unit/test_settings_persistence.py)
-— 20 cases for round-trip, migration, save semantics, and the previously silent `theme` drop.
+— 21 cases for round-trip, migration, save semantics, and the theme's row (the previously silent `theme` drop; `ui_theme` from v2.1.0).
 [`test_secrets.py`](../tests/unit/test_secrets.py) — 12 cases for the secrets store
 plus the v1.5.0 → v1.5.1 and pre-v1.5.0 → v1.5.1 migration paths.
 
