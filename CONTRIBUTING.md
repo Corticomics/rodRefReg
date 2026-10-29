@@ -155,7 +155,12 @@ Every colour of the UI is a role in one table,
 Qt theme.** Before it makes the application, `main.py` calls
 `detach_from_desktop_theme` (`theme.py`). It takes `QT_QPA_PLATFORMTHEME`
 out of RRR's environment, so Qt loads no platform theme plugin (qt5ct on
-the Pi), and it makes Fusion the first style (`QT_STYLE_OVERRIDE`). With
+the Pi), makes Fusion the first style (`QT_STYLE_OVERRIDE`), and makes
+the application ignore the desktop's settings
+(`QGuiApplication.setDesktopSettingsAware(False)`), so that a GTK-based
+session's gtk3 theme stays out too. Qt's generic theme, the one left, asks
+for icons on a dialog's standard buttons: the stylesheet turns them off
+(`QDialogButtonBox` in `app.qss.tmpl`). With
 qt5ct loaded, its gtk2 style started GTK, and the desktop's font replaced
 RRR's a second after start-up. GTK could then put a standard palette over
 the dark one, giving a light page around dark panes, and RRR could crash

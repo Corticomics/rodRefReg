@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, MutableMapping, Optional
 
 from PyQt5.QtCore import QEvent, QObject, Qt, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QFont, QTextCharFormat
+from PyQt5.QtGui import QBrush, QColor, QFont, QGuiApplication, QTextCharFormat
 from PyQt5.QtWidgets import QApplication, QCalendarWidget
 
 from .qt_palette import build_palette, tokens
@@ -28,7 +28,8 @@ WEEKEND = (Qt.Saturday, Qt.Sunday)
 
 def detach_from_desktop_theme(environ: Optional[MutableMapping[str, str]] = None) -> None:
     """Keep the desktop's Qt platform theme out of RRR. Call it before the QApplication
-    exists: Qt reads both variables when it makes the application.
+    exists: Qt reads all of it when it makes the application. With `environ` (a test's
+    dict) only that mapping changes; without it, the process's environment and Qt.
 
     RRR draws itself: Fusion, its own palette, stylesheet and font (StyleManager). Raspberry
     Pi OS's desktop sets QT_QPA_PLATFORMTHEME=qt5ct, and its qt5ct names the gtk2 style. With
@@ -41,13 +42,20 @@ def detach_from_desktop_theme(environ: Optional[MutableMapping[str, str]] = None
     did. The gtk2 style also crashed RRR as it quit, in 9 of those 16 starts
     (segmentation fault or bus error).
 
-    Without QT_QPA_PLATFORMTHEME Qt loads no platform theme plugin, and QT_STYLE_OVERRIDE
-    makes Fusion the first style, so none of that is loaded. A process RRR starts, such as
-    the RRR restart_app relaunches, inherits the environment.
+    So: QT_QPA_PLATFORMTHEME goes, and QT_STYLE_OVERRIDE makes Fusion the first style. And
+    QGuiApplication.setDesktopSettingsAware(False): without a named platform theme Qt picks
+    one from XDG_CURRENT_DESKTOP, gtk3 on a GTK-based session (an X11 desktop), which starts
+    GTK again; not desktop-aware, it takes only its own generic theme, and the standard
+    icons come from Qt's own set, as in the tests. The generic theme asks for icons on a
+    dialog's standard buttons, which the stylesheet turns off (QDialogButtonBox).
+    A process RRR starts, such as the RRR restart_app relaunches, inherits the environment
+    (not the Qt flag, which a 2.1.1 sets itself again).
     """
     env = os.environ if environ is None else environ
     env.pop(PLATFORM_THEME_VAR, None)
     env[STYLE_OVERRIDE_VAR] = FUSION
+    if environ is None:
+        QGuiApplication.setDesktopSettingsAware(False)
 
 
 def pin_fusion(app) -> None:

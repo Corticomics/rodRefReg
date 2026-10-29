@@ -41,14 +41,29 @@ def test_the_platform_theme_goes_and_fusion_becomes_the_first_style():
     assert bare == {"QT_STYLE_OVERRIDE": FUSION, "HOME": "/home/pi"}
 
 
-def test_it_changes_the_process_environment_by_default(monkeypatch):
+def test_it_changes_the_process_environment_and_qt_by_default(monkeypatch):
+    from PyQt5.QtGui import QGuiApplication
     from ui.style.theme import FUSION, detach_from_desktop_theme
 
     monkeypatch.setenv("QT_QPA_PLATFORMTHEME", "qt5ct")
     monkeypatch.setenv("QT_STYLE_OVERRIDE", "Windows")
-    detach_from_desktop_theme()
-    assert "QT_QPA_PLATFORMTHEME" not in os.environ
-    assert os.environ["QT_STYLE_OVERRIDE"] == FUSION
+    aware = QGuiApplication.desktopSettingsAware()
+    try:
+        detach_from_desktop_theme()
+        assert "QT_QPA_PLATFORMTHEME" not in os.environ
+        assert os.environ["QT_STYLE_OVERRIDE"] == FUSION
+        assert QGuiApplication.desktopSettingsAware() is False
+    finally:
+        QGuiApplication.setDesktopSettingsAware(aware)  # the session's other tests run as before
+
+
+def test_a_test_mapping_leaves_qt_as_it_is():
+    from PyQt5.QtGui import QGuiApplication
+    from ui.style.theme import detach_from_desktop_theme
+
+    aware = QGuiApplication.desktopSettingsAware()
+    detach_from_desktop_theme({"QT_QPA_PLATFORMTHEME": "qt5ct"})
+    assert QGuiApplication.desktopSettingsAware() is aware
 
 
 CHILD = """
@@ -57,15 +72,18 @@ sys.path.insert(0, {project!r})
 if {detach!r}:
     from ui.style.theme import detach_from_desktop_theme
     detach_from_desktop_theme()
+from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import QApplication
 app = QApplication([])
 print("STYLE=" + app.style().objectName().lower())
+print("AWARE=" + str(QGuiApplication.desktopSettingsAware()))
 """
 
 
-def _first_style(detach):
-    """The style of an application made in a fresh process, with a desktop that asks for
-    qt5ct and the Windows style (built into every Qt)."""
+def _first_start(detach):
+    """The style of an application made in a fresh process, and whether it takes the
+    desktop's settings, with a desktop that asks for qt5ct and the Windows style (built
+    into every Qt)."""
     env = dict(
         os.environ,
         QT_QPA_PLATFORM="offscreen",
@@ -79,14 +97,66 @@ def _first_style(detach):
         text=True,
         timeout=60,
     )
-    lines = [line for line in out.stdout.splitlines() if line.startswith("STYLE=")]
+    facts = dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line)
+    assert out.returncode == 0 and "STYLE" in facts, out.stderr[-2000:]
+    return facts["STYLE"], facts.get("AWARE")
+
+
+@pytest.mark.parametrize(
+    ("detach", "expected"), [(True, ("fusion", "False")), (False, ("windows", "True"))]
+)
+def test_an_application_made_after_it_draws_in_fusion_whatever_the_desktop_asks(detach, expected):
+    assert _first_start(detach) == expected
+
+
+DIALOG = """
+import sys
+sys.path.insert(0, {project!r})
+from PyQt5.QtWidgets import QApplication, QMessageBox, QProxyStyle, QStyle
+
+class GenericThemeStyle(QProxyStyle):
+    # Fusion as Qt's generic Unix theme leaves it: icons on a dialog's standard buttons
+    def styleHint(self, hint, option=None, widget=None, data=None):
+        if hint == QStyle.SH_DialogButtonBox_ButtonsHaveIcons:
+            return 1
+        return super().styleHint(hint, option, widget, data)
+
+app = QApplication([])
+app.setStyle(GenericThemeStyle("Fusion"))
+if {sheet!r}:
+    from pathlib import Path
+    app.setStyleSheet((Path({project!r}) / "ui" / "style" / {sheet!r}).read_text())
+box = QMessageBox(QMessageBox.Question, "Revert", "Revert to the previous version?", QMessageBox.Yes | QMessageBox.No)
+box.show()
+app.processEvents()
+print("ICONS=" + ",".join(str(not b.icon().isNull()) for b in box.buttons()))
+"""
+
+
+def _button_icons(sheet):
+    """Whether a message box's Yes and No buttons have icons, under a style that asks for
+    them as Qt's generic Unix theme does, with RRR's stylesheet `sheet` (or none)."""
+    out = subprocess.run(
+        [sys.executable, "-c", DIALOG.format(project=str(PROJECT), sheet=sheet)],
+        env=dict(os.environ, QT_QPA_PLATFORM="offscreen"),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    lines = [line for line in out.stdout.splitlines() if line.startswith("ICONS=")]
     assert out.returncode == 0 and lines, out.stderr[-2000:]
     return lines[-1].split("=", 1)[1]
 
 
-@pytest.mark.parametrize(("detach", "expected"), [(True, "fusion"), (False, "windows")])
-def test_an_application_made_after_it_draws_in_fusion_whatever_the_desktop_asks(detach, expected):
-    assert _first_style(detach) == expected
+@pytest.mark.parametrize(
+    ("sheet", "expected"),
+    [("app-dark.qss", "False,False"), ("app-light.qss", "False,False"), ("", "True,True")],
+)
+def test_a_dialogs_standard_buttons_have_no_icons_in_either_theme(sheet, expected):
+    """Without the desktop's theme, the Pi's Qt takes its generic Unix theme, which asks for
+    icons on Yes, No, OK, Save and Cancel; the stylesheet turns them off. The last case,
+    without the stylesheet, shows the style here does ask for them."""
+    assert _button_icons(sheet) == expected
 
 
 def test_main_detaches_before_it_makes_the_application(monkeypatch):

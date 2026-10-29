@@ -225,6 +225,16 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {
 }
 
 /* ============================================
+   DIALOG BUTTONS
+   ============================================ */
+/* No icons on a dialog's standard buttons (OK, Yes, No, Save, Cancel), whatever the
+   desktop. Without the desktop's Qt theme (theme.detach_from_desktop_theme) Qt's generic
+   Unix theme asks for them; qt5ct and the tests' offscreen platform do not. */
+QDialogButtonBox {
+    dialogbuttonbox-buttons-have-icons: 0;
+}
+
+/* ============================================
    BUTTONS - Default
    ============================================ */
 QPushButton {

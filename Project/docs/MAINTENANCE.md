@@ -330,14 +330,18 @@ fitted and I²C enabled (`sudo i2cdetect -y 1` lists it):
    Do not check this in `journalctl --user -u rrr`: under the service the
    output is buffered, and only the `[TOPOLOGY]` line reaches the journal
    before RRR quits. On a Pi whose data 2.0.0 last ran on with the light
-   theme saved, the first start of 2.1.0 also prints `[SETTINGS] Switched
+   theme saved, the first start of 2.1.1 also prints `[SETTINGS] Switched
    the theme to 'dark', the default from 2.1.0, once (it was 'light',
-   which is kept for a revert to 2.0.0); …` and RRR opens dark; the next
-   start prints no such line. A Pi with no theme saved, or dark, opens
-   dark with no `Switched` line. Every Pi that ran 2.0.0 also prints
-   `[SETTINGS] Removed the retired setting pulse_width_ms=20` at its
-   first start of 2.1.0, which is expected: 2.0.0 writes that row back at
-   each of its starts, so after a revert the update back prints it again.
+   which is kept for a revert to 2.0.0); …` (2.1.1 carries 2.1.0, which
+   made dark the default) and RRR opens dark; the next start prints no
+   such line. A Pi with no theme saved, or dark, opens dark with no
+   `Switched` line. Every Pi that ran 2.0.0 also prints `[SETTINGS]
+   Removed the retired setting pulse_width_ms=20` at its first start of
+   2.1.1, which is expected: 2.0.0 writes that row back at each of its
+   starts, so after a revert the update back prints it again. A Pi whose
+   2.0.0 had Enable Pulse Mode unticked also prints `[SETTINGS] Stored
+   the fixed setting use_pulse_delivery=True (was False)` once:
+   deliveries are always pulsed now.
 2. **Priming.** Settings → Priming: Open Master (relay 16 clicks), Open
    Selected on a cage (its relay clicks), Close Master (both click off).
    Run is greyed out while the session is open and comes back after
@@ -563,8 +567,9 @@ After `git push origin v<x.y.z>`:
    To rehearse a rollback as well, press **Revert to previous version**
    after the update and restart: the previous release must start on the
    updated database and run a schedule. Then update again.
-   For 2.1.0, rehearse the one-time switch to dark too, and check that a
-   revert opens 2.0.0 in its own theme. 2.0.0 saves the theme only when
+   For 2.1.1, which carries 2.1.0's dark default, rehearse the one-time
+   switch to dark too, and check that a revert opens 2.0.0 in its own
+   theme. 2.0.0 saves the theme only when
    its Settings tab auto-saves (its Terminal tab then says `Settings
    auto-saved`): fresh data has no theme saved, and choosing the *light*
    it already shows saves nothing. Before the update, choose *dark* and
@@ -572,17 +577,21 @@ After `git push origin v<x.y.z>`:
    The update restarts RRR dark: that is the switch. Its `[SETTINGS]
    Switched the theme …` line is flushed, like the `[TOPOLOGY]` line, so
    under the `rrr` service it is in `journalctl --user -u rrr`; without
-   the service, RRR's own restart discards its output. Revert with 2.1.0
+   the service, RRR's own restart discards its output. Revert with 2.1.1
    still dark, as the lab's devices will be: 2.0.0 opens light, as it was
-   before the update. 2.1.0 keeps its theme in a setting of its own and
-   never changes 2.0.0's. Update again: 2.1.0 starts dark, with no second
+   before the update. 2.1.1 keeps its theme in a setting of its own and
+   never changes 2.0.0's. Update again: 2.1.1 starts dark, with no second
    switch. To see that the two choices stay apart, press **Switch to light
-   mode** in 2.1.0, revert, choose *dark* in 2.0.0's Settings → General →
+   mode** in 2.1.1, revert, choose *dark* in 2.0.0's Settings → General →
    Theme (its tables then show every other row white: 2.0.0's dark theme
-   has no zebra fix), and update again: 2.1.0 starts light. Press **Switch
+   has no zebra fix), and update again: 2.1.1 starts light. Press **Switch
    to dark mode** to leave it dark. A Pi that never saved a theme starts
-   2.1.0 dark with no line, opens light after the revert, and is dark
-   again after the next update.
+   2.1.1 dark with no line, opens light after the revert, and is dark
+   again after the next update. A revert that RRR restarts itself (without
+   the service) starts 2.0.0 with 2.1.1's environment, without the
+   desktop's Qt theme: that 2.0.0 draws in Fusion, with icons on its
+   dialogs' buttons, until it is next started from the desktop. Judge its
+   theme, light or dark, not its controls.
 5. **Watch the test Pi for ~5 minutes** under a real schedule before
    declaring victory. The launcher's boot sentinel
    ([scripts/runtime/launch.sh](../../scripts/runtime/launch.sh)) auto-rolls
