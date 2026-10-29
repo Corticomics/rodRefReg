@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, MutableMapping, Optional
 
 from PyQt5.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QFont, QTextCharFormat
@@ -13,11 +14,40 @@ THEMES = tokens.THEMES
 # The theme without a saved one: dark (v2.1.0)
 DEFAULT_THEME = tokens.DEFAULT_THEME
 
-# The Qt style RRR draws with on every desktop (see pin_fusion)
+# The Qt style RRR draws with on every desktop (see detach_from_desktop_theme, pin_fusion)
 FUSION = "Fusion"
+
+# The environment variable naming the desktop's Qt platform theme (qt5ct on Raspberry Pi OS)
+PLATFORM_THEME_VAR = "QT_QPA_PLATFORMTHEME"
+# The environment variable that names the application's first style
+STYLE_OVERRIDE_VAR = "QT_STYLE_OVERRIDE"
 
 # The days a calendar marks as the weekend, in Qt's own red, which no stylesheet reaches
 WEEKEND = (Qt.Saturday, Qt.Sunday)
+
+
+def detach_from_desktop_theme(environ: Optional[MutableMapping[str, str]] = None) -> None:
+    """Keep the desktop's Qt platform theme out of RRR. Call it before the QApplication
+    exists: Qt reads both variables when it makes the application.
+
+    RRR draws itself: Fusion, its own palette, stylesheet and font (StyleManager). Raspberry
+    Pi OS's desktop sets QT_QPA_PLATFORMTHEME=qt5ct, and its qt5ct names the gtk2 style. With
+    qt5ct loaded, the application's first style was qt5ct's, built on gtk2, which starts
+    GTK; about a second after start-up qt5ct also put the desktop's font over RRR's. pin_fusion
+    then replaced the style, but GTK's theme handler could still put the current style's
+    standard palette over RRR's later, a race: in the 2.1.0 dry run on the home Pi
+    (2026-10-28) one of the two RRRs restart_app relaunched on the desktop came out of a
+    dark start with a light page around dark panes, and none of 16 later desktop starts
+    did. The gtk2 style also crashed RRR as it quit, in 9 of those 16 starts
+    (segmentation fault or bus error).
+
+    Without QT_QPA_PLATFORMTHEME Qt loads no platform theme plugin, and QT_STYLE_OVERRIDE
+    makes Fusion the first style, so none of that is loaded. A process RRR starts, such as
+    the RRR restart_app relaunches, inherits the environment.
+    """
+    env = os.environ if environ is None else environ
+    env.pop(PLATFORM_THEME_VAR, None)
+    env[STYLE_OVERRIDE_VAR] = FUSION
 
 
 def pin_fusion(app) -> None:
@@ -29,6 +59,8 @@ def pin_fusion(app) -> None:
     start-up came out with a light page and the Terminal's text dark on dark (seen on the
     home Pi, 2026-10-23; a theme switched after start-up was not affected). Every test and
     render runs under Fusion, so pinning it makes each device draw what they check.
+    detach_from_desktop_theme, before the application exists, keeps that style from being
+    made at all; this is the second guard, for an application made without it.
     """
     if app.style() is not None and app.style().objectName().lower() == FUSION.lower():
         return

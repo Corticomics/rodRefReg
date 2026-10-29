@@ -21,7 +21,7 @@ from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QInputDialog
 from ui.gui import RodentRefreshmentGUI
-from ui.style.theme import StyleManager, theme_or_default
+from ui.style.theme import StyleManager, detach_from_desktop_theme, theme_or_default
 from utils import paths, stop_sequence, updater
 from version import __version__
 
@@ -1038,7 +1038,9 @@ def main():
 
     _dbg(f"RRR v{__version__} startup — instance key={instance_key}")
 
-    # Create application
+    # Create application, without the desktop's Qt platform theme (qt5ct on the Pi): RRR
+    # draws itself, in Fusion (detach_from_desktop_theme)
+    detach_from_desktop_theme()
     app = SafeQApplication(sys.argv)
 
     # Gate in-app updates: never apply one while a delivery schedule runs.

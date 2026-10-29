@@ -16,12 +16,15 @@ not listed here.
 
 ---
 
-## 2.1.0 — Dark theme by default, clearer cards, each cage's own pulse profile
+## 2.1.1 — Dark theme by default, clearer cards, each cage's own pulse profile
+
+This release also carries 2.1.0, which was numbered on `main` but never
+released.
 
 **What changes on the device**
 
 - **Change:** the screens are dark by default. Each device switches to the
-  dark theme once, the first time 2.1.0 starts. To go back to the light
+  dark theme once, the first time 2.1.1 starts. To go back to the light
   theme, log in and press **Switch to light mode** in Settings > General >
   Appearance (it replaces the Theme drop-down; in the light theme it reads
   **Switch to dark mode**). RRR keeps that choice: no later start switches
@@ -60,6 +63,10 @@ not listed here.
   with the keyboard focus have a black (light) or white (dark) outline; a
   teal button's is black in both. The Animals tab's red *Last schedule
   delivered amount* cell is unchanged.
+- **Fix:** on a Raspberry Pi desktop, RRR started from the desktop icon,
+  or restarted by RRR itself, could open the dark theme with a light page
+  around its dark panes, and could crash as it quit. RRR now draws itself
+  without the desktop's Qt theme (qt5ct).
 - **Add:** Settings > Calibration has a **Profile** column: the pulse width
   and interval each cage was calibrated at, for example *30 / 1000 ms*.
   Every delivery to the cage uses them.
@@ -82,9 +89,9 @@ not listed here.
   schedule is offered.
 - **Revert to previous version** (Settings > Updates) goes back to 2.0.0
   in the theme it had before the update, light unless dark was chosen in
-  2.0.0, whichever theme 2.1.0 shows: 2.1.0 keeps its own theme setting
-  and leaves 2.0.0's as it was. Updating to 2.1.0 again starts in the
-  theme last chosen in 2.1.0, dark if none was chosen.
+  2.0.0, whichever theme 2.1.1 shows: 2.1.1 keeps its own theme setting
+  and leaves 2.0.0's as it was. Updating to 2.1.1 again starts in the
+  theme last chosen in 2.1.1, dark if none was chosen.
 
 ## 2.0.0 — Stop is the only way to end a schedule; each animal's last run on the Animals tab
 

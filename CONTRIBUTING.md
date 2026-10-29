@@ -151,11 +151,16 @@ Every colour of the UI is a role in one table,
 | [`help_content_manager.py`](Project/utils/help_content_manager.py) (`tokens.HELP_HTML`) | the Help tab's HTML |
 | UI code that paints itself ([`theme.py`](Project/ui/style/theme.py) `theme_colour(role)`, `tone_weekend`) | a painter, a drag pixmap, a table cell's text, a colour in rich text, a calendar's weekend dates |
 
-**RRR draws with Qt's Fusion style on every desktop** (`pin_fusion` in
-`theme.py`). A desktop style may draw controls its own way: on the Pi,
-qt5ct's gtk2 style replaced the palette's window and text colours with
-GTK's at start-up. Every test and render runs under Fusion, so the devices
-draw what the tests check.
+**RRR draws with Qt's Fusion style on every desktop, without the desktop's
+Qt theme.** Before it makes the application, `main.py` calls
+`detach_from_desktop_theme` (`theme.py`). It takes `QT_QPA_PLATFORMTHEME`
+out of RRR's environment, so Qt loads no platform theme plugin (qt5ct on
+the Pi), and it makes Fusion the first style (`QT_STYLE_OVERRIDE`). With
+qt5ct loaded, its gtk2 style started GTK, and the desktop's font replaced
+RRR's a second after start-up. GTK could then put a standard palette over
+the dark one, giving a light page around dark panes, and RRR could crash
+as it quit. `pin_fusion` stays as a second guard. Every test and render
+runs under Fusion, so the devices draw what the tests check.
 
 **RRR starts in the saved theme, dark by default** (`DEFAULT_THEME` in
 `tokens.py`; the settings' default, `SystemController.DEFAULT_THEME`, is
