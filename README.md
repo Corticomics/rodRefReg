@@ -235,7 +235,7 @@ Calibrate before starting a new experiment and periodically to maintain accuracy
 
 ### Why are the screens dark, and how do I get the light theme back?
 
-From 2.1.0 RRR is dark by default, and each device switched to the dark theme once, the first time 2.1.0 started. To switch, log in and press **Switch to light mode** in **Settings → General → Appearance**; in the light theme the same button reads **Switch to dark mode**. RRR keeps the choice: it starts in the theme chosen last.
+From 2.1.1 RRR is dark by default, and each device switched to the dark theme once, the first time 2.1.1 started. To switch, log in and press **Switch to light mode** in **Settings → General → Appearance**; in the light theme the same button reads **Switch to dark mode**. RRR keeps the choice: it starts in the theme chosen last.
 
 ### How do I resolve "i2c-1 not found" or other I²C errors?
 
