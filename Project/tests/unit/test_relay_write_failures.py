@@ -242,22 +242,42 @@ def _deliver(strategy, pulses):
 
 # The shared manifold's writes: prime (1, 2), hold (3), then per pulse n an
 # open at 2n + 2 and a close at 2n + 3, then the final cage and master close.
+# The independent topology has no prime and no hold: pulse n opens at write
+# 2n - 1 and closes at 2n, then the final cage close.
 def _steady(pulse_ml=Q, pulse_s=0.030):
     """The flow a late close is credited at: the pulse over its flowing time."""
     return pulse_ml / (pulse_s - SolenoidFlowStrategy.VALVE_DEAD_TIME_S)
 
 
-def _open_write(n):
+def _open_write(n, valves=None):
+    if valves is not None and not valves.has_master:
+        return 2 * n - 1
     return 2 * n + 2
 
 
-def _close_write(n):
+def _close_write(n, valves=None):
+    if valves is not None and not valves.has_master:
+        return 2 * n
     return 2 * n + 3
 
 
-def test_a_pulse_whose_valve_did_not_open_is_not_counted(fake_relay_handler, monkeypatch, capsys):
-    fake_relay_handler.fail_on(nth=_open_write(3))
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+@pytest.fixture(params=["shared", "independent"])
+def valves(request, fake_relay_handler):
+    """Either topology's valve controller over the fake relay handler.
+
+    A test that takes it pins a property both topologies must have: its
+    shared assertions are the ones it always had, and the independent case
+    runs the same test with no master valve."""
+    if request.param == "shared":
+        return SolenoidController(fake_relay_handler, MASTER, CAGE_MAP)
+    return IndependentSolenoidController(fake_relay_handler, CAGE_MAP)
+
+
+def test_a_pulse_whose_valve_did_not_open_is_not_counted(
+    fake_relay_handler, monkeypatch, capsys, valves
+):
+    fake_relay_handler.fail_on(nth=_open_write(3, valves))
+    strategy = _strategy(valves, monkeypatch)
 
     result = _deliver(strategy, 9)
 
@@ -265,16 +285,19 @@ def test_a_pulse_whose_valve_did_not_open_is_not_counted(fake_relay_handler, mon
     assert result.pulses == 2, "pulses 1 and 2 fired; pulse 3's valve never opened"
     assert result.delivered_ml == pytest.approx(2 * Q)
     assert fake_relay_handler.dropped == [((CAGE,), 1)]
-    assert fake_relay_handler.trace[-2:] == [((CAGE,), 0), ((MASTER,), 0)], "closed at the end"
+    if valves.has_master:
+        assert fake_relay_handler.trace[-2:] == [((CAGE,), 0), ((MASTER,), 0)], "closed at the end"
+    else:  # pulse 3's safety close, then the final close; there is no master to close
+        assert fake_relay_handler.trace[-2:] == [((CAGE,), 0), ((CAGE,), 0)], "closed at the end"
     assert fake_relay_handler.energized() == set()
     assert "[VALVE ERROR] cage 1" in capsys.readouterr().out
 
 
 def test_a_pulse_whose_valve_did_not_close_is_banked_and_ends_the_delivery(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
-    fake_relay_handler.fail_on(nth=_close_write(3))
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    fake_relay_handler.fail_on(nth=_close_write(3, valves))
+    strategy = _strategy(valves, monkeypatch)
 
     result = _deliver(strategy, 9)
 
@@ -286,8 +309,10 @@ def test_a_pulse_whose_valve_did_not_close_is_banked_and_ends_the_delivery(
     assert "[VALVE CRITICAL]" not in capsys.readouterr().out
 
 
-def test_a_valve_that_never_closes_raises_the_alarm(fake_relay_handler, monkeypatch, capsys):
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+def test_a_valve_that_never_closes_raises_the_alarm(
+    fake_relay_handler, monkeypatch, capsys, valves
+):
+    strategy = _strategy(valves, monkeypatch)
     real = fake_relay_handler.set_relays
 
     def stuck(relay_ids, state):  # every close of the cage relay is lost
@@ -629,8 +654,10 @@ def test_the_worker_credits_a_partial_pump_run(monkeypatch):
     assert result.pulses == 3
 
 
-def _sensor_strategy(fake, monkeypatch):
-    strategy = _strategy(SolenoidController(fake, MASTER, CAGE_MAP), monkeypatch)
+def _sensor_strategy(fake, monkeypatch, valves=None):
+    if valves is None:
+        valves = SolenoidController(fake, MASTER, CAGE_MAP)
+    strategy = _strategy(valves, monkeypatch)
     strategy._sensor = MagicMock()
     strategy._sensor.read_one.return_value = None
     strategy._sensor_available = True
@@ -639,10 +666,10 @@ def _sensor_strategy(fake, monkeypatch):
 
 
 def test_a_sensor_pulse_retries_a_lost_close_at_once_and_ends_the_delivery(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
     fake_relay_handler.fail_on(nth=2)  # write 1 opens the cage, write 2 is the close
-    strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
+    strategy = _sensor_strategy(fake_relay_handler, monkeypatch, valves)
     seen = []  # the valve state at each flow reading
     strategy._sensor.read_one.side_effect = lambda: seen.append(fake_relay_handler.energized())
     with pytest.raises(ValveCommandError) as failure:
@@ -655,9 +682,9 @@ def test_a_sensor_pulse_retries_a_lost_close_at_once_and_ends_the_delivery(
 
 
 def test_a_sensor_pulse_that_never_closes_raises_the_alarm(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
-    strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
+    strategy = _sensor_strategy(fake_relay_handler, monkeypatch, valves)
     real = fake_relay_handler.set_relays
 
     def stuck(relay_ids, state):
@@ -1201,9 +1228,9 @@ def test_a_close_that_fails_slowly_is_credited_with_the_time_the_valve_stayed_op
 
 
 def test_a_close_lost_several_times_is_retried_with_short_waits(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy = _strategy(valves, monkeypatch)
     closes = _lose_closes(fake_relay_handler, monkeypatch, 4, strategy.test_clock)
 
     result = _deliver(strategy, 9)
@@ -1217,9 +1244,9 @@ def test_a_close_lost_several_times_is_retried_with_short_waits(
 
 
 def test_a_sensor_pulse_whose_close_fails_slowly_is_credited_with_the_open_time(
-    fake_relay_handler, monkeypatch
+    fake_relay_handler, monkeypatch, valves
 ):
-    strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
+    strategy = _sensor_strategy(fake_relay_handler, monkeypatch, valves)
     closes = _lose_closes(fake_relay_handler, monkeypatch, 1, strategy.test_clock, slow_s=1.0)
 
     with pytest.raises(ValveCommandError) as failure:
@@ -1232,9 +1259,9 @@ def test_a_sensor_pulse_whose_close_fails_slowly_is_credited_with_the_open_time(
 
 
 def test_a_sensor_pulse_closed_on_the_second_retry_raises_no_alarm(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
-    strategy = _sensor_strategy(fake_relay_handler, monkeypatch)
+    strategy = _sensor_strategy(fake_relay_handler, monkeypatch, valves)
     closes = _lose_closes(fake_relay_handler, monkeypatch, 2, strategy.test_clock)
 
     with pytest.raises(ValveCommandError) as failure:
@@ -1272,12 +1299,12 @@ def test_a_dead_hat_alarms_that_its_valves_cannot_be_confirmed_closed(
 
 
 def test_a_redundant_close_that_fails_after_a_confirmed_close_raises_no_alarm(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
     """The final safety close of the cage repeats pulse 9's confirmed close;
     losing it does not make the valve open."""
-    fake_relay_handler.fail_on(nth=_close_write(9) + 1)
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    fake_relay_handler.fail_on(nth=_close_write(9, valves) + 1)
+    strategy = _strategy(valves, monkeypatch)
 
     result = _deliver(strategy, 9)
 
@@ -1287,10 +1314,10 @@ def test_a_redundant_close_that_fails_after_a_confirmed_close_raises_no_alarm(
 
 
 def test_a_valve_open_when_its_close_is_lost_still_raises_the_alarm(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
     """The alarm stays for a valve that did open: every cage close lost."""
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy = _strategy(valves, monkeypatch)
     _lose_closes(fake_relay_handler, monkeypatch, 1_000, strategy.test_clock)
 
     result = _deliver(strategy, 9)
@@ -1364,7 +1391,7 @@ def test_a_valve_left_open_before_the_run_still_raises_the_alarm(
     assert "[VALVE CRITICAL] cage 1: the cage valve's relay is not answering" in out
 
 
-def test_a_print_that_fails_cannot_leave_a_valve_open(fake_relay_handler, monkeypatch):
+def test_a_print_that_fails_cannot_leave_a_valve_open(fake_relay_handler, monkeypatch, valves):
     """The review's case: a print between the open and the close raised (the
     journal pipe broken), the valve stayed open, and the pulse loop pulsed on
     for up to two minutes with it open. Prints now cannot raise."""
@@ -1375,7 +1402,7 @@ def test_a_print_that_fails_cannot_leave_a_valve_open(fake_relay_handler, monkey
             raise BrokenPipeError(32, "Broken pipe")
 
     monkeypatch.setattr(module, "print", broken_pipe, raising=False)
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy = _strategy(valves, monkeypatch)
 
     result = _deliver(strategy, 9)
 
@@ -1385,11 +1412,11 @@ def test_a_print_that_fails_cannot_leave_a_valve_open(fake_relay_handler, monkey
 
 
 def test_an_unexpected_failure_in_a_pulse_ends_the_delivery(
-    fake_relay_handler, monkeypatch, capsys
+    fake_relay_handler, monkeypatch, capsys, valves
 ):
     """Anything but a relay fault used to be logged and skipped, the loop
     pulsing on. It now ends the delivery, and the valves are closed."""
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy = _strategy(valves, monkeypatch)
     real, calls = strategy._get_cage_calibration, []
 
     async def fails_on_pulse_3(cage_id):
@@ -1412,11 +1439,13 @@ def test_an_unexpected_failure_in_a_pulse_ends_the_delivery(
     )
 
 
-def test_an_alarmed_valve_that_closes_after_all_says_so(fake_relay_handler, monkeypatch, capsys):
+def test_an_alarmed_valve_that_closes_after_all_says_so(
+    fake_relay_handler, monkeypatch, capsys, valves
+):
     """The first close and every retry are lost (alarm); the delivery's final
     safety close gets through. The operator is told, instead of being left
     with an alarm about a valve that is closed."""
-    strategy = _strategy(SolenoidController(fake_relay_handler, MASTER, CAGE_MAP), monkeypatch)
+    strategy = _strategy(valves, monkeypatch)
     retries = len(strategy.CLOSE_RETRY_DELAYS_S)
     _lose_closes(fake_relay_handler, monkeypatch, 1 + retries, strategy.test_clock)
 
