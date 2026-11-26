@@ -318,7 +318,7 @@ What is known, as of 2026-11-03:
   its unclean boots on 2026-10-15, 10-16 and 10-21 have no known cause: with
   the journal in memory, a drop leaves no trace on the Pi.
 - **A third Pi** has the home test Pi's drive and firmware (EIFK51.2), and no
-  recorded drop.
+  recorded drop. Its journal, too, is kept in memory only.
 
 #### 4.4.4 The journal, and a capture that survives a drop
 
@@ -433,8 +433,9 @@ as in [§4.4.7](#447-the-reboot-after-an-edit-and-a-pi-that-does-not-boot).
 Each step is the owner's choice, Pi by Pi:
 
 - **(a) The hint's other two parameters,** `pcie_aspm=off pcie_port_pm=off`,
-  with the same backup, one-command edit and check as in
-  [§4.4.5](#445-nvme-power-states-apst). If the line has neither yet:
+  with all five steps of [§4.4.5](#445-nvme-power-states-apst): between
+  schedules with the valve supply off, the backup, a one-command edit, the
+  check and the reboot. If the line has neither yet, step 3's command is:
 
   ```bash
   sudo sed -i '1 s/$/ pcie_aspm=off pcie_port_pm=off/' /boot/firmware/cmdline.txt
@@ -458,11 +459,11 @@ Each step is the owner's choice, Pi by Pi:
 After any edit of `cmdline.txt`, someone stays at the rig for the reboot, with
 the valve supply off.
 
-1. `sudo reboot`. SSH should answer again within about 2 minutes.
-2. If it does not (for example, ping answers but SSH resets at the key
+1. `sudo reboot`. The desktop and SSH should be back within about 2 minutes.
+2. If they are not (for example, ping answers but SSH resets at the key
    exchange), **power-cycle the Pi**: unplug its USB-C power, wait 10 s, plug
-   it back in. On 2026-11-02 a cold boot cured the home test Pi
-   ([§4.4.3](#443-drive-drops-on-the-home-test-pi)).
+   it back in. On 2026-11-02 a cold boot brought the home test Pi back after
+   such a reboot ([§4.4.3](#443-drive-drops-on-the-home-test-pi)).
 3. Only if it still does not boot, copy the backup back from another
    computer. Power the Pi off, take the NVMe drive out and put it in the USB
    NVMe adapter ([§2.1](#21-compute-and-control)). On the other computer,
@@ -472,7 +473,8 @@ the valve supply off.
    card before NVMe, boot it from a prepared Raspberry Pi OS SD card and make
    the same copy on the NVMe drive's boot partition (`/dev/nvme0n1p1`).
    `rpi-eeprom-config` shows the order as `BOOT_ORDER`: read its digits from
-   the right, where `1` is the SD card and `6` is NVMe.
+   the right, where `1` is the SD card and `6` is NVMe. Read it before the
+   reboot of step 1, while the Pi still runs.
 
 #### 4.4.8 Shutting down, and unattended runs
 
@@ -481,6 +483,9 @@ the valve supply off.
   **Settings → Priming** while priming. RRR does not switch its relays off
   when the desktop session ends or the Pi shuts down, and what the relays do
   through a reboot or a shutdown has not been measured yet.
+- **Start RRR from its desktop icon, or as `rrr.service`.** An RRR started
+  with `~/.local/bin/rrr` in a terminal ends when that terminal closes, and
+  leaves its relays as they were.
 - **Unattended runs.** No software can be relied on to close an open valve
   once the Pi or its drive has gone. Fit a switch, or a plug the operator can
   pull, on the valve supply, within reach of where the operator stands. A
@@ -500,12 +505,13 @@ valve stays open**.
 2. **Stop RRR.** If the desktop answers and nothing shows
    `Input/output error`, run `pkill -9 -f 'python3 main.py'` in a terminal.
    Otherwise **power-cycle the Pi**: unplug its power for 10 s.
-3. **Let one RRR start.** Wait 10 s, then run `pgrep -af 'python3 main.py'`.
-   A line means RRR is starting by itself: do not start another. No line:
-   start RRR from its icon or with `~/.local/bin/rrr`. RRR switches every
-   relay off as it starts. Do not stop it in its first 10 s: two failed
-   starts in a row roll RRR back to its previous version. If it will not
-   start, keep the valve power off and call the maintainer.
+3. **Let one RRR start.** Wait 10 s (after a power cycle, 10 s after the
+   desktop is back), then run `pgrep -af 'python3 main.py'`. A line means
+   RRR is starting by itself: do not start another. No line: start RRR from
+   its desktop icon, not a terminal. RRR switches every relay off as it
+   starts. Do not stop it until its main window has been open 10 s: two
+   failed starts in a row roll RRR back to its previous version. If it will
+   not start, keep the valve power off and call the maintainer.
 4. **Check the database** before the next Run. Type these four lines in a
    terminal:
 
@@ -518,8 +524,8 @@ valve stays open**.
 
    It must print `('ok',)`. If it ends with
    `attempt to write a readonly database`, RRR has not opened the database
-   since the crash: start RRR and check again. Anything else: run no
-   schedule; the maintainer restores the database from its last backup.
+   since the crash: go back to step 3, then check again. Anything else: run
+   no schedule; the maintainer restores the database from its last backup.
 5. **After a power cycle**, on a rig with a persistent journal, keep the
    output of `journalctl -b -1 -k | tail -50` for the maintainer.
 6. **Check what each animal received.** Log in and look for red cells in the
