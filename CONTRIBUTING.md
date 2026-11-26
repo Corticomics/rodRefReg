@@ -91,7 +91,10 @@ The essentials:
    `ruff format --check .`, from the repo root before staging. CI runs
    each, so passing one does not pass the other; `ruff format .` fixes
    the layout. Run them on `.`: `ruff.toml` leaves `Project/tests` out,
-   but a path you name is checked and formatted anyway.
+   but a path you name is checked and formatted anyway. Use the ruff 0.6
+   that `requirements-dev.txt` installs, as CI does (`python3 -m ruff …`
+   runs that one): another version formats differently, and its
+   `ruff format .` rewrites files CI passes.
 6. Push the branch, open a PR, merge through GitHub.
 
 ### No AI-tool attribution in git
@@ -146,7 +149,10 @@ printed, not written to a log file:
 
 - **Start-up lines** (`[SETTINGS]`, `[TOPOLOGY]`, `Initialized relay hat
   stack=0`) go to the terminal RRR was started from with
-  `~/.local/bin/rrr`. The desktop icon opens no terminal.
+  `~/.local/bin/rrr`. The desktop icon opens no terminal. When RRR
+  restarts itself without `rrr.service` (an update, a revert, a
+  valve-topology change in Settings), the new RRR's start-up lines go to
+  `/dev/null`: to read them, quit RRR and start it again from a terminal.
 - **Under `rrr.service`** they go to the journal: read it with
   `journalctl --user-unit=rrr` (on a Pi whose journal is volatile,
   `journalctl --user -u rrr` finds nothing). Python holds back what RRR
@@ -154,9 +160,15 @@ printed, not written to a log file:
   up to the last one printed with `flush=True` (`[TOPOLOGY]`), not the
   relay HAT lines printed after it. What goes to stderr, such as a
   `logging` error, is not held back.
-- **Once the main window is up**, everything RRR prints (`[VALVE …]`,
+- **Once the main window is up**, what RRR prints (`[VALVE …]`,
   `[STOP]`, `[SOLENOID]`, relay and delivery lines) goes to the Terminal
-  tab instead.
+  tab instead. Three kinds of line still go where the start-up lines
+  went: Qt's own warnings (`QObject::…`); the `[TOPOLOGY]` line of a
+  valve-topology change in Settings, which the Terminal tab shows too;
+  and every `logging` warning or error (`ERROR:root:…`,
+  `WARNING:SolenoidFlowStrategy:…`) once a relay HAT has failed at
+  start-up, as it always does off-device: that failure's `logging.error`
+  ties `logging` to the start-up stderr.
 - **The debug log**, `~/rrr/shared/logs/rrr_app_debug.log`
   (`~/rrr_app_debug.log` from a clone, where the launcher's `RRR_DATA` is
   unset), keeps only start-up and single-instance lines, close events,
