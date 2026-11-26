@@ -321,11 +321,34 @@ def test_round_up_instant_one_shot(monkeypatch):
 
 
 def test_round_up_does_not_overshoot_an_exact_multiple(monkeypatch):
-    """1.0 / 0.1 is 10.000000000000002 in floating point; ceil must say 10."""
+    """1.0 mL at q = 0.1 fires 10 pulses through the worker, not 11.
+
+    1.0 / 0.1 is exactly 10.0 in floating point, so ceil says 10 with or
+    without the epsilon in utils/dose_rounding.whole_pulses: this case pins
+    the exact multiple, not the epsilon. Two tests pin the epsilon, both with
+    0.14 / 0.02 = 7.000000000000001, where a bare ceil says 8:
+    test_round_up_does_not_overshoot_a_multiple_that_lands_above (below) on
+    the planner path, and test_dose_rounding.py's
+    test_round_up_does_not_buy_a_pulse_for_an_exact_multiple on whole_pulses
+    itself.
+    """
     worker = _rounding_up(_make_worker(monkeypatch, 0.1))
     worker._handle_delivery(_chunk(1.0))
     assert worker.fired == [pytest.approx(1.0)]
     assert _pulses(worker, 0.1) == 10
+
+
+def test_round_up_does_not_overshoot_a_multiple_that_lands_above(monkeypatch):
+    """0.14 mL at q = 0.02 fires 7 pulses on the planner path, not 8.
+
+    0.14 / 0.02 is 7.000000000000001 in floating point; only the epsilon in
+    whole_pulses' round-up branch keeps ceil from buying an 8th pulse.
+    """
+    assert 0.14 / 0.02 > 7  # the example really lands above, unlike 1.0 / 0.1
+    worker = _rounding_up(_make_worker(monkeypatch, 0.02))
+    worker._handle_delivery(_chunk(0.14))
+    assert _pulses(worker, 0.02) == 7, "no 8th pulse"
+    assert worker.fired == [pytest.approx(0.14)]
 
 
 def test_round_up_after_a_partial_failure_lands_within_one_pulse_over(monkeypatch):
