@@ -64,7 +64,7 @@ rodRefReg/
     ├── ui/ (SettingsTab.py: Delivery / Calibration / Priming / General / Updates;
     │        style/: tokens.py, app.qss.tmpl, build_qss.py → app-light.qss, app-dark.qss)
     ├── tools/                         # bench CLIs (gravimetric_check.py, …), and:
-    │   ├── solenoid_api_test.py       #   a SolenoidController smoke test (--dry-run)
+    │   ├── solenoid_api_test.py       #   a SolenoidController smoke test; opens relay 1 unless --dry-run
     │   └── solenoid_bringup.py        #   relay bring-up; never with water connected
     ├── teensy_flow_reader/
     ├── tests/ (unit/ is the pytest suite; the scripts beside it are hardware CLIs)
@@ -89,7 +89,7 @@ The application's data flows through four paths:
 4. **Logging:** what RRR prints before its main window is up goes to the terminal it was
    started from (the journal under `rrr.service`), then to the Terminal tab. Only
    start-up, close and crash records and the interrupted-runs line go to the debug log,
-   `~/rrr/shared/logs/rrr_app_debug.log`. [CONTRIBUTING.md §6](../../CONTRIBUTING.md#6-hardware-adjacent-changes)
+   `~/rrr/shared/logs/rrr_app_debug.log` (`~/rrr_app_debug.log` from a clone). [CONTRIBUTING.md §6](../../CONTRIBUTING.md#6-hardware-adjacent-changes)
    says where each kind of line goes and how to read the journal.
 
 ## Hardware Interaction
@@ -119,7 +119,7 @@ The system uses Sequent Microsystems' library to communicate with the HATs. The 
 - Error handling for failed triggers
 - Per-delivery limits, not daily ones: a pulse delivery that needs more than
   `max_pulses_per_delivery` (100) pulses, or would take longer than
-  `max_pulse_delivery_time_s` (120 s), is refused before any water moves, and both
+  `max_pulse_delivery_time_s` (120 s), is refused before any cage valve opens, and both
   are forced back to those values at every start; the schedule wizard takes
   0.10–50.00 mL per animal (`utils/schedule_volume.py`). Nothing caps what an animal
   gets in a day: several schedules, or a run started over, add up.
@@ -166,9 +166,9 @@ Wizard via `database_handler.get_cages_for_dropdown()`.
 to each `RelayWorker`. The worker builds the rest of the hardware on its own `QThread`
 when a schedule starts (`RelayWorker._initialize_hardware`: the flow sensor through
 `create_flow_sensor`, then the solenoid controller), which keeps the serial port and the
-sensor's start-up wait off the GUI thread. The Run/Stop section connects to the worker's
-signals; the connections are reset between consecutive schedule runs (see
-`run_stop_section.py` and commit `4c99f5a`).
+sensor's start-up wait off the GUI thread. `main.run_program` runs on the GUI thread and
+connects the signals of the new `RelayWorker` it builds for each run (commit `4c99f5a` moved
+it back there from a setup thread).
 
 ### UI Data Binding:
 
@@ -305,8 +305,10 @@ class StreamRedirector(QObject):
    `python3 -m pip install PyQt5 pandas -r requirements.txt -r requirements-dev.txt`
 3. On a Pi, install RRR with `./install.sh` (or the README's `bootstrap.sh` one-liner):
    it builds the release under `~/rrr` that a device runs.
-4. Run from the clone: `cd Project && python3 main.py`. Without the launcher, `RRR_DATA`
-   is unset, so the database is `Project/rrr_database.db` (a device uses
+4. Run from the clone: `cd Project && python3 main.py` (on a Mac, in the venv of step 2;
+   on a Pi, quit RRR first and use `~/rrr/shared/venv/bin/python3 main.py`, which has
+   `slack_sdk` and the relay driver). Without the launcher, `RRR_DATA` and `RRR_HOME` are
+   unset, so the database is `Project/rrr_database.db` (a device uses
    `~/rrr/shared/data`) and in-app updates are unavailable. On a Pi, the next
    `./install.sh` copies such a database into `~/rrr/shared/data` when that folder has
    none.
@@ -325,11 +327,11 @@ Without the relay library (a laptop, or CI) the app still starts, but no relay H
 initialises. When neither `SM16relind` nor `sm_16relind` can be imported,
 `gpio/gpio_handler.py` prints `WARNING: SM16relind module not found. Hardware control will
 not work.`, then `Failed to initialize hat stack=0: SM16relind class not found in module`
-and `Failed to initialize any relay hats. …`. Every relay write then fails and says so
-(`Relay N not switched: no initialised relay HAT for it (0 of 1 initialised)`; an all-off
-prints `Relay HAT(s) missing: 0 of 1 initialised; …`): a delivery stops at its first valve
-command (`[VALVE ERROR]`), a calibration fails at its first pulse, and CLOSE ALL RELAYS
-shows Emergency Stop Failed (v1.21.0). For tests, use `FakeRelayHandler` from
+and `Failed to initialize any relay hats. …`. Since v1.21.0, every relay write then fails
+and says so (`Relay N not switched: no initialised relay HAT for it (0 of 1 initialised)`;
+an all-off prints `Relay HAT(s) missing: 0 of 1 initialised; …`): a delivery stops at its
+first valve command (`[VALVE ERROR]`), a calibration at its first valve command, before
+any pulse is counted, and CLOSE ALL RELAYS shows Emergency Stop Failed. For tests, use `FakeRelayHandler` from
 `Project/tests/unit/conftest.py`: it records every write in order, so a test can assert
 the exact relay sequence.
 
@@ -340,12 +342,15 @@ For testing the RRR, focus on the following areas:
 - **Unit Tests**: Test individual components such as schedule validation
 - **Integration Tests**: Test component interactions like controller-model communication
 - **UI Tests**: plain pytest, with Qt offscreen (`QT_QPA_PLATFORM=offscreen`, which the
-  Qt test files set and CI exports); no pytest-qt. Prefer Qt-free tests
+  Qt test files set; CI's Bookworm job also exports it); no pytest-qt. Prefer Qt-free tests
   ([CONTRIBUTING.md §2](../../CONTRIBUTING.md#2-running-the-tests)).
 - **Hardware Tests**: the diagnostic scripts above, on a dry rig. Two bench tools in
   `Project/tools/`, `solenoid_api_test.py` and `solenoid_bringup.py`, print their usage
-  with `--help`. With `--dry-run` they open and close no valve, but they still build a
-  `RelayHandler`, which switches every relay off on a Pi: run them with RRR closed.
+  with `--help`. Without `--dry-run` both open real valves (`solenoid_api_test.py` opens
+  relay 1, cage 1's valve on the default map, three times and asks for no confirmation):
+  run them only on a dry rig, and on a Pi with `~/rrr/shared/venv/bin/python3`. With
+  `--dry-run` they open and close no valve, but they still build a `RelayHandler`, which
+  switches every relay off on a Pi: run them with RRR closed.
 
 ### Writing Tests:
 
@@ -368,7 +373,8 @@ def test_the_amount_to_schedule_rounds_half_up():
 
 Follow [CONTRIBUTING.md §3](../../CONTRIBUTING.md#3-branch-commit-pr-workflow)
 ([MAINTENANCE.md §7](MAINTENANCE.md#7-branch--commit-conventions) has the full
-conventions): branch off `main` as `<type>/<short-kebab-slug>`, add a test with any
+conventions): branch off `main` as `<type>/<short-kebab-slug>`, keep one concern per PR,
+add a test with any
 non-trivial change, run `pytest`, `ruff check .` and `ruff format --check .` from the repo
 root, stage only this change's files, commit in Conventional Commits form, push the
 branch and open a PR.
