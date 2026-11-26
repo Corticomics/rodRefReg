@@ -93,10 +93,11 @@ def relays(monkeypatch, fake_relay_handler):
     return fake_relay_handler
 
 
-def _panel(schedule_running=None):
+def _panel(schedule_running=None, topology=None):
     from ui.PrimingControlWidget import PrimingControlWidget  # noqa: PLC0415
 
-    return PrimingControlWidget(dict(SETTINGS), lambda *_: None, schedule_running=schedule_running)
+    settings = dict(SETTINGS) if topology is None else {**SETTINGS, "valve_topology": topology}
+    return PrimingControlWidget(settings, lambda *_: None, schedule_running=schedule_running)
 
 
 def _idle():
@@ -186,9 +187,14 @@ def test_a_cage_selector_change_mid_run_keeps_close_selected_greyed(relays, lock
 # --- no schedule running: unchanged ---------------------------------------------------------
 
 
-def test_with_nothing_running_it_is_unchanged(relays, lock, dialogs):
-    panel = _panel(_idle)
-    panel._on_open_master_clicked()
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_with_nothing_running_it_is_unchanged(relays, lock, dialogs, topology):
+    panel = _panel(_idle, topology)
+    if topology == "shared_manifold":
+        panel._on_open_master_clicked()
+    else:  # no master valve: the first cage valve opened starts the session
+        panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
+        panel._on_open_cage_clicked()
     assert lock.held_by("priming")
 
     panel._on_emergency_stop_clicked()
@@ -199,14 +205,15 @@ def test_with_nothing_running_it_is_unchanged(relays, lock, dialogs):
     assert dialogs == [("information", "Emergency Stop", "All relays have been closed.")]
 
 
-def test_a_worker_still_running_keeps_the_hold(relays, lock, dialogs, monkeypatch):
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_a_worker_still_running_keeps_the_hold(relays, lock, dialogs, monkeypatch, topology):
     """No job is in progress, yet a delivery worker is alive. The Stop button
     is greyed out in that state, so the dialog must not send the operator to
     it."""
     from utils import updater  # noqa: PLC0415
 
     monkeypatch.setattr(updater, "_busy_check", lambda: True)
-    panel = _panel(_idle)
+    panel = _panel(_idle, topology)
     assert lock.try_acquire("schedule")
 
     panel._on_emergency_stop_clicked()
@@ -218,10 +225,11 @@ def test_a_worker_still_running_keeps_the_hold(relays, lock, dialogs, monkeypatc
     assert "Press Stop" not in text
 
 
-def test_a_stale_hold_is_still_cleared(relays, lock, dialogs):
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_a_stale_hold_is_still_cleared(relays, lock, dialogs, topology):
     """The failsafe it always was: a hold with nothing behind it (no job, no
     worker) must not lock the operator out of the app."""
-    panel = _panel(_idle)
+    panel = _panel(_idle, topology)
     assert lock.try_acquire("schedule")
     assert panel.emergency_btn.isEnabled() is True, "no job: the button is live"
 
@@ -231,9 +239,11 @@ def test_a_stale_hold_is_still_cleared(relays, lock, dialogs):
     assert dialogs == [("information", "Emergency Stop", "All relays have been closed.")]
 
 
-def test_relays_not_confirmed_off_keep_the_priming_session(relays, lock, dialogs):
-    panel = _panel()
-    panel._on_open_master_clicked()
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_relays_not_confirmed_off_keep_the_priming_session(relays, lock, dialogs, topology):
+    panel = _panel(topology=topology)
+    if topology == "shared_manifold":
+        panel._on_open_master_clicked()
     panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
     panel._on_open_cage_clicked()
     relays.fail_all_off = True
@@ -255,15 +265,21 @@ def test_relays_not_confirmed_off_keep_the_priming_session(relays, lock, dialogs
 
     assert relays.energized() == set()
     assert lock.is_busy() is False
-    assert not panel._model.is_master_open and not panel._model.is_cage_open(CAGE)
+    if topology == "shared_manifold":
+        assert not panel._model.is_master_open and not panel._model.is_cage_open(CAGE)
+    else:  # no master valve: the model keeps its virtual master open
+        assert not panel._model.is_cage_open(CAGE)
 
 
-def test_an_unconfirmed_stop_latch_is_cleared_by_a_confirmed_close_all(relays, lock, dialogs):
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_an_unconfirmed_stop_latch_is_cleared_by_a_confirmed_close_all(
+    relays, lock, dialogs, topology
+):
     """Replaces "relays not confirmed off still stop the schedule": Stop now
     takes the EMERGENCY hold itself. CLOSE ALL RELAYS is live once the job is
     over, keeps the hold while the relays are unconfirmed, and frees it once
     they are."""
-    panel = _panel(_idle)
+    panel = _panel(_idle, topology)
     assert lock.try_acquire("schedule")
     _latched_by_stop(lock)
     assert panel.emergency_btn.isEnabled() is True
@@ -290,8 +306,11 @@ def test_an_unconfirmed_stop_latch_is_cleared_by_a_confirmed_close_all(relays, l
     assert dialogs[-1] == ("information", "Emergency Stop", "All relays have been closed.")
 
 
-def test_relays_not_confirmed_off_with_nothing_running_lock_the_hardware(relays, lock, dialogs):
-    panel = _panel(_idle)
+@pytest.mark.parametrize("topology", ["shared_manifold", "independent"])
+def test_relays_not_confirmed_off_with_nothing_running_lock_the_hardware(
+    relays, lock, dialogs, topology
+):
+    panel = _panel(_idle, topology)
     relays.fail_all_off = True
 
     panel._on_emergency_stop_clicked()
@@ -302,7 +321,11 @@ def test_relays_not_confirmed_off_with_nothing_running_lock_the_hardware(relays,
     assert lock.held_by("emergency")
 
     # Priming cannot open a valve either, and says why.
-    panel._on_open_master_clicked()
+    if topology == "shared_manifold":
+        panel._on_open_master_clicked()
+    else:  # no master valve: a session starts at Open Selected
+        panel.cage_selector.setCurrentIndex(panel.cage_selector.findData(CAGE))
+        panel._on_open_cage_clicked()
     assert dialogs[-1][0] == "warning"
     assert "an unconfirmed emergency stop" in dialogs[-1][2]
     assert relays.energized() == set()
