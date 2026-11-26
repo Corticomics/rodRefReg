@@ -5,6 +5,8 @@ the relay HAT board's picture beside its terminals on the Cages tab. When its fi
 missing the tab shows "[Board Diagram Not Found]" in its place and the app raises no error.
 This test fails then, or when a rename leaves BOARD_PICTURE behind, with a message that
 names the file. (The Cages tab's pixel test fails too, with "assert (None is not None)".)
+A Mac's disk ignores case and the Pi's does not, so the test checks the name as spelled:
+a rename that changes only a letter's case fails it on a Mac too, where the pixel test passes.
 """
 
 from __future__ import annotations
@@ -26,5 +28,8 @@ def test_board_picture_exists():
     from ui.cages_visualization_tab import BOARD_PICTURE  # noqa: PLC0415
 
     assert os.path.isfile(BOARD_PICTURE), f"the Cages tab loads {BOARD_PICTURE}"
+    # A Mac's disk ignores case and the Pi's does not, so the name is checked as spelled
+    folder, name = os.path.split(BOARD_PICTURE)
+    assert name in os.listdir(folder), f"the Cages tab loads {name!r}, as spelled, from {folder}"
     picture = QImage(BOARD_PICTURE)
     assert not picture.isNull(), f"Qt cannot read {BOARD_PICTURE} as a picture"
