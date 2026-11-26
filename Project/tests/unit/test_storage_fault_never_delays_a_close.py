@@ -21,31 +21,45 @@ calibration saved first. While the delivery runs, the disk fails:
 
 - every DatabaseHandler method raises
   ``sqlite3.OperationalError('disk I/O error')``;
-- open (builtins and io), os.open, os.stat, os.lstat, os.listdir and
-  os.scandir raise ``OSError(EIO)``, and sqlite3.connect raises what SQLite
-  itself raises, ``sqlite3.OperationalError('disk I/O error')``. The os.path
-  checks, pathlib's open and stat, and linecache all go through these calls
-  (Python 3.11 and up: the Pi's and both CI jobs').
+- open (builtins and io), os.open, os.stat, os.lstat, os.listdir,
+  os.scandir, os.mkdir, os.utime, os.rename, os.replace, os.remove and
+  os.unlink raise ``OSError(EIO)``. sqlite3.connect raises
+  ``sqlite3.OperationalError('disk I/O error')``: the sqlite3 module reports
+  a failed disk as an OperationalError, never as an OSError. The os.path
+  checks, pathlib's open, stat, touch, mkdir, rename, replace and unlink,
+  and linecache all go through these calls (Python 3.11 and up: the Pi's
+  and both CI jobs').
 
 Each relay write and each disk call is recorded, with its time, in one list,
 in the order they happened. The test asserts on that order: no disk call
 comes between a relay's ON and its OFF. A stalled disk can only delay a close
 from inside that window, so no call has to hang, and the result does not
 depend on how fast a CI runner is. One loose timing bound is checked as well:
-each OFF comes within the pulse width + 50 ms of its ON. On the shared
-manifold the master is held open through the whole pulse loop, so there no
-disk call may come anywhere in the loop.
+each OFF comes within the pulse width + 50 ms of its ON. The garbage
+collector waits while the delivery runs: in the full suite a full collection
+took up to 50 ms on a Mac, the whole of that margin. On the shared manifold
+the master is held open through the whole pulse loop, so there no disk call
+may come anywhere in the loop.
 
 The faults are applied only around the delivery call, and only for the
-thread that runs it, so pytest's own file access is untouched. During the
-delivery, sys.stdout and sys.stderr are main's StreamRedirector, as after
-start-up, and a log handler formats every record at every level, so a
-traceback logged inside the window would be formatted there.
+thread that runs it and the threads it starts (asyncio.to_thread and
+run_in_executor start theirs from it), so pytest's own file access is
+untouched. During the delivery, sys.stdout and sys.stderr are main's
+StreamRedirector, as after start-up, and a log handler formats every record
+at every level, so a traceback logged inside the window would be formatted
+there.
 
-What this cannot see: a write to a file that was opened before the delivery
-(the stream a logging.FileHandler keeps open) makes none of the calls above.
-The file logging planned for 2.3.0 is to be tested in this file with a
-handler whose write blocks.
+What this cannot see:
+
+- a write, flush or fsync to a file that was opened before the delivery
+  (the stream a logging.FileHandler keeps open): it makes none of the calls
+  above. The file logging planned for 2.3.0 is to be tested in this file
+  with a handler whose write blocks;
+- the first import of a module inside the window: the import system reads
+  the disk through posix and io.open_code, not through the calls above;
+- a call on a thread that was already running when the delivery started (a
+  log writer started at start-up): it keeps its disk, so the window waiting
+  on such a thread is not seen.
 """
 
 from __future__ import annotations
@@ -53,6 +67,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 import errno
+import gc
 import io
 import linecache
 import logging
@@ -85,8 +100,8 @@ CAGE = 1
 CAGE_MAP = {cage: cage for cage in range(1, 16)}  # one HAT: cages 1-15 on relays 1-15
 RELAY = CAGE_MAP[CAGE]
 
-# The calls that open or look up a file, as (module, name). The os.path
-# checks, pathlib's open and stat, and linecache all go through them.
+# The calls that open, look up or change a file, as (module, name). The
+# os.path checks, pathlib's file calls and linecache all go through them.
 DISK_CALLS = (
     (builtins, "open"),
     (io, "open"),
@@ -95,6 +110,12 @@ DISK_CALLS = (
     (os, "lstat"),
     (os, "listdir"),
     (os, "scandir"),
+    (os, "mkdir"),
+    (os, "utime"),
+    (os, "rename"),
+    (os, "replace"),
+    (os, "remove"),
+    (os, "unlink"),
     (sqlite3, "connect"),
 )
 
@@ -170,12 +191,12 @@ def _sqlite_io_error():
     return sqlite3.OperationalError("disk I/O error")
 
 
-def _failing(label, real, error, events, owner):
-    """A disk call that fails on the ``owner`` thread and is recorded; any other thread
-    gets ``real``."""
+def _failing(label, real, error, events, faulted):
+    """A disk call that fails on the ``faulted`` threads and is recorded; any other
+    thread gets ``real``."""
 
     def disk_call(*args, **kwargs):
-        if threading.get_ident() != owner:
+        if threading.get_ident() not in faulted:
             return real(*args, **kwargs)
         arg = args[0] if args else None
         if isinstance(arg, (str, bytes, int, os.PathLike)):
@@ -188,37 +209,64 @@ def _failing(label, real, error, events, owner):
     return disk_call
 
 
+def _starting_faulted(start, faulted):
+    """Thread.start, so that a thread a faulted thread starts is faulted too, from its
+    first line to its last (asyncio.to_thread and run_in_executor start their
+    workers this way)."""
+
+    def faulted_start(thread, *args, **kwargs):
+        if threading.get_ident() in faulted:
+            run = thread.run
+
+            def faulted_run():
+                ident = threading.get_ident()
+                faulted.add(ident)
+                try:
+                    run()
+                finally:
+                    faulted.discard(ident)
+
+            thread.run = faulted_run
+        return start(thread, *args, **kwargs)
+
+    return faulted_start
+
+
 @contextmanager
 def _failing_disk(events):
-    """While inside, this thread's disk fails: each call is recorded in ``events``,
-    then raises.
+    """While inside, the disk fails for this thread and for every thread it starts:
+    each call is recorded in ``events``, then raises. A thread that was already
+    running keeps its disk.
 
     linecache is emptied on the way in, so a traceback formatted inside has to ask
     the disk for its source lines (and is seen), whatever earlier tests left in the
     cache, and on the way out, so the entries cached while the disk failed go too.
     """
-    owner = threading.get_ident()
+    faulted = {threading.get_ident()}
+    start = threading.Thread.start
     linecache.clearcache()
     with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(threading.Thread, "start", _starting_faulted(start, faulted))
         for module, name in DISK_CALLS:
             error = _sqlite_io_error if module is sqlite3 else _eio
             real = getattr(module, name)
             patch.setattr(
-                module, name, _failing(f"{module.__name__}.{name}", real, error, events, owner)
+                module, name, _failing(f"{module.__name__}.{name}", real, error, events, faulted)
             )
         for name, member in list(vars(DatabaseHandler).items()):
             if name.startswith("__"):
                 continue
             label = f"DatabaseHandler.{name}"
             if isinstance(member, (staticmethod, classmethod)):
-                failing = _failing(label, member.__func__, _sqlite_io_error, events, owner)
+                failing = _failing(label, member.__func__, _sqlite_io_error, events, faulted)
                 patch.setattr(DatabaseHandler, name, type(member)(failing))
             elif callable(member):
-                failing = _failing(label, member, _sqlite_io_error, events, owner)
+                failing = _failing(label, member, _sqlite_io_error, events, faulted)
                 patch.setattr(DatabaseHandler, name, failing)
         try:
             yield
         finally:
+            faulted.clear()  # a patched call kept past the end gets the real disk
             linecache.clearcache()
 
 
@@ -242,9 +290,23 @@ def _terminal_after_start_up(redirector):
             root.setLevel(level)
 
 
+@contextmanager
+def _collector_waiting():
+    """The garbage collector waits until the delivery is over. A full collection in
+    the suite took up to 50 ms on a Mac, the whole margin of the loose timing bound;
+    the order check does not depend on it."""
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if enabled:
+            gc.enable()
+
+
 def _deliver_on_a_failing_disk(strategy, events, redirector, pulses=PULSES):
     """One delivery of ``pulses`` x Q while the disk fails. Disk calls go in ``events``."""
-    with _terminal_after_start_up(redirector), _failing_disk(events):
+    with _terminal_after_start_up(redirector), _failing_disk(events), _collector_waiting():
         return asyncio.run(strategy.deliver(relay_unit_id=CAGE, target_volume_ml=pulses * Q))
 
 
@@ -369,6 +431,14 @@ def _open_a_file():
         pass
 
 
+def _open_a_file_on_a_thread():
+    """The valve window waits for a disk call made on a thread of its own, as an
+    ``await asyncio.to_thread(...)`` would."""
+    thread = threading.Thread(target=_open_a_file)
+    thread.start()
+    thread.join()
+
+
 def _log_a_traceback():
     try:
         raise RuntimeError("a fault while a valve is open")
@@ -376,13 +446,18 @@ def _log_a_traceback():
         logging.getLogger(__name__).error("logged with its traceback", exc_info=True)
 
 
-@pytest.mark.parametrize("touch", [_open_a_file, _log_a_traceback], ids=["open", "exc_info-log"])
+@pytest.mark.parametrize(
+    "touch",
+    [_open_a_file, _open_a_file_on_a_thread, _log_a_traceback],
+    ids=["open", "open-on-a-thread", "exc_info-log"],
+)
 def test_a_disk_call_while_a_valve_is_open_is_caught(
     touch, database_handler, fake_relay_handler, redirector, monkeypatch
 ):
     """The test above cannot pass by missing what it looks for: the same delivery with
-    a disk call made while each valve is open is caught, and so is a traceback logged
-    then, through the os.stat that linecache makes."""
+    a disk call made while each valve is open is caught, whether the delivery thread
+    makes it or waits for a thread it started to make it, and so is a traceback
+    logged then, through the os.stat that linecache makes."""
     _calibrate(database_handler, "independent")
     strategy = _strategy(fake_relay_handler, database_handler, "independent")
     events = _record_relay_writes(fake_relay_handler, monkeypatch)
@@ -413,51 +488,69 @@ def _error_of(call):
     return None
 
 
-def test_the_disk_fails_inside_only_and_only_on_the_delivery_thread(database_handler, tmp_path):
-    """Inside the fault, every patched call on this thread fails and is recorded;
-    another thread's call does not; after it, the real calls are back. So the tests
-    above cannot pass because a call slipped past the fault, and pytest and any
-    other thread keep their disk."""
+def test_the_disk_fails_inside_only_and_only_for_the_delivery(database_handler, tmp_path):
+    """Inside the fault, every patched call fails and is recorded, on this thread and
+    on a thread it starts; a thread that was already running keeps its disk; after
+    it, the real calls are back. So the tests above cannot pass because a call
+    slipped past the fault, and pytest and any other thread keep their disk."""
     probe = tmp_path / "probe.txt"
     probe.write_text("x")
-    events, elsewhere = [], {}
+    moved = tmp_path / "moved.txt"
+    events, seen = [], {}
+    told, done = threading.Event(), threading.Event()
 
-    def read_elsewhere():
+    def read_when_told():
+        told.wait(timeout=10)
         with open(probe) as f:
-            elsewhere["read"] = f.read()
+            seen["running"] = f.read()
+        done.set()
+
+    def open_on_a_started_thread():
+        seen["started"] = _error_of(lambda: open(probe))
+
+    running = threading.Thread(target=read_when_told)
+    running.start()  # before the fault: a thread that was already running
+    calls = {  # one call to each, in DISK_CALLS order
+        "builtins.open": lambda: open(probe),
+        "io.open": lambda: io.open(probe),
+        "os.open": lambda: os.open(probe, os.O_RDONLY),
+        "os.stat": lambda: os.stat(probe),
+        "os.lstat": lambda: os.lstat(probe),
+        "os.listdir": lambda: os.listdir(tmp_path),
+        "os.scandir": lambda: os.scandir(tmp_path),
+        "os.mkdir": lambda: os.mkdir(tmp_path / "new"),
+        "os.utime": lambda: os.utime(probe),
+        "os.rename": lambda: os.rename(probe, moved),
+        "os.replace": lambda: os.replace(probe, moved),
+        "os.remove": lambda: os.remove(probe),
+        "os.unlink": lambda: os.unlink(probe),
+        "sqlite3.connect": lambda: sqlite3.connect(str(tmp_path / "probe.db")),
+    }
+    assert list(calls) == [f"{module.__name__}.{name}" for module, name in DISK_CALLS]
 
     with _failing_disk(events):
-        errors = [
-            _error_of(call)
-            for call in (
-                lambda: open(probe),
-                lambda: io.open(probe),
-                lambda: os.open(probe, os.O_RDONLY),
-                lambda: os.stat(probe),
-                lambda: os.lstat(probe),
-                lambda: os.listdir(tmp_path),
-                lambda: os.scandir(tmp_path),
-                lambda: sqlite3.connect(str(tmp_path / "probe.db")),
-                database_handler.get_all_valve_calibrations,
-            )
-        ]
-        reader = threading.Thread(target=read_elsewhere)
-        reader.start()
-        reader.join(timeout=10)
+        errors = [_error_of(call) for call in calls.values()]
+        errors.append(_error_of(database_handler.get_all_valve_calibrations))
+        started = threading.Thread(target=open_on_a_started_thread)
+        started.start()
+        started.join(timeout=10)
+        told.set()
+        done.wait(timeout=10)
+    running.join(timeout=10)
 
-    assert errors == [("OSError", errno.EIO)] * 7 + [("OperationalError", "disk I/O error")] * 2
+    sqlite_error = ("OperationalError", "disk I/O error")
+    assert errors == [("OSError", errno.EIO)] * (len(calls) - 1) + [sqlite_error] * 2
     assert [event.what.split("(")[0] for event in events] == [
-        "builtins.open",
-        "io.open",
-        "os.open",
-        "os.stat",
-        "os.lstat",
-        "os.listdir",
-        "os.scandir",
-        "sqlite3.connect",
+        *calls,
         "DatabaseHandler.get_all_valve_calibrations",
+        "builtins.open",  # from the thread started inside
     ]
-    assert elsewhere == {"read": "x"}, "another thread's disk is not faulted"
+    assert seen == {
+        "started": ("OSError", errno.EIO),
+        "running": "x",
+    }, "a thread started inside is faulted; one already running is not"
+    left = sorted(os.listdir(tmp_path))
+    assert left == ["data", "probe.txt"], "no faulted call reached the disk"
     with open(probe) as f:
         assert f.read() == "x", "after it, open is the real one again"
     assert os.stat(probe).st_size == 1
