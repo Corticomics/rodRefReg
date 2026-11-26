@@ -18,6 +18,9 @@ without prior electronics experience.
 2. [Bill of Materials](#2-bill-of-materials)
 3. [Plan the Installation Before Cutting Wire](#3-plan-the-installation-before-cutting-wire)
 4. [Raspberry Pi and Operating System](#4-raspberry-pi-and-operating-system)
+   - [4.4 A Pi 5 on NVMe](#44-a-pi-5-on-nvme)
+   - [4.5 A frozen rig: what to do](#45-a-frozen-rig-what-to-do), the page
+     to print and tape to every rig that waters animals
 5. [16-Relays HAT — Stacking and Jumpers](#5-16-relays-hat--stacking-and-jumpers)
 6. [Electrical System — Power and Common Ground](#6-electrical-system--power-and-common-ground)
 7. [Valve Wiring](#7-valve-wiring)
@@ -52,6 +55,10 @@ The procedure below is designed to mitigate each one. Do not deviate.
   cold.
 - **Two-person rule for first power-on.** One person at the wall plug, one
   watching the boards. See [§9.1](#91-pre-flight-checklist).
+- **If RRR or the desktop freezes, or a command shows `Input/output error`,
+  switch the valve power supply off first**, then follow
+  [§4.5](#45-a-frozen-rig-what-to-do). The relay HAT keeps its relays as they
+  were, so a valve that was open stays open.
 
 ---
 
@@ -70,6 +77,7 @@ stacked HATs; each further HAT adds 16 animal channels.
 | Raspberry Pi 5 (4 GB or 8 GB) | 1 | Pi 4 also works; this guide targets Pi 5. |
 | Raspberry Pi 5 official 27 W USB-C PSU | 1 | Required for Pi 5; under-powered PSUs cause USB resets. |
 | microSD card, 32 GB or larger, A2/Class 10 | 1 | Imaged with Raspberry Pi OS Bookworm 64-bit. See [§4](#4-raspberry-pi-and-operating-system). |
+| USB adapter for an M.2 NVMe drive (it must say NVMe: an M.2 SATA-only adapter cannot read one) | 1 per lab, if any rig boots from NVMe | On a Pi that boots from an NVMe drive, the boot partition, with `cmdline.txt` and its backups, is on that same drive. If an edit stops the Pi booting, this adapter lets another computer copy the backup back. See [§4.4.7](#447-the-reboot-after-an-edit-and-a-pi-that-does-not-boot). |
 | HDMI cable (micro-HDMI to HDMI), USB keyboard, USB mouse, monitor | 1 each | For initial OS setup only. After install you can run headless. |
 | Sequent Microsystems *Sixteen Relays 2 A / 24 V 8-Layer Stackable HAT* | 1 (up to 8 stackable) | See bundled [16-RELAYS-UsersGuide](16-RELAYS-UsersGuide_d5e24457-bdd9-4e16-a307-7f90bbd668bb.pdf). |
 
@@ -213,6 +221,322 @@ automatically, but if you want to verify or do it manually:
 sudo raspi-config nonint do_i2c 0
 ls /dev/i2c-*           # /dev/i2c-1 must appear
 ```
+
+### 4.4 A Pi 5 on NVMe
+
+This guide installs Raspberry Pi OS on a microSD card
+([§4.1](#41-flash-the-os)). Some lab rigs boot from an NVMe drive instead: an
+M.2 SSD on the Pi 5's PCIe connector. To check which one a Pi uses:
+
+```bash
+findmnt -n -o SOURCE /   # /dev/nvme0n1p2: an NVMe drive; /dev/mmcblk0p2: the SD card
+```
+
+When the drive drops out, the root file system goes with it. RRR and the
+desktop freeze, or commands print `Input/output error`. The relay HAT keeps
+every relay as it was, so **a valve that was open stays open**. What to do
+then is [§4.5](#45-a-frozen-rig-what-to-do), the page to print for every rig.
+
+#### 4.4.1 Power and the PCIe link
+
+- Use the official Raspberry Pi 27 W USB-C supply
+  ([§2.1](#21-compute-and-control)). To check it:
+
+  ```bash
+  vcgencmd get_throttled           # must print throttled=0x0
+  vcgencmd pmic_read_adc EXT5V_V   # the supply's voltage: about 5.1 V
+  ```
+
+  Anything other than `throttled=0x0` means the Pi has been short of power,
+  or slowed down by heat, since it booted. Fix that first.
+- Leave the PCIe link at the Pi 5's default, Gen 2 (5 GT/s). Do not add
+  `dtparam=pciex1_gen=3` to `/boot/firmware/config.txt`. To check the link:
+
+  ```bash
+  sudo lspci -vv -s 0001:01:00.0 | grep -E 'LnkSta:|LnkCtl:'
+  ```
+
+  `LnkSta` reads `Speed 5GT/s` (lspci adds "downgraded": the drive could run
+  faster). `LnkCtl` shows whether the link's own power saving (ASPM) is on:
+  `ASPM L1 Enabled`, or `ASPM Disabled`.
+
+#### 4.4.2 The drive: model, firmware and temperature
+
+These read the kernel's own files, so they need no extra package:
+
+```bash
+cat /sys/class/nvme/nvme0/model /sys/class/nvme/nvme0/firmware_rev
+cat /sys/class/nvme/nvme0/hwmon*/temp1_input   # in thousandths of a °C: 58850 is 58.85 °C
+cat /sys/class/nvme/nvme0/hwmon*/temp1_max     # the drive's own warning limit
+```
+
+`temp1` is the drive's overall (Composite) temperature. Any other
+`temp*_input` is one of the drive's own sensors, named in the matching
+`temp*_label`: on the Kingston KC3000, `temp3` is its Sensor 2.
+
+#### 4.4.3 Drive drops on the home test Pi
+
+The home test Pi is the maintainer's bench Pi 5, with a relay HAT and no
+water connected. It boots from a Kingston KC3000 512 GB, firmware EIFK51.2,
+on a PCIe link at 5 GT/s x1 (Gen 2). Its drive has dropped out four times,
+each time while the Pi sat idle:
+
+| # | When | What was recorded |
+|---|---|---|
+| 1 | 2026-10-29, about 12:40 MDT | About 20 min after a dry run went idle. The journal was kept in memory only, so the Pi kept no record. |
+| 2 | 2026-10-29, between 21:17 and 22:17 MDT | Dated by the Pi's hourly clock save (fake-hwclock). No record either. |
+| 3 | 2026-11-01, 15:10:35 MST | 1 h 28 min after boot. Clean power: `throttled=0x0`, EXT5V 5.10 V. The drive warmed from 47 to 64 °C at idle in 70 min. Captured on another computer ([§4.4.4](#444-the-journal-and-a-capture-that-survives-a-drop)). |
+| 4 | 2026-11-02, 18:02:46 MST | 22 min after a cold boot, **with APST off**: the parameter read 0 ([§4.4.5](#445-nvme-power-states-apst)). The last sample, at 18:01:48, read Composite 58.85 °C, Sensor 2 75.85 °C, `throttled=0x0`. ASPM L1 was still enabled on the link. Captured on another computer. |
+
+Both captures show these kernel lines, in this order:
+
+```text
+nvme nvme0: controller is down; will reset: CSTS=0xffffffff, PCI_STATUS=0x10
+nvme nvme0: Does your device have a faulty power saving mode enabled?
+nvme nvme0: Try "nvme_core.default_ps_max_latency_us=0 pcie_aspm=off pcie_port_pm=off" and report a bug
+nvme nvme0: Disabling device after reset failure: -19
+```
+
+then I/O errors, `Aborting journal on device nvme0n1p2-8`, and the root file
+system remounted read-only.
+
+Also on 2026-11-02, the soft reboot right after the APST edit gave a boot that
+never became usable. Ping answered and port 22 was open, but SSH reset at the
+key exchange for 30 min, and that boot left nothing on disk. A power cycle
+brought the Pi back, with the parameter at 0.
+
+What is known, as of 2026-11-03:
+
+- **The cause is not known.** The kernel's hint names the drive's own power
+  saving (APST) and the PCIe link's (ASPM, and the port's power management).
+- **Turning APST off did not stop the drops** (drop 4). The PCIe link's power
+  saving, heat, the PCIe adapter or its ribbon cable, and the drive itself are
+  all still possible causes. No step in this section is a known fix.
+- **The lab test Pi** (a relay rig that waters no animals) has the same drive
+  model, with firmware EIFK31.7. It has run more than 25 h with APST off and
+  no drive error, at about 37 °C. It had no recorded drop before either, but
+  its unclean boots on 2026-10-15, 10-16 and 10-21 have no known cause: with
+  the journal in memory, a drop leaves no trace on the Pi.
+- **A third Pi** has the home test Pi's drive and firmware (EIFK51.2), and no
+  recorded drop. Its journal, too, is kept in memory only.
+
+#### 4.4.4 The journal, and a capture that survives a drop
+
+On these Pis, Raspberry Pi OS keeps the system journal in memory only (its
+default). After a power cycle the previous boot's messages are gone:
+`journalctl -b -1` finds nothing. A persistent journal
+(`Storage=persistent` in a journald drop-in) keeps them across boots. It is
+an option, and which rigs get one is the owner's call. Even a persistent
+journal cannot record the drive's own disappearance, because it is written
+to that drive.
+
+The record that survives a drop is a capture on another computer. `dmesg`
+reads the kernel's buffer in memory, so its stream goes on while the drive is
+gone:
+
+```bash
+ssh <user>@<pi> 'sudo dmesg -w --time-format iso' | tee -a nvme-capture.log
+```
+
+For a long test, add a `SAMPLE` line each minute with the time the Pi booted
+(`up=`) and the drive's temperature. These lines stop when the Pi can no
+longer run programs from its drive:
+
+```bash
+ssh <user>@<pi> '(while sleep 60; do echo "SAMPLE $(date -Is) up=$(uptime -s) temp=$(cat /sys/class/nvme/nvme0/hwmon*/temp1_input)"; done) & sudo dmesg -w --time-format iso' | tee -a nvme-capture.log
+```
+
+Keep the other computer awake (on a Mac, put `caffeinate -i` in front of
+`ssh`). If the connection drops, run the command again: it replays the
+kernel's buffer, and the timestamps tell repeated lines apart.
+
+To read RRR's own output when it runs as `rrr.service`, use
+`journalctl --user-unit=rrr`. With the journal in memory,
+`journalctl --user -u rrr` finds nothing.
+
+#### 4.4.5 NVMe power states (APST)
+
+APST lets the drive drop into low-power states when it is idle. The kernel's
+default leaves it on; `0` turns it off. To check:
+
+```bash
+cat /sys/module/nvme_core/parameters/default_ps_max_latency_us   # 100000: on (the default); 0: off
+```
+
+The installer does not change this today. APST is off, set by hand, on the
+home test Pi and the lab test Pi. On any other rig, turn it off only with the
+owner's OK. It is the first step the kernel's hint names, not a known fix
+([§4.4.3](#443-drive-drops-on-the-home-test-pi)).
+
+The setting goes in `/boot/firmware/cmdline.txt`, a single line the Pi reads
+at boot. A broken line can stop the Pi booting, so back the file up first and
+check the edit:
+
+1. **Between schedules only:** no run active, none due within an hour, no
+   priming valve open. Quit RRR (close its window, or
+   `systemctl --user stop rrr` where it runs as the service).
+   `pgrep -af 'python3 main.py'` prints nothing, and `16relind 0 read` prints
+   `0`. Switch the valve supply off.
+2. **Back up** to a file of its own, note its name, and count the lines:
+
+   ```bash
+   sudo cp /boot/firmware/cmdline.txt /boot/firmware/cmdline.txt.rrr-nvme-bak-$(date +%Y%m%d-%H%M%S)
+   ls /boot/firmware/cmdline.txt*
+   wc -l < /boot/firmware/cmdline.txt
+   ```
+
+   The backup is not `cmdline.txt.rrr-bak`: the installer's first run made
+   that file, and it holds an older line. `wc -l` prints `0` on these Pis,
+   because the file has no newline at its end.
+3. **Edit with one command.** If the line has no
+   `nvme_core.default_ps_max_latency_us` yet:
+
+   ```bash
+   sudo sed -i '1 s/$/ nvme_core.default_ps_max_latency_us=0/' /boot/firmware/cmdline.txt
+   ```
+
+   If it has one, set it to 0:
+
+   ```bash
+   sudo sed -i '1 s/nvme_core[.]default_ps_max_latency_us=[0-9]*/nvme_core.default_ps_max_latency_us=0/' /boot/firmware/cmdline.txt
+   ```
+
+4. **Check before any reboot**, with your backup's name in place of `BACKUP`:
+
+   ```bash
+   wc -l < /boot/firmware/cmdline.txt
+   diff <(tr ' ' '\n' < BACKUP; echo) <(tr ' ' '\n' < /boot/firmware/cmdline.txt; echo)
+   ```
+
+   `wc -l` prints the same number as in step 2. `diff` shows the new token
+   added (or, after the second command, changed from its old value), and
+   nothing else. With the home test Pi's line it shows:
+
+   ```text
+   11a12
+   > nvme_core.default_ps_max_latency_us=0
+   ```
+
+   Without the two `echo`s, the line's last token reads as changed, because
+   it has no newline. Anything else:
+   `sudo cp BACKUP /boot/firmware/cmdline.txt`, and stop.
+5. **Reboot** as in
+   [§4.4.7](#447-the-reboot-after-an-edit-and-a-pi-that-does-not-boot). Then
+   the `cat` above prints `0`. Start RRR the rig's usual way, and switch the
+   valve supply on only once `16relind 0 read` prints `0`.
+
+**To undo the edit:** `sudo cp BACKUP /boot/firmware/cmdline.txt`, then reboot
+as in [§4.4.7](#447-the-reboot-after-an-edit-and-a-pi-that-does-not-boot).
+
+#### 4.4.6 If a drive keeps dropping
+
+Each step is the owner's choice, Pi by Pi:
+
+- **(a) The hint's other two parameters,** `pcie_aspm=off pcie_port_pm=off`,
+  with all five steps of [§4.4.5](#445-nvme-power-states-apst): between
+  schedules with the valve supply off, the backup, a one-command edit, the
+  check and the reboot. If the line has neither yet, step 3's command is:
+
+  ```bash
+  sudo sed -i '1 s/$/ pcie_aspm=off pcie_port_pm=off/' /boot/firmware/cmdline.txt
+  ```
+
+  The `diff` then shows those two tokens added, and nothing else. After the
+  reboot, `LnkCtl` ([§4.4.1](#441-power-and-the-pcie-link)) should read
+  `ASPM Disabled`; if it does not, tell the maintainer. Then leave the Pi
+  idle for 72 h with the `SAMPLE` capture of
+  [§4.4.4](#444-the-journal-and-a-capture-that-survives-a-drop) running. It
+  passes if the `SAMPLE` lines cover 72 h of one boot (the same `up=` time
+  throughout) and no `controller is down` line appears. If the drive's
+  temperature reaches its `temp1_max`
+  ([§4.4.2](#442-the-drive-model-firmware-and-temperature)), stop and tell
+  the owner.
+- **(b) Reseat the PCIe ribbon cable, and fit a heatsink on the drive.**
+- **(c) Boot from an SD card or a USB SSD** instead of the NVMe drive.
+
+#### 4.4.7 The reboot after an edit, and a Pi that does not boot
+
+After any edit of `cmdline.txt`, someone stays at the rig for the reboot, with
+the valve supply off.
+
+1. `sudo reboot`. The desktop and SSH should be back within about 2 minutes.
+2. If they are not (for example, ping answers but SSH resets at the key
+   exchange), **power-cycle the Pi**: unplug its USB-C power, wait 10 s, plug
+   it back in. On 2026-11-02 a cold boot brought the home test Pi back after
+   such a reboot ([§4.4.3](#443-drive-drops-on-the-home-test-pi)).
+3. Only if it still does not boot, copy the backup back from another
+   computer. Power the Pi off, take the NVMe drive out and put it in the USB
+   NVMe adapter ([§2.1](#21-compute-and-control)). On the other computer,
+   open the drive's small boot partition (`bootfs`), copy the
+   `cmdline.txt.rrr-nvme-bak-…` file over `cmdline.txt`, eject the drive, put
+   it back in the Pi and boot. Or, only if the Pi's boot order tries the SD
+   card before NVMe, boot it from a prepared Raspberry Pi OS SD card and make
+   the same copy on the NVMe drive's boot partition (`/dev/nvme0n1p1`).
+   `rpi-eeprom-config` shows the order as `BOOT_ORDER`: read its digits from
+   the right, where `1` is the SD card and `6` is NVMe. Read it before the
+   reboot of step 1, while the Pi still runs.
+
+#### 4.4.8 Shutting down, and unattended runs
+
+- **Never log out, reboot or shut down a rig while a schedule runs or a
+  priming valve is open.** Press **Stop** first, or **CLOSE ALL RELAYS** in
+  **Settings → Priming** while priming. RRR does not switch its relays off
+  when the desktop session ends or the Pi shuts down, and what the relays do
+  through a reboot or a shutdown has not been measured yet.
+- **Start RRR from its desktop icon, or as `rrr.service`.** An RRR started
+  with `~/.local/bin/rrr` in a terminal ends when that terminal closes, and
+  leaves its relays as they were.
+- **Unattended runs.** No software can be relied on to close an open valve
+  once the Pi or its drive has gone. Fit a switch, or a plug the operator can
+  pull, on the valve supply, within reach of where the operator stands. A
+  hardware fail-safe in the valve supply (for example a watchdog relay in
+  series with it) is the only thing that would close a valve with nobody
+  there; no rig has one yet.
+
+### 4.5 A frozen rig: what to do
+
+**Print this section on one page and tape it to every rig that waters
+animals.** Use it when RRR or the desktop stops answering, or anything shows
+`Input/output error`. The relay HAT keeps every relay as it was: **an open
+valve stays open**.
+
+1. **Switch the valve power supply off**, or pull its plug. Always first.
+   Note the time.
+2. **Stop RRR.** If the desktop answers and nothing shows
+   `Input/output error`, run `pkill -9 -f 'python3 main.py'` in a terminal.
+   Otherwise **power-cycle the Pi**: unplug its power for 10 s.
+3. **Let one RRR start.** Wait 10 s (after a power cycle, 10 s after the
+   desktop is back), then run `pgrep -af 'python3 main.py'`. A line means
+   RRR is starting by itself: do not start another. No line: start RRR from
+   its desktop icon, not a terminal. RRR switches every relay off as it
+   starts. Do not stop it until its main window has been open 10 s: two
+   failed starts in a row roll RRR back to its previous version. If it will
+   not start, keep the valve power off and call the maintainer.
+4. **Check the database** before the next Run. Type these four lines in a
+   terminal:
+
+   ```bash
+   ~/rrr/shared/venv/bin/python3 -c "import os, sqlite3; \
+   p = os.path.expanduser('~/rrr/shared/data/rrr_database.db'); \
+   db = sqlite3.connect('file:' + p + '?mode=ro', uri=True); \
+   print(db.execute('PRAGMA integrity_check').fetchone())"
+   ```
+
+   It must print `('ok',)`. If it ends with
+   `attempt to write a readonly database`, RRR has not opened the database
+   since the crash: go back to step 3, then check again. Anything else: run
+   no schedule; the maintainer restores the database from its last backup.
+5. **After a power cycle**, on a rig with a persistent journal, keep the
+   output of `journalctl -b -1 -k | tail -50` for the maintainer.
+6. **Check what each animal received.** Log in and look for red cells in the
+   Animals tab. After a disk fault the delivery log can miss deliveries:
+   check each animal before giving more. Give any remainder only as a new
+   schedule; never resume the stopped one.
+7. **Reconnect the valve power last**, once every relay is off: all relay
+   LEDs on the HAT dark, or `16relind 0 read` prints `0` (`16relind 1 read`
+   for a second HAT). If a relay is on, or `pgrep -af 'python3 main.py'`
+   prints nothing, power-cycle the Pi (every relay drops) and go back to
+   step 3.
 
 ---
 
@@ -637,6 +961,7 @@ After install:
 | Run, priming and calibration greyed out with *Unavailable while an unconfirmed emergency stop is in progress* | A Stop or a CLOSE ALL RELAYS could not confirm every relay off, or the schedule's delivery did not stop. **Disconnect the valve power supply first**, then check the relay HAT and its I²C connection, then press **Settings → Priming → CLOSE ALL RELAYS**: once every relay is confirmed off and the delivery has stopped, Run, priming and calibration come back (if it says the delivery worker has not stopped, wait a few seconds and press it again). Or close and reopen RRR (if it will not quit, restart the Raspberry Pi). With a relay HAT missing since RRR started, every Stop does this: restart RRR, then fix the HAT and restart again, or set the number of HATs the rig has with **Change Relay Hats**. |
 | The Animals tab shows **Interrupted · ? / … mL** in red | RRR closed or lost power during that schedule, so the amount delivered was not recorded. Run the command in the cell's tooltip in a terminal on the Pi (`tools/gravimetric_check.py daily --since <day> --cage <cage>`): it totals what that cage received each day from that day on. |
 | Water leaking onto HAT | Power off immediately. Dry fully (24 h, no heat). Inspect for corrosion on terminals before re-powering. |
+| RRR or the desktop is frozen, or a window or command shows `Input/output error` | **Disconnect the valve power supply first**: the HAT keeps its relays as they were, so a valve may be held open. Then follow [§4.5](#45-a-frozen-rig-what-to-do). On a Pi that boots from NVMe, the drive may have dropped out: see [§4.4](#44-a-pi-5-on-nvme). |
 
 ---
 
