@@ -10,10 +10,11 @@ The profile is the production one: 30 ms pulses, a 1000 ms rest, 32.936 uL
 per pulse (the Parker 003-0257-900 with the upstream needle). Pulse mode
 only.
 
-Each scenario pins the exact sequence of relay writes (ids, state, order),
-and with it the waits, the DeliveryResult, the operator's [VALVE ERROR],
-[VALVE CRITICAL] and [VALVE OK] lines, the hardware lock and the
-dispensing_history row. Every expected value is a literal, so a diff shows.
+Each scenario pins the exact sequence of relay writes (ids, state, order)
+and, where the scenario has them, the waits, the DeliveryResult, the
+operator's [VALVE ERROR], [VALVE CRITICAL] and [VALVE OK] lines, the
+hardware lock and the dispensing_history row. Every expected value is a
+literal, so a diff shows.
 
 The rule from here on: a PR that changes a relay write on this path updates
 this file on purpose and says why in its body. A PR that only deletes or
@@ -185,7 +186,9 @@ def _lose_closes(fake, monkeypatch):
 def test_g1_a_nine_pulse_dose_is_nine_cage_pulses_and_one_close(
     fake_relay_handler, monkeypatch, capsys
 ):
-    """The copy of test_topology_trace.py:168-188, with the whole result."""
+    """The copy of test_topology_trace.py's
+    test_independent_trace_is_the_cage_pulses_and_nothing_else, with the
+    whole result."""
     golden = _Golden(fake_relay_handler, monkeypatch)
 
     result = golden.deliver(1, 0.296424)
@@ -599,7 +602,8 @@ def test_g10_a_staggered_slot_fires_whole_pulses_and_records_them(
 def test_g11_an_instant_retry_after_a_relay_fault_sends_only_the_rest(
     qapp, fake_relay_handler, monkeypatch, capsys
 ):
-    """The independent twin of test_relay_write_failures.py:695. 10 pulses
+    """The independent twin of test_relay_write_failures.py's
+    test_an_instant_retry_after_a_relay_fault_sends_only_the_rest. 10 pulses
     are asked for; pulse 8's close (write 16) is lost once and gets through
     on the retry, so pulse 8 is banked and the delivery ends; the worker's
     retry plans the 2 pulses still owed."""
