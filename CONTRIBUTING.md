@@ -105,6 +105,46 @@ to commits or PR bodies. If a tool injects one automatically, disable it
 in the tool's settings — don't strip it per-commit. See
 [CLAUDE.md](CLAUDE.md).
 
+### Credentials
+
+[`test_no_credentials_in_tree.py`](Project/tests/unit/test_no_credentials_in_tree.py)
+fails the suite when a tracked file sits where credentials live
+(`.claude/settings*.json`, `secrets.json`, a database,
+`Project/settings/settings.json`, `.env`, a key file) or holds a credential
+of a real shape: a Slack, Brevo, GitHub or AWS key, a private-key block, or
+a password written into a command. It names the file, line and kind, never
+the value.
+
+- **SSH keys for scripts and agents.** Reach a Pi with an SSH key
+  (`ssh-copy-id`) for anything scripted or run by an agent. Typing the
+  password at ssh's own prompt is fine
+  ([HARDWARE_SETUP.md §4.1](Project/docs/HARDWARE_SETUP.md) allows password
+  login on a lab network). Never put it on a command line: no
+  `sshpass -p`, no password in `SUDO_PWD` or `SSHPASS`, no password echoed
+  into `sudo -S`. A password in a command stays in the shell's history, and
+  one in a command an agent runs can be saved in
+  `.claude/settings.local.json` or `.claude/settings.json` as a permission
+  rule when it is approved for good.
+- **`.claude/settings.json` stays ignored.** `.gitignore` keeps it and
+  `.claude/settings.local.json` out of git: they record the commands an
+  agent may run, passwords included. Only `.claude/skills/` is shared. Never
+  `git add -f` them.
+- **Slack credentials live on the device**, in `secrets.json`, mode 0600,
+  beside the database: `~/rrr/shared/data/secrets.json` on a device (the
+  launcher's `RRR_DATA`), `Project/secrets.json` in a clone.
+  `secrets_path()` in [Project/utils/paths.py](Project/utils/paths.py) names
+  it; `SystemController.save_settings` sends the Slack token and channel
+  there, never to the database (`_save_secrets_if_present` in
+  [Project/controllers/system_controller.py](Project/controllers/system_controller.py));
+  `save_credentials` in [Project/utils/secrets.py](Project/utils/secrets.py)
+  writes it (a temporary file, chmod 0600, then an atomic rename).
+  `.gitignore` keeps it out of git, and so out of the release bundle,
+  which `build-bundle.sh` makes from tracked files only.
+- **When the test fails**, take the credential out. If a commit holding it
+  was ever pushed, rotate it as well (revoke the token or key, change the
+  password): the history keeps it. Something that only looks like a
+  credential goes in the test's `ALLOWED`, with the reason.
+
 ---
 
 ## 4. Versioning and releases
