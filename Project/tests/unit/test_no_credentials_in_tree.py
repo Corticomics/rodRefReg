@@ -4,29 +4,37 @@ Once a commit is pushed, a credential in it stays in the history: deleting the f
 does not take it back, only rotating the credential does. This test fails the suite before
 the commit is merged.
 
-It checks the files git tracks (``git ls-files``). Where git cannot list them, it checks
-every file under the repository root instead, leaving out the directories .gitignore keeps
-out of git (.git, __pycache__, venvs, build, dist, vendor): in a release bundle, which has
-no .git, and in CI's Bookworm container, where the checkout belongs to another user than
-the one running the tests and git refuses it ("dubious ownership").
+It checks the files git tracks (``git ls-files``). In CI's Bookworm container the checkout
+belongs to another user than the one running the tests, and git refuses such a checkout
+("dubious ownership"), so the call passes ``safe.directory=*`` on git's command line:
+pytest already runs this tree's code, so trusting its git config adds nothing. Where git
+still cannot list the files (no .git, as in a release bundle; no git; a git too old to
+take that setting from its command line), the test checks every file under the
+repository root instead, leaving out the directories .gitignore keeps out of git (.git,
+__pycache__, venvs, build, dist, vendor).
 
 1. No tracked file sits where credentials or operator data live: Claude Code's settings
    (.claude/settings*.json, which record the commands an agent may run, passwords
-   included), secrets.json, a SQLite database, Project/settings/settings.json, .env, a .pem
-   or .key file, or an SSH key (id_rsa*, id_ed25519*, id_ecdsa*, id_dsa*).
-2. No tracked text file holds a credential of a real shape: a Slack token, app token or
-   webhook URL, a Brevo API or SMTP key, a GitHub token, an AWS access key id, a PEM
-   private-key block, or a password written into a command (after ``sshpass -p``, in a
-   ``SUDO_PWD`` or ``SSHPASS`` variable, or echoed into ``sudo -S``). A placeholder (a
-   $variable, a command substitution, <password>) is not a password.
+   included), secrets.json, a SQLite database or its journal (-journal, -wal, -shm),
+   Project/settings/settings.json, .env or .env.* (but .env.example and .env.sample), a
+   .pem or .key file, or an SSH key (id_rsa*, id_ed25519*, id_ecdsa*, id_dsa*, *.ppk). A
+   Keynote deck is a .key file too: one would need an ALLOWED entry.
+2. No tracked text file holds a credential of a real shape: a Slack token (rotating ones
+   too), app token or webhook URL, a Brevo API or SMTP key, a GitHub token, an AWS access
+   key id, a PEM private-key block, or a password written into a command (after
+   ``sshpass -p``, in a ``SUDO_PWD`` or ``SSHPASS`` variable, or echoed into ``sudo -S``
+   or ``sudo --stdin``). A placeholder (a $variable, a command substitution, <password>)
+   is not a password, nor are the placeholders Slack and AWS print in their own docs (a
+   webhook ending in XXXX, an access key id ending in EXAMPLE).
 
 A failure names the file, the line and the kind, never the value, so the test's output
-does not spread a credential further. The patterns match real shapes only, so a fixture
-such as "xoxb-test" passes. A file that must hold something of a real shape goes in
-ALLOWED, with the reason.
+does not spread a credential further. A file that cannot be read is reported as such. The
+patterns match real shapes only, so a fixture such as "xoxb-test" passes. A file that must
+hold something of a real shape goes in ALLOWED, with the reason.
 
 The samples the self-tests use are put together from fragments at run time, so this file
-holds no literal that matches; it leaves itself out of the scan all the same.
+holds no literal that matches. It leaves itself out of the scan, as the plan asks, and a
+test of its own checks it.
 """
 
 from __future__ import annotations
@@ -49,22 +57,30 @@ ALLOWED: dict[str, tuple[str, str]] = {}
 
 # --- 1. Paths --------------------------------------------------------------------------
 
-SSH_KEY_NAMES = ("id_rsa*", "id_ed25519*", "id_ecdsa*", "id_dsa*")
+SSH_KEY_NAMES = ("id_rsa*", "id_ed25519*", "id_ecdsa*", "id_dsa*", "*.ppk")
+# A database, or the journal SQLite keeps beside it while it writes (DATABASE.md: the
+# DELETE journal, so Project/rrr_database.db-journal exists during a write in a clone)
+DATABASE_NAME = re.compile(r"\.(?:db|sqlite3?)(?:-journal|-wal|-shm)?$")
+# Templates that hold no values
+ENV_TEMPLATES = (".env.example", ".env.sample")
 
 
 def banned_path_kind(relative):
-    """The kind of credential file a path relative to the root names, or None."""
+    """The kind of credential file a path relative to the root names, or None.
+
+    A Keynote deck (*.key) is reported as a key file: it would need an ALLOWED entry.
+    """
     path = PurePosixPath(relative)
     name = path.name.lower()
     if path.parent.name == ".claude" and fnmatch.fnmatchcase(name, "settings*.json"):
         return "Claude Code settings file"
     if name == "secrets.json":
         return "secrets file"
-    if fnmatch.fnmatchcase(name, "*.db") or fnmatch.fnmatchcase(name, "*.sqlite*"):
+    if DATABASE_NAME.search(name):
         return "SQLite database"
     if relative == "Project/settings/settings.json":
         return "device settings file"
-    if name == ".env":
+    if name == ".env" or (name.startswith(".env.") and name not in ENV_TEMPLATES):
         return "environment file"
     if fnmatch.fnmatchcase(name, "*.pem") or fnmatch.fnmatchcase(name, "*.key"):
         return "PEM or key file"
@@ -78,6 +94,8 @@ def banned_path_kind(relative):
 # Credentials of a real shape: (kind, pattern).
 SHAPES = (
     ("Slack token", re.compile(r"\bxox[abposr]-(?:[0-9]+-)?[0-9]{8,}-[0-9A-Za-z-]{8,}")),
+    # with token rotation on: the access token xoxe.xoxb-1-..., the refresh token xoxe-1-...
+    ("Slack token", re.compile(r"\bxoxe(?:\.xox[abpr])?-1-[0-9A-Za-z]{40,}")),
     (
         "Slack app token",
         re.compile(r"\bxapp-[0-9]+-[0-9A-Za-z]{6,}-[0-9]{6,}-[0-9A-Za-z]{16,}"),
@@ -98,6 +116,19 @@ SHAPES = (
     ("private key block", re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----")),
 )
 
+
+def _is_vendor_placeholder(kind, matched):
+    """True for the placeholders Slack and AWS print in their own docs.
+
+    Slack's webhook example ends in a run of X; AWS's access key id ends in EXAMPLE.
+    """
+    if kind == "Slack webhook URL":
+        return set(matched.rsplit("/", 1)[-1]) == {"X"}
+    if kind == "AWS access key id":
+        return matched.endswith("EXAMPLE")
+    return False
+
+
 # What follows a command's password option: an optional quote (or a JSON-escaped one),
 # then the value up to a space, a quote or shell punctuation. _is_literal decides.
 _VALUE = r"""(?P<value>\\?["']?[^\s"'\\`;&|(),]*)"""
@@ -109,15 +140,17 @@ COMMANDS = (
         # sshpass's other options (-f file, -d fd, -P prompt, -e, -v) may come first
         re.compile(r"\bsshpass(?:[ \t]+-(?:[fdP][ \t]*\S+|[evhV]+))*[ \t]+-p[ \t]*" + _VALUE),
     ),
-    ("password in SUDO_PWD", re.compile(r"\bSUDO_PWD(?P<spaces>[ \t]*=[ \t]*)" + _VALUE)),
-    ("password in SSHPASS", re.compile(r"\bSSHPASS(?P<spaces>[ \t]*=[ \t]*)" + _VALUE)),
+    # SUDO_PWD=... (shell), SUDO_PWD = "..." (Python), "SUDO_PWD": "..." or SUDO_PWD: "..."
+    # (JSON, YAML); see hits_in for which need a quoted value
+    ("password in SUDO_PWD", re.compile(r"\bSUDO_PWD(?P<sep>[\"']?[ \t]*[=:][ \t]*)" + _VALUE)),
+    ("password in SSHPASS", re.compile(r"\bSSHPASS(?P<sep>[\"']?[ \t]*[=:][ \t]*)" + _VALUE)),
     (
         "password echoed into sudo -S",
         # echo's output piped straight into sudo, whose options (one may take an
-        # argument, as -u root does) include -S
+        # argument, as -u root does) include -S or --stdin
         re.compile(
             r"\becho[ \t]+(?:-[neE]+[ \t]+)*" + _VALUE + r"[^|\n]*\|[ \t]*sudo[ \t]+"
-            r"(?:-\S+[ \t]+(?:[^-\s]\S*[ \t]+)?)*?-[A-Za-z]*S\b"
+            r"(?:-\S+[ \t]+(?:[^-\s]\S*[ \t]+)?)*?(?:-[A-Za-z]*S|--stdin)\b"
         ),
     ),
 )
@@ -143,13 +176,17 @@ def hits_in(text):
     """[(line, kind)] for every credential in a text, sorted."""
     hits = set()
     for kind, pattern in SHAPES:
-        hits.update((_line(text, match.start()), kind) for match in pattern.finditer(text))
+        for match in pattern.finditer(text):
+            if not _is_vendor_placeholder(kind, match.group(0)):
+                hits.add((_line(text, match.start()), kind))
     for kind, pattern in COMMANDS:
         for match in pattern.finditer(text):
             value = match.group("value")
-            if "spaces" in pattern.groupindex and match.group("spaces") != "=":
-                # SUDO_PWD = ... with spaces is a Python or YAML assignment: only a quoted
-                # string is a written-out password (os.environ[...] is not)
+            if "sep" in pattern.groupindex and match.group("sep") != "=":
+                # Only the shell form (SUDO_PWD=...) takes a bare value. A Python
+                # assignment (SUDO_PWD = ...) or a JSON or YAML key (SUDO_PWD: ...) counts
+                # with a quoted string only: os.environ[...] is not a password, nor is
+                # the prose of "SUDO_PWD: the sudo password"
                 if not value.startswith(_QUOTED):
                     continue
             if _is_literal(value):
@@ -229,7 +266,9 @@ def list_files(root):
         env = {key: value for key, value in os.environ.items() if key not in _GIT_LOCATION_VARS}
         try:
             done = subprocess.run(
-                ["git", "-C", str(root), "ls-files", "-z"],
+                # safe.directory=*: CI's Bookworm container runs the tests as root on a
+                # checkout the runner's user owns, which git otherwise refuses
+                ["git", "-c", "safe.directory=*", "-C", str(root), "ls-files", "-z"],
                 capture_output=True,
                 env=env,
                 timeout=60,
@@ -269,23 +308,30 @@ def _allowed(relative, kind):
     return entry is not None and entry[0] == kind
 
 
+def _file_hits(path):
+    """[(line, kind)] for one file. Its text never outlives this call."""
+    text = _text(path)
+    return [] if text is None else hits_in(text)
+
+
 def findings(root, files):
     """["path:line: kind"] for every credential the files hold, never the value.
 
-    The text stays inside this function, so no traceback or --showlocals output of the
-    test that asserts on the result can show it.
+    Each file's text lives only in _file_hits, whose frame has ended before the next file
+    is read, so a traceback or --showlocals output shows no file's text. A file that cannot
+    be read is reported, not raised.
     """
     found = []
     for relative in files:
         if relative == THIS_FILE:
             continue
-        text = _text(root / relative)
-        if text is None:
+        try:
+            hits = _file_hits(root / relative)
+        except OSError as exc:
+            found.append(f"{relative}: could not be read ({type(exc).__name__})")
             continue
         found += [
-            f"{relative}:{line}: {kind}"
-            for line, kind in hits_in(text)
-            if not _allowed(relative, kind)
+            f"{relative}:{line}: {kind}" for line, kind in hits if not _allowed(relative, kind)
         ]
     return found
 
@@ -329,12 +375,6 @@ def test_no_tracked_file_holds_a_credential():
     assert not found, report(found, listed)
 
 
-def _kinds_in(path):
-    """The kinds of credential a file holds (its text stays in here, as in findings)."""
-    text = _text(path)
-    return set() if text is None else {kind for _, kind in hits_in(text)}
-
-
 def test_every_allowed_entry_is_still_needed():
     files, _listed = _tree()
     stale = []
@@ -342,9 +382,17 @@ def test_every_allowed_entry_is_still_needed():
         assert reason.strip(), f"ALLOWED[{relative!r}] gives no reason"
         if relative not in files:
             stale.append(f"{relative}: no such file is checked")
-        elif banned_path_kind(relative) != kind and kind not in _kinds_in(ROOT / relative):
+        elif banned_path_kind(relative) != kind and kind not in {
+            hit for _, hit in _file_hits(ROOT / relative)
+        }:
             stale.append(f"{relative}: holds no {kind}")
     assert not stale, "Delete these entries from ALLOWED:\n" + "\n".join(stale)
+
+
+def test_this_file_holds_no_credential_shape():
+    # Only (line, kind) pairs reach this frame, never the file's text
+    hits = _file_hits(Path(__file__))
+    assert not hits, f"build these samples from fragments, as the others are: {hits}"
 
 
 # --- Self-tests ------------------------------------------------------------------------
@@ -360,6 +408,9 @@ def _fake_credentials():
     mixed = "AbCdEfGhIjKlMnOp"
     password = "fake" + "-pw-" + "0000"
     slack = "xo" + "xb-" + digits + "-" + digits + "123-" + mixed + "QrStUvWx"
+    base62 = (mixed + digits) * 3
+    rotating = "xo" + "xe.xo" + "xb-1-" + base62
+    refresh = "xo" + "xe-1-" + base62
     app = "xa" + "pp-1-A" + digits + "-" + digits + "123-" + hex64
     webhook = "https://hooks" + ".slack.com/services/T" + digits + "/B" + digits + "/" + mixed
     brevo = "xkey" + "sib-" + hex64 + "-" + mixed
@@ -370,6 +421,8 @@ def _fake_credentials():
     pem = "-----BEGIN " + "OPENSSH PRIVATE " + "KEY-----"
     return [
         ("Slack token", f'token = "{slack}"', slack),
+        ("Slack token", f"SLACK_BOT_TOKEN={rotating}", rotating),
+        ("Slack token", f"refresh_token: {refresh}", refresh),
         ("Slack app token", f"SLACK_APP_TOKEN={app}", app),
         ("Slack webhook URL", f"curl -X POST {webhook}", webhook),
         ("Brevo key", f"api-key: {brevo}", brevo),
@@ -387,7 +440,9 @@ def _fake_credentials():
         ),
         ("password in SUDO_PWD", "export SUDO" + "_PWD=" + password, password),
         ("password in SUDO_PWD", "SUDO" + '_PWD = "' + password + '"', password),
+        ("password in SUDO_PWD", '{"SUDO' + '_PWD": "' + password + '"}', password),
         ("password in SSHPASS", "SSH" + "PASS='" + password + "' sshpass -e ssh", password),
+        ("password in SSHPASS", "SSH" + "PASS: '" + password + "'", password),
         (
             "password echoed into sudo -S",
             "ec" + "ho " + password + " | sudo" + " -S true",
@@ -396,6 +451,11 @@ def _fake_credentials():
         (
             "password echoed into sudo -S",
             "ec" + 'ho "' + password + '" | sudo -u root' + " -S apt-get update",
+            password,
+        ),
+        (
+            "password echoed into sudo -S",
+            "ec" + "ho " + password + " | sudo" + " --stdin true",
             password,
         ),
     ]
@@ -437,6 +497,15 @@ def test_each_kind_of_credential_is_found(kind, line, _value):
         "echo done | sudo tee /etc/rrr.conf",
         "echo 1 | sudo ls -lS",
         "echo pw | grep p | sudo -S true",
+        "echo done | sudo --preserve-env tee /etc/rrr.conf",
+        "xoxe-1-short",
+        "SUDO_PWD: the sudo password, which the script asks for",
+        '"SUDO_PWD": ""',
+        '"SUDO_PWD": "$SUDO_PWD"',
+        "SSHPASS: <password>",
+        # the placeholders Slack's and AWS's docs print
+        "https://hooks" + ".slack.com/services/T00000000/B00000000/" + "X" * 24,
+        "aws_access_key_id = " + "AK" + "IA" + "IOSFODNN7" + "EXAMPLE",
     ],
 )
 def test_placeholders_and_look_alikes_are_not_credentials(line):
@@ -457,8 +526,30 @@ def test_a_failure_names_file_line_and_kind_but_never_the_value(tmp_path):
         assert value not in message
 
 
+def _sample(kind):
+    return next(sample for sample in _fake_credentials() if sample[0] == kind)
+
+
+def test_a_file_that_cannot_be_read_is_reported_not_raised(tmp_path, monkeypatch):
+    kind, line, value = _sample("Slack token")
+    (tmp_path / "a.txt").write_text(line + "\n", encoding="utf-8")
+    (tmp_path / "b.txt").write_text("nothing\n", encoding="utf-8")
+    read_bytes = Path.read_bytes
+
+    def refuse_b(self):
+        # not chmod: CI's Bookworm job runs as root, which reads the file anyway
+        if self.name == "b.txt":
+            raise PermissionError(13, "Permission denied", str(self))
+        return read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", refuse_b)
+    found = findings(tmp_path, ["a.txt", "b.txt"])
+    assert found == [f"a.txt:1: {kind}", "b.txt: could not be read (PermissionError)"]
+    assert value not in repr(found)
+
+
 def test_an_allowed_entry_lets_its_kind_through_in_its_file_only(tmp_path, monkeypatch):
-    kind, line, _ = _fake_credentials()[3]  # a Brevo key
+    kind, line, _ = _sample("Brevo key")
     for name in ("fixture.txt", "other.txt"):
         (tmp_path / name).write_text(line + "\n", encoding="utf-8")
     monkeypatch.setitem(ALLOWED, "fixture.txt", (kind, "a fixture"))
@@ -475,18 +566,29 @@ def test_an_allowed_entry_lets_its_kind_through_in_its_file_only(tmp_path, monke
         ("Project/secrets.json", "secrets file"),
         ("Project/rrr_database.db", "SQLite database"),
         ("backups/rrr.sqlite3", "SQLite database"),
+        ("data.sqlite", "SQLite database"),
+        ("Project/rrr_database.db-journal", "SQLite database"),
+        ("Project/rrr_database.db-wal", "SQLite database"),
+        ("Project/rrr_database.db-shm", "SQLite database"),
         ("Project/settings/settings.json", "device settings file"),
         (".env", "environment file"),
+        (".env.local", "environment file"),
+        ("deploy/.env.production", "environment file"),
         ("deploy/server.pem", "PEM or key file"),
         ("tls.key", "PEM or key file"),
         ("id_rsa", "SSH key file"),
         ("keys/id_ed25519.pub", "SSH key file"),
+        ("keys/pi.ppk", "SSH key file"),
+        ("talks/lab-meeting.key", "PEM or key file"),  # a Keynote deck: needs ALLOWED
         (".claude/skills/release-and-versioning/SKILL.md", None),
         ("Project/utils/secrets.py", None),
         ("Project/tests/unit/test_secrets.py", None),
         ("Project/settings/README.md", None),
         ("settings.json", None),
         (".env.example", None),
+        (".env.sample", None),
+        ("Project/models/database_handler.py", None),
+        ("Project/docs/DATABASE.md", None),
         ("docs/keyboard.md", None),
     ],
 )

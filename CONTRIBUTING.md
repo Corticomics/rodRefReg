@@ -115,11 +115,16 @@ of a real shape: a Slack, Brevo, GitHub or AWS key, a private-key block, or
 a password written into a command. It names the file, line and kind, never
 the value.
 
-- **SSH keys only.** Reach a Pi with an SSH key (`ssh-copy-id`), never a
-  password on a command line: no `sshpass -p`, no password in `SUDO_PWD` or
-  `SSHPASS`, no password echoed into `sudo -S`. A password typed into a
-  command stays in the shell's history, and one in a command an agent runs
-  is saved in `.claude/settings.json` as a permission rule.
+- **SSH keys for scripts and agents.** Reach a Pi with an SSH key
+  (`ssh-copy-id`) for anything scripted or run by an agent. Typing the
+  password at ssh's own prompt is fine
+  ([HARDWARE_SETUP.md §4.1](Project/docs/HARDWARE_SETUP.md) allows password
+  login on a lab network). Never put it on a command line: no
+  `sshpass -p`, no password in `SUDO_PWD` or `SSHPASS`, no password echoed
+  into `sudo -S`. A password in a command stays in the shell's history, and
+  one in a command an agent runs can be saved in
+  `.claude/settings.local.json` or `.claude/settings.json` as a permission
+  rule when it is approved for good.
 - **`.claude/settings.json` stays ignored.** `.gitignore` keeps it and
   `.claude/settings.local.json` out of git: they record the commands an
   agent may run, passwords included. Only `.claude/skills/` is shared. Never
