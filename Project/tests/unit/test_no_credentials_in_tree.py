@@ -16,9 +16,10 @@ __pycache__, venvs, build, dist, vendor).
 1. No tracked file sits where credentials or operator data live: Claude Code's settings
    (.claude/settings*.json, which record the commands an agent may run, passwords
    included), secrets.json, a SQLite database or its journal (-journal, -wal, -shm),
-   Project/settings/settings.json, .env or .env.* (but .env.example and .env.sample), a
-   .pem or .key file, or an SSH key (id_rsa*, id_ed25519*, id_ecdsa*, id_dsa*, *.ppk). A
-   Keynote deck is a .key file too: one would need an ALLOWED entry.
+   Project/settings/settings.json, .env or .env.* (but the templates .env.example,
+   .env.sample, .env.template, .env.dist and .env.defaults), a .pem or .key file, or an
+   SSH key (id_rsa*, id_ed25519*, id_ecdsa*, id_dsa*, *.ppk). A Keynote deck is a .key
+   file too: one would need an ALLOWED entry.
 2. No tracked text file holds a credential of a real shape: a Slack token (rotating ones
    too), app token or webhook URL, a Brevo API or SMTP key, a GitHub token, an AWS access
    key id, a PEM private-key block, or a password written into a command (after
@@ -59,10 +60,12 @@ ALLOWED: dict[str, tuple[str, str]] = {}
 
 SSH_KEY_NAMES = ("id_rsa*", "id_ed25519*", "id_ecdsa*", "id_dsa*", "*.ppk")
 # A database, or the journal SQLite keeps beside it while it writes (DATABASE.md: the
-# DELETE journal, so Project/rrr_database.db-journal exists during a write in a clone)
-DATABASE_NAME = re.compile(r"\.(?:db|sqlite3?)(?:-journal|-wal|-shm)?$")
+# DELETE journal, so Project/rrr_database.db-journal exists during a write in a clone).
+# Any *.sqlite* name counts, copies such as rrr.sqlite.bak included.
+DB_NAME = re.compile(r"\.db(?:-journal|-wal|-shm)?$")
+SQLITE_NAME = "*.sqlite*"
 # Templates that hold no values
-ENV_TEMPLATES = (".env.example", ".env.sample")
+ENV_TEMPLATES = (".env.example", ".env.sample", ".env.template", ".env.dist", ".env.defaults")
 
 
 def banned_path_kind(relative):
@@ -76,7 +79,7 @@ def banned_path_kind(relative):
         return "Claude Code settings file"
     if name == "secrets.json":
         return "secrets file"
-    if DATABASE_NAME.search(name):
+    if DB_NAME.search(name) or fnmatch.fnmatchcase(name, SQLITE_NAME):
         return "SQLite database"
     if relative == "Project/settings/settings.json":
         return "device settings file"
@@ -567,6 +570,9 @@ def test_an_allowed_entry_lets_its_kind_through_in_its_file_only(tmp_path, monke
         ("Project/rrr_database.db", "SQLite database"),
         ("backups/rrr.sqlite3", "SQLite database"),
         ("data.sqlite", "SQLite database"),
+        ("backups/rrr.sqlite.bak", "SQLite database"),
+        ("rrr.sqlitedb", "SQLite database"),
+        ("data.sqlite3-wal", "SQLite database"),
         ("Project/rrr_database.db-journal", "SQLite database"),
         ("Project/rrr_database.db-wal", "SQLite database"),
         ("Project/rrr_database.db-shm", "SQLite database"),
@@ -587,6 +593,9 @@ def test_an_allowed_entry_lets_its_kind_through_in_its_file_only(tmp_path, monke
         ("settings.json", None),
         (".env.example", None),
         (".env.sample", None),
+        (".env.template", None),
+        (".env.dist", None),
+        (".env.defaults", None),
         ("Project/models/database_handler.py", None),
         ("Project/docs/DATABASE.md", None),
         ("docs/keyboard.md", None),
