@@ -50,120 +50,51 @@ The RRR follows the Model-View-Controller (MVC) architecture pattern:
 The project is structured as follows:
 
 ```
-rodent-refreshment-regulator/
-├── README.md                # User documentation
-├── DEVELOPMENT.md           # Developer documentation
-├── installer/               # Installation scripts and utilities
-│   ├── main.py              # Installer entry point
-│   ├── ui/                  # Installer UI components
-│   ├── utils/               # Installer utility functions  
-│   └── requirements.txt     # Python dependencies for installer
-├── Project/                 # Main application code
-│   ├── main.py              # Application entry point (boots Qt, lazy hardware init)
-│   ├── settings.json        # Configuration file
-│   ├── rrr_database.db      # SQLite database
-│   ├── models/              # Data models
-│   │   ├── animal.py
-│   │   ├── Schedule.py
-│   │   ├── cage.py          # Cage entity (custom names, relay mapping)
-│   │   ├── database_handler.py
-│   │   ├── schedule_runs_repo.py   # Run history, behind DatabaseHandler
-│   │   ├── login_system.py
-│   │   ├── relay_unit.py
-│   │   └── relay_unit_manager.py
-│   ├── ui/                  # PyQt5 widgets and tabs
-│   │   ├── gui.py                       # RodentRefreshmentGUI main window
-│   │   ├── splash_screen.py             # Splash on startup
-│   │   ├── login_gate_widget.py         # Gates content behind login
-│   │   ├── projects_section.py          # Container for Schedules/Animals/Wizard/Cages
-│   │   ├── schedules_hub.py             # Schedule cards grid (replaces drag-drop tab)
-│   │   ├── schedule_wizard.py           # 4-step schedule creation wizard
-│   │   ├── wizard_tab.py                # Wizard tab host
-│   │   ├── animals_tab.py
-│   │   ├── cages_visualization_tab.py   # Visual relay-board layout + inline cage naming
-│   │   ├── SettingsTab.py               # Delivery / Calibration / Priming / General
-│   │   ├── CalibrationWizard.py         # Per-cage calibration flow
-│   │   ├── PrimingControlWidget.py
-│   │   ├── ScheduleProgressTracker.py   # Execution Monitor (live cards)
-│   │   ├── run_stop_section.py
-│   │   ├── UserTab.py
-│   │   ├── HelpTab.py
-│   │   ├── components/, widgets/, style/, src/
-│   │   └── [additional UI components]
-│   ├── controllers/         # Business logic
-│   │   ├── system_controller.py
-│   │   ├── pump_controller.py
-│   │   └── projects_controller.py
-│   ├── gpio/                # Hardware control
-│   │   ├── gpio_handler.py
-│   │   └── relay_worker.py              # Worker thread; lazy hardware init
-│   ├── strategies/          # Delivery strategies
-│   │   ├── solenoid_flow_strategy.py    # Solenoid + flow sensor
-│   │   └── (peristaltic legacy)
-│   ├── drivers/             # Hardware drivers
-│   │   └── uart_flow_sensor.py          # Teensy 4.1 UART bridge
-│   ├── teensy_flow_reader/  # Teensy sketch + helper
-│   ├── ir_module/           # Optional IR drinking-detection extension
-│   ├── utils/, notifications/, settings/, migrations/
-│   ├── tests/
-│   └── docs/                # Project-level developer docs
-├── docs/                    # Repo-level docs (SOP, FAQ)
-└── STL Files/               # 3D printing files
+rodRefReg/
+├── README.md, QUICK_REFERENCE.md      # operator documentation
+├── CHANGELOG.md, CONTRIBUTING.md, CLAUDE.md
+├── install.sh, bootstrap.sh           # device installer entry points
+├── requirements.txt, requirements-dev.txt, pytest.ini, ruff.toml
+├── scripts/install/ runtime/ release/ systemd/
+├── docs/brand/
+└── Project/                           # the app (a release bundle ships Project/,
+    │                                  #   scripts/ and requirements.txt)
+    ├── main.py, version.py
+    ├── models/ controllers/ gpio/ strategies/ drivers/ notifications/ utils/
+    ├── ui/ (SettingsTab.py: Delivery / Calibration / Priming / General / Updates;
+    │        style/: tokens.py, app.qss.tmpl, build_qss.py → app-light.qss, app-dark.qss)
+    ├── tools/                         # bench CLIs (gravimetric_check.py, …), and:
+    │   ├── solenoid_api_test.py       #   a SolenoidController smoke test; opens relay 1 unless --dry-run
+    │   └── solenoid_bringup.py        #   relay bring-up; never with water connected
+    ├── teensy_flow_reader/
+    ├── tests/ (unit/ is the pytest suite; the scripts beside it are hardware CLIs)
+    └── docs/ (this guide, MAINTENANCE.md, UPDATE_SYSTEM.md, …, STL Files/)
 ```
+
+Settings and data are in the SQLite database (`~/rrr/shared/data` on a device,
+`Project/` in a clone); Slack credentials are in `secrets.json` beside it.
 
 ## Data Flow
 
-The application's data flows through several key paths:
+The application's data flows through four paths:
 
-### 1. Configuration Flow
-
-```
-User Input → Controller → Model → Config File → Controller → Hardware
-```
-
-1. User inputs settings via the GUI
-2. Controller processes and validates inputs
-3. Model stores configuration
-4. Configuration is saved to disk
-5. Controller applies settings to hardware
-
-### 2. Scheduling Flow
-
-```
-Schedule Model → Schedule Controller → Hardware Controller → Relay HAT → Pumps
-```
-
-1. Schedule model stores delivery timing and volume data
-2. Schedule controller determines when to trigger deliveries
-3. Hardware controller receives trigger commands
-4. Commands are sent to relay HATs
-5. Relays activate pumps to deliver water
-
-### 3. Notification Flow
-
-```
-Hardware Event → Controller → Notification System → External Service
-```
-
-1. Hardware events (triggers, errors) are detected
-2. Controller processes events
-3. Notification system formats messages
-4. Messages are sent to email/Slack services
-
-### 4. Logging Flow
-
-```
-System Events → Logger → Terminal Display + Log Files
-```
-
-1. Events throughout the system are captured
-2. Logger processes and formats messages
-3. Messages are displayed in the terminal UI
-4. Messages are also written to log files
+1. **Configuration:** Settings tab → `SystemController.save_settings` → the SQLite
+   `system_settings` table (Slack credentials: `secrets.json`, mode 0600). RRR reads them
+   at start.
+2. **Scheduling:** RunStopSection → `main.run_program` → `RelayWorker` (its own
+   `QThread`) → `SolenoidFlowStrategy` (`PumpStrategy` only in the legacy pump mode,
+   which every start resets to solenoid) → `SolenoidController` → `RelayHandler` → relay
+   HAT over I²C → solenoid valves.
+3. **Notifications:** Slack only (`slack_sdk`).
+4. **Logging:** what RRR prints before its main window is up goes to the terminal it was
+   started from (the journal under `rrr.service`), then to the Terminal tab. Only
+   start-up, close and crash records and the interrupted-runs line go to the debug log,
+   `~/rrr/shared/logs/rrr_app_debug.log` (`~/rrr_app_debug.log` from a clone). [CONTRIBUTING.md §6](../../CONTRIBUTING.md#6-hardware-adjacent-changes)
+   says where each kind of line goes and how to read the journal.
 
 ## Hardware Interaction
 
-The hardware control system interfaces with Sequent Microsystems Relay HATs using the GPIO pins on the Raspberry Pi.
+The hardware control system interfaces with Sequent Microsystems 16-relay HATs over I²C (one stack level per HAT).
 
 ### Key Classes:
 
@@ -186,7 +117,12 @@ The system uses Sequent Microsystems' library to communicate with the HATs. The 
 - Stagger timing between triggers to prevent power surges
 - Validation of HAT addresses before operations
 - Error handling for failed triggers
-- Maximum daily water limits
+- Per-delivery limits, not daily ones: a pulse delivery that needs more than
+  `max_pulses_per_delivery` (100) pulses, or would take longer than
+  `max_pulse_delivery_time_s` (120 s), is refused before any cage valve opens, and both
+  are forced back to those values at every start; the schedule wizard takes
+  0.10–50.00 mL per animal (`utils/schedule_volume.py`). Nothing caps what an animal
+  gets in a day: several schedules, or a run started over, add up.
 - Stop is the only way to end a running schedule: CLOSE ALL RELAYS, Close Selected and Log Out are greyed out and refused while one runs, and a Stop that cannot confirm every relay off, or whose delivery worker did not stop, hands the hardware lock to `EMERGENCY` until a CLOSE ALL RELAYS that confirms every relay off with the delivery worker stopped, or a restart
 
 ## User Interface
@@ -201,12 +137,22 @@ The UI is built with PyQt5 and uses a tab-based organization with a login gate.
 - `schedules_hub.py` — Schedules tab; grid of schedule cards with search, multi-select, edit, drag-to-run
 - `schedule_wizard.py` + `wizard_tab.py` — 4-step schedule creation wizard (Type → Animals → Parameters → Review)
 - `cages_visualization_tab.py` — visual relay-board layout, inline cage naming
-- `SettingsTab.py` — sub-tabs: **Delivery**, **Calibration**, **Priming**, **General**
+- `SettingsTab.py` — sub-tabs: **Delivery**, **Calibration**, **Priming**, **General**, **Updates** (`UpdatesTab.py`)
 - `CalibrationWizard.py` — per-cage calibration flow, launched from Settings → Calibration
 - `PrimingControlWidget.py` — prime tubing / valves
 - `ScheduleProgressTracker.py` — Execution Monitor with live per-cage cards (appears as a second tab next to the Terminal during a run)
 - `run_stop_section.py` — Run/Stop controls (gated by `login_system`)
 - `HelpTab.py`, `UserTab.py`
+
+### Themes:
+
+RRR starts in the saved theme, dark by default (v2.1.0, released as 2.1.1). It draws
+itself in Qt's Fusion style without the desktop's Qt theme: `main.py` calls
+`detach_from_desktop_theme` before it makes the application, and `StyleManager` pins
+Fusion as a second guard (`ui/style/theme.py`). Every colour is a role in
+`ui/style/tokens.py`; `app-light.qss` and `app-dark.qss` are generated from
+`app.qss.tmpl` by `ui/style/build_qss.py` and never edited by hand. See
+[CONTRIBUTING.md §7](../../CONTRIBUTING.md#7-colours-and-themes).
 
 ### Cross-tab Synchronization:
 
@@ -216,10 +162,13 @@ Wizard via `database_handler.get_cages_for_dropdown()`.
 
 ### Lazy Hardware Initialization:
 
-Hardware (`RelayHandler`, flow sensor) is instantiated on a `QThread` worker inside
-`gpio/relay_worker.py` to keep the UI responsive. The Run/Stop section connects
-to worker signals; signal connections are reset between consecutive schedule runs
-(see `run_stop_section.py` and commit `4c99f5a`).
+`main.setup()` builds the `RelayHandler` at start-up, on the GUI thread, and passes it
+to each `RelayWorker`. The worker builds the rest of the hardware on its own `QThread`
+when a schedule starts (`RelayWorker._initialize_hardware`: the flow sensor through
+`create_flow_sensor`, then the solenoid controller), which keeps the serial port and the
+sensor's start-up wait off the GUI thread. `main.run_program` runs on the GUI thread and
+connects the signals of the new `RelayWorker` it builds for each run (commit `4c99f5a` moved
+it back there from a setup thread).
 
 ### UI Data Binding:
 
@@ -238,7 +187,9 @@ The authentication system allows different access levels based on user roles.
 ### Key Features:
 
 - User registration and login
-- Role-based permissions (Administrator, Technician, Observer)
+- Two roles, normal and super: any logged-in user can switch with Settings > General >
+  User Mode (*Switch to Super Mode*; no password is asked), and super sees every trainer's
+  animals instead of only their own
 - Password security with salted hashing
 - Session management
 - Guest mode with limited functionality
@@ -341,54 +292,48 @@ class StreamRedirector(QObject):
 
 ### Prerequisites:
 
-- Python 3.6+
-- PyQt5
-- Raspberry Pi (for hardware testing)
-- Sequent Microsystems Relay HATs (for hardware testing)
+- Python 3.11, as on Raspberry Pi OS Bookworm (CI also runs the suite on Ubuntu 24.04's
+  Python 3.12; `ruff.toml` keeps 3.9 syntax as the floor)
+- PyQt5 and pandas: apt on a Pi, pip on a Mac
+  ([CONTRIBUTING.md §1](../../CONTRIBUTING.md#1-local-development-environment))
+- For hardware testing: a Raspberry Pi with a Sequent Microsystems 16-relay HAT
 
 ### Setup Steps:
 
-1. **Clone the repository**:
-   ```sh
-   git clone https://github.com/yourusername/rodent-refreshment-regulator.git
-   cd rodent-refreshment-regulator
-   ```
+1. `git clone https://github.com/Corticomics/rodRefReg.git && cd rodRefReg`
+2. On a Mac, in a venv (`python3 -m venv .venv && source .venv/bin/activate`):
+   `python3 -m pip install PyQt5 pandas -r requirements.txt -r requirements-dev.txt`
+3. On a Pi, install RRR with `./install.sh` (or the README's `bootstrap.sh` one-liner):
+   it builds the release under `~/rrr` that a device runs.
+4. Run from the clone: `cd Project && python3 main.py` (on a Mac, in the venv of step 2;
+   on a Pi, quit RRR first and use `~/rrr/shared/venv/bin/python3 main.py`, which has
+   `slack_sdk` and the relay driver). Without the launcher, `RRR_DATA` and `RRR_HOME` are
+   unset, so the database is `Project/rrr_database.db` (a device uses
+   `~/rrr/shared/data`) and in-app updates are unavailable. On a Pi, the next
+   `./install.sh` copies such a database into `~/rrr/shared/data` when that folder has
+   none.
 
-2. **Create a virtual environment**:
-   ```sh
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+### Hardware diagnostic scripts:
 
-3. **Install dependencies**:
-   ```sh
-   pip install -r installer/requirements.txt
-   ```
-
-4. **Run the installer** (if setting up for the first time):
-   ```sh
-   cd installer
-   python main.py
-   ```
-
-5. **Run the application** (after installation):
-   ```sh
-   cd Project
-   python main.py
-   ```
-
-### Running in Development Mode:
-
-You can run the application with various test files for debugging hardware:
-
-```sh
-python test_relay_connection.py  # Test basic relay connectivity
-python test_relay_diagnostic.py  # Run diagnostics
-```
+The scripts directly under `Project/tests/` are hardware CLIs that pytest does not
+collect. On a Pi, run them with the venv's Python, which has the relay driver, and with
+RRR closed: `~/rrr/shared/venv/bin/python3 ~/rodRefReg/Project/tests/test_relay_connection.py`
+(and `test_relay_diagnostic.py`). Both switch relays on: run them only with no water
+connected or the valve supply off.
 
 ### Mock Hardware:
 
-Without the relay library (a laptop, or CI) the app still starts. When neither `SM16relind` nor `sm_16relind` can be imported, `gpio/gpio_handler.py` prints `WARNING: SM16relind module not found`, `RelayHandler` initialises no relay hats (`Failed to initialize any relay hats`), and every relay write is a silent no-op that still reports success. Nothing is driven and no per-write line is printed. For tests, use `FakeRelayHandler` from `Project/tests/unit/conftest.py`: it records every write in order, so a test can assert the exact relay sequence.
+Without the relay library (a laptop, or CI) the app still starts, but no relay HAT
+initialises. When neither `SM16relind` nor `sm_16relind` can be imported,
+`gpio/gpio_handler.py` prints `WARNING: SM16relind module not found. Hardware control will
+not work.`, then `Failed to initialize hat stack=0: SM16relind class not found in module`
+and `Failed to initialize any relay hats. …`. Since v1.21.0, every relay write then fails
+and says so (`Relay N not switched: no initialised relay HAT for it (0 of 1 initialised)`;
+an all-off prints `Relay HAT(s) missing: 0 of 1 initialised; …`): a delivery stops at its
+first valve command (`[VALVE ERROR]`), a calibration at its first valve command, before
+any pulse is counted, and CLOSE ALL RELAYS shows Emergency Stop Failed. For tests, use `FakeRelayHandler` from
+`Project/tests/unit/conftest.py`: it records every write in order, so a test can assert
+the exact relay sequence.
 
 ## Testing Guidelines
 
@@ -396,23 +341,25 @@ For testing the RRR, focus on the following areas:
 
 - **Unit Tests**: Test individual components such as schedule validation
 - **Integration Tests**: Test component interactions like controller-model communication
-- **UI Tests**: Test UI functionality using pytest-qt
-- **Hardware Tests**: Use the provided test scripts for hardware interaction
+- **UI Tests**: plain pytest, with Qt offscreen (`QT_QPA_PLATFORM=offscreen`, which the
+  Qt test files set; CI's Bookworm job also exports it); no pytest-qt. Prefer Qt-free tests
+  ([CONTRIBUTING.md §2](../../CONTRIBUTING.md#2-running-the-tests)).
+- **Hardware Tests**: the diagnostic scripts above, on a dry rig. Two bench tools in
+  `Project/tools/`, `solenoid_api_test.py` and `solenoid_bringup.py`, print their usage
+  with `--help`. Without `--dry-run` both open real valves (`solenoid_api_test.py` opens
+  relay 1, cage 1's valve on the default map, three times and asks for no confirmation):
+  run them only on a dry rig, and on a Pi with `~/rrr/shared/venv/bin/python3`. With
+  `--dry-run` they open and close no valve, but they still build a `RelayHandler`, which
+  switches every relay off on a Pi: run them with RRR closed.
 
 ### Writing Tests:
 
 ```python
-# Example test approach for schedule validation
-def test_schedule_validation():
-    # Setup
-    schedule = Schedule(name="Test Schedule", interval=60, triggers=2, window_start=8, window_end=20)
-    
-    # Test valid input
-    assert schedule.is_valid() == True
-    
-    # Test invalid input
-    schedule.interval = -10
-    assert schedule.is_valid() == False
+# A Qt-free rule, tested on its own (Project/tests/unit/test_schedule_volume.py)
+from utils.schedule_volume import schedule_amount
+
+def test_the_amount_to_schedule_rounds_half_up():
+    assert str(schedule_amount(0.365)) == "0.37"
 ```
 
 ## Contribution Guidelines
@@ -424,13 +371,13 @@ def test_schedule_validation():
 
 ### Submitting Changes:
 
-1. Fork the repository
-2. Create a new branch for your feature (`git checkout -b feature/my-feature`)
-3. Make your changes
-4. Test your changes with the test scripts provided
-5. Commit your changes (`git commit -am 'Add new feature'`)
-6. Push to the branch (`git push origin feature/my-feature`)
-7. Create a new Pull Request
+Follow [CONTRIBUTING.md §3](../../CONTRIBUTING.md#3-branch-commit-pr-workflow)
+([MAINTENANCE.md §7](MAINTENANCE.md#7-branch--commit-conventions) has the full
+conventions): branch off `main` as `<type>/<short-kebab-slug>`, keep one concern per PR,
+add a test with any
+non-trivial change, run `pytest`, `ruff check .` and `ruff format --check .` from the repo
+root, stage only this change's files, commit in Conventional Commits form, push the
+branch and open a PR.
 
 ### Code Style:
 
@@ -441,17 +388,8 @@ def test_schedule_validation():
 
 ### Commit Messages:
 
-Follow the conventional commits format:
-
-```
-type(scope): description
-
-[optional body]
-
-[optional footer]
-```
-
-Types: feat, fix, docs, style, refactor, test, chore
+`<type>(<scope>): <one-line summary>`, the body saying why. Types: feat, fix, refactor,
+test, docs, chore, style, perf, ci.
 
 ### Hardware Safety Guidelines:
 
